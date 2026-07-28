@@ -20,6 +20,8 @@
   "dependencies": {
     "@ant-design/icons": "latest",
     "@ant-design/nextjs-registry": "latest",
+    "@emnapi/core": "1.11.3",
+    "@emnapi/runtime": "1.11.3",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
     "antd": "latest",
