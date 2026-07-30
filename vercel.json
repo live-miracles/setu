@@ -3,10 +3,6 @@
         {
             "path": "/api/v1/cron/overdue-requests",
             "schedule": "30 2 * * *"
-        },
-        {
-            "path": "/api/v1/cron/retry-notifications",
-            "schedule": "*/15 * * * *"
         }
     ]
 }

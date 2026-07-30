@@ -1,0 +1,20 @@
+name: Retry notifications
+
+on:
+    schedule:
+        - cron: '*/15 * * * *'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    retry:
+        runs-on: ubuntu-latest
+        timeout-minutes: 2
+        steps:
+            - name: Call retry-notifications endpoint
+              run: |
+                  curl --fail --silent --show-error --max-time 30 \
+                    -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+                    "${{ secrets.APP_URL }}/api/v1/cron/retry-notifications"

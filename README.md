@@ -51,7 +51,9 @@ npm run build
 
 ## Supabase setup
 
-1. Create a Supabase Pro project.
+1. Create a Supabase project. The Free plan is enough for evaluation and
+   small-team use (see the free-tier notes below); move to Pro once the
+   project must never auto-pause or you need included backups.
 2. Run `supabase/migrations/0001_initial.sql` in the SQL editor or with the
    Supabase CLI.
 3. In Authentication, enable Google and add
@@ -67,12 +69,38 @@ The browser uses Supabase only for its signed-in session. All business writes
 go through `/api/v1`; service-role credentials must never be exposed as a
 `NEXT_PUBLIC_` variable.
 
+**Free-tier caveat:** a Free-plan project pauses itself after 7 days with no
+API traffic (any sign-in or API call resets that clock). A paused project
+must be manually resumed from the Supabase dashboard before the app works
+again. Free-plan projects also skip the automatic daily backups and
+point-in-time recovery that Pro includes — see "Operational notes" below.
+
 ## Vercel deployment
 
-Import this repository into a Vercel Pro project and configure the same
-environment variables for Preview and Production. `vercel.json` installs the
-overdue-request job daily at 02:30 UTC and retries notifications every
-15 minutes. Vercel sends `CRON_SECRET` as a Bearer token.
+Import this repository into a Vercel project — the Hobby (free) plan is
+enough. Configure the same environment variables for Preview and Production.
+Vercel Hobby caps Cron Jobs at once per day, so `vercel.json` only installs
+the overdue-request scan, daily at 02:30 UTC; Vercel sends `CRON_SECRET` as a
+Bearer token for that request.
+
+The notification-retry job needs a much tighter interval (every 15 minutes),
+so it runs from `.github/workflows/retry-notifications.yml` on GitHub's own
+scheduler instead of Vercel Cron. In the deployed repository's
+**Settings → Secrets and variables → Actions**, add:
+
+- `APP_URL` — the deployed app's base URL (e.g. `https://your-app.vercel.app`)
+- `CRON_SECRET` — the same value set in Vercel's environment variables
+
+GitHub Actions minutes are unlimited for public repositories, so this costs
+nothing as long as the fork stays public. GitHub disables scheduled workflows
+after 60 days without a commit to the repository; if retries silently stop,
+re-enable the workflow from the Actions tab (or push any commit) to restart
+it.
+
+If this deployment is more than a personal or evaluation project, note that
+Vercel's Hobby plan terms are for personal, non-commercial use — check
+Vercel's current terms before relying on it for an organization's internal
+tooling, and move to a Pro/Team plan if that applies to you.
 
 Recommended release flow:
 
@@ -101,7 +129,8 @@ Next.js route handlers on Vercel
         +--> Resend email
         +--> VAPID Web Push
 
-Vercel Cron --> overdue scan / delivery retry
+Vercel Cron    --> overdue scan (daily)
+GitHub Actions --> notification delivery retry (every 15 minutes)
 ```
 
 Inventory and ticket commands require an `Idempotency-Key` header. The database
@@ -127,4 +156,5 @@ signed URLs.
 - Admins cannot demote or disable their own administrator account.
 - There is no AppSheet data import in this release.
 - Production backup and point-in-time recovery are provided by the selected
-  Supabase plan and must be verified with a restore rehearsal before launch.
+  Supabase plan (not included on Free) and must be verified with a restore
+  rehearsal before launch.
