@@ -56,14 +56,28 @@ npm run build
    project must never auto-pause or you need included backups.
 2. Run `supabase/migrations/0001_initial.sql` in the SQL editor or with the
    Supabase CLI.
-3. In Authentication, enable Google and add
-   `https://<your-domain>/auth/callback` as an allowed redirect URL.
-4. Create VAPID keys and a verified Resend sender.
-5. Set `NEXT_PUBLIC_DEMO_MODE=false` and fill every production variable from
+3. Create a Google OAuth client for sign-in:
+    - In [Google Cloud Console](https://console.cloud.google.com/), create or
+      select a project, then open **APIs & Services → OAuth consent screen**
+      and configure it (External user type, app name, support email). Publish
+      the consent screen — leaving it in "Testing" restricts sign-in to a
+      manually added list of test users.
+    - Open **APIs & Services → Credentials → Create Credentials → OAuth
+      client ID**, choose **Web application**, and add Supabase's callback
+      URL as an authorized redirect URI. That URL is shown in the Supabase
+      dashboard under Authentication → Providers → Google, and follows the
+      pattern `https://<project-ref>.supabase.co/auth/v1/callback`.
+    - Copy the generated Client ID and Client Secret.
+4. In Supabase, open **Authentication → Providers → Google**, enable it and
+   paste the Client ID and Client Secret from the previous step. Then under
+   **Authentication → URL Configuration**, add
+   `https://<your-domain>/auth/callback` to the allowed Redirect URLs.
+5. Create VAPID keys and a verified Resend sender.
+6. Set `NEXT_PUBLIC_DEMO_MODE=false` and fill every production variable from
    `.env.example`.
-6. Set `BOOTSTRAP_ADMIN_EMAIL` to the first administrator's lowercase Google
+7. Set `BOOTSTRAP_ADMIN_EMAIL` to the first administrator's lowercase Google
    account email. The first successful login creates that administrator.
-7. Invite all other users from Admin before they sign in.
+8. Invite all other users from Admin before they sign in.
 
 The browser uses Supabase only for its signed-in session. All business writes
 go through `/api/v1`; service-role credentials must never be exposed as a
