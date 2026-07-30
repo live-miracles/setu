@@ -1,32 +1,32 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  reactStrictMode: true,
-  poweredByHeader: false,
-  allowedDevOrigins: ["127.0.0.1"],
-  experimental: {
-    optimizePackageImports: ["antd", "@ant-design/icons"],
-  },
-  headers: async () => [
-    {
-      source: "/(.*)",
-      headers: [
-        { key: "X-Content-Type-Options", value: "nosniff" },
-        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    reactStrictMode: true,
+    poweredByHeader: false,
+    allowedDevOrigins: ['127.0.0.1'],
+    experimental: {
+        optimizePackageImports: ['antd', '@ant-design/icons'],
+    },
+    headers: async () => [
         {
-          key: "Permissions-Policy",
-          value: "camera=(self), microphone=(), geolocation=()",
+            source: '/(.*)',
+            headers: [
+                { key: 'X-Content-Type-Options', value: 'nosniff' },
+                { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+                {
+                    key: 'Permissions-Policy',
+                    value: 'camera=(self), microphone=(), geolocation=()',
+                },
+            ],
         },
-      ],
-    },
-    {
-      source: "/sw.js",
-      headers: [
-        { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
-        { key: "Service-Worker-Allowed", value: "/" },
-      ],
-    },
-  ],
+        {
+            source: '/sw.js',
+            headers: [
+                { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+                { key: 'Service-Worker-Allowed', value: '/' },
+            ],
+        },
+    ],
 };
 
 export default nextConfig;
