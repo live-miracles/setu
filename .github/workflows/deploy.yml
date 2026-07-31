@@ -1,0 +1,59 @@
+name: Build and deploy
+
+on:
+    push:
+        tags:
+            - 'v*'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: deploy-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Configure clasp
+              env:
+                  CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+                  APPS_SCRIPT_ID: ${{ secrets.APPS_SCRIPT_ID }}
+              run: |
+                  printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+                  chmod 600 ~/.clasprc.json
+                  printf '{"scriptId":"%s","rootDir":"src"}\n' "$APPS_SCRIPT_ID" > .clasp.json
+
+            - name: Type check
+              run: npm run typecheck
+
+            - name: Build
+              run: npm run build
+
+            - name: Deploy Apps Script
+              env:
+                  APPS_SCRIPT_DEPLOYMENT_ID: ${{ secrets.APPS_SCRIPT_DEPLOYMENT_ID }}
+              run: |
+                  # --force skips clasp's interactive "overwrite remote manifest?"
+                  # prompt, which would otherwise hang a non-interactive CI run.
+                  npx clasp push --force
+                  VERSION_OUTPUT=$(npx clasp --json version "${{ github.ref_name }}")
+                  echo "$VERSION_OUTPUT"
+                  VERSION_NUMBER=$(VERSION_OUTPUT="$VERSION_OUTPUT" node -e "const data = JSON.parse(process.env.VERSION_OUTPUT || '{}'); process.stdout.write(String(data.versionNumber || ''));")
+                  test -n "$VERSION_NUMBER"
+                  npx clasp deploy --deploymentId "$APPS_SCRIPT_DEPLOYMENT_ID" --versionNumber "$VERSION_NUMBER" --description "${{ github.ref_name }}"

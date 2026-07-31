@@ -12,12 +12,12 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "push": "npm run typecheck && npm run build && clasp push",
-        "deploy": "npm run typecheck && npm run build && clasp push && clasp deploy --deploymentId \"$CLASP_DEPLOYMENT_ID\" --description \"$(date +%Y-%m-%dT%H:%M:%S)\"",
+        "deploy": "npm run typecheck && npm run build && clasp push && clasp deploy --deploymentId \"$APPS_SCRIPT_DEPLOYMENT_ID\" --description \"$(date +%Y-%m-%dT%H:%M:%S)\"",
         "logs": "clasp logs --watch",
-        "open": "clasp open"
+        "open": "clasp open-script"
     },
     "devDependencies": {
-        "@google/clasp": "^2.4.2",
+        "@google/clasp": "^3.3.0",
         "@types/google-apps-script": "^1.0.83",
         "typescript": "^5.5.4",
         "@tailwindcss/cli": "^4.0.0",

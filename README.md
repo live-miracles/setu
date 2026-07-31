@@ -36,32 +36,39 @@ npm run build       # compiles + concatenates everything into src/{Index,Stylesh
 
 ## One-time Google-side setup
 
+All pushing/deploying happens in CI (see below) — nothing here needs `clasp` installed locally or a local `.clasp.json`. You're just collecting IDs and setting them as GitHub secrets.
+
 1. **Create the Google Sheet.** Any new spreadsheet works — the app creates its own tabs. Copy its ID from the URL (`https://docs.google.com/spreadsheets/d/<ID>/edit`).
-2. **Create the Apps Script project.**
+2. **Create the Apps Script project** at [script.google.com](https://script.google.com) → New project. Rename it, then copy its Script ID from Project Settings (gear icon) → **IDs** → Script ID.
+3. **Deploy as a web app** right away, before any real code is pushed — the placeholder boilerplate is fine, CI will overwrite it. In the Apps Script editor: Deploy → New deployment → Web app → Execute as **Me**, Who has access **Anyone with a Google account**. Copy the deployment ID it gives you.
+4. **Get a clasp auth token**, on any machine with a browser (doesn't need to be tied to this project or repo):
     ```bash
-    npx clasp login          # one-time interactive OAuth, opens a browser
-    npx clasp create --type webapp --title "Livestream Operations" --rootDir src
+    npx clasp login   # one-time interactive OAuth, writes ~/.clasprc.json
+    cat ~/.clasprc.json
     ```
-    Or, if you'd rather create the project by hand at [script.google.com](https://script.google.com), use `npx clasp clone <scriptId> --rootDir src` instead. Either way you end up with a `.clasp.json` pointing `rootDir` at `src` — this file is git-ignored since it's environment-specific.
-3. **Set Script Properties** (Apps Script editor → Project Settings → Script Properties):
+5. **Add repo secrets** (Settings → Secrets and variables → Actions) — same names as `multi-lang-qa` uses for its Apps Script deploys:
+    - `APPS_SCRIPT_ID` — the Script ID from step 2.
+    - `APPS_SCRIPT_DEPLOYMENT_ID` — the deployment ID from step 3.
+    - `CLASPRC_JSON` — the raw file contents printed by `cat ~/.clasprc.json` in step 4 (paste as-is, no encoding needed — GitHub secrets hold multi-line text fine). This is a long-lived OAuth refresh token for whichever Google account ran `clasp login` — treat it like a password; rotate by re-running `clasp login` and re-pasting.
+6. **Set Script Properties** (Apps Script editor → Project Settings → Script Properties):
     - `SPREADSHEET_ID` — the Sheet ID from step 1.
     - `BOOTSTRAP_ADMIN_EMAIL` — the lowercase Google account email of the first administrator. The first person to open the app with that email becomes the first active admin; everyone else needs to be invited from the Admin section first.
-4. **Push and run the one-time setup functions:**
-    ```bash
-    npm run push
-    ```
-    Then in the Apps Script editor, select and run (once each, in this order):
+7. **Push the first version tag** (e.g. `git tag v0.1.0 && git push origin v0.1.0`), or run the workflow manually from the Actions tab, to build and push the real code to the deployment from step 3.
+8. **Run the one-time setup functions.** In the Apps Script editor, select and run (once each, in this order):
     - `setupSheets` — idempotently creates all 19 tabs with their headers.
     - `ensureAttachmentsFolder` — creates the private "Setu Attachments" Drive folder and stores its ID as a Script Property.
     - `installTriggers` — installs the daily overdue-request-scan trigger.
-5. **Deploy as a web app.** In the Apps Script editor: Deploy → New deployment → Web app → Execute as **Me**, Who has access **Anyone with a Google account**. Copy the deployment ID it gives you.
-6. **Wire up `npm run deploy`.** Set `CLASP_DEPLOYMENT_ID` to that deployment ID (as a shell env var locally, or a repo secret if you script deploys from CI) — every subsequent `npm run deploy` reuses it so the live URL never changes:
-    ```bash
-    export CLASP_DEPLOYMENT_ID=<your-deployment-id>
-    npm run deploy
-    ```
+9. **Find the live URL.** Apps Script editor → Deploy → Manage deployments, next to the deployment ID from step 3.
 
 **First-time visitors will see Google's "unverified app" warning** the first time they authorize (this project won't go through Google's app verification process). For a small internal team this is an expected click-through, not a sign of something broken.
+
+## Continuous deployment (GitHub Actions)
+
+`.github/workflows/deploy.yml` runs `npm run typecheck` + `npm run build` + `clasp push` + `clasp version` + `clasp deploy` automatically whenever you push a tag matching `v*` (e.g. `git tag v1.2.0 && git push origin v1.2.0`), the same way `multi-lang-qa` deploys its Apps Script backend on tags. It can also be run manually from the Actions tab (`workflow_dispatch`).
+
+Each run: pushes the built code, creates an immutable Apps Script version named after the tag (`clasp --json version "$TAG"`), then points the existing deployment at that exact version (`clasp deploy --deploymentId ... --versionNumber ...`) — so the live URL never changes, only which version it serves.
+
+The workflow reconstructs `.clasp.json` and `~/.clasprc.json` on the runner from the `APPS_SCRIPT_ID` and `CLASPRC_JSON` secrets before every run — neither file needs to (or should) exist in the repo or on your machine.
 
 ## Inviting people
 
