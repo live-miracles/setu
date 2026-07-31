@@ -7,7 +7,7 @@ function dailyOverdueScan(): { scanned: number } {
         (r) => r.Status === 'issued' && r.ToDate < todayIso,
     );
     overdue.forEach((r) => {
-        enqueueNotification(
+        sendNotificationEmail(
             r.RequesterId,
             'inventory:' + r.Id + ':overdue:' + todayIso,
             'REQ-' + r.DisplayId + ' is overdue',

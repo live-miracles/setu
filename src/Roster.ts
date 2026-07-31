@@ -2,79 +2,74 @@ const ROSTER_PAGE_SIZE = 20;
 
 function buildRosterShiftDTO(
     shift: RosterShift,
-    assignmentsByShift: Record<string, RosterAssignment[]>,
     profilesById: Record<string, Profile>,
 ): RosterShiftDTO {
-    const assignees = (assignmentsByShift[shift.Id] || [])
-        .map((a) => profilesById[a.ProfileId])
-        .filter((p): p is Profile => !!p)
-        .map((p) => ({ Id: p.Id, Name: p.Name, Email: p.Email }));
-    return Object.assign({}, shift, { assignees });
+    const assignee = profilesById[shift.AssigneeProfileId];
+    return Object.assign({}, shift, { assigneeName: assignee ? assignee.Name : '' });
 }
 
 function listRosterShifts(page: number): Paginated<RosterShiftDTO> {
     requireUser();
-    const assignmentsByShift = groupBy(Tables.RosterAssignments.readAll(), (a) => a.ShiftId);
     const profilesById = indexById(Tables.Profiles.readAll());
     const sorted = Tables.RosterShifts.readAll().sort((a, b) =>
-        b.StartsAt.localeCompare(a.StartsAt),
+        (b.StartDate + b.StartTime).localeCompare(a.StartDate + a.StartTime),
     );
-    const dtos = sorted.map((shift) =>
-        buildRosterShiftDTO(shift, assignmentsByShift, profilesById),
-    );
+    const dtos = sorted.map((shift) => buildRosterShiftDTO(shift, profilesById));
     return paginate(dtos, page, ROSTER_PAGE_SIZE);
 }
 
 function createRosterShift(input: CreateRosterShiftInput, requestId: string): RosterShiftDTO {
     const actor = requireAdmin();
 
-    if (!input.startsAt || !input.endsAt || input.endsAt <= input.startsAt) {
-        throw new ValidationError('endsAt must be after startsAt.');
+    if (!input.startDate || !input.endDate) {
+        throw new ValidationError('startDate and endDate are required.');
     }
-    const location = Tables.Locations.findById(input.locationId);
-    if (!location) throw new ValidationError('location_not_found');
+    if (input.endDate < input.startDate) {
+        throw new ValidationError('endDate must not be before startDate.');
+    }
+    if (
+        input.endDate === input.startDate &&
+        input.startTime &&
+        input.endTime &&
+        input.endTime <= input.startTime
+    ) {
+        throw new ValidationError('endTime must be after startTime.');
+    }
+    if (!input.shiftName || !input.shiftName.trim()) {
+        throw new ValidationError('shiftName is required.');
+    }
 
-    const assigneeIds = Array.from(new Set(input.assigneeProfileIds || []));
-    const assignees = assigneeIds.map((id) => {
-        const p = Tables.Profiles.findById(id);
-        if (!p || p.Status !== 'active') throw new ValidationError('assignee_not_active: ' + id);
-        return p;
-    });
+    if (!input.assigneeProfileId) throw new ValidationError('assigneeProfileId is required.');
+    const assignee = Tables.Profiles.findById(input.assigneeProfileId);
+    if (!assignee || assignee.Status !== 'active') {
+        throw new ValidationError('assignee_not_active: ' + input.assigneeProfileId);
+    }
 
     const { result: shift } = withLockedDedupe('roster:create', requestId, () => {
         const created = Tables.RosterShifts.insert({
-            StartsAt: input.startsAt,
-            EndsAt: input.endsAt,
-            Period: input.period,
-            LocationId: input.locationId,
-            LocationName: location.Name,
-            Notes: input.notes || '',
+            StartDate: input.startDate,
+            EndDate: input.endDate,
+            StartTime: input.startTime || '',
+            EndTime: input.endTime || '',
+            ShiftName: input.shiftName.trim(),
+            AssigneeProfileId: assignee.Id,
             CreatedBy: actor.Id,
             CreatedAt: nowIso(),
             UpdatedAt: nowIso(),
         });
-        assignees.forEach((p) => {
-            Tables.RosterAssignments.insert({
-                ShiftId: created.Id,
-                ProfileId: p.Id,
-                CreatedAt: nowIso(),
-            });
+        logActivity(actor.Id, 'roster_shift', created.Id, 'create', null, created, {
+            assigneeId: assignee.Id,
         });
-        logActivity(actor.Id, 'roster_shift', created.Id, 'create', null, created, { assigneeIds });
         return created;
     });
 
-    assignees.forEach((p) => {
-        enqueueNotification(
-            p.Id,
-            'roster:' + shift.Id + ':assigned',
-            'New shift scheduled',
-            'You have been assigned to a shift on ' + shift.StartsAt + '.',
-            '?section=roster',
-        );
-    });
+    sendNotificationEmail(
+        assignee.Id,
+        'roster:' + shift.Id + ':assigned',
+        'New shift scheduled',
+        'You have been assigned to a shift on ' + shift.StartDate + '.',
+        '?section=roster',
+    );
 
-    return Object.assign({}, shift, {
-        assignees: assignees.map((p) => ({ Id: p.Id, Name: p.Name, Email: p.Email })),
-    });
+    return Object.assign({}, shift, { assigneeName: assignee.Name });
 }

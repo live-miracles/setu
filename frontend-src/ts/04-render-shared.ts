@@ -17,32 +17,46 @@ function generateRequestId(): string {
     return 'req-' + Date.now() + '-' + Math.random().toString(16).slice(2);
 }
 
-function formatDateTime(iso: string): string {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
+const MONTH_SHORT_NAMES = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+// Formats a plain 'YYYY-MM-DD' string without going through Date/timezone
+// conversion, which would risk shifting the displayed day for viewers west
+// of UTC.
+function formatDateOnly(dateStr: string): string {
+    const parts = (dateStr || '').split('-');
+    if (parts.length !== 3) return dateStr || '';
+    const [year, month, day] = parts;
+    const monthIdx = Number(month) - 1;
+    if (monthIdx < 0 || monthIdx > 11 || isNaN(Number(day))) return dateStr;
+    return `${MONTH_SHORT_NAMES[monthIdx]} ${Number(day)}, ${year}`;
+}
+
+function formatTimeOfDay(time: string): string {
+    if (!time) return '';
+    const [h, m] = time.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return '';
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, {
         hour: 'numeric',
         minute: '2-digit',
     });
 }
 
-function formatDate(iso: string): string {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function formatTimeRange(startIso: string, endIso: string): string {
-    const opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
-    const start = new Date(startIso);
-    const end = new Date(endIso);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
-    return `${start.toLocaleTimeString(undefined, opts)} – ${end.toLocaleTimeString(undefined, opts)}`;
+function formatShiftSchedule(shift: {
+    StartDate: string;
+    EndDate: string;
+    StartTime: string;
+    EndTime: string;
+}): string {
+    const dateLabel =
+        shift.StartDate === shift.EndDate
+            ? formatDateOnly(shift.StartDate)
+            : `${formatDateOnly(shift.StartDate)} – ${formatDateOnly(shift.EndDate)}`;
+    const startTime = formatTimeOfDay(shift.StartTime);
+    const endTime = formatTimeOfDay(shift.EndTime);
+    const timeLabel = startTime && endTime ? `${startTime} – ${endTime}` : startTime || endTime;
+    return timeLabel ? `${dateLabel} · ${timeLabel}` : dateLabel;
 }
 
 function isRequestOverdue(request: InventoryRequestDTO): boolean {
@@ -100,7 +114,6 @@ type IconName =
     | 'ticket'
     | 'user'
     | 'shield'
-    | 'bell'
     | 'plus'
     | 'external'
     | 'inbox'
@@ -116,7 +129,6 @@ const ICON_PATHS: Record<IconName, string> = {
     ticket: '<rect x="3" y="6" width="18" height="12" rx="2" /><line x1="9" y1="6" x2="9" y2="18" stroke-dasharray="2.2 2.2" />',
     user: '<circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3.2-6 7-6s7 2.5 7 6" />',
     shield: '<path d="M12 3.5 5 6v5.5c0 5 3 8 7 9 4-1 7-4 7-9V6l-7-2.5Z" /><path d="M9 12l2 2 4-4" />',
-    bell: '<path d="M6 9a6 6 0 0 1 12 0v4l1.5 3h-15L6 13V9Z" /><path d="M10 19a2 2 0 0 0 4 0" />',
     plus: '<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />',
     external:
         '<path d="M14 4h6v6" /><line x1="20" y1="4" x2="10" y2="14" /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />',

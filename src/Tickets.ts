@@ -64,7 +64,7 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
         (p) => p.Role === 'admin' && p.Status === 'active' && p.Id !== actor.Id,
     );
     admins.forEach((admin) => {
-        enqueueNotification(
+        sendNotificationEmail(
             admin.Id,
             'ticket:' + ticket.Id + ':created',
             'New ticket: TKT-' + ticket.DisplayId,
@@ -158,7 +158,7 @@ function notifyOnTicketAction(
 
     if (action === 'assign') {
         if (ticket.AssigneeId && ticket.AssigneeId !== actor.Id) {
-            enqueueNotification(
+            sendNotificationEmail(
                 ticket.AssigneeId,
                 eventKey,
                 title,
@@ -168,7 +168,7 @@ function notifyOnTicketAction(
         }
     } else if (action === 'close') {
         if (ticket.ReporterId !== actor.Id) {
-            enqueueNotification(
+            sendNotificationEmail(
                 ticket.ReporterId,
                 eventKey,
                 title,
@@ -181,7 +181,7 @@ function notifyOnTicketAction(
             new Set([ticket.ReporterId, ticket.AssigneeId].filter((id) => id && id !== actor.Id)),
         );
         recipients.forEach((id) => {
-            enqueueNotification(
+            sendNotificationEmail(
                 id,
                 eventKey,
                 title,
@@ -220,7 +220,7 @@ function addTicketComment(ticketId: string, message: string, requestId: string):
             new Set([ticket.ReporterId, ticket.AssigneeId].filter((id) => id && id !== actor.Id)),
         );
         recipients.forEach((id) => {
-            enqueueNotification(
+            sendNotificationEmail(
                 id,
                 'ticket:' + ticketId + ':comment:' + comment.Id,
                 'New comment on TKT-' + ticket.DisplayId,

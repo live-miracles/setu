@@ -5,20 +5,19 @@ function greetingForNow(): string {
     return 'Good evening';
 }
 
-function isSameLocalDay(isoA: string, isoB: string): boolean {
-    const a = new Date(isoA);
-    const b = new Date(isoB);
-    return (
-        a.getFullYear() === b.getFullYear() &&
-        a.getMonth() === b.getMonth() &&
-        a.getDate() === b.getDate()
-    );
+function todayDateOnly(): string {
+    const d = new Date();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
 }
 
 async function renderHome(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
-    const now = new Date().toISOString();
-    const todayShifts = dashboard.upcomingShifts.filter((s) => isSameLocalDay(s.StartsAt, now));
-    const todayAssignments = todayShifts.reduce((sum, s) => sum + s.assignees.length, 0);
+    const today = todayDateOnly();
+    const todayShifts = dashboard.upcomingShifts.filter(
+        (s) => s.StartDate <= today && s.EndDate >= today,
+    );
+    const todayAssignments = todayShifts.filter((s) => s.AssigneeProfileId).length;
 
     const activeRequests = dashboard.inventoryRequests.filter(
         (r) => ['submitted', 'approved', 'issued'].indexOf(r.Status) !== -1,
@@ -32,8 +31,8 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
         (item) => item.TotalQuantity > 0 && item.AvailableQuantity / item.TotalQuantity <= 0.3,
     );
 
-    const nextShift = [...dashboard.upcomingShifts].sort(
-        (a, b) => new Date(a.StartsAt).getTime() - new Date(b.StartsAt).getTime(),
+    const nextShift = [...dashboard.upcomingShifts].sort((a, b) =>
+        (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime),
     )[0];
 
     container.innerHTML = `
@@ -68,10 +67,10 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
             ${
                 nextShift
                     ? `
-              <h3 class="text-lg font-bold">${escapeHtml(nextShift.Period)} · ${formatTimeRange(nextShift.StartsAt, nextShift.EndsAt)}</h3>
-              <p class="text-sm text-base-content/60">${formatDate(nextShift.StartsAt)} · ${escapeHtml(nextShift.LocationName)}</p>
+              <h3 class="text-lg font-bold">${escapeHtml(nextShift.ShiftName)}</h3>
+              <p class="text-sm text-base-content/60">${formatShiftSchedule(nextShift)}</p>
               <div class="mt-1.5 flex flex-wrap gap-1">
-                ${nextShift.assignees.length === 0 ? '<span class="text-sm text-base-content/50">Unassigned</span>' : nextShift.assignees.map((a) => namePill(a.Name)).join('')}
+                ${nextShift.AssigneeProfileId ? namePill(nextShift.assigneeName) : '<span class="text-sm text-base-content/50">Unassigned</span>'}
               </div>`
                     : `<p class="text-sm text-base-content/50">No shifts scheduled yet.</p>`
             }
@@ -122,9 +121,9 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
                               (shift) => `
                       <li class="flex items-start justify-between gap-3 py-2.5">
                         <div class="min-w-0">
-                          <div class="truncate font-medium">${escapeHtml(shift.LocationName)} · ${escapeHtml(shift.Period)}</div>
-                          <div class="text-sm text-base-content/60">${formatDateTime(shift.StartsAt)}</div>
-                          <div class="mt-1 text-sm text-base-content/70">${shift.assignees.map((a) => escapeHtml(a.Name)).join(', ') || 'Unassigned'}</div>
+                          <div class="truncate font-medium">${escapeHtml(shift.ShiftName)}</div>
+                          <div class="text-sm text-base-content/60">${formatShiftSchedule(shift)}</div>
+                          <div class="mt-1 text-sm text-base-content/70">${shift.assigneeName ? escapeHtml(shift.assigneeName) : 'Unassigned'}</div>
                         </div>
                       </li>`,
                           )

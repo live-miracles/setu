@@ -9,7 +9,6 @@
 
 type UserRole = 'admin' | 'member';
 type ProfileStatus = 'invited' | 'active' | 'disabled';
-type ShiftPeriod = 'Morning' | 'Evening' | 'Night';
 type InventoryRequestStatus =
     | 'draft'
     | 'submitted'
@@ -70,22 +69,15 @@ interface Profile {
 
 interface RosterShift {
     Id: string;
-    StartsAt: string;
-    EndsAt: string;
-    Period: ShiftPeriod;
-    LocationId: string;
-    LocationName: string;
-    Notes: string;
+    StartDate: string;
+    EndDate: string;
+    StartTime: string;
+    EndTime: string;
+    ShiftName: string;
+    AssigneeProfileId: string;
     CreatedBy: string;
     CreatedAt: string;
     UpdatedAt: string;
-}
-
-interface RosterAssignment {
-    Id: string;
-    ShiftId: string;
-    ProfileId: string;
-    CreatedAt: string;
 }
 
 interface EquipmentType {
@@ -207,17 +199,6 @@ interface HomeContent {
     UpdatedAt: string;
 }
 
-interface Notification {
-    Id: string;
-    RecipientId: string;
-    EventKey: string;
-    Title: string;
-    Message: string;
-    Href: string;
-    ReadAt: string;
-    CreatedAt: string;
-}
-
 interface ActivityLogEntry {
     Id: string;
     Timestamp: string;
@@ -249,7 +230,7 @@ interface ProfileDTO extends Omit<Profile, 'AvatarDriveFileId'> {
 }
 
 interface RosterShiftDTO extends RosterShift {
-    assignees: Pick<Profile, 'Id' | 'Name' | 'Email'>[];
+    assigneeName: string;
 }
 
 interface InventoryItemDTO extends InventoryItem {
@@ -292,7 +273,6 @@ interface DashboardPayload {
     inventoryItems: InventoryItemDTO[];
     inventoryRequests: InventoryRequestDTO[];
     tickets: TicketDTO[];
-    notifications: Notification[];
     links: Link[];
     homeContent: HomeContent;
     failedNotificationCount: number;
@@ -335,12 +315,12 @@ interface UpdateOwnProfileInput {
 }
 
 interface CreateRosterShiftInput {
-    startsAt: string;
-    endsAt: string;
-    period: ShiftPeriod;
-    locationId: string;
-    notes: string;
-    assigneeProfileIds: string[];
+    startDate: string;
+    endDate: string;
+    startTime: string;
+    endTime: string;
+    shiftName: string;
+    assigneeProfileId: string;
 }
 
 interface CreateEquipmentTypeInput {
@@ -466,9 +446,6 @@ interface Api {
         dedupeRequestId: string,
     ): TicketStatus;
     addTicketComment(ticketId: string, message: string, requestId: string): TicketCommentDTO;
-
-    listMyNotifications(): Notification[];
-    markNotificationRead(id: string): Notification;
 
     uploadAttachmentChunk(
         uploadId: string,

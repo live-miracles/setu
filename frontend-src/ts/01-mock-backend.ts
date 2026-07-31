@@ -157,20 +157,17 @@ const mockData = {
     rosterShifts: [
         {
             Id: 'shift-1',
-            StartsAt: new Date(Date.now() + 86400000).toISOString(),
-            EndsAt: new Date(Date.now() + 86400000 + 4 * 3600000).toISOString(),
-            Period: 'Morning' as ShiftPeriod,
-            LocationId: 'loc-1',
-            LocationName: 'Studio A',
-            Notes: '',
+            StartDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+            EndDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+            StartTime: '09:00',
+            EndTime: '13:00',
+            ShiftName: 'Morning',
+            AssigneeProfileId: 'user-2',
             CreatedBy: 'user-1',
             CreatedAt: mockNowIso(),
             UpdatedAt: mockNowIso(),
         },
     ] as RosterShift[],
-    rosterAssignments: [
-        { Id: 'assign-1', ShiftId: 'shift-1', ProfileId: 'user-2', CreatedAt: mockNowIso() },
-    ] as RosterAssignment[],
     tickets: [
         {
             Id: 'ticket-1',
@@ -189,18 +186,6 @@ const mockData = {
         },
     ] as Ticket[],
     ticketComments: [] as TicketComment[],
-    notifications: [
-        {
-            Id: 'notif-1',
-            RecipientId: 'user-1',
-            EventKey: 'ticket:ticket-1:created',
-            Title: 'New ticket: TKT-1',
-            Message: 'Sam Member reported: Projector flickering',
-            Href: '?section=tickets',
-            ReadAt: '',
-            CreatedAt: mockNowIso(),
-        },
-    ] as Notification[],
     links: [
         {
             Id: 'link-1',
@@ -235,12 +220,8 @@ function mockToProfileDTO(profile: Profile): ProfileDTO {
 }
 
 function mockBuildRosterShiftDTO(shift: RosterShift): RosterShiftDTO {
-    const assignees = mockData.rosterAssignments
-        .filter((a) => a.ShiftId === shift.Id)
-        .map((a) => mockData.profiles.find((p) => p.Id === a.ProfileId))
-        .filter((p): p is Profile => !!p)
-        .map((p) => ({ Id: p.Id, Name: p.Name, Email: p.Email }));
-    return Object.assign({}, shift, { assignees });
+    const assignee = mockData.profiles.find((p) => p.Id === shift.AssigneeProfileId);
+    return Object.assign({}, shift, { assigneeName: assignee ? assignee.Name : '' });
 }
 
 function mockBuildInventoryItemDTO(item: InventoryItem): InventoryItemDTO {
@@ -289,9 +270,6 @@ function mockBuildDashboard(): DashboardPayload {
         inventoryItems: mockData.inventoryItems.map(mockBuildInventoryItemDTO),
         inventoryRequests: mockData.inventoryRequests.map(mockBuildInventoryRequestDTO),
         tickets: mockData.tickets.map(mockBuildTicketDTO),
-        notifications: mockData.notifications.filter(
-            (n) => n.RecipientId === mockData.currentUserId,
-        ),
         links: mockData.links.filter((l) => l.Enabled),
         homeContent: mockData.homeContent,
         failedNotificationCount: 0,
@@ -393,28 +371,19 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
     createRosterShift: (input: CreateRosterShiftInput) => {
-        const location = mockData.locations.find((l) => l.Id === input.locationId)!;
         const created: RosterShift = {
             Id: mockUuid(),
-            StartsAt: input.startsAt,
-            EndsAt: input.endsAt,
-            Period: input.period,
-            LocationId: input.locationId,
-            LocationName: location.Name,
-            Notes: input.notes || '',
+            StartDate: input.startDate,
+            EndDate: input.endDate,
+            StartTime: input.startTime || '',
+            EndTime: input.endTime || '',
+            ShiftName: input.shiftName,
+            AssigneeProfileId: input.assigneeProfileId,
             CreatedBy: mockData.currentUserId,
             CreatedAt: mockNowIso(),
             UpdatedAt: mockNowIso(),
         };
         mockData.rosterShifts.push(created);
-        (input.assigneeProfileIds || []).forEach((profileId) => {
-            mockData.rosterAssignments.push({
-                Id: mockUuid(),
-                ShiftId: created.Id,
-                ProfileId: profileId,
-                CreatedAt: mockNowIso(),
-            });
-        });
         return mockBuildRosterShiftDTO(created);
     },
 
@@ -596,14 +565,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         };
         mockData.ticketComments.push(created);
         return Object.assign({}, created, { authorName: mockCurrentProfile().Name });
-    },
-
-    listMyNotifications: () =>
-        mockData.notifications.filter((n) => n.RecipientId === mockData.currentUserId),
-    markNotificationRead: (id: string) => {
-        const notification = mockData.notifications.find((n) => n.Id === id)!;
-        notification.ReadAt = mockNowIso();
-        return notification;
     },
 
     uploadAttachmentChunk: (uploadId: string, chunkIndex: number, totalChunks: number) => ({

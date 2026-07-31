@@ -175,7 +175,7 @@ function createInventoryRequest(
         (p) => p.Role === 'admin' && p.Status === 'active' && p.Id !== actor.Id,
     );
     admins.forEach((admin) => {
-        enqueueNotification(
+        sendNotificationEmail(
             admin.Id,
             'inventory:' + request.Id + ':submitted',
             'New equipment request: REQ-' + request.DisplayId,
@@ -382,7 +382,7 @@ function notifyOnInventoryRequestAction(
 ): void {
     const request = Tables.InventoryRequests.findById(requestId);
     if (!request || request.RequesterId === actor.Id) return;
-    enqueueNotification(
+    sendNotificationEmail(
         request.RequesterId,
         'inventory:' + requestId + ':' + action + ':' + dedupeRequestId,
         'REQ-' + request.DisplayId + ' ' + newStatus,

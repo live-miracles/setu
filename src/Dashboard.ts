@@ -20,13 +20,12 @@ function getDashboard(): DashboardPayload {
         'Asia/Kolkata',
         'yyyy-MM-dd',
     );
-    const assignmentsByShift = groupBy(Tables.RosterAssignments.readAll(), (a) => a.ShiftId);
     const upcomingShifts = Tables.RosterShifts.findWhere(
-        (s) => s.StartsAt >= todayIso && s.StartsAt <= horizonIso,
+        (s) => s.StartDate >= todayIso && s.StartDate <= horizonIso,
     )
-        .sort((a, b) => a.StartsAt.localeCompare(b.StartsAt))
+        .sort((a, b) => (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime))
         .slice(0, 250)
-        .map((shift) => buildRosterShiftDTO(shift, assignmentsByShift, profilesById));
+        .map((shift) => buildRosterShiftDTO(shift, profilesById));
 
     const inventoryItems = Tables.InventoryItems.readAll()
         .slice(0, 500)
@@ -55,10 +54,6 @@ function getDashboard(): DashboardPayload {
         .slice(0, 250)
         .map((ticket) => buildTicketDTO(ticket, commentsByTicket, profilesById));
 
-    const notifications = Tables.Notifications.findWhere((n) => n.RecipientId === actor.Id)
-        .sort((a, b) => b.CreatedAt.localeCompare(a.CreatedAt))
-        .slice(0, 100);
-
     const links = Tables.Links.findWhere((l) => toBool(l.Enabled)).sort(
         (a, b) => a.DisplayOrder - b.DisplayOrder,
     );
@@ -79,7 +74,6 @@ function getDashboard(): DashboardPayload {
         inventoryItems,
         inventoryRequests,
         tickets,
-        notifications,
         links,
         homeContent,
         failedNotificationCount,
