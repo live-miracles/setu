@@ -39,8 +39,6 @@ function getCurrentActor(): Profile {
                     Whatsapp: '',
                     AvatarDriveFileId: '',
                     NotificationEmail: true,
-                    CreatedAt: nowIso(),
-                    UpdatedAt: nowIso(),
                 });
                 logActivity(
                     created.Id,
@@ -66,9 +64,7 @@ function getCurrentActor(): Profile {
 
     if (profile.Status === 'invited') {
         const before = { Status: profile.Status };
-        profile = withLock(() =>
-            Tables.Profiles.updateById(profile!.Id, { Status: 'active', UpdatedAt: nowIso() }),
-        );
+        profile = withLock(() => Tables.Profiles.updateById(profile!.Id, { Status: 'active' }));
         logActivity(
             profile.Id,
             'profile',

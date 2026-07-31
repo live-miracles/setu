@@ -112,14 +112,8 @@ function SheetTable<T extends { Id: string }>(tabName: string, headers: (keyof T
 }
 
 const Tables = {
-    Departments: SheetTable<Department>('Departments', [
-        'Id',
-        'Name',
-        'ShortName',
-        'CreatedAt',
-        'UpdatedAt',
-    ]),
-    Locations: SheetTable<LocationRecord>('Locations', ['Id', 'Name', 'CreatedAt', 'UpdatedAt']),
+    Departments: SheetTable<Department>('Departments', ['Id', 'Name', 'ShortName']),
+    Locations: SheetTable<Place>('Locations', ['Id', 'Name']),
     Profiles: SheetTable<Profile>('Profiles', [
         'Id',
         'Email',
@@ -132,8 +126,6 @@ const Tables = {
         'Whatsapp',
         'AvatarDriveFileId',
         'NotificationEmail',
-        'CreatedAt',
-        'UpdatedAt',
     ]),
     RosterShifts: SheetTable<RosterShift>('RosterShifts', [
         'Id',
@@ -144,8 +136,6 @@ const Tables = {
         'ShiftName',
         'AssigneeProfileId',
         'CreatedBy',
-        'CreatedAt',
-        'UpdatedAt',
     ]),
     EquipmentTypes: SheetTable<EquipmentType>('EquipmentTypes', [
         'Id',
@@ -153,8 +143,6 @@ const Tables = {
         'Description',
         'Requestable',
         'ImageDriveFileId',
-        'CreatedAt',
-        'UpdatedAt',
     ]),
     InventoryItems: SheetTable<InventoryItem>('InventoryItems', [
         'Id',
@@ -166,8 +154,6 @@ const Tables = {
         'AvailableQuantity',
         'ImageDriveFileId',
         'AdminNotes',
-        'CreatedAt',
-        'UpdatedAt',
     ]),
     InventoryRequests: SheetTable<InventoryRequest>('InventoryRequests', [
         'Id',
@@ -179,13 +165,6 @@ const Tables = {
         'Purpose',
         'Status',
         'AdminNote',
-        'SubmittedAt',
-        'ApprovedAt',
-        'IssuedAt',
-        'ReturnedAt',
-        'ClosedAt',
-        'CreatedAt',
-        'UpdatedAt',
     ]),
     InventoryRequestItems: SheetTable<InventoryRequestItem>('InventoryRequestItems', [
         'Id',
@@ -194,7 +173,6 @@ const Tables = {
         'Quantity',
         'IssuedQuantity',
         'ReturnedQuantity',
-        'CreatedAt',
     ]),
     InventoryReturns: SheetTable<InventoryReturn>('InventoryReturns', [
         'Id',
@@ -203,7 +181,6 @@ const Tables = {
         'Condition',
         'Notes',
         'ReceivedBy',
-        'CreatedAt',
     ]),
     Tickets: SheetTable<Ticket>('Tickets', [
         'Id',
@@ -216,13 +193,11 @@ const Tables = {
         'Status',
         'ReporterId',
         'AssigneeId',
-        'ClosedAt',
-        'CreatedAt',
-        'UpdatedAt',
     ]),
-    TicketComments: SheetTable<TicketComment>('TicketComments', [
+    Comments: SheetTable<CommentRecord>('Comments', [
         'Id',
-        'TicketId',
+        'OwnerType',
+        'OwnerId',
         'AuthorId',
         'Message',
         'CreatedAt',
@@ -236,17 +211,8 @@ const Tables = {
         'ContentType',
         'SizeBytes',
         'UploadedBy',
-        'CreatedAt',
     ]),
-    Links: SheetTable<Link>('Links', [
-        'Id',
-        'Name',
-        'Url',
-        'DisplayOrder',
-        'Enabled',
-        'CreatedAt',
-        'UpdatedAt',
-    ]),
+    Links: SheetTable<Link>('Links', ['Id', 'Name', 'Url', 'DisplayOrder', 'Enabled']),
     HomeContent: SheetTable<HomeContent>('HomeContent', [
         'Id',
         'SupportMessage',
@@ -254,7 +220,6 @@ const Tables = {
         'WhatsappUrl',
         'TutorialUrl',
         'UpdatedBy',
-        'UpdatedAt',
     ]),
     ActivityLog: SheetTable<ActivityLogEntry>('ActivityLog', [
         'Id',

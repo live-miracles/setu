@@ -97,7 +97,6 @@ function finishAttachmentUpload(
             ContentType: contentType,
             SizeBytes: sizeBytes,
             UploadedBy: actor.Id,
-            CreatedAt: nowIso(),
         });
         logActivity(actor.Id, 'attachment', attachment.Id, 'create', null, attachment, {});
 

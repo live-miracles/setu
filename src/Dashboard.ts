@@ -36,23 +36,28 @@ function getDashboard(): DashboardPayload {
         (i) => i.RequestId,
     );
     const inventoryItemsById = indexById(Tables.InventoryItems.readAll());
+    const commentsByOwnerId = groupBy(Tables.Comments.readAll(), (c) => c.OwnerId);
     const inventoryRequests = Tables.InventoryRequests.readAll()
-        .sort((a, b) => b.UpdatedAt.localeCompare(a.UpdatedAt))
-        .slice(0, 250)
         .map((request) =>
             buildInventoryRequestDTO(
                 request,
                 requestItemsByRequest,
                 inventoryItemsById,
                 profilesById,
+                commentsByOwnerId,
             ),
-        );
+        )
+        .sort((a, b) =>
+            latestActivityAt(b.comments, b.DisplayId).localeCompare(
+                latestActivityAt(a.comments, a.DisplayId),
+            ),
+        )
+        .slice(0, 250);
 
-    const commentsByTicket = groupBy(Tables.TicketComments.readAll(), (c) => c.TicketId);
     const tickets = Tables.Tickets.readAll()
-        .sort((a, b) => b.UpdatedAt.localeCompare(a.UpdatedAt))
+        .sort((a, b) => b.DisplayId - a.DisplayId)
         .slice(0, 250)
-        .map((ticket) => buildTicketDTO(ticket, commentsByTicket, profilesById));
+        .map((ticket) => buildTicketDTO(ticket, profilesById));
 
     const links = Tables.Links.findWhere((l) => toBool(l.Enabled)).sort(
         (a, b) => a.DisplayOrder - b.DisplayOrder,

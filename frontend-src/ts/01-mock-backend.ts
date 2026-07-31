@@ -12,6 +12,8 @@ function mockUuid(): string {
     return 'mock-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+const MOCK_SYSTEM_AUTHOR_ID = 'system';
+
 const mockData = {
     currentUserId: 'user-1',
     profiles: [
@@ -27,8 +29,6 @@ const mockData = {
             Whatsapp: '',
             AvatarDriveFileId: '',
             NotificationEmail: true,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
         {
             Id: 'user-2',
@@ -42,8 +42,6 @@ const mockData = {
             Whatsapp: '',
             AvatarDriveFileId: '',
             NotificationEmail: true,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
         {
             Id: 'user-3',
@@ -57,23 +55,13 @@ const mockData = {
             Whatsapp: '',
             AvatarDriveFileId: '',
             NotificationEmail: true,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
     ] as Profile[],
-    departments: [
-        {
-            Id: 'dep-1',
-            Name: 'Production',
-            ShortName: 'PROD',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
-        },
-    ] as Department[],
+    departments: [{ Id: 'dep-1', Name: 'Production', ShortName: 'PROD' }] as Department[],
     locations: [
-        { Id: 'loc-1', Name: 'Studio A', CreatedAt: mockNowIso(), UpdatedAt: mockNowIso() },
-        { Id: 'loc-2', Name: 'Studio B', CreatedAt: mockNowIso(), UpdatedAt: mockNowIso() },
-    ] as LocationRecord[],
+        { Id: 'loc-1', Name: 'Studio A' },
+        { Id: 'loc-2', Name: 'Studio B' },
+    ] as Place[],
     equipmentTypes: [
         {
             Id: 'eq-1',
@@ -81,8 +69,6 @@ const mockData = {
             Description: '',
             Requestable: true,
             ImageDriveFileId: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
         {
             Id: 'eq-2',
@@ -90,8 +76,6 @@ const mockData = {
             Description: '',
             Requestable: true,
             ImageDriveFileId: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
     ] as EquipmentType[],
     inventoryItems: [
@@ -105,8 +89,6 @@ const mockData = {
             AvailableQuantity: 2,
             ImageDriveFileId: '',
             AdminNotes: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
         {
             Id: 'item-2',
@@ -118,8 +100,6 @@ const mockData = {
             AvailableQuantity: 5,
             ImageDriveFileId: '',
             AdminNotes: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
     ] as InventoryItem[],
     inventoryRequests: [
@@ -133,13 +113,6 @@ const mockData = {
             Purpose: 'Outdoor interview',
             Status: 'submitted' as InventoryRequestStatus,
             AdminNote: '',
-            SubmittedAt: mockNowIso(),
-            ApprovedAt: '',
-            IssuedAt: '',
-            ReturnedAt: '',
-            ClosedAt: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
     ] as InventoryRequest[],
     inventoryRequestItems: [
@@ -150,7 +123,6 @@ const mockData = {
             Quantity: 1,
             IssuedQuantity: 0,
             ReturnedQuantity: 0,
-            CreatedAt: mockNowIso(),
         },
     ] as InventoryRequestItem[],
     inventoryReturns: [] as InventoryReturn[],
@@ -164,8 +136,6 @@ const mockData = {
             ShiftName: 'Morning',
             AssigneeProfileId: 'user-2',
             CreatedBy: 'user-1',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
     ] as RosterShift[],
     tickets: [
@@ -180,12 +150,18 @@ const mockData = {
             Status: 'unassigned' as TicketStatus,
             ReporterId: 'user-2',
             AssigneeId: '',
-            ClosedAt: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
     ] as Ticket[],
-    ticketComments: [] as TicketComment[],
+    comments: [
+        {
+            Id: 'comment-1',
+            OwnerType: 'inventory_request' as CommentOwnerType,
+            OwnerId: 'req-1',
+            AuthorId: MOCK_SYSTEM_AUTHOR_ID,
+            Message: 'Sam Member submitted this request.',
+            CreatedAt: mockNowIso(),
+        },
+    ] as CommentRecord[],
     links: [
         {
             Id: 'link-1',
@@ -193,8 +169,6 @@ const mockData = {
             Url: 'https://example.com/wiki',
             DisplayOrder: 0,
             Enabled: true,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         },
     ] as Link[],
     homeContent: {
@@ -204,7 +178,6 @@ const mockData = {
         WhatsappUrl: 'https://wa.me/10000000000',
         TutorialUrl: '',
         UpdatedBy: 'user-1',
-        UpdatedAt: mockNowIso(),
     } as HomeContent,
     nextDisplayId: { inventory_request: 2, ticket: 2 },
 };
@@ -233,6 +206,35 @@ function mockBuildInventoryItemDTO(item: InventoryItem): InventoryItemDTO {
     });
 }
 
+function mockBuildCommentDTO(comment: CommentRecord): CommentDTO {
+    const author = mockData.profiles.find((p) => p.Id === comment.AuthorId);
+    const authorName =
+        comment.AuthorId === MOCK_SYSTEM_AUTHOR_ID ? 'Setu' : author ? author.Name : '';
+    return Object.assign({}, comment, { authorName });
+}
+
+function mockCommentsFor(ownerType: CommentOwnerType, ownerId: string): CommentDTO[] {
+    return mockData.comments
+        .filter((c) => c.OwnerType === ownerType && c.OwnerId === ownerId)
+        .sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt))
+        .map(mockBuildCommentDTO);
+}
+
+function mockInsertSystemComment(
+    ownerType: CommentOwnerType,
+    ownerId: string,
+    message: string,
+): void {
+    mockData.comments.push({
+        Id: mockUuid(),
+        OwnerType: ownerType,
+        OwnerId: ownerId,
+        AuthorId: MOCK_SYSTEM_AUTHOR_ID,
+        Message: message,
+        CreatedAt: mockNowIso(),
+    });
+}
+
 function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryRequestDTO {
     const requester = mockData.profiles.find((p) => p.Id === request.RequesterId);
     const items = mockData.inventoryRequestItems
@@ -241,22 +243,19 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
             const item = mockData.inventoryItems.find((inv) => inv.Id === i.InventoryItemId);
             return Object.assign({}, i, { itemName: item ? item.Name : '' });
         });
-    return Object.assign({}, request, { requesterName: requester ? requester.Name : '', items });
+    return Object.assign({}, request, {
+        requesterName: requester ? requester.Name : '',
+        items,
+        comments: mockCommentsFor('inventory_request', request.Id),
+    });
 }
 
 function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
     const reporter = mockData.profiles.find((p) => p.Id === ticket.ReporterId);
     const assignee = mockData.profiles.find((p) => p.Id === ticket.AssigneeId);
-    const comments = mockData.ticketComments
-        .filter((c) => c.TicketId === ticket.Id)
-        .map((c) => {
-            const author = mockData.profiles.find((p) => p.Id === c.AuthorId);
-            return Object.assign({}, c, { authorName: author ? author.Name : '' });
-        });
     return Object.assign({}, ticket, {
         reporterName: reporter ? reporter.Name : '',
         assigneeName: assignee ? assignee.Name : '',
-        comments,
     });
 }
 
@@ -294,20 +293,18 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Whatsapp: '',
             AvatarDriveFileId: '',
             NotificationEmail: true,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.profiles.push(created);
         return mockToProfileDTO(created);
     },
     updateUser: (profileId: string, patch: UpdateUserInput) => {
         const profile = mockData.profiles.find((p) => p.Id === profileId)!;
-        Object.assign(profile, patch, { UpdatedAt: mockNowIso() });
+        Object.assign(profile, patch);
         return mockToProfileDTO(profile);
     },
     updateOwnProfile: (patch: UpdateOwnProfileInput) => {
         const profile = mockCurrentProfile();
-        Object.assign(profile, patch, { UpdatedAt: mockNowIso() });
+        Object.assign(profile, patch);
         return mockToProfileDTO(profile);
     },
 
@@ -317,8 +314,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Id: mockUuid(),
             Name: input.name,
             ShortName: input.shortName || '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.departments.push(created);
         return created;
@@ -326,12 +321,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
 
     listLocations: () => mockData.locations,
     createLocation: (input: CreateLocationInput) => {
-        const created: LocationRecord = {
-            Id: mockUuid(),
-            Name: input.name,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
-        };
+        const created: Place = { Id: mockUuid(), Name: input.name };
         mockData.locations.push(created);
         return created;
     },
@@ -344,8 +334,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Url: input.url,
             DisplayOrder: input.displayOrder || 0,
             Enabled: input.enabled !== false,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.links.push(created);
         return created;
@@ -353,10 +341,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
 
     getHomeContent: () => mockData.homeContent,
     updateHomeContent: (input: UpdateHomeContentInput) => {
-        Object.assign(mockData.homeContent, input, {
-            UpdatedBy: mockData.currentUserId,
-            UpdatedAt: mockNowIso(),
-        });
+        Object.assign(mockData.homeContent, input, { UpdatedBy: mockData.currentUserId });
         return mockData.homeContent;
     },
     listActivityLog: (page: number) => ({
@@ -380,8 +365,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             ShiftName: input.shiftName,
             AssigneeProfileId: input.assigneeProfileId,
             CreatedBy: mockData.currentUserId,
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.rosterShifts.push(created);
         return mockBuildRosterShiftDTO(created);
@@ -395,8 +378,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Description: input.description || '',
             Requestable: input.requestable !== false,
             ImageDriveFileId: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.equipmentTypes.push(created);
         return created;
@@ -417,8 +398,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             AvailableQuantity: input.totalQuantity,
             ImageDriveFileId: '',
             AdminNotes: input.adminNotes || '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.inventoryItems.push(created);
         return mockBuildInventoryItemDTO(created);
@@ -439,13 +418,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Purpose: input.purpose || '',
             Status: 'submitted',
             AdminNote: '',
-            SubmittedAt: mockNowIso(),
-            ApprovedAt: '',
-            IssuedAt: '',
-            ReturnedAt: '',
-            ClosedAt: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.inventoryRequests.push(created);
         input.items.forEach((line) => {
@@ -456,9 +428,13 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 Quantity: line.quantity,
                 IssuedQuantity: 0,
                 ReturnedQuantity: 0,
-                CreatedAt: mockNowIso(),
             });
         });
+        mockInsertSystemComment(
+            'inventory_request',
+            created.Id,
+            mockCurrentProfile().Name + ' submitted this request.',
+        );
         return mockBuildInventoryRequestDTO(created);
     },
     performInventoryRequestAction: (
@@ -470,12 +446,30 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const request = mockData.inventoryRequests.find((r) => r.Id === requestId)!;
         if (!canTransitionInventoryRequest(request.Status, action))
             throw new Error('invalid_transition');
+        const actorName = mockCurrentProfile().Name;
 
-        if (action === 'submit') request.Status = 'submitted';
-        else if (action === 'approve') request.Status = 'approved';
-        else if (action === 'reject') {
+        if (action === 'submit') {
+            request.Status = 'submitted';
+            mockInsertSystemComment(
+                'inventory_request',
+                requestId,
+                actorName + ' submitted this request.',
+            );
+        } else if (action === 'approve') {
+            request.Status = 'approved';
+            mockInsertSystemComment(
+                'inventory_request',
+                requestId,
+                actorName + ' approved this request.' + (note ? ' ' + note : ''),
+            );
+        } else if (action === 'reject') {
             request.Status = 'rejected';
             request.AdminNote = note;
+            mockInsertSystemComment(
+                'inventory_request',
+                requestId,
+                actorName + ' rejected this request. ' + note,
+            );
         } else if (action === 'issue') {
             request.Status = 'issued';
             mockData.inventoryRequestItems
@@ -487,30 +481,51 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                     )!;
                     invItem.AvailableQuantity -= item.Quantity;
                 });
+            mockInsertSystemComment(
+                'inventory_request',
+                requestId,
+                actorName + ' issued the equipment.' + (note ? ' ' + note : ''),
+            );
         } else if (action === 'return' && returnItems) {
+            const summaries: string[] = [];
             returnItems.forEach((ret) => {
                 const item = mockData.inventoryRequestItems.find(
                     (i) => i.Id === ret.requestItemId,
                 )!;
                 item.ReturnedQuantity += ret.quantity;
+                const invItem = mockData.inventoryItems.find(
+                    (inv) => inv.Id === item.InventoryItemId,
+                )!;
                 if (ret.condition === 'good') {
-                    const invItem = mockData.inventoryItems.find(
-                        (inv) => inv.Id === item.InventoryItemId,
-                    )!;
                     invItem.AvailableQuantity += ret.quantity;
                 }
+                summaries.push(ret.quantity + '× ' + invItem.Name + ' (' + ret.condition + ')');
             });
             const allReturned = mockData.inventoryRequestItems
                 .filter((i) => i.RequestId === requestId)
                 .every((i) => i.ReturnedQuantity >= i.IssuedQuantity);
             request.Status = allReturned ? 'returned' : 'issued';
+            mockInsertSystemComment(
+                'inventory_request',
+                requestId,
+                actorName + ' returned ' + summaries.join(', ') + '.',
+            );
         } else if (action === 'cancel') {
             request.Status = 'cancelled';
             request.AdminNote = note;
+            mockInsertSystemComment(
+                'inventory_request',
+                requestId,
+                actorName + ' cancelled this request. ' + note,
+            );
         } else if (action === 'close') {
             request.Status = 'closed';
+            mockInsertSystemComment(
+                'inventory_request',
+                requestId,
+                actorName + ' closed this request.',
+            );
         }
-        request.UpdatedAt = mockNowIso();
         return request.Status;
     },
 
@@ -531,9 +546,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Status: 'unassigned',
             ReporterId: mockData.currentUserId,
             AssigneeId: '',
-            ClosedAt: '',
-            CreatedAt: mockNowIso(),
-            UpdatedAt: mockNowIso(),
         };
         mockData.tickets.push(created);
         return mockBuildTicketDTO(created);
@@ -544,27 +556,24 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (action === 'assign') {
             ticket.Status = 'pending';
             ticket.AssigneeId = assigneeId || '';
-            ticket.ClosedAt = '';
         } else if (action === 'close') {
             ticket.Status = 'closed';
-            ticket.ClosedAt = mockNowIso();
         } else if (action === 'reopen') {
             ticket.Status = 'pending';
-            ticket.ClosedAt = '';
         }
-        ticket.UpdatedAt = mockNowIso();
         return ticket.Status;
     },
-    addTicketComment: (ticketId: string, message: string) => {
-        const created: TicketComment = {
+    addComment: (ownerType: CommentOwnerType, ownerId: string, message: string) => {
+        const created: CommentRecord = {
             Id: mockUuid(),
-            TicketId: ticketId,
+            OwnerType: ownerType,
+            OwnerId: ownerId,
             AuthorId: mockData.currentUserId,
             Message: message,
             CreatedAt: mockNowIso(),
         };
-        mockData.ticketComments.push(created);
-        return Object.assign({}, created, { authorName: mockCurrentProfile().Name });
+        mockData.comments.push(created);
+        return mockBuildCommentDTO(created);
     },
 
     uploadAttachmentChunk: (uploadId: string, chunkIndex: number, totalChunks: number) => ({

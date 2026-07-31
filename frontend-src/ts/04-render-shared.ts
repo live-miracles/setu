@@ -18,7 +18,18 @@ function generateRequestId(): string {
 }
 
 const MONTH_SHORT_NAMES = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
 ];
 
 // Formats a plain 'YYYY-MM-DD' string without going through Date/timezone
@@ -259,4 +270,13 @@ function timeAgo(iso: string): string {
         }
     }
     return 'just now';
+}
+
+const SYSTEM_COMMENT_AUTHOR_ID = 'system';
+
+function renderCommentLine(comment: CommentDTO): string {
+    if (comment.AuthorId === SYSTEM_COMMENT_AUTHOR_ID) {
+        return `<div class="italic text-base-content/50">${escapeHtml(comment.Message)}</div>`;
+    }
+    return `<div><span class="font-medium">${escapeHtml(comment.authorName)}</span> <span class="text-base-content/70">${escapeHtml(comment.Message)}</span></div>`;
 }

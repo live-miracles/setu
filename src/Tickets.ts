@@ -1,37 +1,20 @@
 const TICKETS_PAGE_SIZE = 20;
 
-function buildTicketCommentDTO(
-    comment: TicketComment,
-    profilesById: Record<string, Profile>,
-): TicketCommentDTO {
-    const author = profilesById[comment.AuthorId];
-    return Object.assign({}, comment, { authorName: author ? author.Name : '' });
-}
-
-function buildTicketDTO(
-    ticket: Ticket,
-    commentsByTicket: Record<string, TicketComment[]>,
-    profilesById: Record<string, Profile>,
-): TicketDTO {
+function buildTicketDTO(ticket: Ticket, profilesById: Record<string, Profile>): TicketDTO {
     const reporter = profilesById[ticket.ReporterId];
     const assignee = ticket.AssigneeId ? profilesById[ticket.AssigneeId] : undefined;
-    const comments = (commentsByTicket[ticket.Id] || [])
-        .sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt))
-        .map((c) => buildTicketCommentDTO(c, profilesById));
     return Object.assign({}, ticket, {
         reporterName: reporter ? reporter.Name : '',
         assigneeName: assignee ? assignee.Name : '',
-        comments,
     });
 }
 
 function listTickets(page: number): Paginated<TicketDTO> {
     requireUser();
-    const commentsByTicket = groupBy(Tables.TicketComments.readAll(), (c) => c.TicketId);
     const profilesById = indexById(Tables.Profiles.readAll());
     const dtos = Tables.Tickets.readAll()
-        .sort((a, b) => b.UpdatedAt.localeCompare(a.UpdatedAt))
-        .map((t) => buildTicketDTO(t, commentsByTicket, profilesById));
+        .sort((a, b) => b.DisplayId - a.DisplayId)
+        .map((t) => buildTicketDTO(t, profilesById));
     return paginate(dtos, page, TICKETS_PAGE_SIZE);
 }
 
@@ -52,9 +35,6 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
             Status: 'unassigned',
             ReporterId: actor.Id,
             AssigneeId: '',
-            ClosedAt: '',
-            CreatedAt: nowIso(),
-            UpdatedAt: nowIso(),
         });
         logActivity(actor.Id, 'ticket', created.Id, 'create', null, created, {});
         return created;
@@ -73,7 +53,7 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
         );
     });
 
-    return buildTicketDTO(ticket, {}, indexById([actor]));
+    return buildTicketDTO(ticket, indexById([actor]));
 }
 
 // Ported from the source app's `perform_ticket_action` Postgres function,
@@ -105,8 +85,6 @@ function performTicketAction(
                 Tables.Tickets.updateById(ticketId, {
                     Status: computedStatus,
                     AssigneeId: assigneeId,
-                    ClosedAt: '',
-                    UpdatedAt: nowIso(),
                 });
             } else if (action === 'close') {
                 const isAssignee = ticket.AssigneeId === actor.Id;
@@ -115,20 +93,12 @@ function performTicketAction(
                 if (['unassigned', 'pending'].indexOf(ticket.Status) === -1)
                     throw new ValidationError('invalid_transition');
                 computedStatus = 'closed';
-                Tables.Tickets.updateById(ticketId, {
-                    Status: computedStatus,
-                    ClosedAt: nowIso(),
-                    UpdatedAt: nowIso(),
-                });
+                Tables.Tickets.updateById(ticketId, { Status: computedStatus });
             } else if (action === 'reopen') {
                 if (actor.Role !== 'admin') throw new AuthorizationError('admin_required');
                 if (ticket.Status !== 'closed') throw new ValidationError('invalid_transition');
                 computedStatus = 'pending';
-                Tables.Tickets.updateById(ticketId, {
-                    Status: computedStatus,
-                    ClosedAt: '',
-                    UpdatedAt: nowIso(),
-                });
+                Tables.Tickets.updateById(ticketId, { Status: computedStatus });
             } else {
                 throw new ValidationError('unsupported_action');
             }
@@ -190,45 +160,4 @@ function notifyOnTicketAction(
             );
         });
     }
-}
-
-function addTicketComment(ticketId: string, message: string, requestId: string): TicketCommentDTO {
-    const actor = requireUser();
-    const trimmedMessage = requireNonEmpty(message, 'Message is required.');
-    const ticket = Tables.Tickets.findById(ticketId);
-    if (!ticket) throw new ValidationError('ticket_not_found');
-
-    const { result: comment, duplicate } = withLockedDedupe(
-        'ticket:' + ticketId + ':comment',
-        requestId,
-        () => {
-            const created = Tables.TicketComments.insert({
-                TicketId: ticketId,
-                AuthorId: actor.Id,
-                Message: trimmedMessage,
-                CreatedAt: nowIso(),
-            });
-            logActivity(actor.Id, 'ticket_comment', created.Id, 'create', null, created, {
-                ticketId,
-            });
-            return created;
-        },
-    );
-
-    if (!duplicate) {
-        const recipients = Array.from(
-            new Set([ticket.ReporterId, ticket.AssigneeId].filter((id) => id && id !== actor.Id)),
-        );
-        recipients.forEach((id) => {
-            sendNotificationEmail(
-                id,
-                'ticket:' + ticketId + ':comment:' + comment.Id,
-                'New comment on TKT-' + ticket.DisplayId,
-                actor.Name + ' commented: ' + trimmedMessage,
-                '?section=tickets',
-            );
-        });
-    }
-
-    return buildTicketCommentDTO(comment, indexById([actor]));
 }

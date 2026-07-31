@@ -276,6 +276,21 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
                 <div class="request-actions mt-2 flex flex-wrap gap-2">
                   ${actions.map((action) => `<button type="button" class="btn btn-xs ${INVENTORY_REQUEST_ACTION_BTN[action]}" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button>`).join('')}
                 </div>
+
+                <details class="collapse-arrow collapse mt-2 rounded-box border border-base-200 bg-base-100">
+                  <summary class="collapse-title min-h-0 px-3 py-2 text-sm font-medium after:!size-3">
+                    ${request.comments.length} update${request.comments.length === 1 ? '' : 's'}
+                  </summary>
+                  <div class="collapse-content space-y-2 px-3 text-sm">
+                    <div class="comment-list space-y-1.5">
+                      ${request.comments.map((c) => renderCommentLine(c)).join('') || '<p class="text-base-content/40">No updates yet.</p>'}
+                    </div>
+                    <form class="comment-form flex gap-2 pt-1">
+                      <input class="input input-sm flex-1" placeholder="Add a comment" name="message" />
+                      <button type="submit" class="btn btn-sm">Send</button>
+                    </form>
+                  </div>
+                </details>
               </li>`;
                   })
                   .join('');
@@ -286,6 +301,26 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
             const requestId = li.dataset.requestId!;
             const action = button.getAttribute('data-action') as InventoryRequestAction;
             await handleInventoryRequestAction(requestId, action);
+        });
+    });
+
+    list.querySelectorAll<HTMLElement>('li[data-request-id]').forEach((li) => {
+        const requestId = li.dataset.requestId!;
+        const commentForm = li.querySelector('.comment-form') as HTMLFormElement;
+        commentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = commentForm.querySelector('input[name="message"]') as HTMLInputElement;
+            const message = input.value.trim();
+            if (!message) return;
+            try {
+                showSavingBadge(true);
+                await api.addComment('inventory_request', requestId, message, generateRequestId());
+                await refreshDashboard();
+            } catch (err) {
+                showErrorAlert(err);
+            } finally {
+                showSavingBadge(false);
+            }
         });
     });
 }

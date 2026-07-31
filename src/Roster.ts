@@ -54,8 +54,6 @@ function createRosterShift(input: CreateRosterShiftInput, requestId: string): Ro
             ShiftName: input.shiftName.trim(),
             AssigneeProfileId: assignee.Id,
             CreatedBy: actor.Id,
-            CreatedAt: nowIso(),
-            UpdatedAt: nowIso(),
         });
         logActivity(actor.Id, 'roster_shift', created.Id, 'create', null, created, {
             assigneeId: assignee.Id,

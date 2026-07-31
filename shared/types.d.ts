@@ -31,6 +31,10 @@ type AttachmentOwnerType =
     | 'inventory_return'
     | 'ticket'
     | 'ticket_comment';
+// Only inventory requests carry comments today (their status-change
+// history, plus manual notes). Extend this union when a new commentable
+// section is added (e.g. studio booking requests).
+type CommentOwnerType = 'inventory_request';
 
 // ---------------------------------------------------------------------------
 // Sheet row shapes (raw, one per tab; see plan section 1)
@@ -40,15 +44,11 @@ interface Department {
     Id: string;
     Name: string;
     ShortName: string;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
-interface LocationRecord {
+interface Place {
     Id: string;
     Name: string;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
 interface Profile {
@@ -63,8 +63,6 @@ interface Profile {
     Whatsapp: string;
     AvatarDriveFileId: string;
     NotificationEmail: boolean;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
 interface RosterShift {
@@ -76,8 +74,6 @@ interface RosterShift {
     ShiftName: string;
     AssigneeProfileId: string;
     CreatedBy: string;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
 interface EquipmentType {
@@ -86,8 +82,6 @@ interface EquipmentType {
     Description: string;
     Requestable: boolean;
     ImageDriveFileId: string;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
 interface InventoryItem {
@@ -100,10 +94,10 @@ interface InventoryItem {
     AvailableQuantity: number;
     ImageDriveFileId: string;
     AdminNotes: string;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
+// Status-change history (who/when) lives in Comments (OwnerType
+// 'inventory_request'), posted by the system actor — see Comments.ts.
 interface InventoryRequest {
     Id: string;
     DisplayId: number;
@@ -114,13 +108,6 @@ interface InventoryRequest {
     Purpose: string;
     Status: InventoryRequestStatus;
     AdminNote: string;
-    SubmittedAt: string;
-    ApprovedAt: string;
-    IssuedAt: string;
-    ReturnedAt: string;
-    ClosedAt: string;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
 interface InventoryRequestItem {
@@ -130,7 +117,6 @@ interface InventoryRequestItem {
     Quantity: number;
     IssuedQuantity: number;
     ReturnedQuantity: number;
-    CreatedAt: string;
 }
 
 interface InventoryReturn {
@@ -140,7 +126,6 @@ interface InventoryReturn {
     Condition: ReturnCondition;
     Notes: string;
     ReceivedBy: string;
-    CreatedAt: string;
 }
 
 interface Ticket {
@@ -154,14 +139,15 @@ interface Ticket {
     Status: TicketStatus;
     ReporterId: string;
     AssigneeId: string;
-    ClosedAt: string;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
-interface TicketComment {
+// Also used to narrate status changes on its owner: AuthorId ===
+// SYSTEM_ACTOR_ID for those, a real Profile Id for user-typed comments.
+// See Comments.ts.
+interface CommentRecord {
     Id: string;
-    TicketId: string;
+    OwnerType: CommentOwnerType;
+    OwnerId: string;
     AuthorId: string;
     Message: string;
     CreatedAt: string;
@@ -176,7 +162,6 @@ interface Attachment {
     ContentType: string;
     SizeBytes: number;
     UploadedBy: string;
-    CreatedAt: string;
 }
 
 interface Link {
@@ -185,8 +170,6 @@ interface Link {
     Url: string;
     DisplayOrder: number;
     Enabled: boolean;
-    CreatedAt: string;
-    UpdatedAt: string;
 }
 
 interface HomeContent {
@@ -196,7 +179,6 @@ interface HomeContent {
     WhatsappUrl: string;
     TutorialUrl: string;
     UpdatedBy: string;
-    UpdatedAt: string;
 }
 
 interface ActivityLogEntry {
@@ -245,16 +227,16 @@ interface InventoryRequestItemDTO extends InventoryRequestItem {
 interface InventoryRequestDTO extends InventoryRequest {
     requesterName: string;
     items: InventoryRequestItemDTO[];
+    comments: CommentDTO[];
 }
 
-interface TicketCommentDTO extends TicketComment {
+interface CommentDTO extends CommentRecord {
     authorName: string;
 }
 
 interface TicketDTO extends Ticket {
     reporterName: string;
     assigneeName: string;
-    comments: TicketCommentDTO[];
 }
 
 interface Paginated<T> {
@@ -267,7 +249,7 @@ interface Paginated<T> {
 interface DashboardPayload {
     me: ProfileDTO;
     departments: Department[];
-    locations: LocationRecord[];
+    locations: Place[];
     equipmentTypes: EquipmentType[];
     upcomingShifts: RosterShiftDTO[];
     inventoryItems: InventoryItemDTO[];
@@ -405,8 +387,8 @@ interface Api {
     listDepartments(): Department[];
     createDepartment(input: CreateDepartmentInput, requestId: string): Department;
 
-    listLocations(): LocationRecord[];
-    createLocation(input: CreateLocationInput, requestId: string): LocationRecord;
+    listLocations(): Place[];
+    createLocation(input: CreateLocationInput, requestId: string): Place;
 
     listLinks(): Link[];
     createLink(input: CreateLinkInput, requestId: string): Link;
@@ -445,7 +427,12 @@ interface Api {
         assigneeId: string | null,
         dedupeRequestId: string,
     ): TicketStatus;
-    addTicketComment(ticketId: string, message: string, requestId: string): TicketCommentDTO;
+    addComment(
+        ownerType: CommentOwnerType,
+        ownerId: string,
+        message: string,
+        requestId: string,
+    ): CommentDTO;
 
     uploadAttachmentChunk(
         uploadId: string,

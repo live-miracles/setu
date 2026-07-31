@@ -55,7 +55,6 @@ function seedHomeContentSingletonIfMissing(): void {
             WhatsappUrl: '',
             TutorialUrl: '',
             UpdatedBy: '',
-            UpdatedAt: nowIso(),
         });
     });
 }

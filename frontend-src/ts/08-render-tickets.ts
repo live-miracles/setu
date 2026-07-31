@@ -136,23 +136,8 @@ function renderTicketCard(
                   : `<span class="badge badge-sm shrink-0 ${TICKET_PRIORITY_BADGE[ticket.Priority]}">${escapeHtml(ticket.Priority)}</span>`
           }
         </div>
-        <div class="text-sm text-base-content/60">${escapeHtml(ticket.LocationName)} · reported by ${escapeHtml(ticket.reporterName)} · ${timeAgo(ticket.UpdatedAt)}</div>
-
-        <details class="collapse-arrow collapse rounded-box border border-base-200 bg-base-200/30">
-          <summary class="collapse-title min-h-0 px-3 py-2 text-sm font-medium after:!size-3">
-            ${ticket.comments.length} comment${ticket.comments.length === 1 ? '' : 's'}
-          </summary>
-          <div class="collapse-content space-y-2 px-3 text-sm">
-            ${ticket.Description ? `<p class="text-base-content/70">${escapeHtml(ticket.Description)}</p>` : ''}
-            <div class="comment-list space-y-1.5">
-              ${ticket.comments.map((c) => `<div><span class="font-medium">${escapeHtml(c.authorName)}</span> <span class="text-base-content/70">${escapeHtml(c.Message)}</span></div>`).join('') || '<p class="text-base-content/40">No comments yet.</p>'}
-            </div>
-            <form class="comment-form flex gap-2 pt-1">
-              <input class="input input-sm flex-1" placeholder="Add a comment" name="message" />
-              <button type="submit" class="btn btn-sm">Send</button>
-            </form>
-          </div>
-        </details>
+        <div class="text-sm text-base-content/60">${escapeHtml(ticket.LocationName)} · reported by ${escapeHtml(ticket.reporterName)}</div>
+        ${ticket.Description ? `<p class="text-sm text-base-content/70">${escapeHtml(ticket.Description)}</p>` : ''}
 
         <div class="ticket-actions flex flex-wrap gap-2">
           ${actions.map((action) => `<button type="button" class="btn btn-xs ${TICKET_ACTION_BTN[action]}" data-action="${action}">${TICKET_ACTION_LABELS[action]}</button>`).join('')}
@@ -170,23 +155,6 @@ function wireTicketBoard(board: HTMLElement): void {
                 const action = button.getAttribute('data-action') as TicketAction;
                 await handleTicketAction(ticketId, action);
             });
-        });
-
-        const commentForm = card.querySelector('.comment-form') as HTMLFormElement;
-        commentForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const input = commentForm.querySelector('input[name="message"]') as HTMLInputElement;
-            const message = input.value.trim();
-            if (!message) return;
-            try {
-                showSavingBadge(true);
-                await api.addTicketComment(ticketId, message, generateRequestId());
-                await refreshDashboard();
-            } catch (err) {
-                showErrorAlert(err);
-            } finally {
-                showSavingBadge(false);
-            }
         });
     });
 }

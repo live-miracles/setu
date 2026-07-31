@@ -66,7 +66,7 @@ const api: AsyncApi = {
     listTickets: (...args) => callBackend('listTickets', ...args),
     createTicket: (...args) => callBackend('createTicket', ...args),
     performTicketAction: (...args) => callBackend('performTicketAction', ...args),
-    addTicketComment: (...args) => callBackend('addTicketComment', ...args),
+    addComment: (...args) => callBackend('addComment', ...args),
 
     uploadAttachmentChunk: (...args) => callBackend('uploadAttachmentChunk', ...args),
     finishAttachmentUpload: (...args) => callBackend('finishAttachmentUpload', ...args),

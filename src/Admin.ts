@@ -24,8 +24,6 @@ function inviteUser(input: InviteUserInput, requestId: string): ProfileDTO {
             Whatsapp: '',
             AvatarDriveFileId: '',
             NotificationEmail: true,
-            CreatedAt: nowIso(),
-            UpdatedAt: nowIso(),
         });
         logActivity(actor.Id, 'profile', created.Id, 'invite', null, created, {});
         return created;
@@ -54,7 +52,6 @@ function updateUser(profileId: string, patch: UpdateUserInput): ProfileDTO {
             DepartmentId:
                 patch.departmentId !== undefined ? patch.departmentId : target.DepartmentId,
             Timezone: patch.timezone !== undefined ? patch.timezone : target.Timezone,
-            UpdatedAt: nowIso(),
         }),
     );
     logActivity(actor.Id, 'profile', profileId, 'update_access', before, updated, {});
@@ -76,7 +73,6 @@ function updateOwnProfile(patch: UpdateOwnProfileInput): ProfileDTO {
                 patch.notificationEmail !== undefined
                     ? patch.notificationEmail
                     : actor.NotificationEmail,
-            UpdatedAt: nowIso(),
         }),
     );
     return toProfileDTO(updated);
@@ -94,8 +90,6 @@ function createDepartment(input: CreateDepartmentInput, requestId: string): Depa
         const created = Tables.Departments.insert({
             Name: name,
             ShortName: input.shortName || '',
-            CreatedAt: nowIso(),
-            UpdatedAt: nowIso(),
         });
         logActivity(actor.Id, 'department', created.Id, 'create', null, created, {});
         return created;
@@ -103,19 +97,17 @@ function createDepartment(input: CreateDepartmentInput, requestId: string): Depa
     return result;
 }
 
-function listLocations(): LocationRecord[] {
+function listLocations(): Place[] {
     requireUser();
     return Tables.Locations.readAll();
 }
 
-function createLocation(input: CreateLocationInput, requestId: string): LocationRecord {
+function createLocation(input: CreateLocationInput, requestId: string): Place {
     const actor = requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('location:create', requestId, () => {
         const created = Tables.Locations.insert({
             Name: name,
-            CreatedAt: nowIso(),
-            UpdatedAt: nowIso(),
         });
         logActivity(actor.Id, 'location', created.Id, 'create', null, created, {});
         return created;
@@ -138,8 +130,6 @@ function createLink(input: CreateLinkInput, requestId: string): Link {
             Url: url,
             DisplayOrder: input.displayOrder || 0,
             Enabled: input.enabled !== false,
-            CreatedAt: nowIso(),
-            UpdatedAt: nowIso(),
         });
         logActivity(actor.Id, 'link', created.Id, 'create', null, created, {});
         return created;
@@ -162,7 +152,6 @@ function updateHomeContent(input: UpdateHomeContentInput): HomeContent {
             WhatsappUrl: input.whatsappUrl || '',
             TutorialUrl: input.tutorialUrl || '',
             UpdatedBy: actor.Id,
-            UpdatedAt: nowIso(),
         }),
     );
     logActivity(actor.Id, 'home_content', 'singleton', 'update', before, updated, {});
