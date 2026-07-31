@@ -1,7 +1,7 @@
-.next
-node_modules
+frontend-src/output.css
+frontend-src/ts/*.js
 package-lock.json
-.vscode
-*.min.css
-*.min.js
-public/sw.js
+node_modules
+src/Index.html
+src/Stylesheet.html
+src/JavaScript.html

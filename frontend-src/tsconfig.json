@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "ES2019",
+        "lib": ["ES2019", "DOM"],
+        "module": "none",
+        "moduleResolution": "node",
+        "types": [],
+        "strict": true,
+        "rootDir": "ts",
+        "forceConsistentCasingInFileNames": true,
+        "skipLibCheck": true
+    },
+    "include": ["ts/**/*.ts", "../shared/**/*.ts"]
+}

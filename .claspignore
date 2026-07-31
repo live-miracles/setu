@@ -1,0 +1,5 @@
+**/**
+!src/**/*.ts
+!src/**/*.html
+!src/appsscript.json
+src/tsconfig.json

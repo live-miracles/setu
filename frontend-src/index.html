@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Livestream Operations (dev)</title>
+    <link rel="stylesheet" href="output.css" />
+  </head>
+  <body class="bg-base-200 min-h-screen">
+    <div id="saving-badge" class="hidden fixed top-2 right-2 badge badge-info z-50">Saving…</div>
+    <div id="error-toast" class="hidden fixed top-2 left-1/2 -translate-x-1/2 alert alert-error z-50 max-w-md"></div>
+
+    <header class="navbar bg-base-100 shadow px-4">
+      <div class="flex-1 font-semibold">Livestream Operations (dev)</div>
+      <div class="flex-none flex gap-1 flex-wrap items-center">
+        <button class="btn btn-sm" data-nav-section="home">Home</button>
+        <button class="btn btn-sm" data-nav-section="roster">Roster</button>
+        <button class="btn btn-sm" data-nav-section="inventory">Inventory</button>
+        <button class="btn btn-sm" data-nav-section="tickets">Tickets</button>
+        <button class="btn btn-sm" data-nav-section="profile">Profile</button>
+        <button class="btn btn-sm hidden" data-nav-section="admin">Admin</button>
+        <span id="notification-count" class="badge badge-primary hidden"></span>
+      </div>
+    </header>
+
+    <main id="app-content" class="max-w-3xl mx-auto p-4"></main>
+
+    <script src="ts/00-config.js"></script>
+    <script src="ts/01-mock-backend.js"></script>
+    <script src="ts/02-api.js"></script>
+    <script src="ts/03-state.js"></script>
+    <script src="ts/04-render-shared.js"></script>
+    <script src="ts/11-workflows.js"></script>
+    <script src="ts/05-render-home.js"></script>
+    <script src="ts/06-render-roster.js"></script>
+    <script src="ts/07-render-inventory.js"></script>
+    <script src="ts/08-render-tickets.js"></script>
+    <script src="ts/09-render-profile.js"></script>
+    <script src="ts/10-render-admin.js"></script>
+    <script src="ts/12-main.js"></script>
+  </body>
+</html>

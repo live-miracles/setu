@@ -1,49 +1,30 @@
 {
-    "name": "livestream-operations",
+    "name": "setu",
     "version": "0.1.0",
+    "description": "Livestream Operations — a Google Apps Script + Google Sheets internal ops app.",
     "private": true,
-    "overrides": {
-        "next": {
-            "postcss": "^8.5.23",
-            "sharp": "^0.35.3"
-        }
-    },
+    "type": "module",
     "scripts": {
-        "dev": "next dev",
-        "build": "next build",
-        "start": "next start",
-        "lint": "eslint .",
+        "dev": "node build-tools/dev.mjs",
+        "css": "tailwindcss -i frontend-src/input.css -o frontend-src/output.css",
+        "build": "node build-tools/build.mjs",
+        "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend-src/tsconfig.json",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "typecheck": "tsc --noEmit"
-    },
-    "dependencies": {
-        "@ant-design/icons": "latest",
-        "@ant-design/nextjs-registry": "latest",
-        "@emnapi/core": "1.11.3",
-        "@emnapi/runtime": "1.11.3",
-        "@supabase/ssr": "latest",
-        "@supabase/supabase-js": "latest",
-        "antd": "latest",
-        "date-fns": "latest",
-        "next": "latest",
-        "react": "latest",
-        "react-dom": "latest",
-        "resend": "latest",
-        "web-push": "latest",
-        "zod": "latest"
+        "push": "npm run typecheck && npm run build && clasp push",
+        "deploy": "npm run typecheck && npm run build && clasp push && clasp deploy --deploymentId \"$CLASP_DEPLOYMENT_ID\" --description \"$(date +%Y-%m-%dT%H:%M:%S)\"",
+        "logs": "clasp logs --watch",
+        "open": "clasp open"
     },
     "devDependencies": {
-        "@types/node": "latest",
-        "@types/react": "latest",
-        "@types/react-dom": "latest",
-        "@types/web-push": "latest",
-        "eslint": "latest",
-        "eslint-config-next": "latest",
-        "prettier": "^3.8.1",
-        "typescript": "latest",
-        "vitest": "latest"
+        "@google/clasp": "^2.4.2",
+        "@types/google-apps-script": "^1.0.83",
+        "typescript": "^5.5.4",
+        "@tailwindcss/cli": "^4.0.0",
+        "tailwindcss": "^4.0.0",
+        "daisyui": "^5.0.0",
+        "browser-sync": "^3.0.4",
+        "concurrently": "^9.0.0",
+        "prettier": "^3.3.3"
     }
 }

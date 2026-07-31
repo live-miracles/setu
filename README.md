@@ -1,174 +1,83 @@
-# Livestream Operations
+# Livestream Operations — Apps Script + Sheets
 
-A mobile-first internal web app for roster coverage, equipment handovers and
-studio support. It replaces the daily AppSheet workflows without carrying over
-AppSheet data or offline synchronization.
-
-## Included
-
-- Google sign-in with an application allowlist and fixed `admin` / `member`
-  roles
-- Home dashboard with upcoming shifts, active inventory requests, quick links,
-  guidelines, WhatsApp and tutorial links
-- Roster creation and assignment notifications
-- Equipment catalogue and the full request lifecycle: submit, approve/reject,
-  issue, return, damaged/missing recording and close
-- Tickets with assignment, comments, close and reopen
-- User profile and notification preferences
-- Admin APIs and UI for allowlist access, departments, locations, equipment
-  types, inventory, links and home content
-- In-app, Resend email and VAPID Web Push notifications
-- Private Supabase Storage uploads with five-minute signed download links
-- An installable PWA shell for iOS, Android and desktop
-- Daily overdue reminders and idempotent notification retries
-- Immutable audit records for sensitive business transitions
-
-The service worker intentionally has no `fetch` handler and creates no cache.
-When disconnected, the app displays an offline warning and refuses writes.
-
-## Local preview
-
-Node.js 24 LTS is recommended.
-
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
-
-The example environment enables demo mode, so the complete UI and workflows can
-be evaluated without cloud credentials at
-[http://localhost:3000/app](http://localhost:3000/app).
-
-Before opening a pull request:
-
-```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
-```
-
-## Supabase setup
-
-1. Create a Supabase project. The Free plan is enough for evaluation and
-   small-team use (see the free-tier notes below); move to Pro once the
-   project must never auto-pause or you need included backups.
-2. Run `supabase/migrations/0001_initial.sql` in the SQL editor or with the
-   Supabase CLI.
-3. Create a Google OAuth client for sign-in:
-    - In [Google Cloud Console](https://console.cloud.google.com/), create or
-      select a project, then open **APIs & Services → OAuth consent screen**
-      and configure it (External user type, app name, support email). Publish
-      the consent screen — leaving it in "Testing" restricts sign-in to a
-      manually added list of test users.
-    - Open **APIs & Services → Credentials → Create Credentials → OAuth
-      client ID**, choose **Web application**, and add Supabase's callback
-      URL as an authorized redirect URI. That URL is shown in the Supabase
-      dashboard under Authentication → Providers → Google, and follows the
-      pattern `https://<project-ref>.supabase.co/auth/v1/callback`.
-    - Copy the generated Client ID and Client Secret.
-4. In Supabase, open **Authentication → Providers → Google**, enable it and
-   paste the Client ID and Client Secret from the previous step. Then under
-   **Authentication → URL Configuration**, add
-   `https://<your-domain>/auth/callback` to the allowed Redirect URLs.
-5. Create VAPID keys and a verified Resend sender.
-6. Set `NEXT_PUBLIC_DEMO_MODE=false` and fill every production variable from
-   `.env.example`.
-7. Set `BOOTSTRAP_ADMIN_EMAIL` to the first administrator's lowercase Google
-   account email. The first successful login creates that administrator.
-8. Invite all other users from Admin before they sign in.
-
-The browser uses Supabase only for its signed-in session. All business writes
-go through `/api/v1`; service-role credentials must never be exposed as a
-`NEXT_PUBLIC_` variable.
-
-**Free-tier caveat:** a Free-plan project pauses itself after 7 days with no
-API traffic (any sign-in or API call resets that clock). A paused project
-must be manually resumed from the Supabase dashboard before the app works
-again. Free-plan projects also skip the automatic daily backups and
-point-in-time recovery that Pro includes — see "Operational notes" below.
-
-## Vercel deployment
-
-Import this repository into a Vercel project — the Hobby (free) plan is
-enough. Configure the same environment variables for Preview and Production.
-Vercel Hobby caps Cron Jobs at once per day, so `vercel.json` only installs
-the overdue-request scan, daily at 02:30 UTC; Vercel sends `CRON_SECRET` as a
-Bearer token for that request.
-
-The notification-retry job needs a much tighter interval (every 15 minutes),
-so it runs from `.github/workflows/retry-notifications.yml` on GitHub's own
-scheduler instead of Vercel Cron. In the deployed repository's
-**Settings → Secrets and variables → Actions**, add:
-
-- `APP_URL` — the deployed app's base URL (e.g. `https://your-app.vercel.app`)
-- `CRON_SECRET` — the same value set in Vercel's environment variables
-
-GitHub Actions minutes are unlimited for public repositories, so this costs
-nothing as long as the fork stays public. GitHub disables scheduled workflows
-after 60 days without a commit to the repository; if retries silently stop,
-re-enable the workflow from the Actions tab (or push any commit) to restart
-it.
-
-If this deployment is more than a personal or evaluation project, note that
-Vercel's Hobby plan terms are for personal, non-commercial use — check
-Vercel's current terms before relying on it for an organization's internal
-tooling, and move to a Pro/Team plan if that applies to you.
-
-Recommended release flow:
-
-1. Apply the database migration to a staging Supabase project.
-2. deploy a Vercel Preview environment;
-3. complete the mobile, permission, attachment and concurrency acceptance
-   checklist;
-4. rehearse database restore and private attachment access;
-5. apply the migration and environment settings to Production, then promote the
-   verified build.
-
-This checkout is not linked to a Vercel account. Running `vercel link` once is
-required before command-line deployments.
+A Google Apps Script web app that uses a Google Sheet as its database, following the same deployment pattern as `multi-lang-qa`. Runs entirely on Google's free tier: no hosting bill, no database that pauses itself after a week of inactivity.
 
 ## Architecture
 
 ```text
-Browser / installed PWA
-        |
-        | Google session + /api/v1
-        v
-Next.js route handlers on Vercel
-        |
-        +--> Supabase PostgreSQL + RLS + audit log
-        +--> private Supabase Storage + signed URLs
-        +--> Resend email
-        +--> VAPID Web Push
+Browser
+   |
+   | google.script.run
+   v
+Apps Script web app (doGet + ~30 exposed functions)
+   |
+   +--> Google Sheet (one tab per entity, via the SheetTable helper)
+   +--> Google Drive (private "Setu Attachments" folder)
+   +--> MailApp (notification emails)
 
-Vercel Cron    --> overdue scan (daily)
-GitHub Actions --> notification delivery retry (every 15 minutes)
+Time-driven trigger --> daily overdue-request scan
 ```
 
-Inventory and ticket commands require an `Idempotency-Key` header. The database
-functions lock the affected request and stock rows before approving, issuing or
-returning items, so concurrent clicks cannot double-adjust availability.
+Everything — backend and frontend — is TypeScript. The backend compiles via `clasp push` directly to the Apps Script runtime (V8); the frontend compiles via plain `tsc` (no bundler/framework) into a single inlined `<script>` block served by `HtmlService`. Both share one ambient-global type contract at `shared/types.d.ts`.
 
-## API surface
+## Local development
 
-The implementation exposes the planned `/api/v1` groups for session, users,
-departments, locations, roster, equipment types, inventory items and requests,
-tickets and comments, attachments, notifications, push subscriptions, home
-content, links and cron jobs.
+```bash
+npm install
+npm run dev
+```
 
-Attachment uploads are limited to JPEG, PNG, WebP and PDF files up to 15 MiB.
-Downloads are authorized against the owning record and returned as short-lived
-signed URLs.
+This starts `tsc --watch` + Tailwind `--watch` + `browser-sync` on `http://localhost:3000`, serving `frontend-src/` directly against an in-memory mock backend (`frontend-src/ts/01-mock-backend.ts`) — no Google account, Sheet, or Apps Script project needed to develop the UI. `frontend-src/index.html` is the dev shell; it never gets pushed to Apps Script.
 
-## Operational notes
+```bash
+npm run typecheck   # tsc --noEmit against both the backend and frontend programs
+npm run build       # compiles + concatenates everything into src/{Index,Stylesheet,JavaScript}.html
+```
 
-- All timestamps are stored in UTC and rendered in the user's configured time
-  zone; the default is `Asia/Kolkata`.
-- Disabling a user prevents the profile lookup required by every API request.
-- Admins cannot demote or disable their own administrator account.
-- There is no AppSheet data import in this release.
-- Production backup and point-in-time recovery are provided by the selected
-  Supabase plan (not included on Free) and must be verified with a restore
-  rehearsal before launch.
+## One-time Google-side setup
+
+1. **Create the Google Sheet.** Any new spreadsheet works — the app creates its own tabs. Copy its ID from the URL (`https://docs.google.com/spreadsheets/d/<ID>/edit`).
+2. **Create the Apps Script project.**
+    ```bash
+    npx clasp login          # one-time interactive OAuth, opens a browser
+    npx clasp create --type webapp --title "Livestream Operations" --rootDir src
+    ```
+    Or, if you'd rather create the project by hand at [script.google.com](https://script.google.com), use `npx clasp clone <scriptId> --rootDir src` instead. Either way you end up with a `.clasp.json` pointing `rootDir` at `src` — this file is git-ignored since it's environment-specific.
+3. **Set Script Properties** (Apps Script editor → Project Settings → Script Properties):
+    - `SPREADSHEET_ID` — the Sheet ID from step 1.
+    - `BOOTSTRAP_ADMIN_EMAIL` — the lowercase Google account email of the first administrator. The first person to open the app with that email becomes the first active admin; everyone else needs to be invited from the Admin section first.
+4. **Push and run the one-time setup functions:**
+    ```bash
+    npm run push
+    ```
+    Then in the Apps Script editor, select and run (once each, in this order):
+    - `setupSheets` — idempotently creates all 19 tabs with their headers.
+    - `ensureAttachmentsFolder` — creates the private "Setu Attachments" Drive folder and stores its ID as a Script Property.
+    - `installTriggers` — installs the daily overdue-request-scan trigger.
+5. **Deploy as a web app.** In the Apps Script editor: Deploy → New deployment → Web app → Execute as **Me**, Who has access **Anyone with a Google account**. Copy the deployment ID it gives you.
+6. **Wire up `npm run deploy`.** Set `CLASP_DEPLOYMENT_ID` to that deployment ID (as a shell env var locally, or a repo secret if you script deploys from CI) — every subsequent `npm run deploy` reuses it so the live URL never changes:
+    ```bash
+    export CLASP_DEPLOYMENT_ID=<your-deployment-id>
+    npm run deploy
+    ```
+
+**First-time visitors will see Google's "unverified app" warning** the first time they authorize (this project won't go through Google's app verification process). For a small internal team this is an expected click-through, not a sign of something broken.
+
+## Inviting people
+
+Access is gated by the `Profiles` sheet tab itself — there is no separate allowlist. An admin invites someone from the Admin section (creates a row with status `invited`); that person's first successful visit with the matching Google account flips them to `active`. Disabling a user immediately blocks every backend call for them.
+
+## What's simplified vs. a "real" backend
+
+This rewrite deliberately trades a few things for staying free and simple, appropriate at the usage level it's built for (effectively one concurrent user):
+
+- **Locking:** one coarse `LockService` mutex per mutation instead of Postgres row-level locking. Every create/action function wraps its _entire_ read-modify-write sequence in one lock (see `SheetTable.ts`'s `withLock`) — this specifically avoids the race multi-lang-qa's reference pattern has, where only the final write was locked.
+- **Idempotency:** a `CacheService`-backed dedupe check (`Dedupe.ts`) instead of a formal ledger table — good enough to survive double-taps and network retries, not a durable audit trail.
+- **Notifications:** email (`MailApp`) + in-app only. No push notifications — if `MailApp.sendEmail` throws, the failure is logged to the `FailedNotifications` tab and execution continues rather than retrying.
+- **Attachments:** private Google Drive folder instead of signed URLs. Every download re-runs the same access check that produced the upload permission, which is the closest equivalent without Storage-style signed links.
+- **Audit trail:** a plain append-only `ActivityLog` tab instead of an RLS-guarded, immutable audit table.
+
+## Known gaps in this build
+
+- Attachment upload isn't wired into the Inventory/Tickets UI yet (the backend functions and Drive folder structure exist; the file-picker widget in the frontend doesn't).
+- The UI is functional but not visually polished — action confirmations use `window.prompt`/`window.confirm` rather than proper modals.

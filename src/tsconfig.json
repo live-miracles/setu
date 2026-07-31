@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "ES2019",
+        "lib": ["ES2019"],
+        "module": "none",
+        "moduleResolution": "node",
+        "types": ["google-apps-script"],
+        "strict": true,
+        "noEmit": true,
+        "forceConsistentCasingInFileNames": true,
+        "skipLibCheck": true
+    },
+    "include": ["**/*.ts", "../shared/**/*.ts"]
+}
