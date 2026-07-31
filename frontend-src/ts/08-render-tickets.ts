@@ -4,39 +4,55 @@ const TICKET_ACTION_LABELS: Record<TicketAction, string> = {
     reopen: 'Reopen',
 };
 
+const TICKET_BOARD_COLUMNS: { status: TicketStatus; title: string }[] = [
+    { status: 'unassigned', title: 'Not assigned' },
+    { status: 'pending', title: 'Pending' },
+    { status: 'closed', title: 'Closed' },
+];
+
 async function renderTickets(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
     container.innerHTML = `
     <section class="space-y-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body gap-2">
-          <h2 class="card-title">Report an issue</h2>
-          <form id="create-ticket-form" class="space-y-2">
-            <input name="title" class="input input-bordered w-full" placeholder="Title" required />
-            <textarea name="description" class="textarea textarea-bordered w-full" placeholder="Description"></textarea>
-            <select name="locationId" class="select select-bordered w-full" required>
-              ${dashboard.locations.map((l) => `<option value="${l.Id}">${escapeHtml(l.Name)}</option>`).join('')}
-            </select>
-            <select name="priority" class="select select-bordered w-full">
-              <option value="low">Low</option>
-              <option value="medium" selected>Medium</option>
-              <option value="high">High</option>
-            </select>
+      ${renderSectionHeader('ticket', 'Tickets', 'Track operational issues through resolution.')}
+
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-3">
+          <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} Report an issue</h2>
+          <form id="create-ticket-form" class="space-y-3">
+            <fieldset class="fieldset">
+              <label class="label" for="ticket-title">Title</label>
+              <input id="ticket-title" name="title" class="input w-full" placeholder="Short, searchable title" required />
+              <label class="label" for="ticket-description">Description</label>
+              <textarea id="ticket-description" name="description" class="textarea w-full" placeholder="What happened, when, and what have you already tried?"></textarea>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label class="label" for="ticket-location">Location</label>
+                  <select id="ticket-location" name="locationId" class="select w-full" required>
+                    ${dashboard.locations.map((l) => `<option value="${l.Id}">${escapeHtml(l.Name)}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="ticket-priority">Priority</label>
+                  <select id="ticket-priority" name="priority" class="select w-full">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+            </fieldset>
             <button type="submit" class="btn btn-primary">Create ticket</button>
           </form>
         </div>
       </div>
 
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <h2 class="card-title">Tickets</h2>
-          <ul id="ticket-list" class="divide-y"></ul>
-        </div>
-      </div>
+      <div id="ticket-board" class="grid gap-4 md:grid-cols-3"></div>
     </section>
   `;
 
+    wireInternalNavLinks(container);
     wireCreateTicketForm();
-    renderTicketList(dashboard);
+    renderTicketBoard(dashboard);
 }
 
 function wireCreateTicketForm(): void {
@@ -64,58 +80,99 @@ function wireCreateTicketForm(): void {
     });
 }
 
-function renderTicketList(dashboard: DashboardPayload): void {
-    const list = document.getElementById('ticket-list');
-    if (!list) return;
+function renderTicketBoard(dashboard: DashboardPayload): void {
+    const board = document.getElementById('ticket-board');
+    if (!board) return;
     const isAdmin = dashboard.me.Role === 'admin';
     const allActions: TicketAction[] = ['assign', 'close', 'reopen'];
 
-    list.innerHTML =
-        dashboard.tickets.length === 0
-            ? '<li class="py-2 opacity-70">No tickets yet.</li>'
-            : dashboard.tickets
-                  .map((ticket) => {
-                      const isAssignee = ticket.AssigneeId === dashboard.me.Id;
-                      const actions = allActions.filter((action) => {
-                          if (!canTransitionTicket(ticket.Status, action)) return false;
-                          if (action === 'close') return isAdmin || isAssignee;
-                          return isAdmin;
-                      });
-                      return `
-              <li class="py-3" data-ticket-id="${ticket.Id}">
-                <div class="flex justify-between items-start gap-2">
-                  <div>
-                    <div class="font-medium">TKT-${ticket.DisplayId} — ${escapeHtml(ticket.Title)}</div>
-                    <div class="text-sm opacity-70">${escapeHtml(ticket.LocationName)} · ${escapeHtml(ticket.Priority)} · reported by ${escapeHtml(ticket.reporterName)}</div>
-                    ${ticket.assigneeName ? `<div class="text-sm">Assigned to ${escapeHtml(ticket.assigneeName)}</div>` : ''}
-                  </div>
-                  <span class="badge shrink-0">${escapeHtml(ticket.Status)}</span>
-                </div>
-                <div class="mt-2 space-y-1 comment-list">
-                  ${ticket.comments.map((c) => `<div class="text-sm"><span class="font-medium">${escapeHtml(c.authorName)}:</span> ${escapeHtml(c.Message)}</div>`).join('')}
-                </div>
-                <form class="mt-2 flex gap-2 comment-form">
-                  <input class="input input-bordered input-sm flex-1" placeholder="Add a comment" name="message" />
-                  <button type="submit" class="btn btn-sm">Comment</button>
-                </form>
-                <div class="flex gap-2 mt-2 flex-wrap ticket-actions">
-                  ${actions.map((action) => `<button type="button" class="btn btn-xs" data-action="${action}">${TICKET_ACTION_LABELS[action]}</button>`).join('')}
-                </div>
-              </li>`;
-                  })
-                  .join('');
+    board.innerHTML = TICKET_BOARD_COLUMNS.map((column) => {
+        const tickets = dashboard.tickets.filter((t) => t.Status === column.status);
+        return `
+      <div class="space-y-3">
+        <div class="flex items-center justify-between px-0.5">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">${column.title}</h3>
+          <span class="badge badge-ghost badge-sm">${tickets.length}</span>
+        </div>
+        <div class="space-y-3">
+          ${
+              tickets.length === 0
+                  ? `<div class="rounded-box border border-dashed border-base-300 py-6 text-center text-sm text-base-content/40">No tickets</div>`
+                  : tickets
+                        .map((ticket) => renderTicketCard(ticket, dashboard, isAdmin, allActions))
+                        .join('')
+          }
+        </div>
+      </div>`;
+    }).join('');
 
-    list.querySelectorAll('li[data-ticket-id]').forEach((li) => {
-        const ticketId = (li as HTMLElement).dataset.ticketId!;
+    wireTicketBoard(board);
+}
 
-        li.querySelectorAll('button[data-action]').forEach((button) => {
+function renderTicketCard(
+    ticket: TicketDTO,
+    dashboard: DashboardPayload,
+    isAdmin: boolean,
+    allActions: TicketAction[],
+): string {
+    const isAssignee = ticket.AssigneeId === dashboard.me.Id;
+    const actions = allActions.filter((action) => {
+        if (!canTransitionTicket(ticket.Status, action)) return false;
+        if (action === 'close') return isAdmin || isAssignee;
+        return isAdmin;
+    });
+
+    return `
+    <article class="card border border-base-300 bg-base-100 shadow-sm" data-ticket-id="${ticket.Id}">
+      <div class="card-body gap-2 p-4">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="font-mono text-xs text-base-content/50">TKT-${ticket.DisplayId}</div>
+            <h4 class="truncate font-medium leading-snug">${escapeHtml(ticket.Title)}</h4>
+          </div>
+          ${
+              ticket.assigneeName
+                  ? `<span class="badge badge-ghost badge-sm shrink-0">${escapeHtml(ticket.assigneeName)}</span>`
+                  : `<span class="badge badge-sm shrink-0 ${TICKET_PRIORITY_BADGE[ticket.Priority]}">${escapeHtml(ticket.Priority)}</span>`
+          }
+        </div>
+        <div class="text-sm text-base-content/60">${escapeHtml(ticket.LocationName)} · reported by ${escapeHtml(ticket.reporterName)} · ${timeAgo(ticket.UpdatedAt)}</div>
+
+        <details class="collapse-arrow collapse rounded-box border border-base-200 bg-base-200/30">
+          <summary class="collapse-title min-h-0 px-3 py-2 text-sm font-medium after:!size-3">
+            ${ticket.comments.length} comment${ticket.comments.length === 1 ? '' : 's'}
+          </summary>
+          <div class="collapse-content space-y-2 px-3 text-sm">
+            ${ticket.Description ? `<p class="text-base-content/70">${escapeHtml(ticket.Description)}</p>` : ''}
+            <div class="comment-list space-y-1.5">
+              ${ticket.comments.map((c) => `<div><span class="font-medium">${escapeHtml(c.authorName)}</span> <span class="text-base-content/70">${escapeHtml(c.Message)}</span></div>`).join('') || '<p class="text-base-content/40">No comments yet.</p>'}
+            </div>
+            <form class="comment-form flex gap-2 pt-1">
+              <input class="input input-sm flex-1" placeholder="Add a comment" name="message" />
+              <button type="submit" class="btn btn-sm">Send</button>
+            </form>
+          </div>
+        </details>
+
+        <div class="ticket-actions flex flex-wrap gap-2">
+          ${actions.map((action) => `<button type="button" class="btn btn-xs ${TICKET_ACTION_BTN[action]}" data-action="${action}">${TICKET_ACTION_LABELS[action]}</button>`).join('')}
+        </div>
+      </div>
+    </article>`;
+}
+
+function wireTicketBoard(board: HTMLElement): void {
+    board.querySelectorAll<HTMLElement>('[data-ticket-id]').forEach((card) => {
+        const ticketId = card.dataset.ticketId!;
+
+        card.querySelectorAll('button[data-action]').forEach((button) => {
             button.addEventListener('click', async () => {
                 const action = button.getAttribute('data-action') as TicketAction;
                 await handleTicketAction(ticketId, action);
             });
         });
 
-        const commentForm = li.querySelector('.comment-form') as HTMLFormElement;
+        const commentForm = card.querySelector('.comment-form') as HTMLFormElement;
         commentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = commentForm.querySelector('input[name="message"]') as HTMLInputElement;

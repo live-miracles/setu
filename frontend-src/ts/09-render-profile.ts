@@ -2,19 +2,64 @@ async function renderProfile(container: HTMLElement, dashboard: DashboardPayload
     const me = dashboard.me;
     container.innerHTML = `
     <section class="space-y-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body gap-2">
-          <h2 class="card-title">Your profile</h2>
-          <form id="profile-form" class="space-y-2">
-            <input name="name" class="input input-bordered w-full" value="${escapeHtml(me.Name)}" placeholder="Name" required />
-            <input name="phone" class="input input-bordered w-full" value="${escapeHtml(me.Phone)}" placeholder="Phone" />
-            <input name="whatsapp" class="input input-bordered w-full" value="${escapeHtml(me.Whatsapp)}" placeholder="WhatsApp" />
-            <input name="timezone" class="input input-bordered w-full" value="${escapeHtml(me.Timezone)}" placeholder="Timezone" />
-            <label class="label cursor-pointer justify-start gap-2">
-              <input type="checkbox" name="notificationEmail" class="checkbox" ${me.NotificationEmail ? 'checked' : ''} />
-              <span>Email me about notifications</span>
-            </label>
-            <button type="submit" class="btn btn-primary">Save</button>
+      ${renderSectionHeader('user', 'Profile', 'Your contact details and notification preferences.')}
+
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="text-lg font-bold">${escapeHtml(me.Name)}</h2>
+              <p class="text-sm text-base-content/60">${escapeHtml(me.Email)}</p>
+            </div>
+            <span class="badge badge-soft ${me.Role === 'admin' ? 'badge-secondary' : 'badge-ghost'}">${escapeHtml(me.Role)}</span>
+          </div>
+          <div class="grid gap-3 border-t border-base-200 pt-3 sm:grid-cols-2">
+            <div>
+              <div class="text-xs uppercase tracking-wide text-base-content/50">Department</div>
+              <div class="text-sm">${escapeHtml(me.departmentName || 'Not set')}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wide text-base-content/50">Time zone</div>
+              <div class="text-sm">${escapeHtml(me.Timezone || 'Not set')}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wide text-base-content/50">Phone</div>
+              <div class="text-sm">${escapeHtml(me.Phone || 'Not set')}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wide text-base-content/50">WhatsApp</div>
+              <div class="text-sm">${escapeHtml(me.Whatsapp || 'Not set')}</div>
+            </div>
+          </div>
+          <p class="border-t border-base-200 pt-3 text-xs text-base-content/50">Signed in with your Google account. Contact an admin to change your role or department.</p>
+        </div>
+      </div>
+
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-3">
+          <h2 class="card-title text-base">Edit profile</h2>
+          <form id="profile-form" class="space-y-3">
+            <fieldset class="fieldset">
+              <label class="label" for="profile-name">Name</label>
+              <input id="profile-name" name="name" class="input w-full" value="${escapeHtml(me.Name)}" required />
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label class="label" for="profile-phone">Phone</label>
+                  <input id="profile-phone" name="phone" class="input w-full" value="${escapeHtml(me.Phone)}" />
+                </div>
+                <div>
+                  <label class="label" for="profile-whatsapp">WhatsApp</label>
+                  <input id="profile-whatsapp" name="whatsapp" class="input w-full" value="${escapeHtml(me.Whatsapp)}" />
+                </div>
+              </div>
+              <label class="label" for="profile-timezone">Time zone</label>
+              <input id="profile-timezone" name="timezone" class="input w-full" value="${escapeHtml(me.Timezone)}" />
+              <label class="label mt-1 cursor-pointer justify-start gap-2">
+                <input type="checkbox" name="notificationEmail" class="checkbox checkbox-sm" ${me.NotificationEmail ? 'checked' : ''} />
+                <span>Email me about assignments, approvals and tickets</span>
+              </label>
+            </fieldset>
+            <button type="submit" class="btn btn-primary">Save changes</button>
           </form>
         </div>
       </div>

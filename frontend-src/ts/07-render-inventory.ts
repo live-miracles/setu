@@ -13,18 +13,35 @@ async function renderInventory(container: HTMLElement, dashboard: DashboardPaylo
 
     container.innerHTML = `
     <section class="space-y-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body gap-2">
-          <h2 class="card-title">Request equipment</h2>
-          <form id="create-request-form" class="space-y-2">
-            <input name="title" class="input input-bordered w-full" placeholder="Title" required />
-            <div class="flex gap-2">
-              <input name="fromDate" type="date" class="input input-bordered" required />
-              <input name="toDate" type="date" class="input input-bordered" required />
-            </div>
-            <textarea name="purpose" class="textarea textarea-bordered w-full" placeholder="Purpose"></textarea>
-            <div id="request-items" class="space-y-2"></div>
-            <button type="button" id="add-request-item" class="btn btn-sm">+ Add item</button>
+      ${renderSectionHeader('box', 'Inventory', 'Request, issue and return equipment.')}
+
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-3">
+          <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} Request equipment</h2>
+          <form id="create-request-form" class="space-y-3">
+            <fieldset class="fieldset">
+              <label class="label" for="request-title">Title</label>
+              <input id="request-title" name="title" class="input w-full" placeholder="e.g. Studio 2 camera setup" required />
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label class="label" for="request-from">From</label>
+                  <input id="request-from" name="fromDate" type="date" class="input w-full" required />
+                </div>
+                <div>
+                  <label class="label" for="request-to">To</label>
+                  <input id="request-to" name="toDate" type="date" class="input w-full" required />
+                </div>
+              </div>
+              <label class="label" for="request-purpose">Purpose</label>
+              <textarea id="request-purpose" name="purpose" class="textarea w-full" placeholder="Where and how will this be used?"></textarea>
+              <label class="label">Items</label>
+              <div id="request-items" class="space-y-2"></div>
+              <div>
+                <button type="button" id="add-request-item" class="btn btn-ghost btn-sm">
+                  ${icon('plus', 'size-4')} Add item
+                </button>
+              </div>
+            </fieldset>
             <button type="submit" class="btn btn-primary">Submit request</button>
           </form>
         </div>
@@ -32,56 +49,87 @@ async function renderInventory(container: HTMLElement, dashboard: DashboardPaylo
 
       ${
           isAdmin
-              ? `<div class="card bg-base-100 shadow">
-              <div class="card-body gap-2">
-                <h2 class="card-title">Add equipment item (admin)</h2>
-                <form id="create-item-form" class="grid grid-cols-2 gap-2">
-                  <select name="equipmentTypeId" class="select select-bordered col-span-2" required>
-                    ${dashboard.equipmentTypes.map((t) => `<option value="${t.Id}">${escapeHtml(t.Name)}</option>`).join('')}
-                  </select>
-                  <input name="name" class="input input-bordered" placeholder="Item name" required />
-                  <select name="locationId" class="select select-bordered" required>
-                    ${dashboard.locations.map((l) => `<option value="${l.Id}">${escapeHtml(l.Name)}</option>`).join('')}
-                  </select>
-                  <input name="serialNumber" class="input input-bordered" placeholder="Serial number" />
-                  <input name="totalQuantity" type="number" min="0" class="input input-bordered" placeholder="Quantity" required />
-                  <textarea name="adminNotes" class="textarea textarea-bordered col-span-2" placeholder="Admin notes"></textarea>
-                  <button type="submit" class="btn btn-primary col-span-2">Add item</button>
+              ? `<div class="card border border-base-300 bg-base-100 shadow">
+              <div class="card-body gap-3">
+                <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} Add equipment item</h2>
+                <form id="create-item-form" class="space-y-3">
+                  <fieldset class="fieldset">
+                    <label class="label" for="item-type">Equipment type</label>
+                    <select id="item-type" name="equipmentTypeId" class="select w-full" required>
+                      ${dashboard.equipmentTypes.map((t) => `<option value="${t.Id}">${escapeHtml(t.Name)}</option>`).join('')}
+                    </select>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label class="label" for="item-name">Item name</label>
+                        <input id="item-name" name="name" class="input w-full" required />
+                      </div>
+                      <div>
+                        <label class="label" for="item-location">Location</label>
+                        <select id="item-location" name="locationId" class="select w-full" required>
+                          ${dashboard.locations.map((l) => `<option value="${l.Id}">${escapeHtml(l.Name)}</option>`).join('')}
+                        </select>
+                      </div>
+                      <div>
+                        <label class="label" for="item-serial">Serial number</label>
+                        <input id="item-serial" name="serialNumber" class="input w-full" />
+                      </div>
+                      <div>
+                        <label class="label" for="item-quantity">Quantity</label>
+                        <input id="item-quantity" name="totalQuantity" type="number" min="0" class="input w-full" required />
+                      </div>
+                    </div>
+                    <label class="label" for="item-notes">Admin notes</label>
+                    <textarea id="item-notes" name="adminNotes" class="textarea w-full"></textarea>
+                  </fieldset>
+                  <button type="submit" class="btn btn-primary">Add item</button>
                 </form>
               </div>
             </div>`
               : ''
       }
 
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <h2 class="card-title">Equipment catalogue</h2>
-          <ul class="divide-y">
-            ${dashboard.inventoryItems
-                .map(
-                    (item) => `
-                  <li class="py-2 flex justify-between">
-                    <div>
-                      <div class="font-medium">${escapeHtml(item.Name)} <span class="opacity-60 text-sm">(${escapeHtml(item.equipmentTypeName)})</span></div>
-                      <div class="text-sm opacity-70">${escapeHtml(item.locationName)}</div>
-                    </div>
-                    <div class="badge">${item.AvailableQuantity}/${item.TotalQuantity} available</div>
-                  </li>`,
-                )
-                .join('')}
-          </ul>
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-2">
+          <h2 class="card-title text-base">Equipment catalogue</h2>
+          ${
+              dashboard.inventoryItems.length === 0
+                  ? renderEmptyState('box', 'No equipment catalogued yet.')
+                  : `<ul class="divide-y divide-base-200">${dashboard.inventoryItems
+                        .map((item) => {
+                            const stock = stockLevelClass(
+                                item.AvailableQuantity,
+                                item.TotalQuantity,
+                            );
+                            return `
+                      <li class="flex items-center gap-3 py-2.5">
+                        <div class="min-w-0 flex-1">
+                          <div class="truncate font-medium">${escapeHtml(item.Name)} <span class="text-sm font-normal opacity-60">(${escapeHtml(item.equipmentTypeName)})</span></div>
+                          <div class="text-sm text-base-content/60">${escapeHtml(item.locationName)}${item.SerialNumber ? ` · ${escapeHtml(item.SerialNumber)}` : ''}</div>
+                        </div>
+                        <div class="w-32 shrink-0 sm:w-40">
+                          <div class="flex justify-between text-xs ${stock.text}">
+                            <span>Available</span>
+                            <span class="font-medium">${item.AvailableQuantity}/${item.TotalQuantity}</span>
+                          </div>
+                          <progress class="progress ${stock.bar} w-full" value="${item.TotalQuantity > 0 ? item.AvailableQuantity : 0}" max="${Math.max(item.TotalQuantity, 1)}"></progress>
+                        </div>
+                      </li>`;
+                        })
+                        .join('')}</ul>`
+          }
         </div>
       </div>
 
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <h2 class="card-title">Requests</h2>
-          <ul id="inventory-request-list" class="divide-y"></ul>
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-2">
+          <h2 class="card-title text-base">Requests</h2>
+          <ul id="inventory-request-list" class="space-y-2"></ul>
         </div>
       </div>
     </section>
   `;
 
+    wireInternalNavLinks(container);
     wireInventoryItemPicker(dashboard);
     wireCreateRequestForm();
     if (isAdmin) wireCreateItemForm();
@@ -96,11 +144,11 @@ function wireInventoryItemPicker(dashboard: DashboardPayload): void {
         const row = document.createElement('div');
         row.className = 'flex gap-2 request-item-row';
         row.innerHTML = `
-      <select class="select select-bordered flex-1" name="itemId">
+      <select class="select flex-1" name="itemId">
         ${dashboard.inventoryItems.map((item) => `<option value="${item.Id}">${escapeHtml(item.Name)} (${item.AvailableQuantity} available)</option>`).join('')}
       </select>
-      <input type="number" min="1" value="1" class="input input-bordered w-24" name="quantity" />
-      <button type="button" class="btn btn-ghost btn-sm remove-row">✕</button>
+      <input type="number" min="1" value="1" class="input w-20" name="quantity" />
+      <button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove item">✕</button>
     `;
         row.querySelector('.remove-row')!.addEventListener('click', () => row.remove());
         list.appendChild(row);
@@ -193,7 +241,7 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
 
     list.innerHTML =
         dashboard.inventoryRequests.length === 0
-            ? '<li class="py-2 opacity-70">No requests yet.</li>'
+            ? `<li>${renderEmptyState('box', 'No requests yet.')}</li>`
             : dashboard.inventoryRequests
                   .map((request) => {
                       const isOwner = request.RequesterId === dashboard.me.Id;
@@ -201,13 +249,17 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
                           if (!canTransitionInventoryRequest(request.Status, action)) return false;
                           return action === 'submit' ? isOwner : isAdmin;
                       });
+                      const overdue = isRequestOverdue(request);
                       return `
-              <li class="py-2" data-request-id="${request.Id}">
-                <div class="flex justify-between items-start gap-2">
-                  <div>
-                    <div class="font-medium">REQ-${request.DisplayId} — ${escapeHtml(request.Title)}</div>
-                    <div class="text-sm opacity-70">${escapeHtml(request.requesterName)} · ${escapeHtml(request.FromDate)} to ${escapeHtml(request.ToDate)}</div>
-                    <ul class="text-sm list-disc list-inside">
+              <li class="rounded-box border-l-4 ${INVENTORY_REQUEST_STATUS_ACCENT[request.Status]} bg-base-200/40 p-3" data-request-id="${request.Id}">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-medium">
+                      <span class="font-mono text-xs text-base-content/50">REQ-${request.DisplayId}</span>
+                      ${escapeHtml(request.Title)}
+                    </div>
+                    <div class="text-sm text-base-content/60">${escapeHtml(request.requesterName)} · ${escapeHtml(request.FromDate)} to ${escapeHtml(request.ToDate)}</div>
+                    <ul class="mt-1 list-inside list-disc text-sm text-base-content/70">
                       ${request.items
                           .map(
                               (i) =>
@@ -216,10 +268,13 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
                           .join('')}
                     </ul>
                   </div>
-                  <span class="badge shrink-0">${escapeHtml(request.Status)}</span>
+                  <div class="flex shrink-0 flex-col items-end gap-1">
+                    ${overdue ? '<span class="badge badge-error badge-sm">Overdue</span>' : ''}
+                    <span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
+                  </div>
                 </div>
-                <div class="flex gap-2 mt-2 flex-wrap request-actions">
-                  ${actions.map((action) => `<button type="button" class="btn btn-xs" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button>`).join('')}
+                <div class="request-actions mt-2 flex flex-wrap gap-2">
+                  ${actions.map((action) => `<button type="button" class="btn btn-xs ${INVENTORY_REQUEST_ACTION_BTN[action]}" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button>`).join('')}
                 </div>
               </li>`;
                   })
