@@ -25,7 +25,7 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
     if (!location) throw new ValidationError('location_not_found');
 
     const { result: ticket } = withLockedDedupe('ticket:create', requestId, () => {
-        const created = Tables.Tickets.insert({
+        return Tables.Tickets.insert({
             DisplayId: getNextDisplayId('ticket'),
             Title: title,
             Description: input.description || '',
@@ -36,8 +36,6 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
             ReporterId: actor.Id,
             AssigneeId: '',
         });
-        logActivity(actor.Id, 'ticket', created.Id, 'create', null, created, {});
-        return created;
     });
 
     const admins = Tables.Profiles.findWhere(
@@ -72,7 +70,6 @@ function performTicketAction(
         (): TicketStatus => {
             const ticket = Tables.Tickets.findById(ticketId);
             if (!ticket) throw new ValidationError('ticket_not_found');
-            const before = Object.assign({}, ticket);
             let computedStatus: TicketStatus;
 
             if (action === 'assign') {
@@ -103,8 +100,6 @@ function performTicketAction(
                 throw new ValidationError('unsupported_action');
             }
 
-            const after = Tables.Tickets.findById(ticketId);
-            logActivity(actor.Id, 'ticket', ticketId, action, before, after, {});
             return computedStatus;
         },
     );

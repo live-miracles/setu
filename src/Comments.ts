@@ -68,18 +68,13 @@ function addComment(
         ownerType + ':' + ownerId + ':comment',
         requestId,
         () => {
-            const created = Tables.Comments.insert({
+            return Tables.Comments.insert({
                 OwnerType: ownerType,
                 OwnerId: ownerId,
                 AuthorId: actor.Id,
                 Message: trimmedMessage,
                 CreatedAt: nowIso(),
             });
-            logActivity(actor.Id, 'comment', created.Id, 'create', null, created, {
-                ownerType,
-                ownerId,
-            });
-            return created;
         },
     );
 

@@ -65,18 +65,3 @@ function removeDefaultSheetIfEmpty(ss: GoogleAppsScript.Spreadsheet.Spreadsheet)
         ss.deleteSheet(defaultSheet);
     }
 }
-
-function ensureAttachmentsFolder(): void {
-    const props = PropertiesService.getScriptProperties();
-    const existingId = props.getProperty('ATTACHMENTS_FOLDER_ID');
-    if (existingId) {
-        try {
-            DriveApp.getFolderById(existingId);
-            return; // already valid
-        } catch (e) {
-            // stale property pointing at a deleted/inaccessible folder — recreate below
-        }
-    }
-    const folder = DriveApp.createFolder('Setu Attachments');
-    props.setProperty('ATTACHMENTS_FOLDER_ID', folder.getId());
-}

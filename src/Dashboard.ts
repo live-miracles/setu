@@ -1,6 +1,6 @@
 // The single "load everything the home screen needs" call, mirroring the
 // source app's GET /api/v1/dashboard. DTO-building helpers referenced here
-// (buildRosterShiftDTO, buildInventoryItemDTO, buildInventoryRequestDTO,
+// (buildRosterShiftDTO, buildEquipmentTypeDTOs, buildInventoryRequestDTO,
 // buildTicketDTO) live in Roster.ts/Inventory.ts/Tickets.ts respectively —
 // safe to reference across files since Apps Script loads every file's
 // function declarations before any entry point runs.
@@ -9,10 +9,8 @@ function getDashboard(): DashboardPayload {
 
     const departments = Tables.Departments.readAll();
     const locations = Tables.Locations.readAll();
-    const equipmentTypes = Tables.EquipmentTypes.readAll();
+    const equipmentTypes = buildEquipmentTypeDTOs(Tables.EquipmentTypes.readAll());
     const profilesById = indexById(Tables.Profiles.readAll());
-    const locationsById = indexById(locations);
-    const equipmentTypesById = indexById(equipmentTypes);
 
     const todayIso = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
     const horizonIso = Utilities.formatDate(
@@ -27,22 +25,18 @@ function getDashboard(): DashboardPayload {
         .slice(0, 250)
         .map((shift) => buildRosterShiftDTO(shift, profilesById));
 
-    const inventoryItems = Tables.InventoryItems.readAll()
-        .slice(0, 500)
-        .map((item) => buildInventoryItemDTO(item, equipmentTypesById, locationsById));
-
     const requestItemsByRequest = groupBy(
         Tables.InventoryRequestItems.readAll(),
         (i) => i.RequestId,
     );
-    const inventoryItemsById = indexById(Tables.InventoryItems.readAll());
+    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
     const commentsByOwnerId = groupBy(Tables.Comments.readAll(), (c) => c.OwnerId);
     const inventoryRequests = Tables.InventoryRequests.readAll()
         .map((request) =>
             buildInventoryRequestDTO(
                 request,
                 requestItemsByRequest,
-                inventoryItemsById,
+                equipmentTypesById,
                 profilesById,
                 commentsByOwnerId,
             ),
@@ -76,7 +70,6 @@ function getDashboard(): DashboardPayload {
         locations,
         equipmentTypes,
         upcomingShifts,
-        inventoryItems,
         inventoryRequests,
         tickets,
         links,

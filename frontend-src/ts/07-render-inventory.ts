@@ -9,8 +9,6 @@ const INVENTORY_REQUEST_ACTION_LABELS: Record<InventoryRequestAction, string> = 
 };
 
 async function renderInventory(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
-    const isAdmin = dashboard.me.Role === 'admin';
-
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('box', 'Inventory', 'Request, issue and return equipment.')}
@@ -47,71 +45,27 @@ async function renderInventory(container: HTMLElement, dashboard: DashboardPaylo
         </div>
       </div>
 
-      ${
-          isAdmin
-              ? `<div class="card border border-base-300 bg-base-100 shadow">
-              <div class="card-body gap-3">
-                <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} Add equipment item</h2>
-                <form id="create-item-form" class="space-y-3">
-                  <fieldset class="fieldset">
-                    <label class="label" for="item-type">Equipment type</label>
-                    <select id="item-type" name="equipmentTypeId" class="select w-full" required>
-                      ${dashboard.equipmentTypes.map((t) => `<option value="${t.Id}">${escapeHtml(t.Name)}</option>`).join('')}
-                    </select>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="label" for="item-name">Item name</label>
-                        <input id="item-name" name="name" class="input w-full" required />
-                      </div>
-                      <div>
-                        <label class="label" for="item-location">Location</label>
-                        <select id="item-location" name="locationId" class="select w-full" required>
-                          ${dashboard.locations.map((l) => `<option value="${l.Id}">${escapeHtml(l.Name)}</option>`).join('')}
-                        </select>
-                      </div>
-                      <div>
-                        <label class="label" for="item-serial">Serial number</label>
-                        <input id="item-serial" name="serialNumber" class="input w-full" />
-                      </div>
-                      <div>
-                        <label class="label" for="item-quantity">Quantity</label>
-                        <input id="item-quantity" name="totalQuantity" type="number" min="0" class="input w-full" required />
-                      </div>
-                    </div>
-                    <label class="label" for="item-notes">Admin notes</label>
-                    <textarea id="item-notes" name="adminNotes" class="textarea w-full"></textarea>
-                  </fieldset>
-                  <button type="submit" class="btn btn-primary">Add item</button>
-                </form>
-              </div>
-            </div>`
-              : ''
-      }
-
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-2">
           <h2 class="card-title text-base">Equipment catalogue</h2>
           ${
-              dashboard.inventoryItems.length === 0
+              dashboard.equipmentTypes.length === 0
                   ? renderEmptyState('box', 'No equipment catalogued yet.')
-                  : `<ul class="divide-y divide-base-200">${dashboard.inventoryItems
-                        .map((item) => {
-                            const stock = stockLevelClass(
-                                item.AvailableQuantity,
-                                item.TotalQuantity,
-                            );
+                  : `<ul class="divide-y divide-base-200">${dashboard.equipmentTypes
+                        .map((type) => {
+                            const stock = stockLevelClass(type.availableQuantity, type.TotalQuantity);
                             return `
                       <li class="flex items-center gap-3 py-2.5">
                         <div class="min-w-0 flex-1">
-                          <div class="truncate font-medium">${escapeHtml(item.Name)} <span class="text-sm font-normal opacity-60">(${escapeHtml(item.equipmentTypeName)})</span></div>
-                          <div class="text-sm text-base-content/60">${escapeHtml(item.locationName)}${item.SerialNumber ? ` · ${escapeHtml(item.SerialNumber)}` : ''}</div>
+                          <div class="truncate font-medium">${escapeHtml(type.Name)}</div>
+                          ${type.Description ? `<div class="text-sm text-base-content/60">${escapeHtml(type.Description)}</div>` : ''}
                         </div>
                         <div class="w-32 shrink-0 sm:w-40">
                           <div class="flex justify-between text-xs ${stock.text}">
                             <span>Available</span>
-                            <span class="font-medium">${item.AvailableQuantity}/${item.TotalQuantity}</span>
+                            <span class="font-medium">${type.availableQuantity}/${type.TotalQuantity}</span>
                           </div>
-                          <progress class="progress ${stock.bar} w-full" value="${item.TotalQuantity > 0 ? item.AvailableQuantity : 0}" max="${Math.max(item.TotalQuantity, 1)}"></progress>
+                          <progress class="progress ${stock.bar} w-full" value="${type.TotalQuantity > 0 ? type.availableQuantity : 0}" max="${Math.max(type.TotalQuantity, 1)}"></progress>
                         </div>
                       </li>`;
                         })
@@ -130,13 +84,12 @@ async function renderInventory(container: HTMLElement, dashboard: DashboardPaylo
   `;
 
     wireInternalNavLinks(container);
-    wireInventoryItemPicker(dashboard);
+    wireEquipmentTypePicker(dashboard);
     wireCreateRequestForm();
-    if (isAdmin) wireCreateItemForm();
     renderInventoryRequestList(dashboard);
 }
 
-function wireInventoryItemPicker(dashboard: DashboardPayload): void {
+function wireEquipmentTypePicker(dashboard: DashboardPayload): void {
     const list = document.getElementById('request-items')!;
     const addButton = document.getElementById('add-request-item')!;
 
@@ -144,8 +97,8 @@ function wireInventoryItemPicker(dashboard: DashboardPayload): void {
         const row = document.createElement('div');
         row.className = 'flex gap-2 request-item-row';
         row.innerHTML = `
-      <select class="select flex-1" name="itemId">
-        ${dashboard.inventoryItems.map((item) => `<option value="${item.Id}">${escapeHtml(item.Name)} (${item.AvailableQuantity} available)</option>`).join('')}
+      <select class="select flex-1" name="equipmentTypeId">
+        ${dashboard.equipmentTypes.map((type) => `<option value="${type.Id}">${escapeHtml(type.Name)} (${type.availableQuantity} available)</option>`).join('')}
       </select>
       <input type="number" min="1" value="1" class="input w-20" name="quantity" />
       <button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove item">✕</button>
@@ -155,7 +108,7 @@ function wireInventoryItemPicker(dashboard: DashboardPayload): void {
     }
 
     addButton.addEventListener('click', addRow);
-    if (dashboard.inventoryItems.length > 0) addRow();
+    if (dashboard.equipmentTypes.length > 0) addRow();
 }
 
 function wireCreateRequestForm(): void {
@@ -164,13 +117,13 @@ function wireCreateRequestForm(): void {
         e.preventDefault();
         const data = new FormData(form);
         const items = Array.from(form.querySelectorAll('.request-item-row')).map((row) => {
-            const inventoryItemId = (
-                row.querySelector('select[name="itemId"]') as HTMLSelectElement
+            const equipmentTypeId = (
+                row.querySelector('select[name="equipmentTypeId"]') as HTMLSelectElement
             ).value;
             const quantity = Number(
                 (row.querySelector('input[name="quantity"]') as HTMLInputElement).value,
             );
-            return { inventoryItemId, quantity };
+            return { equipmentTypeId, quantity };
         });
         if (items.length === 0) {
             showErrorAlert(new Error('Add at least one item.'));
@@ -185,34 +138,6 @@ function wireCreateRequestForm(): void {
                     toDate: String(data.get('toDate')),
                     purpose: String(data.get('purpose') || ''),
                     items,
-                },
-                generateRequestId(),
-            );
-            await refreshDashboard();
-        } catch (err) {
-            showErrorAlert(err);
-        } finally {
-            showSavingBadge(false);
-        }
-    });
-}
-
-function wireCreateItemForm(): void {
-    const form = document.getElementById('create-item-form') as HTMLFormElement | null;
-    if (!form) return;
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const data = new FormData(form);
-        try {
-            showSavingBadge(true);
-            await api.createInventoryItem(
-                {
-                    equipmentTypeId: String(data.get('equipmentTypeId')),
-                    name: String(data.get('name')),
-                    locationId: String(data.get('locationId')),
-                    serialNumber: String(data.get('serialNumber') || ''),
-                    totalQuantity: Number(data.get('totalQuantity')),
-                    adminNotes: String(data.get('adminNotes') || ''),
                 },
                 generateRequestId(),
             );

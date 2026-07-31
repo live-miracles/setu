@@ -27,7 +27,6 @@ const mockData = {
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
-            AvatarDriveFileId: '',
             NotificationEmail: true,
         },
         {
@@ -40,7 +39,6 @@ const mockData = {
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
-            AvatarDriveFileId: '',
             NotificationEmail: true,
         },
         {
@@ -53,7 +51,6 @@ const mockData = {
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
-            AvatarDriveFileId: '',
             NotificationEmail: true,
         },
     ] as Profile[],
@@ -66,42 +63,20 @@ const mockData = {
         {
             Id: 'eq-1',
             Name: 'Camera',
-            Description: '',
+            Description: 'Sony A7S III',
             Requestable: true,
             ImageDriveFileId: '',
+            TotalQuantity: 3,
         },
         {
             Id: 'eq-2',
             Name: 'Microphone',
-            Description: '',
+            Description: 'Shure SM7B',
             Requestable: true,
             ImageDriveFileId: '',
+            TotalQuantity: 5,
         },
     ] as EquipmentType[],
-    inventoryItems: [
-        {
-            Id: 'item-1',
-            EquipmentTypeId: 'eq-1',
-            Name: 'Sony A7S III',
-            LocationId: 'loc-1',
-            SerialNumber: 'SN-001',
-            TotalQuantity: 3,
-            AvailableQuantity: 2,
-            ImageDriveFileId: '',
-            AdminNotes: '',
-        },
-        {
-            Id: 'item-2',
-            EquipmentTypeId: 'eq-2',
-            Name: 'Shure SM7B',
-            LocationId: 'loc-1',
-            SerialNumber: 'SN-002',
-            TotalQuantity: 5,
-            AvailableQuantity: 5,
-            ImageDriveFileId: '',
-            AdminNotes: '',
-        },
-    ] as InventoryItem[],
     inventoryRequests: [
         {
             Id: 'req-1',
@@ -119,7 +94,7 @@ const mockData = {
         {
             Id: 'reqitem-1',
             RequestId: 'req-1',
-            InventoryItemId: 'item-1',
+            EquipmentTypeId: 'eq-1',
             Quantity: 1,
             IssuedQuantity: 0,
             ReturnedQuantity: 0,
@@ -135,7 +110,6 @@ const mockData = {
             EndTime: '13:00',
             ShiftName: 'Morning',
             AssigneeProfileId: 'user-2',
-            CreatedBy: 'user-1',
         },
     ] as RosterShift[],
     tickets: [
@@ -188,8 +162,7 @@ function mockCurrentProfile(): Profile {
 
 function mockToProfileDTO(profile: Profile): ProfileDTO {
     const department = mockData.departments.find((d) => d.Id === profile.DepartmentId);
-    const { AvatarDriveFileId, ...rest } = profile;
-    return Object.assign({}, rest, { departmentName: department ? department.Name : '' });
+    return Object.assign({}, profile, { departmentName: department ? department.Name : '' });
 }
 
 function mockBuildRosterShiftDTO(shift: RosterShift): RosterShiftDTO {
@@ -197,13 +170,26 @@ function mockBuildRosterShiftDTO(shift: RosterShift): RosterShiftDTO {
     return Object.assign({}, shift, { assigneeName: assignee ? assignee.Name : '' });
 }
 
-function mockBuildInventoryItemDTO(item: InventoryItem): InventoryItemDTO {
-    const equipmentType = mockData.equipmentTypes.find((t) => t.Id === item.EquipmentTypeId);
-    const location = mockData.locations.find((l) => l.Id === item.LocationId);
-    return Object.assign({}, item, {
-        equipmentTypeName: equipmentType ? equipmentType.Name : '',
-        locationName: location ? location.Name : '',
+function mockComputeDeductionsByType(): Record<string, number> {
+    const deductions: Record<string, number> = {};
+    mockData.inventoryRequestItems.forEach((item) => {
+        deductions[item.EquipmentTypeId] =
+            (deductions[item.EquipmentTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
     });
+    mockData.inventoryReturns.forEach((ret) => {
+        if (ret.Condition === 'good') return;
+        const item = mockData.inventoryRequestItems.find((i) => i.Id === ret.RequestItemId);
+        if (!item) return;
+        deductions[item.EquipmentTypeId] = (deductions[item.EquipmentTypeId] || 0) + ret.Quantity;
+    });
+    return deductions;
+}
+
+function mockBuildEquipmentTypeDTOs(): EquipmentTypeDTO[] {
+    const deductions = mockComputeDeductionsByType();
+    return mockData.equipmentTypes.map((t) =>
+        Object.assign({}, t, { availableQuantity: t.TotalQuantity - (deductions[t.Id] || 0) }),
+    );
 }
 
 function mockBuildCommentDTO(comment: CommentRecord): CommentDTO {
@@ -240,8 +226,8 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
     const items = mockData.inventoryRequestItems
         .filter((i) => i.RequestId === request.Id)
         .map((i) => {
-            const item = mockData.inventoryItems.find((inv) => inv.Id === i.InventoryItemId);
-            return Object.assign({}, i, { itemName: item ? item.Name : '' });
+            const type = mockData.equipmentTypes.find((t) => t.Id === i.EquipmentTypeId);
+            return Object.assign({}, i, { itemName: type ? type.Name : '' });
         });
     return Object.assign({}, request, {
         requesterName: requester ? requester.Name : '',
@@ -264,9 +250,8 @@ function mockBuildDashboard(): DashboardPayload {
         me: mockToProfileDTO(mockCurrentProfile()),
         departments: mockData.departments,
         locations: mockData.locations,
-        equipmentTypes: mockData.equipmentTypes,
+        equipmentTypes: mockBuildEquipmentTypeDTOs(),
         upcomingShifts: mockData.rosterShifts.map(mockBuildRosterShiftDTO),
-        inventoryItems: mockData.inventoryItems.map(mockBuildInventoryItemDTO),
         inventoryRequests: mockData.inventoryRequests.map(mockBuildInventoryRequestDTO),
         tickets: mockData.tickets.map(mockBuildTicketDTO),
         links: mockData.links.filter((l) => l.Enabled),
@@ -291,7 +276,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Timezone: input.timezone || 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
-            AvatarDriveFileId: '',
             NotificationEmail: true,
         };
         mockData.profiles.push(created);
@@ -344,12 +328,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         Object.assign(mockData.homeContent, input, { UpdatedBy: mockData.currentUserId });
         return mockData.homeContent;
     },
-    listActivityLog: (page: number) => ({
-        items: [],
-        page: page || 1,
-        pageSize: 50,
-        totalCount: 0,
-    }),
 
     listRosterShifts: (page: number) => {
         const items = mockData.rosterShifts.map(mockBuildRosterShiftDTO);
@@ -364,13 +342,12 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             EndTime: input.endTime || '',
             ShiftName: input.shiftName,
             AssigneeProfileId: input.assigneeProfileId,
-            CreatedBy: mockData.currentUserId,
         };
         mockData.rosterShifts.push(created);
         return mockBuildRosterShiftDTO(created);
     },
 
-    listEquipmentTypes: () => mockData.equipmentTypes,
+    listEquipmentTypes: () => mockBuildEquipmentTypeDTOs(),
     createEquipmentType: (input: CreateEquipmentTypeInput) => {
         const created: EquipmentType = {
             Id: mockUuid(),
@@ -378,29 +355,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Description: input.description || '',
             Requestable: input.requestable !== false,
             ImageDriveFileId: '',
+            TotalQuantity: input.totalQuantity,
         };
         mockData.equipmentTypes.push(created);
-        return created;
-    },
-
-    listInventoryItems: (page: number) => {
-        const items = mockData.inventoryItems.map(mockBuildInventoryItemDTO);
-        return { items, page: page || 1, pageSize: 30, totalCount: items.length };
-    },
-    createInventoryItem: (input: CreateInventoryItemInput) => {
-        const created: InventoryItem = {
-            Id: mockUuid(),
-            EquipmentTypeId: input.equipmentTypeId,
-            Name: input.name,
-            LocationId: input.locationId,
-            SerialNumber: input.serialNumber || '',
-            TotalQuantity: input.totalQuantity,
-            AvailableQuantity: input.totalQuantity,
-            ImageDriveFileId: '',
-            AdminNotes: input.adminNotes || '',
-        };
-        mockData.inventoryItems.push(created);
-        return mockBuildInventoryItemDTO(created);
+        return mockBuildEquipmentTypeDTOs().find((t) => t.Id === created.Id);
     },
 
     listInventoryRequests: (page: number) => {
@@ -424,7 +382,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             mockData.inventoryRequestItems.push({
                 Id: mockUuid(),
                 RequestId: created.Id,
-                InventoryItemId: line.inventoryItemId,
+                EquipmentTypeId: line.equipmentTypeId,
                 Quantity: line.quantity,
                 IssuedQuantity: 0,
                 ReturnedQuantity: 0,
@@ -476,10 +434,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 .filter((i) => i.RequestId === requestId)
                 .forEach((item) => {
                     item.IssuedQuantity = item.Quantity;
-                    const invItem = mockData.inventoryItems.find(
-                        (inv) => inv.Id === item.InventoryItemId,
-                    )!;
-                    invItem.AvailableQuantity -= item.Quantity;
                 });
             mockInsertSystemComment(
                 'inventory_request',
@@ -493,13 +447,16 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                     (i) => i.Id === ret.requestItemId,
                 )!;
                 item.ReturnedQuantity += ret.quantity;
-                const invItem = mockData.inventoryItems.find(
-                    (inv) => inv.Id === item.InventoryItemId,
-                )!;
-                if (ret.condition === 'good') {
-                    invItem.AvailableQuantity += ret.quantity;
-                }
-                summaries.push(ret.quantity + '× ' + invItem.Name + ' (' + ret.condition + ')');
+                mockData.inventoryReturns.push({
+                    Id: mockUuid(),
+                    RequestItemId: item.Id,
+                    Quantity: ret.quantity,
+                    Condition: ret.condition,
+                    Notes: ret.notes,
+                    ReceivedBy: mockData.currentUserId,
+                });
+                const type = mockData.equipmentTypes.find((t) => t.Id === item.EquipmentTypeId);
+                summaries.push(ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')');
             });
             const allReturned = mockData.inventoryRequestItems
                 .filter((i) => i.RequestId === requestId)
@@ -575,31 +532,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.comments.push(created);
         return mockBuildCommentDTO(created);
     },
-
-    uploadAttachmentChunk: (uploadId: string, chunkIndex: number, totalChunks: number) => ({
-        received: chunkIndex + 1,
-        of: totalChunks,
-    }),
-    finishAttachmentUpload: (
-        uploadId: string,
-        ownerType: AttachmentOwnerType,
-        ownerId: string,
-        fileName: string,
-        contentType: string,
-        sizeBytes: number,
-    ) => ({
-        Id: mockUuid(),
-        DriveFileId: mockUuid(),
-        OriginalName: fileName,
-        ContentType: contentType,
-        SizeBytes: sizeBytes,
-    }),
-    getAttachmentContent: () => ({
-        base64: '',
-        contentType: 'application/octet-stream',
-        fileName: 'mock-file',
-    }),
-    listAttachmentsFor: () => [],
 };
 
 function mockRunner(

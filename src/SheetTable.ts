@@ -124,7 +124,6 @@ const Tables = {
         'Timezone',
         'Phone',
         'Whatsapp',
-        'AvatarDriveFileId',
         'NotificationEmail',
     ]),
     RosterShifts: SheetTable<RosterShift>('RosterShifts', [
@@ -135,7 +134,6 @@ const Tables = {
         'EndTime',
         'ShiftName',
         'AssigneeProfileId',
-        'CreatedBy',
     ]),
     EquipmentTypes: SheetTable<EquipmentType>('EquipmentTypes', [
         'Id',
@@ -143,17 +141,7 @@ const Tables = {
         'Description',
         'Requestable',
         'ImageDriveFileId',
-    ]),
-    InventoryItems: SheetTable<InventoryItem>('InventoryItems', [
-        'Id',
-        'EquipmentTypeId',
-        'Name',
-        'LocationId',
-        'SerialNumber',
         'TotalQuantity',
-        'AvailableQuantity',
-        'ImageDriveFileId',
-        'AdminNotes',
     ]),
     InventoryRequests: SheetTable<InventoryRequest>('InventoryRequests', [
         'Id',
@@ -169,7 +157,7 @@ const Tables = {
     InventoryRequestItems: SheetTable<InventoryRequestItem>('InventoryRequestItems', [
         'Id',
         'RequestId',
-        'InventoryItemId',
+        'EquipmentTypeId',
         'Quantity',
         'IssuedQuantity',
         'ReturnedQuantity',
@@ -202,16 +190,6 @@ const Tables = {
         'Message',
         'CreatedAt',
     ]),
-    Attachments: SheetTable<Attachment>('Attachments', [
-        'Id',
-        'OwnerType',
-        'OwnerId',
-        'DriveFileId',
-        'OriginalName',
-        'ContentType',
-        'SizeBytes',
-        'UploadedBy',
-    ]),
     Links: SheetTable<Link>('Links', ['Id', 'Name', 'Url', 'DisplayOrder', 'Enabled']),
     HomeContent: SheetTable<HomeContent>('HomeContent', [
         'Id',
@@ -220,17 +198,6 @@ const Tables = {
         'WhatsappUrl',
         'TutorialUrl',
         'UpdatedBy',
-    ]),
-    ActivityLog: SheetTable<ActivityLogEntry>('ActivityLog', [
-        'Id',
-        'Timestamp',
-        'ActorId',
-        'EntityType',
-        'EntityId',
-        'Action',
-        'BeforeJson',
-        'AfterJson',
-        'MetadataJson',
     ]),
     FailedNotifications: SheetTable<FailedNotification>('FailedNotifications', [
         'Id',

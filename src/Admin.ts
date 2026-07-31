@@ -1,5 +1,3 @@
-const ACTIVITY_LOG_PAGE_SIZE = 50;
-
 function listUsers(): ProfileDTO[] {
     requireAdmin();
     return Tables.Profiles.readAll().map(toProfileDTO);
@@ -22,10 +20,8 @@ function inviteUser(input: InviteUserInput, requestId: string): ProfileDTO {
             Timezone: input.timezone || 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
-            AvatarDriveFileId: '',
             NotificationEmail: true,
         });
-        logActivity(actor.Id, 'profile', created.Id, 'invite', null, created, {});
         return created;
     });
 
@@ -44,7 +40,6 @@ function updateUser(profileId: string, patch: UpdateUserInput): ProfileDTO {
             throw new ConflictError('You cannot disable your own account.');
     }
 
-    const before = Object.assign({}, target);
     const updated = withLock(() =>
         Tables.Profiles.updateById(profileId, {
             Role: patch.role !== undefined ? patch.role : target.Role,
@@ -54,7 +49,6 @@ function updateUser(profileId: string, patch: UpdateUserInput): ProfileDTO {
             Timezone: patch.timezone !== undefined ? patch.timezone : target.Timezone,
         }),
     );
-    logActivity(actor.Id, 'profile', profileId, 'update_access', before, updated, {});
     return toProfileDTO(updated);
 }
 
@@ -84,15 +78,13 @@ function listDepartments(): Department[] {
 }
 
 function createDepartment(input: CreateDepartmentInput, requestId: string): Department {
-    const actor = requireAdmin();
+    requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('department:create', requestId, () => {
-        const created = Tables.Departments.insert({
+        return Tables.Departments.insert({
             Name: name,
             ShortName: input.shortName || '',
         });
-        logActivity(actor.Id, 'department', created.Id, 'create', null, created, {});
-        return created;
     });
     return result;
 }
@@ -103,14 +95,12 @@ function listLocations(): Place[] {
 }
 
 function createLocation(input: CreateLocationInput, requestId: string): Place {
-    const actor = requireAdmin();
+    requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('location:create', requestId, () => {
-        const created = Tables.Locations.insert({
+        return Tables.Locations.insert({
             Name: name,
         });
-        logActivity(actor.Id, 'location', created.Id, 'create', null, created, {});
-        return created;
     });
     return result;
 }
@@ -121,18 +111,16 @@ function listLinks(): Link[] {
 }
 
 function createLink(input: CreateLinkInput, requestId: string): Link {
-    const actor = requireAdmin();
+    requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const url = requireNonEmpty(input.url, 'URL is required.');
     const { result } = withLockedDedupe('link:create', requestId, () => {
-        const created = Tables.Links.insert({
+        return Tables.Links.insert({
             Name: name,
             Url: url,
             DisplayOrder: input.displayOrder || 0,
             Enabled: input.enabled !== false,
         });
-        logActivity(actor.Id, 'link', created.Id, 'create', null, created, {});
-        return created;
     });
     return result;
 }
@@ -144,8 +132,7 @@ function getHomeContent(): HomeContent {
 
 function updateHomeContent(input: UpdateHomeContentInput): HomeContent {
     const actor = requireAdmin();
-    const before = Tables.HomeContent.findById('singleton');
-    const updated = withLock(() =>
+    return withLock(() =>
         Tables.HomeContent.updateById('singleton', {
             SupportMessage: input.supportMessage || '',
             Guidelines: input.guidelines || '',
@@ -154,14 +141,4 @@ function updateHomeContent(input: UpdateHomeContentInput): HomeContent {
             UpdatedBy: actor.Id,
         }),
     );
-    logActivity(actor.Id, 'home_content', 'singleton', 'update', before, updated, {});
-    return updated;
-}
-
-function listActivityLog(page: number): Paginated<ActivityLogEntry> {
-    requireAdmin();
-    const sorted = Tables.ActivityLog.readAll().sort((a, b) =>
-        b.Timestamp.localeCompare(a.Timestamp),
-    );
-    return paginate(sorted, page, ACTIVITY_LOG_PAGE_SIZE);
 }

@@ -24,13 +24,6 @@ type TicketPriority = 'low' | 'medium' | 'high';
 type InventoryRequestAction =
     'submit' | 'approve' | 'reject' | 'issue' | 'return' | 'cancel' | 'close';
 type TicketAction = 'assign' | 'close' | 'reopen';
-type AttachmentOwnerType =
-    | 'profile'
-    | 'inventory_item'
-    | 'inventory_request'
-    | 'inventory_return'
-    | 'ticket'
-    | 'ticket_comment';
 // Only inventory requests carry comments today (their status-change
 // history, plus manual notes). Extend this union when a new commentable
 // section is added (e.g. studio booking requests).
@@ -61,7 +54,6 @@ interface Profile {
     Timezone: string;
     Phone: string;
     Whatsapp: string;
-    AvatarDriveFileId: string;
     NotificationEmail: boolean;
 }
 
@@ -73,7 +65,6 @@ interface RosterShift {
     EndTime: string;
     ShiftName: string;
     AssigneeProfileId: string;
-    CreatedBy: string;
 }
 
 interface EquipmentType {
@@ -82,18 +73,7 @@ interface EquipmentType {
     Description: string;
     Requestable: boolean;
     ImageDriveFileId: string;
-}
-
-interface InventoryItem {
-    Id: string;
-    EquipmentTypeId: string;
-    Name: string;
-    LocationId: string;
-    SerialNumber: string;
     TotalQuantity: number;
-    AvailableQuantity: number;
-    ImageDriveFileId: string;
-    AdminNotes: string;
 }
 
 // Status-change history (who/when) lives in Comments (OwnerType
@@ -113,7 +93,7 @@ interface InventoryRequest {
 interface InventoryRequestItem {
     Id: string;
     RequestId: string;
-    InventoryItemId: string;
+    EquipmentTypeId: string;
     Quantity: number;
     IssuedQuantity: number;
     ReturnedQuantity: number;
@@ -153,17 +133,6 @@ interface CommentRecord {
     CreatedAt: string;
 }
 
-interface Attachment {
-    Id: string;
-    OwnerType: AttachmentOwnerType;
-    OwnerId: string;
-    DriveFileId: string;
-    OriginalName: string;
-    ContentType: string;
-    SizeBytes: number;
-    UploadedBy: string;
-}
-
 interface Link {
     Id: string;
     Name: string;
@@ -181,18 +150,6 @@ interface HomeContent {
     UpdatedBy: string;
 }
 
-interface ActivityLogEntry {
-    Id: string;
-    Timestamp: string;
-    ActorId: string;
-    EntityType: string;
-    EntityId: string;
-    Action: string;
-    BeforeJson: string;
-    AfterJson: string;
-    MetadataJson: string;
-}
-
 interface FailedNotification {
     Id: string;
     Timestamp: string;
@@ -207,7 +164,7 @@ interface FailedNotification {
 // Joined/display DTOs returned to the frontend
 // ---------------------------------------------------------------------------
 
-interface ProfileDTO extends Omit<Profile, 'AvatarDriveFileId'> {
+interface ProfileDTO extends Profile {
     departmentName: string;
 }
 
@@ -215,9 +172,8 @@ interface RosterShiftDTO extends RosterShift {
     assigneeName: string;
 }
 
-interface InventoryItemDTO extends InventoryItem {
-    equipmentTypeName: string;
-    locationName: string;
+interface EquipmentTypeDTO extends EquipmentType {
+    availableQuantity: number;
 }
 
 interface InventoryRequestItemDTO extends InventoryRequestItem {
@@ -250,9 +206,8 @@ interface DashboardPayload {
     me: ProfileDTO;
     departments: Department[];
     locations: Place[];
-    equipmentTypes: EquipmentType[];
+    equipmentTypes: EquipmentTypeDTO[];
     upcomingShifts: RosterShiftDTO[];
-    inventoryItems: InventoryItemDTO[];
     inventoryRequests: InventoryRequestDTO[];
     tickets: TicketDTO[];
     links: Link[];
@@ -309,15 +264,7 @@ interface CreateEquipmentTypeInput {
     name: string;
     description: string;
     requestable: boolean;
-}
-
-interface CreateInventoryItemInput {
-    equipmentTypeId: string;
-    name: string;
-    locationId: string;
-    serialNumber: string;
     totalQuantity: number;
-    adminNotes: string;
 }
 
 interface CreateInventoryRequestInput {
@@ -325,7 +272,7 @@ interface CreateInventoryRequestInput {
     fromDate: string;
     toDate: string;
     purpose: string;
-    items: { inventoryItemId: string; quantity: number }[];
+    items: { equipmentTypeId: string; quantity: number }[];
 }
 
 interface ReturnItemInput {
@@ -356,20 +303,6 @@ interface UpdateHomeContentInput {
     tutorialUrl: string;
 }
 
-interface AttachmentUploadResult {
-    Id: string;
-    DriveFileId: string;
-    OriginalName: string;
-    ContentType: string;
-    SizeBytes: number;
-}
-
-interface AttachmentContent {
-    base64: string;
-    contentType: string;
-    fileName: string;
-}
-
 // ---------------------------------------------------------------------------
 // The full google.script.run contract. Backend functions must match these
 // signatures; 02-api.ts's typed wrapper is authored directly against this type.
@@ -395,16 +328,12 @@ interface Api {
 
     getHomeContent(): HomeContent;
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;
-    listActivityLog(page: number): Paginated<ActivityLogEntry>;
 
     listRosterShifts(page: number): Paginated<RosterShiftDTO>;
     createRosterShift(input: CreateRosterShiftInput, requestId: string): RosterShiftDTO;
 
-    listEquipmentTypes(): EquipmentType[];
-    createEquipmentType(input: CreateEquipmentTypeInput, requestId: string): EquipmentType;
-
-    listInventoryItems(page: number): Paginated<InventoryItemDTO>;
-    createInventoryItem(input: CreateInventoryItemInput, requestId: string): InventoryItemDTO;
+    listEquipmentTypes(): EquipmentTypeDTO[];
+    createEquipmentType(input: CreateEquipmentTypeInput, requestId: string): EquipmentTypeDTO;
 
     listInventoryRequests(page: number): Paginated<InventoryRequestDTO>;
     createInventoryRequest(
@@ -434,21 +363,4 @@ interface Api {
         requestId: string,
     ): CommentDTO;
 
-    uploadAttachmentChunk(
-        uploadId: string,
-        chunkIndex: number,
-        totalChunks: number,
-        base64Chunk: string,
-    ): { received: number; of: number };
-    finishAttachmentUpload(
-        uploadId: string,
-        ownerType: AttachmentOwnerType,
-        ownerId: string,
-        fileName: string,
-        contentType: string,
-        sizeBytes: number,
-        requestId: string,
-    ): AttachmentUploadResult;
-    getAttachmentContent(attachmentId: string): AttachmentContent;
-    listAttachmentsFor(ownerType: AttachmentOwnerType, ownerId: string): Attachment[];
 }

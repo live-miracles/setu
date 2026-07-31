@@ -27,8 +27,8 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
     const openTickets = dashboard.tickets.filter((t) => t.Status !== 'closed');
     const highPriorityOpen = openTickets.filter((t) => t.Priority === 'high').length;
 
-    const lowStockItems = dashboard.inventoryItems.filter(
-        (item) => item.TotalQuantity > 0 && item.AvailableQuantity / item.TotalQuantity <= 0.3,
+    const lowStockItems = dashboard.equipmentTypes.filter(
+        (t) => t.TotalQuantity > 0 && t.availableQuantity / t.TotalQuantity <= 0.3,
     );
 
     const nextShift = [...dashboard.upcomingShifts].sort((a, b) =>

@@ -19,7 +19,7 @@ function listRosterShifts(page: number): Paginated<RosterShiftDTO> {
 }
 
 function createRosterShift(input: CreateRosterShiftInput, requestId: string): RosterShiftDTO {
-    const actor = requireAdmin();
+    requireAdmin();
 
     if (!input.startDate || !input.endDate) {
         throw new ValidationError('startDate and endDate are required.');
@@ -46,19 +46,14 @@ function createRosterShift(input: CreateRosterShiftInput, requestId: string): Ro
     }
 
     const { result: shift } = withLockedDedupe('roster:create', requestId, () => {
-        const created = Tables.RosterShifts.insert({
+        return Tables.RosterShifts.insert({
             StartDate: input.startDate,
             EndDate: input.endDate,
             StartTime: input.startTime || '',
             EndTime: input.endTime || '',
             ShiftName: input.shiftName.trim(),
             AssigneeProfileId: assignee.Id,
-            CreatedBy: actor.Id,
         });
-        logActivity(actor.Id, 'roster_shift', created.Id, 'create', null, created, {
-            assigneeId: assignee.Id,
-        });
-        return created;
     });
 
     sendNotificationEmail(

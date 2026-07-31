@@ -1,36 +1,51 @@
-const INVENTORY_ITEMS_PAGE_SIZE = 30;
 const INVENTORY_REQUESTS_PAGE_SIZE = 20;
 
-function buildInventoryItemDTO(
-    item: InventoryItem,
-    equipmentTypesById: Record<string, EquipmentType>,
-    locationsById: Record<string, Place>,
-): InventoryItemDTO {
-    return Object.assign({}, item, {
-        equipmentTypeName:
-            (equipmentTypesById[item.EquipmentTypeId] || ({} as EquipmentType)).Name || '',
-        locationName: (locationsById[item.LocationId] || ({} as Place)).Name || '',
+// Outstanding (issued but not yet returned) plus permanently-lost (returned
+// damaged/missing) quantity per equipment type — subtracted from
+// TotalQuantity to derive availableQuantity on read, rather than storing a
+// mutable counter that could drift from the underlying request/return rows.
+function computeDeductionsByType(): Record<string, number> {
+    const requestItems = Tables.InventoryRequestItems.readAll();
+    const requestItemsById = indexById(requestItems);
+    const deductions: Record<string, number> = {};
+    requestItems.forEach((item) => {
+        deductions[item.EquipmentTypeId] =
+            (deductions[item.EquipmentTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
     });
+    Tables.InventoryReturns.readAll().forEach((ret) => {
+        if (ret.Condition === 'good') return;
+        const item = requestItemsById[ret.RequestItemId];
+        if (!item) return;
+        deductions[item.EquipmentTypeId] = (deductions[item.EquipmentTypeId] || 0) + ret.Quantity;
+    });
+    return deductions;
+}
+
+function buildEquipmentTypeDTOs(types: EquipmentType[]): EquipmentTypeDTO[] {
+    const deductions = computeDeductionsByType();
+    return types.map((t) =>
+        Object.assign({}, t, { availableQuantity: t.TotalQuantity - (deductions[t.Id] || 0) }),
+    );
 }
 
 function buildInventoryRequestItemDTO(
     item: InventoryRequestItem,
-    inventoryItemsById: Record<string, InventoryItem>,
+    equipmentTypesById: Record<string, EquipmentType>,
 ): InventoryRequestItemDTO {
     return Object.assign({}, item, {
-        itemName: (inventoryItemsById[item.InventoryItemId] || ({} as InventoryItem)).Name || '',
+        itemName: (equipmentTypesById[item.EquipmentTypeId] || ({} as EquipmentType)).Name || '',
     });
 }
 
 function buildInventoryRequestDTO(
     request: InventoryRequest,
     itemsByRequest: Record<string, InventoryRequestItem[]>,
-    inventoryItemsById: Record<string, InventoryItem>,
+    equipmentTypesById: Record<string, EquipmentType>,
     profilesById: Record<string, Profile>,
     commentsByOwnerId: Record<string, CommentRecord[]>,
 ): InventoryRequestDTO {
     const items = (itemsByRequest[request.Id] || []).map((i) =>
-        buildInventoryRequestItemDTO(i, inventoryItemsById),
+        buildInventoryRequestItemDTO(i, equipmentTypesById),
     );
     const requester = profilesById[request.RequesterId];
     const comments = commentsFor('inventory_request', request.Id, commentsByOwnerId, profilesById);
@@ -41,73 +56,35 @@ function buildInventoryRequestDTO(
     });
 }
 
-function listEquipmentTypes(): EquipmentType[] {
+function listEquipmentTypes(): EquipmentTypeDTO[] {
     requireUser();
-    return Tables.EquipmentTypes.readAll();
+    return buildEquipmentTypeDTOs(Tables.EquipmentTypes.readAll());
 }
 
-function createEquipmentType(input: CreateEquipmentTypeInput, requestId: string): EquipmentType {
-    const actor = requireAdmin();
+function createEquipmentType(
+    input: CreateEquipmentTypeInput,
+    requestId: string,
+): EquipmentTypeDTO {
+    requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
+    if (!(input.totalQuantity >= 0))
+        throw new ValidationError('total_quantity_must_be_non_negative');
     const { result } = withLockedDedupe('equipment_type:create', requestId, () => {
-        const created = Tables.EquipmentTypes.insert({
+        return Tables.EquipmentTypes.insert({
             Name: name,
             Description: input.description || '',
             Requestable: input.requestable !== false,
             ImageDriveFileId: '',
-        });
-        logActivity(actor.Id, 'equipment_type', created.Id, 'create', null, created, {});
-        return created;
-    });
-    return result;
-}
-
-function listInventoryItems(page: number): Paginated<InventoryItemDTO> {
-    requireUser();
-    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
-    const locationsById = indexById(Tables.Locations.readAll());
-    const dtos = Tables.InventoryItems.readAll()
-        .sort((a, b) => a.Name.localeCompare(b.Name))
-        .map((item) => buildInventoryItemDTO(item, equipmentTypesById, locationsById));
-    return paginate(dtos, page, INVENTORY_ITEMS_PAGE_SIZE);
-}
-
-function createInventoryItem(input: CreateInventoryItemInput, requestId: string): InventoryItemDTO {
-    const actor = requireAdmin();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-    const equipmentType = Tables.EquipmentTypes.findById(input.equipmentTypeId);
-    if (!equipmentType) throw new ValidationError('equipment_type_not_found');
-    const location = Tables.Locations.findById(input.locationId);
-    if (!location) throw new ValidationError('location_not_found');
-    if (!(input.totalQuantity >= 0))
-        throw new ValidationError('total_quantity_must_be_non_negative');
-
-    const { result } = withLockedDedupe('inventory_item:create', requestId, () => {
-        const created = Tables.InventoryItems.insert({
-            EquipmentTypeId: input.equipmentTypeId,
-            Name: name,
-            LocationId: input.locationId,
-            SerialNumber: input.serialNumber || '',
             TotalQuantity: input.totalQuantity,
-            AvailableQuantity: input.totalQuantity,
-            ImageDriveFileId: '',
-            AdminNotes: input.adminNotes || '',
         });
-        logActivity(actor.Id, 'inventory_item', created.Id, 'create', null, created, {});
-        return created;
     });
-
-    return buildInventoryItemDTO(
-        result,
-        { [equipmentType.Id]: equipmentType },
-        { [location.Id]: location },
-    );
+    return buildEquipmentTypeDTOs([result])[0];
 }
 
 function listInventoryRequests(page: number): Paginated<InventoryRequestDTO> {
     requireUser();
     const itemsByRequest = groupBy(Tables.InventoryRequestItems.readAll(), (i) => i.RequestId);
-    const inventoryItemsById = indexById(Tables.InventoryItems.readAll());
+    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
     const profilesById = indexById(Tables.Profiles.readAll());
     const commentsByOwnerId = groupBy(Tables.Comments.readAll(), (c) => c.OwnerId);
     const dtos = Tables.InventoryRequests.readAll()
@@ -115,7 +92,7 @@ function listInventoryRequests(page: number): Paginated<InventoryRequestDTO> {
             buildInventoryRequestDTO(
                 r,
                 itemsByRequest,
-                inventoryItemsById,
+                equipmentTypesById,
                 profilesById,
                 commentsByOwnerId,
             ),
@@ -141,9 +118,9 @@ function createInventoryRequest(
         throw new ValidationError('At least one item is required.');
     const lines = input.items.map((line) => {
         if (!(line.quantity > 0)) throw new ValidationError('quantity_must_be_positive');
-        const inventoryItem = Tables.InventoryItems.findById(line.inventoryItemId);
-        if (!inventoryItem) throw new ValidationError('inventory_item_not_found');
-        return { inventoryItem, quantity: line.quantity };
+        const equipmentType = Tables.EquipmentTypes.findById(line.equipmentTypeId);
+        if (!equipmentType) throw new ValidationError('equipment_type_not_found');
+        return { equipmentType, quantity: line.quantity };
     });
 
     const { result } = withLockedDedupe('inventory_request:create', requestId, () => {
@@ -160,7 +137,7 @@ function createInventoryRequest(
         lines.forEach((line) => {
             Tables.InventoryRequestItems.insert({
                 RequestId: created.Id,
-                InventoryItemId: line.inventoryItem.Id,
+                EquipmentTypeId: line.equipmentType.Id,
                 Quantity: line.quantity,
                 IssuedQuantity: 0,
                 ReturnedQuantity: 0,
@@ -170,15 +147,6 @@ function createInventoryRequest(
             'inventory_request',
             created.Id,
             actor.Name + ' submitted this request.',
-        );
-        logActivity(
-            actor.Id,
-            'inventory_request',
-            created.Id,
-            'create_and_submit',
-            null,
-            created,
-            {},
         );
         return { request: created, comment };
     });
@@ -203,20 +171,20 @@ function createInventoryRequest(
     });
 
     const requestItems = Tables.InventoryRequestItems.findWhere((i) => i.RequestId === request.Id);
-    const inventoryItemsById = indexById(Tables.InventoryItems.readAll());
+    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
     return buildInventoryRequestDTO(
         request,
         { [request.Id]: requestItems },
-        inventoryItemsById,
+        equipmentTypesById,
         indexById([actor]),
         { [request.Id]: [comment] },
     );
 }
 
 // Ported from the source app's `perform_inventory_request_action` Postgres
-// function. Wrapped end-to-end (read + validate + every mutated row + the
-// activity log write) in one withLockedDedupe/withLock, replacing Postgres's
-// per-row `FOR UPDATE` locks with one coarse script-global mutex.
+// function. Wrapped end-to-end (read + validate + every mutated row) in one
+// withLockedDedupe/withLock, replacing Postgres's per-row `FOR UPDATE` locks
+// with one coarse script-global mutex.
 function performInventoryRequestAction(
     requestId: string,
     action: InventoryRequestAction,
@@ -232,7 +200,6 @@ function performInventoryRequestAction(
         (): InventoryRequestStatus => {
             const request = Tables.InventoryRequests.findById(requestId);
             if (!request) throw new ValidationError('request_not_found');
-            const before = Object.assign({}, request);
             let computedStatus: InventoryRequestStatus;
 
             if (action === 'submit') {
@@ -285,13 +252,15 @@ function performInventoryRequestAction(
                     const items = Tables.InventoryRequestItems.findWhere(
                         (i) => i.RequestId === requestId,
                     );
+                    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
+                    const deductions = computeDeductionsByType();
                     items.forEach((item) => {
-                        const invItem = Tables.InventoryItems.findById(item.InventoryItemId);
-                        if (!invItem || invItem.AvailableQuantity < item.Quantity)
+                        const type = equipmentTypesById[item.EquipmentTypeId];
+                        if (!type) throw new ValidationError('equipment_type_not_found');
+                        const available = type.TotalQuantity - (deductions[type.Id] || 0);
+                        if (available < item.Quantity)
                             throw new ValidationError('insufficient_inventory');
-                        Tables.InventoryItems.updateById(invItem.Id, {
-                            AvailableQuantity: invItem.AvailableQuantity - item.Quantity,
-                        });
+                        deductions[type.Id] = (deductions[type.Id] || 0) + item.Quantity;
                         Tables.InventoryRequestItems.updateById(item.Id, {
                             IssuedQuantity: item.Quantity,
                         });
@@ -310,6 +279,7 @@ function performInventoryRequestAction(
                     if (request.Status !== 'issued' || !returnItems || returnItems.length === 0) {
                         throw new ValidationError('invalid_transition_or_return_items');
                     }
+                    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
                     const summaries: string[] = [];
                     returnItems.forEach((ret) => {
                         if (!(ret.quantity >= 1)) throw new ValidationError('invalid_return_item');
@@ -326,7 +296,7 @@ function performInventoryRequestAction(
                         ) {
                             throw new ValidationError('invalid_return_quantity');
                         }
-                        const invItem = Tables.InventoryItems.findById(item.InventoryItemId)!;
+                        const type = equipmentTypesById[item.EquipmentTypeId];
                         Tables.InventoryReturns.insert({
                             RequestItemId: item.Id,
                             Quantity: ret.quantity,
@@ -337,13 +307,8 @@ function performInventoryRequestAction(
                         Tables.InventoryRequestItems.updateById(item.Id, {
                             ReturnedQuantity: item.ReturnedQuantity + ret.quantity,
                         });
-                        if (ret.condition === 'good') {
-                            Tables.InventoryItems.updateById(invItem.Id, {
-                                AvailableQuantity: invItem.AvailableQuantity + ret.quantity,
-                            });
-                        }
                         summaries.push(
-                            ret.quantity + '× ' + invItem.Name + ' (' + ret.condition + ')',
+                            ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
                         );
                     });
                     const remaining = Tables.InventoryRequestItems.findWhere(
@@ -397,8 +362,6 @@ function performInventoryRequestAction(
                 }
             }
 
-            const after = Tables.InventoryRequests.findById(requestId);
-            logActivity(actor.Id, 'inventory_request', requestId, action, before, after, {});
             return computedStatus;
         },
     );

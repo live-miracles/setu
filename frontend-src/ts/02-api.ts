@@ -47,16 +47,12 @@ const api: AsyncApi = {
 
     getHomeContent: (...args) => callBackend('getHomeContent', ...args),
     updateHomeContent: (...args) => callBackend('updateHomeContent', ...args),
-    listActivityLog: (...args) => callBackend('listActivityLog', ...args),
 
     listRosterShifts: (...args) => callBackend('listRosterShifts', ...args),
     createRosterShift: (...args) => callBackend('createRosterShift', ...args),
 
     listEquipmentTypes: (...args) => callBackend('listEquipmentTypes', ...args),
     createEquipmentType: (...args) => callBackend('createEquipmentType', ...args),
-
-    listInventoryItems: (...args) => callBackend('listInventoryItems', ...args),
-    createInventoryItem: (...args) => callBackend('createInventoryItem', ...args),
 
     listInventoryRequests: (...args) => callBackend('listInventoryRequests', ...args),
     createInventoryRequest: (...args) => callBackend('createInventoryRequest', ...args),
@@ -68,8 +64,4 @@ const api: AsyncApi = {
     performTicketAction: (...args) => callBackend('performTicketAction', ...args),
     addComment: (...args) => callBackend('addComment', ...args),
 
-    uploadAttachmentChunk: (...args) => callBackend('uploadAttachmentChunk', ...args),
-    finishAttachmentUpload: (...args) => callBackend('finishAttachmentUpload', ...args),
-    getAttachmentContent: (...args) => callBackend('getAttachmentContent', ...args),
-    listAttachmentsFor: (...args) => callBackend('listAttachmentsFor', ...args),
 };

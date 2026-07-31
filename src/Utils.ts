@@ -84,24 +84,3 @@ function requireMinLength(value: string, min: number, message: string): string {
     if (trimmed.length < min) throw new ValidationError(message);
     return trimmed;
 }
-
-function logActivity(
-    actorId: string,
-    entityType: string,
-    entityId: string,
-    action: string,
-    before: unknown,
-    after: unknown,
-    metadata: unknown,
-): ActivityLogEntry {
-    return Tables.ActivityLog.insert({
-        Timestamp: nowIso(),
-        ActorId: actorId,
-        EntityType: entityType,
-        EntityId: entityId,
-        Action: action,
-        BeforeJson: before == null ? '' : JSON.stringify(before),
-        AfterJson: after == null ? '' : JSON.stringify(after),
-        MetadataJson: metadata == null ? '' : JSON.stringify(metadata),
-    });
-}

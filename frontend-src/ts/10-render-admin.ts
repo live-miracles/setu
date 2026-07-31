@@ -80,6 +80,7 @@ async function renderAdmin(container: HTMLElement, dashboard: DashboardPayload):
             [
                 { field: 'Name', label: 'Name' },
                 { field: 'Description', label: 'Description' },
+                { field: 'TotalQuantity', label: 'Total qty' },
             ],
         )}
         ${renderSimpleAdminList('Quick links', 'external', 'link', dashboard.links, [
@@ -177,6 +178,7 @@ function wireSimpleAdminForms(): void {
                             name: String(data.get('Name')),
                             description: String(data.get('Description') || ''),
                             requestable: true,
+                            totalQuantity: Number(data.get('TotalQuantity') || 0),
                         },
                         requestId,
                     );

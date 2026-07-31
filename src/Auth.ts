@@ -2,8 +2,7 @@ function toProfileDTO(profile: Profile): ProfileDTO {
     const department = profile.DepartmentId
         ? Tables.Departments.findById(profile.DepartmentId)
         : null;
-    const { AvatarDriveFileId, ...rest } = profile;
-    return Object.assign({}, rest, { departmentName: department ? department.Name : '' });
+    return Object.assign({}, profile, { departmentName: department ? department.Name : '' });
 }
 
 // The `Profiles` sheet itself is the allowlist: a row must already exist
@@ -28,7 +27,7 @@ function getCurrentActor(): Profile {
             profile = withLock(() => {
                 const alreadyCreated = Tables.Profiles.findWhere((p) => p.Email === email)[0];
                 if (alreadyCreated) return alreadyCreated;
-                const created = Tables.Profiles.insert({
+                return Tables.Profiles.insert({
                     Email: email,
                     Name: email.split('@')[0],
                     Role: 'admin',
@@ -37,19 +36,8 @@ function getCurrentActor(): Profile {
                     Timezone: 'Asia/Kolkata',
                     Phone: '',
                     Whatsapp: '',
-                    AvatarDriveFileId: '',
                     NotificationEmail: true,
                 });
-                logActivity(
-                    created.Id,
-                    'profile',
-                    created.Id,
-                    'bootstrap_admin',
-                    null,
-                    created,
-                    {},
-                );
-                return created;
             });
         } else {
             throw new AuthenticationError(
@@ -63,17 +51,7 @@ function getCurrentActor(): Profile {
     }
 
     if (profile.Status === 'invited') {
-        const before = { Status: profile.Status };
         profile = withLock(() => Tables.Profiles.updateById(profile!.Id, { Status: 'active' }));
-        logActivity(
-            profile.Id,
-            'profile',
-            profile.Id,
-            'activate',
-            before,
-            { Status: 'active' },
-            {},
-        );
     }
 
     return profile;
