@@ -1,30 +1,34 @@
-# Livestream Operations
+# Setu (Livestream Operations)
 
-A mobile-first internal web app for roster coverage, equipment handovers and
-studio support. It replaces the daily AppSheet workflows without carrying over
-AppSheet data or offline synchronization.
+A mobile-first internal web app for roster coverage, equipment handovers,
+program scheduling and studio support.
 
 ## Included
 
-- Google sign-in with an application allowlist and fixed `admin` / `member`
-  roles
-- Home dashboard with upcoming shifts, active inventory requests, quick links,
-  guidelines, WhatsApp and tutorial links
-- Roster creation and assignment notifications
-- Equipment catalogue and the full request lifecycle: submit, approve/reject,
-  issue, return, damaged/missing recording and close
-- Tickets with assignment, comments, close and reopen
-- User profile and notification preferences
-- Admin APIs and UI for allowlist access, departments, locations, equipment
-  types, inventory, links and home content
-- In-app, Resend email and VAPID Web Push notifications
-- Private Supabase Storage uploads with five-minute signed download links
+- Google sign-in restricted to your organisation's email domain — anyone on
+  that domain is registered automatically as a member on first sign-in, with
+  fixed `admin` / `member` roles
+- Home dashboard with upcoming roster entries, active requests, quick links
+  and guidelines
+- Roster creation with email notifications
+- An inventory catalogue and request lifecycle: submit, approve/reject,
+  issue, return (with condition) and close
+- Program requests with one or more scheduled sessions, place, approval
+  lifecycle and comments
+- Comments on inventory and program requests (tickets do not have comments)
+- Tickets with assignment, close and reopen
+- User profile and admin APIs/UI for departments, places, inventory types,
+  links and home content
+- Email notifications via Resend; delivery failures are logged, not queued
+  or retried
+- Images (equipment photos, request photos) stored on Google Drive, not in
+  the database — the app uploads them and stores only the Drive file id
 - An installable PWA shell for iOS, Android and desktop
-- Daily overdue reminders and idempotent notification retries
-- Immutable audit records for sensitive business transitions
+- Daily overdue-request reminders
 
-The service worker intentionally has no `fetch` handler and creates no cache.
-When disconnected, the app displays an offline warning and refuses writes.
+The service worker only handles install/activate (no `fetch` handler, no
+cache, no push). When disconnected, the app displays an offline warning and
+refuses writes.
 
 ## Local preview
 
@@ -59,9 +63,9 @@ npm run build
 3. Create a Google OAuth client for sign-in:
     - In [Google Cloud Console](https://console.cloud.google.com/), create or
       select a project, then open **APIs & Services → OAuth consent screen**
-      and configure it (External user type, app name, support email). Publish
-      the consent screen — leaving it in "Testing" restricts sign-in to a
-      manually added list of test users.
+      and configure it (Internal or External user type, app name, support
+      email). Publish the consent screen if External — leaving it in
+      "Testing" restricts sign-in to a manually added list of test users.
     - Open **APIs & Services → Credentials → Create Credentials → OAuth
       client ID**, choose **Web application**, and add Supabase's callback
       URL as an authorized redirect URI. That URL is shown in the Supabase
@@ -72,12 +76,20 @@ npm run build
    paste the Client ID and Client Secret from the previous step. Then under
    **Authentication → URL Configuration**, add
    `https://<your-domain>/auth/callback` to the allowed Redirect URLs.
-5. Create VAPID keys and a verified Resend sender.
-6. Set `NEXT_PUBLIC_DEMO_MODE=false` and fill every production variable from
+5. Set `ALLOWED_EMAIL_DOMAIN` to your organisation's email domain (e.g.
+   `example.org`) — anyone signing in with a Google account on that domain is
+   registered automatically. Set `BOOTSTRAP_ADMIN_EMAIL` to the first
+   administrator's lowercase email so their first sign-in creates them as an
+   admin instead of a member.
+6. Create a Google Drive service account for image uploads: in Google Cloud
+   Console, create a service account, enable the Drive API, and generate a
+   JSON key. Share a Drive folder with the service account's email address
+   (Editor access), and set `GOOGLE_DRIVE_FOLDER_ID`,
+   `GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+   from that key.
+7. Create a verified Resend sender and set `RESEND_API_KEY`/`RESEND_FROM_EMAIL`.
+8. Set `NEXT_PUBLIC_DEMO_MODE=false` and fill every production variable from
    `.env.example`.
-7. Set `BOOTSTRAP_ADMIN_EMAIL` to the first administrator's lowercase Google
-   account email. The first successful login creates that administrator.
-8. Invite all other users from Admin before they sign in.
 
 The browser uses Supabase only for its signed-in session. All business writes
 go through `/api/v1`; service-role credentials must never be exposed as a
@@ -93,23 +105,9 @@ point-in-time recovery that Pro includes — see "Operational notes" below.
 
 Import this repository into a Vercel project — the Hobby (free) plan is
 enough. Configure the same environment variables for Preview and Production.
-Vercel Hobby caps Cron Jobs at once per day, so `vercel.json` only installs
-the overdue-request scan, daily at 02:30 UTC; Vercel sends `CRON_SECRET` as a
-Bearer token for that request.
-
-The notification-retry job needs a much tighter interval (every 15 minutes),
-so it runs from `.github/workflows/retry-notifications.yml` on GitHub's own
-scheduler instead of Vercel Cron. In the deployed repository's
-**Settings → Secrets and variables → Actions**, add:
-
-- `APP_URL` — the deployed app's base URL (e.g. `https://your-app.vercel.app`)
-- `CRON_SECRET` — the same value set in Vercel's environment variables
-
-GitHub Actions minutes are unlimited for public repositories, so this costs
-nothing as long as the fork stays public. GitHub disables scheduled workflows
-after 60 days without a commit to the repository; if retries silently stop,
-re-enable the workflow from the Actions tab (or push any commit) to restart
-it.
+Vercel Hobby caps Cron Jobs at once per day, which is enough for
+`vercel.json`'s single overdue-request scan, daily at 02:30 UTC; Vercel sends
+`CRON_SECRET` as a Bearer token for that request.
 
 If this deployment is more than a personal or evaluation project, note that
 Vercel's Hobby plan terms are for personal, non-commercial use — check
@@ -120,9 +118,8 @@ Recommended release flow:
 
 1. Apply the database migration to a staging Supabase project.
 2. deploy a Vercel Preview environment;
-3. complete the mobile, permission, attachment and concurrency acceptance
-   checklist;
-4. rehearse database restore and private attachment access;
+3. complete the mobile, permission and concurrency acceptance checklist;
+4. rehearse database restore;
 5. apply the migration and environment settings to Production, then promote the
    verified build.
 
@@ -138,36 +135,41 @@ Browser / installed PWA
         v
 Next.js route handlers on Vercel
         |
-        +--> Supabase PostgreSQL + RLS + audit log
-        +--> private Supabase Storage + signed URLs
+        +--> Supabase PostgreSQL
+        +--> Google Drive (image uploads)
         +--> Resend email
-        +--> VAPID Web Push
 
-Vercel Cron    --> overdue scan (daily)
-GitHub Actions --> notification delivery retry (every 15 minutes)
+Vercel Cron --> overdue-request scan (daily)
 ```
 
-Inventory and ticket commands require an `Idempotency-Key` header. The database
-functions lock the affected request and stock rows before approving, issuing or
-returning items, so concurrent clicks cannot double-adjust availability.
+Inventory issue/return and program/ticket status changes run through
+row-locked Postgres functions (`perform_inventory_request_action`,
+`perform_program_request_action`, `perform_ticket_action`), so concurrent
+actions on the same request or ticket serialize instead of racing.
 
 ## API surface
 
-The implementation exposes the planned `/api/v1` groups for session, users,
-departments, locations, roster, equipment types, inventory items and requests,
-tickets and comments, attachments, notifications, push subscriptions, home
-content, links and cron jobs.
+The implementation exposes `/api/v1` groups for session, users, departments,
+places, rosters, inventory types, inventory requests, program requests and
+sessions, tickets, comments, images, home content/settings, links and the
+overdue-request cron.
 
-Attachment uploads are limited to JPEG, PNG, WebP and PDF files up to 15 MiB.
-Downloads are authorized against the owning record and returned as short-lived
-signed URLs.
+Image uploads are limited to JPEG, PNG and WebP files up to 50KB, stored on
+Google Drive with link-based view access; only the Drive file id is kept in
+the database.
 
 ## Operational notes
 
 - All timestamps are stored in UTC and rendered in the user's configured time
   zone; the default is `Asia/Kolkata`.
-- Disabling a user prevents the profile lookup required by every API request.
-- Admins cannot demote or disable their own administrator account.
+- There is no per-user disable switch — access is controlled entirely by
+  domain membership (`ALLOWED_EMAIL_DOMAIN`). Revoking someone's organisation
+  Google account revokes their access to this app.
+- Admins cannot demote their own account out of the admin role.
+- Inventory availability is computed on read (total minus everything
+  currently issued or returned in non-good condition), not stored.
+- Failed email sends are logged to the `failed_emails` table for admins to
+  review, not retried automatically.
 - There is no AppSheet data import in this release.
 - Production backup and point-in-time recovery are provided by the selected
   Supabase plan (not included on Free) and must be verified with a restore

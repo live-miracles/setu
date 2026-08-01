@@ -14,43 +14,25 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}/login?error=oauth`);
     }
 
+    const email = data.user.email.toLowerCase();
     const admin = createSupabaseAdminClient();
-    const { data: profile } = await admin
-        .from('profiles')
-        .select('id,status,auth_user_id')
-        .eq('email', data.user.email.toLowerCase())
-        .maybeSingle();
+    const { data: user } = await admin.from('users').select('id').eq('id', email).maybeSingle();
 
-    const isBootstrapAdmin =
-        data.user.email.toLowerCase() === process.env.BOOTSTRAP_ADMIN_EMAIL?.toLowerCase();
+    if (user) return NextResponse.redirect(`${origin}/app`);
 
-    if (!profile && isBootstrapAdmin) {
-        await admin.from('profiles').insert({
-            auth_user_id: data.user.id,
-            email: data.user.email.toLowerCase(),
-            name: data.user.user_metadata.full_name ?? data.user.email.split('@')[0],
-            role: 'admin',
-            status: 'active',
-        });
-        return NextResponse.redirect(`${origin}/app`);
-    }
-
-    if (!profile || profile.status === 'disabled') {
+    const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN?.toLowerCase();
+    const emailDomain = email.split('@')[1];
+    if (!allowedDomain || emailDomain !== allowedDomain) {
         await supabase.auth.signOut();
         return NextResponse.redirect(`${origin}/login?error=not-approved`);
     }
 
-    if (profile.status === 'invited') {
-        await admin
-            .from('profiles')
-            .update({ auth_user_id: data.user.id, status: 'active' })
-            .eq('email', data.user.email.toLowerCase());
-    } else if (!profile.auth_user_id) {
-        await admin.from('profiles').update({ auth_user_id: data.user.id }).eq('id', profile.id);
-    } else if (profile.auth_user_id !== data.user.id) {
-        await supabase.auth.signOut();
-        return NextResponse.redirect(`${origin}/login?error=not-approved`);
-    }
+    const isBootstrapAdmin = email === process.env.BOOTSTRAP_ADMIN_EMAIL?.toLowerCase();
+    await admin.from('users').insert({
+        id: email,
+        name: data.user.user_metadata.full_name ?? email.split('@')[0],
+        role: isBootstrapAdmin ? 'admin' : 'member',
+    });
 
     return NextResponse.redirect(`${origin}/app`);
 }

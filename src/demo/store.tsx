@@ -14,78 +14,82 @@ import type {
     DemoState,
     InventoryRequest,
     InventoryRequestStatus,
-    RosterShift,
+    ProgramRequest,
+    ProgramRequestStatus,
+    ReturnCondition,
+    Roster,
     Ticket,
     TicketStatus,
+    User,
+    UserRole,
 } from '@/domain/types';
-import { canTransitionRequest, canTransitionTicket } from '@/domain/workflows';
+import {
+    canTransitionProgramRequest,
+    canTransitionRequest,
+    canTransitionTicket,
+} from '@/domain/workflows';
 import { isDemoMode } from '@/lib/env';
 
 interface DemoActions {
     hydrate: (state: DemoState) => void;
-    addShift: (shift: Omit<RosterShift, 'id' | 'updatedAt'>) => Promise<void>;
-    addRequest: (
-        request: Omit<InventoryRequest, 'id' | 'createdAt' | 'updatedAt'>,
+    addRoster: (roster: Omit<Roster, 'id'>) => Promise<void>;
+    addInventoryRequest: (
+        request: Omit<InventoryRequest, 'id' | 'displayId' | 'status' | 'comments'>,
     ) => Promise<void>;
-    transitionRequest: (id: string, status: InventoryRequestStatus, note?: string) => Promise<void>;
-    addTicket: (
-        ticket: Omit<Ticket, 'id' | 'comments' | 'createdAt' | 'updatedAt'>,
+    transitionInventoryRequest: (
+        id: string,
+        status: InventoryRequestStatus,
+        options?: {
+            note?: string;
+            returns?: { itemId: string; condition: ReturnCondition }[];
+            images?: string[];
+        },
     ) => Promise<void>;
-    addTicketComment: (id: string, message: string) => Promise<void>;
+    addInventoryComment: (id: string, message: string) => Promise<void>;
+    addProgramRequest: (
+        request: Omit<ProgramRequest, 'id' | 'displayId' | 'status' | 'comments'> & {
+            placeId: string;
+        },
+    ) => Promise<void>;
+    transitionProgramRequest: (
+        id: string,
+        status: ProgramRequestStatus,
+        note?: string,
+    ) => Promise<void>;
+    addProgramComment: (id: string, message: string) => Promise<void>;
+    addTicket: (ticket: Pick<Ticket, 'title' | 'description'>) => Promise<void>;
     transitionTicket: (id: string, status: TicketStatus, assigneeId?: string) => Promise<void>;
-    markNotificationsRead: () => Promise<void>;
-    enablePush: () => void;
-    inviteProfile: (input: {
-        email: string;
-        name: string;
-        role: 'admin' | 'member';
-        timezone: string;
-    }) => Promise<void>;
     updateUserAccess: (
         id: string,
-        input: { role?: 'admin' | 'member'; status?: 'invited' | 'active' | 'disabled' },
+        input: { role?: UserRole; departmentId?: string; timezone?: string },
     ) => Promise<void>;
-    updateProfile: (
-        input: Pick<ProfileUpdate, 'name' | 'phone' | 'whatsapp' | 'timezone'>,
-    ) => Promise<void>;
+    updateProfile: (input: Pick<User, 'name' | 'phone' | 'whatsapp' | 'timezone'>) => Promise<void>;
 }
-
-type ProfileUpdate = DemoState['currentUser'];
 
 const DemoContext = createContext<{ state: DemoState; actions: DemoActions } | undefined>(
     undefined,
 );
 
+const EMPTY_STATE: DemoState = {
+    currentUser: {
+        id: '',
+        name: 'Loading',
+        role: 'member',
+        department: '',
+        timezone: 'Asia/Kolkata',
+    },
+    users: [],
+    rosters: [],
+    inventoryTypes: [],
+    inventoryRequests: [],
+    programRequests: [],
+    tickets: [],
+    links: [],
+    homeContent: { guidelines: '', whatsappUrl: '', tutorialUrl: '', supportMessage: '' },
+};
+
 export function DemoStoreProvider({ children }: PropsWithChildren) {
-    const [state, setState] = useState<DemoState>(
-        isDemoMode
-            ? initialDemoState
-            : {
-                  currentUser: {
-                      id: '',
-                      name: 'Loading',
-                      email: '',
-                      role: 'member',
-                      status: 'active',
-                      department: '',
-                      timezone: 'Asia/Kolkata',
-                      notificationPreferences: { email: true, push: false },
-                  },
-                  profiles: [],
-                  shifts: [],
-                  inventory: [],
-                  requests: [],
-                  tickets: [],
-                  notifications: [],
-                  links: [],
-                  homeContent: {
-                      guidelines: '',
-                      whatsappUrl: '',
-                      tutorialUrl: '',
-                      supportMessage: '',
-                  },
-              },
-    );
+    const [state, setState] = useState<DemoState>(isDemoMode ? initialDemoState : EMPTY_STATE);
     const stateRef = useRef(state);
     useEffect(() => {
         stateRef.current = state;
@@ -96,122 +100,216 @@ export function DemoStoreProvider({ children }: PropsWithChildren) {
             hydrate(nextState) {
                 setState(nextState);
             },
-            async addShift(shift) {
+            async addRoster(roster) {
                 if (!isDemoMode) {
-                    await apiRequest('/api/v1/roster/shifts', {
+                    await apiRequest('/api/v1/rosters', {
                         method: 'POST',
-                        headers: { 'Idempotency-Key': crypto.randomUUID() },
                         body: JSON.stringify({
-                            startsAt: shift.startsAt,
-                            endsAt: shift.endsAt,
-                            period: shift.period,
-                            locationName: shift.location,
-                            assigneeIds: shift.assignees.map((person) => person.id),
-                            notes: shift.notes,
+                            name: roster.name,
+                            startDate: roster.startDate,
+                            endDate: roster.endDate,
+                            startTime: roster.startTime,
+                            endTime: roster.endTime,
+                            userId: roster.user.id,
                         }),
                     });
                 }
                 setState((current) => ({
                     ...current,
-                    shifts: [
-                        ...current.shifts,
-                        {
-                            ...shift,
-                            id: crypto.randomUUID(),
-                            updatedAt: new Date().toISOString(),
-                        },
-                    ],
+                    rosters: [...current.rosters, { ...roster, id: crypto.randomUUID() }],
                 }));
             },
-            async addRequest(request) {
+            async addInventoryRequest(request) {
                 if (!isDemoMode) {
                     await apiRequest('/api/v1/inventory-requests', {
                         method: 'POST',
-                        headers: { 'Idempotency-Key': crypto.randomUUID() },
                         body: JSON.stringify({
-                            title: request.title,
-                            fromDate: request.fromDate,
-                            toDate: request.toDate,
-                            purpose: request.purpose,
+                            name: request.name,
+                            startDate: request.startDate,
+                            endDate: request.endDate,
                             items: request.items.map((item) => ({
-                                inventoryItemId: item.inventoryItemId,
+                                inventoryTypeId: item.inventoryTypeId,
                                 quantity: item.quantity,
+                            })),
+                            images: request.images,
+                        }),
+                    });
+                }
+                setState((current) => ({
+                    ...current,
+                    inventoryRequests: [
+                        {
+                            ...request,
+                            id: crypto.randomUUID(),
+                            displayId: 1043 + current.inventoryRequests.length,
+                            status: 'submitted',
+                            comments: [],
+                        },
+                        ...current.inventoryRequests,
+                    ],
+                }));
+            },
+            async transitionInventoryRequest(id, status, options) {
+                const request = stateRef.current.inventoryRequests.find((item) => item.id === id);
+                if (!request) throw new Error('Inventory request not found.');
+                if (!canTransitionRequest(request.status, status)) {
+                    throw new Error(`Cannot move a request from ${request.status} to ${status}.`);
+                }
+                if (!isDemoMode) {
+                    const action = inventoryRequestActionForStatus(status);
+                    await apiRequest(`/api/v1/inventory-requests/${id}/${action}`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            note: options?.note ?? '',
+                            returns: options?.returns ?? [],
+                            images: options?.images,
+                        }),
+                    });
+                }
+                setState((current) => ({
+                    ...current,
+                    inventoryRequests: current.inventoryRequests.map((item) => {
+                        if (item.id !== id) return item;
+                        const returnsById = new Map(
+                            (options?.returns ?? []).map((entry) => [entry.itemId, entry.condition]),
+                        );
+                        return {
+                            ...item,
+                            status,
+                            images: options?.images ?? item.images,
+                            items: item.items.map((line) => {
+                                if (status === 'issued') {
+                                    return { ...line, issuedQuantity: line.quantity };
+                                }
+                                const condition = returnsById.get(line.id);
+                                return condition
+                                    ? { ...line, returnedQuantity: line.issuedQuantity, condition }
+                                    : line;
+                            }),
+                        };
+                    }),
+                }));
+            },
+            async addInventoryComment(id, message) {
+                if (!isDemoMode) {
+                    await apiRequest(`/api/v1/inventory-requests/${id}/comments`, {
+                        method: 'POST',
+                        body: JSON.stringify({ message }),
+                    });
+                }
+                setState((current) => ({
+                    ...current,
+                    inventoryRequests: current.inventoryRequests.map((item) =>
+                        item.id === id
+                            ? {
+                                  ...item,
+                                  comments: [
+                                      ...item.comments,
+                                      {
+                                          id: crypto.randomUUID(),
+                                          timestamp: new Date().toISOString(),
+                                          author: {
+                                              id: current.currentUser.id,
+                                              name: current.currentUser.name,
+                                          },
+                                          message,
+                                      },
+                                  ],
+                              }
+                            : item,
+                    ),
+                }));
+            },
+            async addProgramRequest(request) {
+                if (!isDemoMode) {
+                    await apiRequest('/api/v1/program-requests', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            name: request.name,
+                            type: request.type,
+                            placeId: request.placeId,
+                            sessions: request.sessions.map((session) => ({
+                                name: session.name,
+                                type: session.type,
+                                startDateTime: session.startDateTime,
+                                endDateTime: session.endDateTime,
                             })),
                         }),
                     });
                 }
                 setState((current) => ({
                     ...current,
-                    requests: [
+                    programRequests: [
                         {
                             ...request,
-                            id: `REQ-${1043 + current.requests.length}`,
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString(),
+                            id: crypto.randomUUID(),
+                            displayId: 1 + current.programRequests.length,
+                            status: 'submitted',
+                            comments: [],
+                            sessions: request.sessions.map((session) => ({
+                                ...session,
+                                id: crypto.randomUUID(),
+                            })),
                         },
-                        ...current.requests,
+                        ...current.programRequests,
                     ],
                 }));
             },
-            async transitionRequest(id, status, note) {
-                const request = stateRef.current.requests.find((item) => item.id === id);
-                if (!request) throw new Error('Inventory request not found.');
-                if (!canTransitionRequest(request.status, status)) {
+            async transitionProgramRequest(id, status, note) {
+                const request = stateRef.current.programRequests.find((item) => item.id === id);
+                if (!request) throw new Error('Program request not found.');
+                if (!canTransitionProgramRequest(request.status, status)) {
                     throw new Error(`Cannot move a request from ${request.status} to ${status}.`);
                 }
-
                 if (!isDemoMode) {
-                    const action = requestActionForStatus(status);
-                    const returns =
-                        status === 'returned'
-                            ? request.items
-                                  .filter((item) => item.returnedQuantity < item.quantity)
-                                  .map((item) => ({
-                                      requestItemId: item.id,
-                                      quantity: item.quantity - item.returnedQuantity,
-                                      condition: parseReturnCondition(note),
-                                      notes: note?.trim() || 'Returned by operations',
-                                  }))
-                            : [];
-                    await apiRequest(
-                        `/api/v1/inventory-requests/${request.recordId ?? request.id}/${action}`,
-                        {
-                            method: 'POST',
-                            headers: { 'Idempotency-Key': crypto.randomUUID() },
-                            body: JSON.stringify({ note: note ?? '', returns }),
-                        },
-                    );
+                    const action = programRequestActionForStatus(status);
+                    await apiRequest(`/api/v1/program-requests/${id}/${action}`, {
+                        method: 'POST',
+                        body: JSON.stringify({ note: note ?? '' }),
+                    });
                 }
                 setState((current) => ({
                     ...current,
-                    requests: current.requests.map((request) => {
-                        if (request.id !== id) return request;
-                        if (!canTransitionRequest(request.status, status)) {
-                            throw new Error(
-                                `Cannot move a request from ${request.status} to ${status}.`,
-                            );
-                        }
-                        return {
-                            ...request,
-                            status,
-                            adminNote: note ?? request.adminNote,
-                            updatedAt: new Date().toISOString(),
-                            isOverdue: status === 'issued' ? request.isOverdue : false,
-                        };
-                    }),
+                    programRequests: current.programRequests.map((item) =>
+                        item.id === id ? { ...item, status } : item,
+                    ),
+                }));
+            },
+            async addProgramComment(id, message) {
+                if (!isDemoMode) {
+                    await apiRequest(`/api/v1/program-requests/${id}/comments`, {
+                        method: 'POST',
+                        body: JSON.stringify({ message }),
+                    });
+                }
+                setState((current) => ({
+                    ...current,
+                    programRequests: current.programRequests.map((item) =>
+                        item.id === id
+                            ? {
+                                  ...item,
+                                  comments: [
+                                      ...item.comments,
+                                      {
+                                          id: crypto.randomUUID(),
+                                          timestamp: new Date().toISOString(),
+                                          author: {
+                                              id: current.currentUser.id,
+                                              name: current.currentUser.name,
+                                          },
+                                          message,
+                                      },
+                                  ],
+                              }
+                            : item,
+                    ),
                 }));
             },
             async addTicket(ticket) {
                 if (!isDemoMode) {
                     await apiRequest('/api/v1/tickets', {
                         method: 'POST',
-                        headers: { 'Idempotency-Key': crypto.randomUUID() },
-                        body: JSON.stringify({
-                            title: ticket.title,
-                            description: ticket.description,
-                            locationName: ticket.location,
-                            priority: ticket.priority,
-                        }),
+                        body: JSON.stringify(ticket),
                     });
                 }
                 setState((current) => ({
@@ -219,47 +317,12 @@ export function DemoStoreProvider({ children }: PropsWithChildren) {
                     tickets: [
                         {
                             ...ticket,
-                            id: `TKT-${222 + current.tickets.length}`,
-                            comments: [],
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString(),
+                            id: crypto.randomUUID(),
+                            displayId: 222 + current.tickets.length,
+                            status: 'unassigned',
                         },
                         ...current.tickets,
                     ],
-                }));
-            },
-            async addTicketComment(id, commentMessage) {
-                const ticket = stateRef.current.tickets.find((item) => item.id === id);
-                if (!ticket) throw new Error('Ticket not found.');
-                if (!isDemoMode) {
-                    await apiRequest(`/api/v1/tickets/${ticket.recordId ?? ticket.id}/comments`, {
-                        method: 'POST',
-                        headers: { 'Idempotency-Key': crypto.randomUUID() },
-                        body: JSON.stringify({ message: commentMessage }),
-                    });
-                }
-                setState((current) => ({
-                    ...current,
-                    tickets: current.tickets.map((item) =>
-                        item.id === id
-                            ? {
-                                  ...item,
-                                  updatedAt: new Date().toISOString(),
-                                  comments: [
-                                      ...item.comments,
-                                      {
-                                          id: crypto.randomUUID(),
-                                          author: {
-                                              id: current.currentUser.id,
-                                              name: current.currentUser.name,
-                                          },
-                                          message: commentMessage,
-                                          createdAt: new Date().toISOString(),
-                                      },
-                                  ],
-                              }
-                            : item,
-                    ),
                 }));
             },
             async transitionTicket(id, status, assigneeId) {
@@ -275,9 +338,8 @@ export function DemoStoreProvider({ children }: PropsWithChildren) {
                             : ticket.status === 'closed'
                               ? 'reopen'
                               : 'assign';
-                    await apiRequest(`/api/v1/tickets/${ticket.recordId ?? ticket.id}/${action}`, {
+                    await apiRequest(`/api/v1/tickets/${id}/${action}`, {
                         method: 'POST',
-                        headers: { 'Idempotency-Key': crypto.randomUUID() },
                         body: JSON.stringify({ assigneeId }),
                     });
                 }
@@ -285,13 +347,8 @@ export function DemoStoreProvider({ children }: PropsWithChildren) {
                     ...current,
                     tickets: current.tickets.map((ticket) => {
                         if (ticket.id !== id) return ticket;
-                        if (!canTransitionTicket(ticket.status, status)) {
-                            throw new Error(
-                                `Cannot move a ticket from ${ticket.status} to ${status}.`,
-                            );
-                        }
                         const assignee = assigneeId
-                            ? current.profiles.find((profile) => profile.id === assigneeId)
+                            ? current.users.find((user) => user.id === assigneeId)
                             : undefined;
                         return {
                             ...ticket,
@@ -299,77 +356,21 @@ export function DemoStoreProvider({ children }: PropsWithChildren) {
                             assignee: assignee
                                 ? { id: assignee.id, name: assignee.name }
                                 : ticket.assignee,
-                            updatedAt: new Date().toISOString(),
                         };
                     }),
                 }));
             },
-            async markNotificationsRead() {
-                if (!isDemoMode) {
-                    await Promise.all(
-                        stateRef.current.notifications
-                            .filter((notification) => !notification.read)
-                            .map((notification) =>
-                                apiRequest(`/api/v1/notifications/${notification.id}/read`, {
-                                    method: 'POST',
-                                }),
-                            ),
-                    );
-                }
-                setState((current) => ({
-                    ...current,
-                    notifications: current.notifications.map((notification) => ({
-                        ...notification,
-                        read: true,
-                    })),
-                }));
-            },
-            enablePush() {
-                setState((current) => ({
-                    ...current,
-                    currentUser: {
-                        ...current.currentUser,
-                        notificationPreferences: {
-                            ...current.currentUser.notificationPreferences,
-                            push: true,
-                        },
-                    },
-                }));
-            },
-            async inviteProfile(input) {
-                if (!isDemoMode) {
-                    await apiRequest('/api/v1/users', {
-                        method: 'POST',
-                        headers: { 'Idempotency-Key': crypto.randomUUID() },
-                        body: JSON.stringify(input),
-                    });
-                }
-                setState((current) => ({
-                    ...current,
-                    profiles: [
-                        ...current.profiles,
-                        {
-                            id: crypto.randomUUID(),
-                            ...input,
-                            email: input.email.toLowerCase(),
-                            status: 'invited',
-                            department: 'Unassigned',
-                            notificationPreferences: { email: true, push: false },
-                        },
-                    ],
-                }));
-            },
             async updateUserAccess(id, input) {
                 if (!isDemoMode) {
-                    await apiRequest(`/api/v1/users/${id}`, {
+                    await apiRequest(`/api/v1/users/${encodeURIComponent(id)}`, {
                         method: 'PATCH',
                         body: JSON.stringify(input),
                     });
                 }
                 setState((current) => ({
                     ...current,
-                    profiles: current.profiles.map((profile) =>
-                        profile.id === id ? { ...profile, ...input } : profile,
+                    users: current.users.map((user) =>
+                        user.id === id ? { ...user, role: input.role ?? user.role } : user,
                     ),
                 }));
             },
@@ -383,8 +384,8 @@ export function DemoStoreProvider({ children }: PropsWithChildren) {
                 setState((current) => ({
                     ...current,
                     currentUser: { ...current.currentUser, ...input },
-                    profiles: current.profiles.map((profile) =>
-                        profile.id === current.currentUser.id ? { ...profile, ...input } : profile,
+                    users: current.users.map((user) =>
+                        user.id === current.currentUser.id ? { ...user, ...input } : user,
                     ),
                 }));
             },
@@ -415,7 +416,7 @@ async function apiRequest(path: string, init: RequestInit) {
     return response;
 }
 
-function requestActionForStatus(status: InventoryRequestStatus) {
+function inventoryRequestActionForStatus(status: InventoryRequestStatus) {
     const actions: Partial<Record<InventoryRequestStatus, string>> = {
         submitted: 'submit',
         approved: 'approve',
@@ -430,9 +431,17 @@ function requestActionForStatus(status: InventoryRequestStatus) {
     return action;
 }
 
-function parseReturnCondition(note?: string) {
-    const condition = note?.split(':')[0];
-    return condition === 'damaged' || condition === 'missing' ? condition : 'good';
+function programRequestActionForStatus(status: ProgramRequestStatus) {
+    const actions: Partial<Record<ProgramRequestStatus, string>> = {
+        submitted: 'submit',
+        approved: 'approve',
+        rejected: 'reject',
+        cancelled: 'cancel',
+        closed: 'close',
+    };
+    const action = actions[status];
+    if (!action) throw new Error(`No command exists for status ${status}.`);
+    return action;
 }
 
 export function useDemoStore() {

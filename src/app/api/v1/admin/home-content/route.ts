@@ -4,48 +4,58 @@ import { requireAdmin, requireUser } from '@/lib/auth';
 import { demoState } from '@/demo/data';
 import { isDemoMode } from '@/lib/env';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+
+const urlOrEmpty = z.union([z.url(), z.literal('')]);
 
 const schema = z.object({
     supportMessage: z.string().trim().max(2000),
     guidelines: z.string().trim().max(8000),
-    whatsappUrl: z.url().nullable(),
-    tutorialUrl: z.url().nullable(),
+    whatsappUrl: urlOrEmpty,
+    tutorialUrl: urlOrEmpty,
 });
+
+// Home content lives as rows in the generic `settings` key/value table
+// rather than its own table.
+const KEYS = {
+    supportMessage: 'support_message',
+    guidelines: 'guidelines',
+    whatsappUrl: 'whatsapp_url',
+    tutorialUrl: 'tutorial_url',
+} as const;
 
 export async function GET() {
     return apiHandler(async () => {
         await requireUser();
         if (isDemoMode) return jsonOk(demoState.homeContent);
-        const { data, error } = await (
-            await createServerSupabaseClient()
-        )
-            .from('home_content')
-            .select('*')
-            .single();
+        const { data, error } = await createSupabaseAdminClient()
+            .from('settings')
+            .select('id,value')
+            .in('id', Object.values(KEYS));
         if (error) throw error;
-        return jsonOk(data);
+        const byId = Object.fromEntries((data ?? []).map((row) => [row.id, row.value]));
+        return jsonOk({
+            supportMessage: byId[KEYS.supportMessage] ?? '',
+            guidelines: byId[KEYS.guidelines] ?? '',
+            whatsappUrl: byId[KEYS.whatsappUrl] ?? '',
+            tutorialUrl: byId[KEYS.tutorialUrl] ?? '',
+        });
     });
 }
 
 export async function PUT(request: Request) {
     return apiHandler(async () => {
-        const actor = await requireAdmin();
+        await requireAdmin();
         const input = await parseJson(request, schema);
         if (isDemoMode) return jsonOk(input);
-        const { data, error } = await createSupabaseAdminClient()
-            .from('home_content')
-            .upsert({
-                id: true,
-                support_message: input.supportMessage,
-                guidelines: input.guidelines,
-                whatsapp_url: input.whatsappUrl,
-                tutorial_url: input.tutorialUrl,
-                updated_by: actor.id,
-            })
-            .select()
-            .single();
+        const { error } = await createSupabaseAdminClient()
+            .from('settings')
+            .upsert([
+                { id: KEYS.supportMessage, value: input.supportMessage },
+                { id: KEYS.guidelines, value: input.guidelines },
+                { id: KEYS.whatsappUrl, value: input.whatsappUrl },
+                { id: KEYS.tutorialUrl, value: input.tutorialUrl },
+            ]);
         if (error) throw error;
-        return jsonOk(data);
+        return jsonOk(input);
     });
 }

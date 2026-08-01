@@ -3,21 +3,21 @@ import { requireUser } from '@/lib/auth';
 import { demoState } from '@/demo/data';
 import { isDemoMode } from '@/lib/env';
 import { notifyUser } from '@/lib/notifications';
-import { createInventoryRequestSchema, paginationSchema } from '@/lib/schemas';
+import { createProgramRequestSchema, paginationSchema } from '@/lib/schemas';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: Request) {
     return apiHandler(async () => {
         await requireUser();
-        if (isDemoMode) return jsonOk(demoState.inventoryRequests);
+        if (isDemoMode) return jsonOk(demoState.programRequests);
         const url = new URL(request.url);
         const params = paginationSchema.parse(Object.fromEntries(url.searchParams));
         const from = (params.page - 1) * params.pageSize;
         const admin = createSupabaseAdminClient();
         let query = admin
-            .from('inventory_requests')
+            .from('program_requests')
             .select(
-                '*,requester:users!user_id(id,name,departments(name)),inventory_items(*,inventory_types(name)),comments(id,timestamp,message,author:users!user_id(id,name))',
+                '*,requester:users!user_id(id,name,departments(name)),places(name),sessions(*),comments(id,timestamp,message,author:users!user_id(id,name))',
                 { count: 'exact' },
             )
             .order('display_id', { ascending: false })
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     return apiHandler(async () => {
         const actor = await requireUser();
-        const input = await parseJson(request, createInventoryRequestSchema);
+        const input = await parseJson(request, createProgramRequestSchema);
         if (isDemoMode) {
             return jsonCreated({
                 id: crypto.randomUUID(),
@@ -44,37 +44,36 @@ export async function POST(request: Request) {
         }
         const admin = createSupabaseAdminClient();
         const { data: displayId, error: counterError } = await admin.rpc('next_display_id', {
-            p_key: 'inventory_request_display_id',
+            p_key: 'program_request_display_id',
         });
         if (counterError) throw counterError;
 
         const { data: created, error } = await admin
-            .from('inventory_requests')
+            .from('program_requests')
             .insert({
                 display_id: displayId,
                 name: input.name,
+                type: input.type,
                 user_id: actor.id,
-                start_date: input.startDate,
-                end_date: input.endDate,
+                place_id: input.placeId,
                 status: 'submitted',
-                image1_drive_id: input.images[0] ?? null,
-                image2_drive_id: input.images[1] ?? null,
-                image3_drive_id: input.images[2] ?? null,
             })
             .select()
             .single();
         if (error) throw error;
 
-        const { error: itemsError } = await admin.from('inventory_items').insert(
-            input.items.map((item) => ({
+        const { error: sessionsError } = await admin.from('sessions').insert(
+            input.sessions.map((session) => ({
                 request_id: created.id,
-                inventory_type_id: item.inventoryTypeId,
-                quantity: item.quantity,
+                name: session.name,
+                type: session.type,
+                start_date_time: session.startDateTime,
+                end_date_time: session.endDateTime,
             })),
         );
-        if (itemsError) {
-            await admin.from('inventory_requests').delete().eq('id', created.id);
-            throw itemsError;
+        if (sessionsError) {
+            await admin.from('program_requests').delete().eq('id', created.id);
+            throw sessionsError;
         }
 
         const { data: administrators } = await admin
@@ -86,9 +85,9 @@ export async function POST(request: Request) {
             (administrators ?? []).map(({ id }) =>
                 notifyUser({
                     userId: id,
-                    title: `New inventory request · REQ-${created.display_id}`,
-                    message: `${actor.name} requested equipment for ${input.name}.`,
-                    href: '/app?section=inventory',
+                    title: `New program request · PRG-${created.display_id}`,
+                    message: `${actor.name} requested a program: ${input.name}.`,
+                    href: '/app?section=programs',
                 }),
             ),
         );

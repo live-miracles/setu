@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    canTransitionProgramRequest,
     canTransitionRequest,
     canTransitionTicket,
     inventoryDeltaForReturn,
-    requireIdempotencyKey,
 } from './workflows';
 
 describe('inventory request workflow', () => {
@@ -35,22 +35,24 @@ describe('inventory request workflow', () => {
     });
 });
 
+describe('program request workflow', () => {
+    it('allows the complete happy path', () => {
+        expect(canTransitionProgramRequest('draft', 'submitted')).toBe(true);
+        expect(canTransitionProgramRequest('submitted', 'approved')).toBe(true);
+        expect(canTransitionProgramRequest('approved', 'closed')).toBe(true);
+    });
+
+    it('rejects unsafe skips and terminal changes', () => {
+        expect(canTransitionProgramRequest('submitted', 'closed')).toBe(false);
+        expect(canTransitionProgramRequest('closed', 'submitted')).toBe(false);
+        expect(canTransitionProgramRequest('rejected', 'approved')).toBe(false);
+    });
+});
+
 describe('ticket workflow', () => {
     it('supports assign, close and reopen', () => {
         expect(canTransitionTicket('unassigned', 'pending')).toBe(true);
         expect(canTransitionTicket('pending', 'closed')).toBe(true);
         expect(canTransitionTicket('closed', 'pending')).toBe(true);
-    });
-});
-
-describe('idempotency guard', () => {
-    it('accepts a sufficiently long command key', () => {
-        expect(requireIdempotencyKey('command-123')).toBe('command-123');
-    });
-
-    it.each([null, '', 'short'])('rejects invalid key %s', (key) => {
-        expect(() => requireIdempotencyKey(key)).toThrow(
-            'A valid Idempotency-Key header is required.',
-        );
     });
 });

@@ -1,18 +1,17 @@
 'use client';
 
 import {
-    BellOutlined,
     CalendarOutlined,
     ControlOutlined,
     HomeOutlined,
     InboxOutlined,
-    NotificationOutlined,
+    PlaySquareOutlined,
     SettingOutlined,
     ToolOutlined,
     UserOutlined,
     WifiOutlined,
 } from '@ant-design/icons';
-import { App as AntApp, Avatar, Badge, Button, Drawer, Layout, Menu, Space, Tooltip } from 'antd';
+import { App as AntApp, Button, Layout, Menu, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -22,18 +21,27 @@ import type { DemoState } from '@/domain/types';
 import { HomeSection } from './home-section';
 import { RosterSection } from './roster-section';
 import { InventorySection } from './inventory-section';
+import { ProgramSection } from './program-section';
 import { TicketsSection } from './tickets-section';
 import { ProfileSection } from './profile-section';
 import { AdminSection } from './admin-section';
 
 const { Sider } = Layout;
 
-export type SectionKey = 'home' | 'roster' | 'inventory' | 'tickets' | 'profile' | 'admin';
+export type SectionKey =
+    | 'home'
+    | 'roster'
+    | 'inventory'
+    | 'programs'
+    | 'tickets'
+    | 'profile'
+    | 'admin';
 
 const mainNav = [
     { key: 'home', label: 'Home', icon: <HomeOutlined /> },
     { key: 'roster', label: 'Roster', icon: <CalendarOutlined /> },
     { key: 'inventory', label: 'Inventory', icon: <InboxOutlined /> },
+    { key: 'programs', label: 'Programs', icon: <PlaySquareOutlined /> },
     { key: 'tickets', label: 'Tickets', icon: <ToolOutlined /> },
     { key: 'profile', label: 'Profile', icon: <UserOutlined /> },
 ] satisfies MenuProps['items'];
@@ -48,13 +56,17 @@ const pageMeta: Record<SectionKey, { title: string; subtitle: string }> = {
         title: 'Inventory',
         subtitle: 'Request, issue and return equipment.',
     },
+    programs: {
+        title: 'Programs',
+        subtitle: 'Request programs and schedule their sessions.',
+    },
     tickets: {
         title: 'Tickets',
         subtitle: 'Track operational issues through resolution.',
     },
     profile: {
         title: 'Profile',
-        subtitle: 'Your contact details and notification preferences.',
+        subtitle: 'Your contact details.',
     },
     admin: {
         title: 'Admin',
@@ -74,13 +86,10 @@ function WorkspaceInner() {
     const { state, actions } = useDemoStore();
     const { message } = AntApp.useApp();
     const [section, setSection] = useState<SectionKey>('home');
-    const [drawerOpen, setDrawerOpen] = useState(false);
     const [online, setOnline] = useState(true);
     const [ready, setReady] = useState(isDemoMode);
     const [installEvent, setInstallEvent] = useState<Event | null>(null);
-    const [renderedAt] = useState(() => Date.now());
 
-    const unread = state.notifications.filter((notification) => !notification.read).length;
     const activeSection =
         section === 'admin' && state.currentUser.role !== 'admin' ? 'home' : section;
 
@@ -158,6 +167,8 @@ function WorkspaceInner() {
                 return <RosterSection />;
             case 'inventory':
                 return <InventorySection />;
+            case 'programs':
+                return <ProgramSection />;
             case 'tickets':
                 return <TicketsSection />;
             case 'profile':
@@ -205,9 +216,6 @@ function WorkspaceInner() {
                     className="side-menu"
                 />
                 <button className="sider-profile" onClick={() => navigate('profile')} type="button">
-                    <Avatar style={{ background: '#ff6257' }}>
-                        {state.currentUser.name.slice(0, 1)}
-                    </Avatar>
                     <span className="sider-profile-copy">
                         <strong>{state.currentUser.name}</strong>
                         <span>{state.currentUser.role}</span>
@@ -233,13 +241,6 @@ function WorkspaceInner() {
                                 Install
                             </Button>
                         </Tooltip>
-                        <Badge count={unread} size="small">
-                            <Button
-                                aria-label="Open notifications"
-                                icon={<BellOutlined />}
-                                onClick={() => setDrawerOpen(true)}
-                            />
-                        </Badge>
                     </div>
                 </header>
 
@@ -281,71 +282,6 @@ function WorkspaceInner() {
                     </button>
                 ))}
             </nav>
-
-            <Drawer
-                title={
-                    <Space>
-                        <NotificationOutlined />
-                        Notifications
-                    </Space>
-                }
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-                size="default"
-                extra={
-                    unread > 0 ? (
-                        <Button
-                            type="link"
-                            size="small"
-                            onClick={() => void actions.markNotificationsRead()}>
-                            Mark all read
-                        </Button>
-                    ) : null
-                }>
-                <div className="list-stack">
-                    {state.notifications.map((notification) => (
-                        <button
-                            key={notification.id}
-                            type="button"
-                            className="request-row"
-                            style={{
-                                width: '100%',
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                                background: notification.read ? '#fff' : '#fff5f2',
-                            }}
-                            onClick={() => {
-                                const target = new URL(
-                                    notification.href,
-                                    window.location.origin,
-                                ).searchParams.get('section') as SectionKey | null;
-                                if (target) navigate(target);
-                                setDrawerOpen(false);
-                            }}>
-                            <span>
-                                <span className="request-id">
-                                    {new Intl.RelativeTimeFormat('en', {
-                                        numeric: 'auto',
-                                    }).format(
-                                        -Math.max(
-                                            1,
-                                            Math.round(
-                                                (renderedAt -
-                                                    new Date(notification.createdAt).getTime()) /
-                                                    86_400_000,
-                                            ),
-                                        ),
-                                        'day',
-                                    )}
-                                </span>
-                                <h4>{notification.title}</h4>
-                                <div className="request-items">{notification.message}</div>
-                            </span>
-                            {!notification.read && <Badge status="processing" color="#ff6257" />}
-                        </button>
-                    ))}
-                </div>
-            </Drawer>
         </div>
     );
 }

@@ -1,6 +1,4 @@
 export type UserRole = 'admin' | 'member';
-export type ProfileStatus = 'invited' | 'active' | 'disabled';
-export type ShiftPeriod = 'Morning' | 'Evening' | 'Night';
 export type InventoryRequestStatus =
     | 'draft'
     | 'submitted'
@@ -10,111 +8,111 @@ export type InventoryRequestStatus =
     | 'returned'
     | 'cancelled'
     | 'closed';
+export type ProgramRequestStatus =
+    | 'draft'
+    | 'submitted'
+    | 'approved'
+    | 'rejected'
+    | 'cancelled'
+    | 'closed';
 export type ReturnCondition = 'good' | 'damaged' | 'missing';
 export type TicketStatus = 'unassigned' | 'pending' | 'closed';
-export type NotificationChannel = 'in_app' | 'email' | 'push';
 
-export interface Profile {
+// Id is the lowercase Google-account email itself (also the login
+// identity) — there is no separate uuid or auth-linking column.
+export interface User {
     id: string;
     name: string;
-    email: string;
     role: UserRole;
-    status: ProfileStatus;
     department: string;
     timezone: string;
     phone?: string;
     whatsapp?: string;
-    avatarUrl?: string;
-    notificationPreferences: {
-        email: boolean;
-        push: boolean;
-    };
 }
 
-export interface RosterShift {
-    id: string;
-    startsAt: string;
-    endsAt: string;
-    period: ShiftPeriod;
-    location: string;
-    assignees: Pick<Profile, 'id' | 'name' | 'avatarUrl'>[];
-    notes?: string;
-    updatedAt: string;
-}
-
-export interface InventoryItem {
+export interface Roster {
     id: string;
     name: string;
-    type: string;
-    location: string;
-    available: number;
-    total: number;
-    serialNumber?: string;
-    imageUrl?: string;
-    updatedAt: string;
+    startDate: string;
+    endDate: string;
+    startTime: string;
+    endTime: string;
+    user: Pick<User, 'id' | 'name'>;
+}
+
+export interface InventoryType {
+    id: string;
+    name: string;
+    description?: string;
+    requestable: boolean;
+    imageDriveId?: string;
+    totalQuantity: number;
+    availableQuantity: number;
 }
 
 export interface InventoryRequestItem {
     id: string;
-    inventoryItemId: string;
+    inventoryTypeId: string;
     name: string;
     quantity: number;
+    issuedQuantity: number;
     returnedQuantity: number;
-    returnCondition?: ReturnCondition;
+    condition?: ReturnCondition;
+}
+
+export interface Comment {
+    id: string;
+    timestamp: string;
+    author: Pick<User, 'id' | 'name'>;
+    message: string;
 }
 
 export interface InventoryRequest {
     id: string;
-    recordId?: string;
-    title: string;
-    requester: Pick<Profile, 'id' | 'name' | 'department'>;
-    fromDate: string;
-    toDate: string;
-    purpose: string;
+    displayId: number;
+    name: string;
+    requester: Pick<User, 'id' | 'name' | 'department'>;
+    startDate: string;
+    endDate: string;
     status: InventoryRequestStatus;
     items: InventoryRequestItem[];
-    adminNote?: string;
-    createdAt: string;
-    updatedAt: string;
-    isOverdue?: boolean;
+    images: string[];
+    comments: Comment[];
 }
 
-export interface TicketComment {
+export interface Session {
     id: string;
-    author: Pick<Profile, 'id' | 'name'>;
-    message: string;
-    createdAt: string;
+    name: string;
+    type: string;
+    startDateTime: string;
+    endDateTime: string;
+}
+
+export interface ProgramRequest {
+    id: string;
+    displayId: number;
+    name: string;
+    type: string;
+    requester: Pick<User, 'id' | 'name' | 'department'>;
+    place: string;
+    status: ProgramRequestStatus;
+    sessions: Session[];
+    comments: Comment[];
 }
 
 export interface Ticket {
     id: string;
-    recordId?: string;
+    displayId: number;
     title: string;
     description: string;
-    location: string;
     status: TicketStatus;
-    priority: 'low' | 'medium' | 'high';
-    reporter: Pick<Profile, 'id' | 'name'>;
-    assignee?: Pick<Profile, 'id' | 'name'>;
-    comments: TicketComment[];
-    createdAt: string;
-    updatedAt: string;
-}
-
-export interface AppNotification {
-    id: string;
-    title: string;
-    message: string;
-    href: string;
-    read: boolean;
-    createdAt: string;
+    assignee?: Pick<User, 'id' | 'name'>;
 }
 
 export interface HomeLink {
     id: string;
     name: string;
     url: string;
-    order: number;
 }
 
 export interface HomeContent {
@@ -124,14 +122,23 @@ export interface HomeContent {
     supportMessage: string;
 }
 
+export interface FailedEmail {
+    id: string;
+    timestamp: string;
+    user?: Pick<User, 'id' | 'name'>;
+    title: string;
+    message: string;
+    error: string;
+}
+
 export interface DemoState {
-    currentUser: Profile;
-    profiles: Profile[];
-    shifts: RosterShift[];
-    inventory: InventoryItem[];
-    requests: InventoryRequest[];
+    currentUser: User;
+    users: User[];
+    rosters: Roster[];
+    inventoryTypes: InventoryType[];
+    inventoryRequests: InventoryRequest[];
+    programRequests: ProgramRequest[];
     tickets: Ticket[];
-    notifications: AppNotification[];
     links: HomeLink[];
     homeContent: HomeContent;
 }

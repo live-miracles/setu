@@ -15,27 +15,55 @@ import {
     WarningOutlined,
     WhatsAppOutlined,
 } from '@ant-design/icons';
-import { Avatar, Button, Card, Space, Tag } from 'antd';
-import { format, isSameDay } from 'date-fns';
+import { Button, Card, Space, Tag } from 'antd';
+import { format, formatISO, isSameDay } from 'date-fns';
 import { useState } from 'react';
 import type { SectionKey } from './workspace-app';
-import { StatusTag, initials } from './shared';
+import { StatusTag } from './shared';
 import { useDemoStore } from '@/demo/store';
+
+const rosterStart = (roster: { startDate: string; startTime: string }) =>
+    new Date(`${roster.startDate}T${roster.startTime}`);
+const rosterEnd = (roster: { endDate: string; endTime: string }) =>
+    new Date(`${roster.endDate}T${roster.endTime}`);
 
 export function HomeSection({ onNavigate }: { onNavigate: (section: SectionKey) => void }) {
     const { state } = useDemoStore();
     const [renderedAt] = useState(() => Date.now());
-    const nextShift = [...state.shifts]
-        .filter((shift) => new Date(shift.endsAt).getTime() > renderedAt)
-        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
-    const todayShifts = state.shifts.filter((shift) =>
-        isSameDay(new Date(shift.startsAt), new Date()),
-    );
-    const pendingRequests = state.requests.filter((request) =>
+    const today = formatISO(new Date(), { representation: 'date' });
+
+    const nextRoster = [...state.rosters]
+        .filter((roster) => rosterEnd(roster).getTime() > renderedAt)
+        .sort((a, b) => rosterStart(a).getTime() - rosterStart(b).getTime())[0];
+    const todayRosters = state.rosters.filter((roster) => isSameDay(rosterStart(roster), new Date()));
+
+    const pendingInventoryRequests = state.inventoryRequests.filter((request) =>
         ['submitted', 'approved', 'issued'].includes(request.status),
     );
+    const pendingProgramRequests = state.programRequests.filter((request) =>
+        ['submitted', 'approved'].includes(request.status),
+    );
+    const combinedRequests = [
+        ...pendingInventoryRequests.map((request) => ({
+            key: `inv-${request.id}`,
+            label: `REQ-${request.displayId}`,
+            name: request.name,
+            status: request.status,
+            overdue: request.status === 'issued' && request.endDate < today,
+        })),
+        ...pendingProgramRequests.map((request) => ({
+            key: `prg-${request.id}`,
+            label: `PRG-${request.displayId}`,
+            name: request.name,
+            status: request.status,
+            overdue: false,
+        })),
+    ];
+
     const openTickets = state.tickets.filter((ticket) => ticket.status !== 'closed');
-    const lowStock = state.inventory.filter((item) => item.available / item.total <= 0.3);
+    const lowStock = state.inventoryTypes.filter(
+        (type) => type.availableQuantity / type.totalQuantity <= 0.3,
+    );
 
     return (
         <>
@@ -59,44 +87,36 @@ export function HomeSection({ onNavigate }: { onNavigate: (section: SectionKey) 
                         </Button>
                     </div>
                 </div>
-                {nextShift && (
+                {nextRoster && (
                     <div className="hero-shift">
                         <span className="hero-shift-label">Your next shift</span>
                         <h3>
-                            {nextShift.period} · {format(new Date(nextShift.startsAt), 'h:mm a')}
+                            {nextRoster.name} · {format(rosterStart(nextRoster), 'h:mm a')}
                         </h3>
                         <p>
-                            {format(new Date(nextShift.startsAt), 'EEE, d MMM')} ·{' '}
-                            {nextShift.location}
+                            {format(rosterStart(nextRoster), 'EEE, d MMM')} · {nextRoster.user.name}
                         </p>
-                        <div className="avatar-stack">
-                            {nextShift.assignees.map((person) => (
-                                <Avatar key={person.id} size={28} style={{ background: '#ff6257' }}>
-                                    {initials(person.name)}
-                                </Avatar>
-                            ))}
-                        </div>
                     </div>
                 )}
             </section>
 
             <div className="section-grid metrics">
                 <MetricCard
-                    label="Today’s shifts"
-                    value={todayShifts.length}
-                    note={`${todayShifts.reduce((sum, shift) => sum + shift.assignees.length, 0)} volunteer assignments`}
+                    label="Today’s roster"
+                    value={todayRosters.length}
+                    note={[...new Set(todayRosters.map((roster) => roster.name))].join(', ') || 'No entries'}
                     icon={<TeamOutlined />}
                 />
                 <MetricCard
                     label="Active requests"
-                    value={pendingRequests.length}
-                    note={`${pendingRequests.filter((request) => request.status === 'submitted').length} awaiting approval`}
+                    value={combinedRequests.length}
+                    note={`${pendingInventoryRequests.length} inventory · ${pendingProgramRequests.length} program`}
                     icon={<ClockCircleOutlined />}
                 />
                 <MetricCard
                     label="Open tickets"
                     value={openTickets.length}
-                    note={`${openTickets.filter((ticket) => ticket.priority === 'high').length} high priority`}
+                    note={`${openTickets.filter((ticket) => ticket.status === 'unassigned').length} unassigned`}
                     icon={<ToolOutlined />}
                 />
                 <MetricCard
@@ -120,22 +140,20 @@ export function HomeSection({ onNavigate }: { onNavigate: (section: SectionKey) 
                             onClick={() => onNavigate('roster')}
                         />
                     </div>
-                    {state.shifts.slice(0, 4).map((shift) => (
-                        <div className="schedule-row" key={shift.id}>
+                    {state.rosters.slice(0, 4).map((roster) => (
+                        <div className="schedule-row" key={roster.id}>
                             <div className="date-tile">
-                                <strong>{format(new Date(shift.startsAt), 'dd')}</strong>
-                                <span>{format(new Date(shift.startsAt), 'MMM')}</span>
+                                <strong>{format(rosterStart(roster), 'dd')}</strong>
+                                <span>{format(rosterStart(roster), 'MMM')}</span>
                             </div>
                             <div>
                                 <p className="row-title">
-                                    {shift.period} · {format(new Date(shift.startsAt), 'h:mm a')}
+                                    {roster.name} · {format(rosterStart(roster), 'h:mm a')}
                                 </p>
-                                <p className="row-meta">
-                                    {shift.assignees.map((person) => person.name).join(' · ')}
-                                </p>
+                                <p className="row-meta">{roster.user.name}</p>
                             </div>
-                            <Tag color={shift.period === 'Morning' ? 'gold' : 'purple'}>
-                                {shift.location}
+                            <Tag color="gold">
+                                {roster.startTime}–{roster.endTime}
                             </Tag>
                         </div>
                     ))}
@@ -144,7 +162,7 @@ export function HomeSection({ onNavigate }: { onNavigate: (section: SectionKey) 
                 <Card className="surface-card">
                     <div className="card-heading">
                         <div>
-                            <h3>Inventory requests</h3>
+                            <h3>Requests</h3>
                             <p>Items that still need attention</p>
                         </div>
                         <Button
@@ -153,17 +171,14 @@ export function HomeSection({ onNavigate }: { onNavigate: (section: SectionKey) 
                             onClick={() => onNavigate('inventory')}
                         />
                     </div>
-                    {pendingRequests.map((request) => (
-                        <div className="request-row" key={request.id}>
+                    {combinedRequests.map((request) => (
+                        <div className="request-row" key={request.key}>
                             <div>
-                                <span className="request-id">{request.id}</span>
-                                <h4>{request.title}</h4>
-                                <div className="request-items">
-                                    {request.items.map((item) => item.name).join(' · ')}
-                                </div>
+                                <span className="request-id">{request.label}</span>
+                                <h4>{request.name}</h4>
                             </div>
                             <div className="request-actions">
-                                {request.isOverdue && (
+                                {request.overdue && (
                                     <Tag color="error" variant="filled">
                                         Overdue
                                     </Tag>

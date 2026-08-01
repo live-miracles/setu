@@ -3,12 +3,9 @@ import { apiHandler, jsonCreated, jsonOk, parseJson } from '@/lib/api';
 import { requireAdmin, requireUser } from '@/lib/auth';
 import { isDemoMode } from '@/lib/env';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const schema = z.object({
     name: z.string().trim().min(2).max(120),
-    description: z.string().trim().max(1000).optional(),
-    requestable: z.boolean().default(true),
 });
 
 export async function GET() {
@@ -16,22 +13,12 @@ export async function GET() {
         await requireUser();
         if (isDemoMode) {
             return jsonOk([
-                {
-                    id: '9aa20c17-2b0f-48f0-ad24-3170433005b3',
-                    name: 'Camera',
-                    requestable: true,
-                },
-                {
-                    id: 'a4bf343d-b118-4541-a9dc-9b09523403d5',
-                    name: 'Audio',
-                    requestable: true,
-                },
+                { id: 'd2d862db-2d88-4564-8be8-b974c1ff81a0', name: 'Drishti Studio' },
+                { id: 'f24dcb30-6fef-44fb-8227-b506d23604d4', name: 'Drishti Store' },
             ]);
         }
-        const { data, error } = await (
-            await createServerSupabaseClient()
-        )
-            .from('equipment_types')
+        const { data, error } = await createSupabaseAdminClient()
+            .from('places')
             .select('*')
             .order('name');
         if (error) throw error;
@@ -45,8 +32,8 @@ export async function POST(request: Request) {
         const input = await parseJson(request, schema);
         if (isDemoMode) return jsonCreated({ id: crypto.randomUUID(), ...input });
         const { data, error } = await createSupabaseAdminClient()
-            .from('equipment_types')
-            .insert(input)
+            .from('places')
+            .insert({ name: input.name })
             .select()
             .single();
         if (error) throw error;

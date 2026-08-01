@@ -3,7 +3,6 @@ import { apiHandler, jsonCreated, jsonOk, parseJson } from '@/lib/api';
 import { requireAdmin, requireUser } from '@/lib/auth';
 import { isDemoMode } from '@/lib/env';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const schema = z.object({
     name: z.string().trim().min(2).max(120),
@@ -13,10 +12,8 @@ const schema = z.object({
 export async function GET() {
     return apiHandler(async () => {
         await requireUser();
-        if (isDemoMode) return jsonOk([{ id: 'demo', name: 'Live Stream' }]);
-        const { data, error } = await (
-            await createServerSupabaseClient()
-        )
+        if (isDemoMode) return jsonOk([{ id: 'demo', name: 'Live Stream', shortName: 'LS' }]);
+        const { data, error } = await createSupabaseAdminClient()
             .from('departments')
             .select('*')
             .order('name');

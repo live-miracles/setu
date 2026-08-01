@@ -6,8 +6,9 @@ import {
     CloseCircleOutlined,
     ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { Tag } from 'antd';
-import type { InventoryRequestStatus, TicketStatus } from '@/domain/types';
+import { Button, Input, Tag } from 'antd';
+import { useState } from 'react';
+import type { Comment, InventoryRequestStatus, ProgramRequestStatus, TicketStatus } from '@/domain/types';
 
 const colors: Record<string, { color: string; background: string }> = {
     draft: { color: '#656870', background: '#f1f1ed' },
@@ -22,7 +23,11 @@ const colors: Record<string, { color: string; background: string }> = {
     pending: { color: '#225a91', background: '#eaf3ff' },
 };
 
-export function StatusTag({ status }: { status: InventoryRequestStatus | TicketStatus }) {
+export function StatusTag({
+    status,
+}: {
+    status: InventoryRequestStatus | ProgramRequestStatus | TicketStatus;
+}) {
     const palette = colors[status] ?? colors.draft;
     const icon =
         status === 'closed' || status === 'returned' || status === 'approved' ? (
@@ -45,11 +50,46 @@ export function StatusTag({ status }: { status: InventoryRequestStatus | TicketS
     );
 }
 
-export function initials(name: string) {
-    return name
-        .split(' ')
-        .map((part) => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
+export function CommentsPanel({
+    comments,
+    onAdd,
+}: {
+    comments: Comment[];
+    onAdd: (message: string) => Promise<void>;
+}) {
+    const [value, setValue] = useState('');
+    return (
+        <div className="list-stack">
+            {comments.length === 0 ? (
+                <p className="row-meta">No comments yet.</p>
+            ) : (
+                comments.map((item) => (
+                    <div className="request-row" key={item.id}>
+                        <div>
+                            <strong>{item.author.name}</strong>
+                            <div className="request-items">{item.message}</div>
+                        </div>
+                        <span className="request-id">
+                            {new Date(item.timestamp).toLocaleDateString()}
+                        </span>
+                    </div>
+                ))
+            )}
+            <Input.TextArea
+                rows={3}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder="Add a comment"
+            />
+            <Button
+                type="primary"
+                disabled={!value.trim()}
+                onClick={async () => {
+                    await onAdd(value.trim());
+                    setValue('');
+                }}>
+                Add comment
+            </Button>
+        </div>
+    );
 }

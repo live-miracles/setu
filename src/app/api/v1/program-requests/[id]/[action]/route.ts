@@ -3,10 +3,10 @@ import { apiHandler, jsonOk, parseJson } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
 import { isDemoMode } from '@/lib/env';
 import { notifyUser } from '@/lib/notifications';
-import { inventoryRequestActionSchema } from '@/lib/schemas';
+import { programRequestActionSchema } from '@/lib/schemas';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
-const actionSchema = z.enum(['submit', 'approve', 'reject', 'issue', 'return', 'cancel', 'close']);
+const actionSchema = z.enum(['submit', 'approve', 'reject', 'cancel', 'close']);
 
 export async function POST(
     request: Request,
@@ -17,42 +17,30 @@ export async function POST(
         const { id, action: rawAction } = await context.params;
         const requestId = z.uuid().parse(id);
         const action = actionSchema.parse(rawAction);
-        const input = await parseJson(request, inventoryRequestActionSchema);
+        const input = await parseJson(request, programRequestActionSchema);
 
         if (isDemoMode) return jsonOk({ id: requestId, action, status: 'accepted' });
 
         const admin = createSupabaseAdminClient();
-        const { data: status, error } = await admin.rpc('perform_inventory_request_action', {
+        const { data: status, error } = await admin.rpc('perform_program_request_action', {
             p_request_id: requestId,
             p_actor_id: actor.id,
             p_action: action,
             p_note: input.note,
-            p_return_items: input.returns,
         });
         if (error) throw error;
 
-        if (input.images) {
-            await admin
-                .from('inventory_requests')
-                .update({
-                    image1_drive_id: input.images[0] ?? null,
-                    image2_drive_id: input.images[1] ?? null,
-                    image3_drive_id: input.images[2] ?? null,
-                })
-                .eq('id', requestId);
-        }
-
-        const { data: inventoryRequest } = await admin
-            .from('inventory_requests')
+        const { data: programRequest } = await admin
+            .from('program_requests')
             .select('user_id,display_id')
             .eq('id', requestId)
             .single();
-        if (inventoryRequest && inventoryRequest.user_id !== actor.id) {
+        if (programRequest && programRequest.user_id !== actor.id) {
             await notifyUser({
-                userId: inventoryRequest.user_id,
-                title: `Inventory request ${action}`,
-                message: `REQ-${inventoryRequest.display_id} is now ${status}.`,
-                href: '/app?section=inventory',
+                userId: programRequest.user_id,
+                title: `Program request ${action}`,
+                message: `PRG-${programRequest.display_id} is now ${status}.`,
+                href: '/app?section=programs',
             });
         }
         return jsonOk({ id: requestId, status });

@@ -5,39 +5,26 @@ import {
     CalendarOutlined,
     CheckOutlined,
     CloseOutlined,
+    CommentOutlined,
     InboxOutlined,
     PlusOutlined,
     RollbackOutlined,
     SearchOutlined,
     SendOutlined,
-    ShoppingOutlined,
 } from '@ant-design/icons';
-import {
-    App,
-    Button,
-    Card,
-    Form,
-    Input,
-    InputNumber,
-    Modal,
-    Progress,
-    Segmented,
-    Select,
-    Tag,
-} from 'antd';
+import { App, Button, Card, Form, Input, InputNumber, Modal, Progress, Segmented, Select, Tag } from 'antd';
 import { format } from 'date-fns';
 import { useMemo, useState } from 'react';
 import type { InventoryRequest, InventoryRequestStatus, ReturnCondition } from '@/domain/types';
 import { useDemoStore } from '@/demo/store';
-import { StatusTag } from './shared';
-import { AttachmentUploader } from './attachment-uploader';
+import { CommentsPanel, StatusTag } from './shared';
+import { DriveImageUploader } from './drive-image-uploader';
 
 interface RequestForm {
-    title: string;
-    fromDate: string;
-    toDate: string;
-    purpose: string;
-    inventoryItemId: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    inventoryTypeId: string;
     quantity: number;
 }
 
@@ -59,64 +46,94 @@ const actionLabel: Partial<
     closed: { title: 'Close', icon: <CheckOutlined /> },
 };
 
+function PhotoSlots({
+    images,
+    onChange,
+}: {
+    images: string[];
+    onChange: (images: string[]) => void;
+}) {
+    const slots: (string | undefined)[] = [images[0], images[1], images[2]];
+    return (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {slots.map((value, index) => (
+                <DriveImageUploader
+                    key={index}
+                    value={value}
+                    onChange={(next) => {
+                        const updated = [...slots];
+                        updated[index] = next;
+                        onChange(updated.filter((id): id is string => Boolean(id)));
+                    }}
+                />
+            ))}
+        </div>
+    );
+}
+
 export function InventorySection() {
     const { state, actions } = useDemoStore();
     const { message } = App.useApp();
     const [view, setView] = useState<string>('Requests');
     const [query, setQuery] = useState('');
     const [requestModalOpen, setRequestModalOpen] = useState(false);
+    const [requestImages, setRequestImages] = useState<string[]>([]);
     const [actionDialog, setActionDialog] = useState<ActionDialog | null>(null);
     const [actionNote, setActionNote] = useState('');
+    const [actionImages, setActionImages] = useState<string[]>([]);
     const [returnCondition, setReturnCondition] = useState<ReturnCondition>('good');
+    const [detailRequestId, setDetailRequestId] = useState<string | null>(null);
     const [form] = Form.useForm<RequestForm>();
+    const detailRequest = state.inventoryRequests.find((item) => item.id === detailRequestId) ?? null;
 
     const requests = useMemo(
         () =>
-            state.requests.filter((request) =>
-                [request.id, request.title, request.requester.name]
+            state.inventoryRequests.filter((request) =>
+                [String(request.displayId), request.name, request.requester.name]
                     .join(' ')
                     .toLowerCase()
                     .includes(query.toLowerCase()),
             ),
-        [query, state.requests],
+        [query, state.inventoryRequests],
     );
-    const inventory = useMemo(
+    const inventoryTypes = useMemo(
         () =>
-            state.inventory.filter((item) =>
-                [item.name, item.type, item.location]
+            state.inventoryTypes.filter((type) =>
+                [type.name, type.description ?? '']
                     .join(' ')
                     .toLowerCase()
                     .includes(query.toLowerCase()),
             ),
-        [query, state.inventory],
+        [query, state.inventoryTypes],
     );
 
     const createRequest = async (values: RequestForm) => {
-        const inventoryItem = state.inventory.find((item) => item.id === values.inventoryItemId);
-        if (!inventoryItem) return;
+        const inventoryType = state.inventoryTypes.find((type) => type.id === values.inventoryTypeId);
+        if (!inventoryType) return;
         try {
-            await actions.addRequest({
-                title: values.title,
+            await actions.addInventoryRequest({
+                name: values.name,
                 requester: {
                     id: state.currentUser.id,
                     name: state.currentUser.name,
                     department: state.currentUser.department,
                 },
-                fromDate: values.fromDate,
-                toDate: values.toDate,
-                purpose: values.purpose,
-                status: 'submitted',
+                startDate: values.startDate,
+                endDate: values.endDate,
                 items: [
                     {
                         id: crypto.randomUUID(),
-                        inventoryItemId: inventoryItem.id,
-                        name: inventoryItem.name,
+                        inventoryTypeId: inventoryType.id,
+                        name: inventoryType.name,
                         quantity: values.quantity,
+                        issuedQuantity: 0,
                         returnedQuantity: 0,
                     },
                 ],
+                images: requestImages,
             });
             form.resetFields();
+            setRequestImages([]);
             setRequestModalOpen(false);
             message.success('Request submitted for approval.');
         } catch (error) {
@@ -127,11 +144,12 @@ export function InventorySection() {
     const openAction = (request: InventoryRequest, nextStatus: InventoryRequestStatus) => {
         const label = actionLabel[nextStatus];
         setActionNote('');
+        setActionImages(request.images);
         setReturnCondition('good');
         setActionDialog({
             request,
             nextStatus,
-            title: `${label?.title ?? 'Update'} ${request.id}`,
+            title: `${label?.title ?? 'Update'} REQ-${request.displayId}`,
             noteRequired: ['rejected', 'cancelled', 'returned'].includes(nextStatus),
         });
     };
@@ -142,13 +160,19 @@ export function InventorySection() {
             message.error('Please add a short note for this action.');
             return;
         }
-        const note =
+        const returns =
             actionDialog.nextStatus === 'returned'
-                ? `${returnCondition}: ${actionNote}`
-                : actionNote;
+                ? actionDialog.request.items
+                      .filter((item) => item.returnedQuantity < item.issuedQuantity)
+                      .map((item) => ({ itemId: item.id, condition: returnCondition }))
+                : undefined;
         try {
-            await actions.transitionRequest(actionDialog.request.id, actionDialog.nextStatus, note);
-            message.success(`${actionDialog.request.id} moved to ${actionDialog.nextStatus}.`);
+            await actions.transitionInventoryRequest(actionDialog.request.id, actionDialog.nextStatus, {
+                note: actionNote,
+                returns,
+                images: actionImages,
+            });
+            message.success(`REQ-${actionDialog.request.displayId} moved to ${actionDialog.nextStatus}.`);
             setActionDialog(null);
         } catch (error) {
             message.error(error instanceof Error ? error.message : 'Action failed.');
@@ -172,11 +196,7 @@ export function InventorySection() {
                         onChange={(value) => setView(String(value))}
                         options={[
                             { label: 'Requests', value: 'Requests', icon: <InboxOutlined /> },
-                            {
-                                label: 'Equipment',
-                                value: 'Equipment',
-                                icon: <AppstoreOutlined />,
-                            },
+                            { label: 'Catalog', value: 'Catalog', icon: <AppstoreOutlined /> },
                         ]}
                     />
                     <Button
@@ -197,7 +217,7 @@ export function InventorySection() {
                         onChange={(event) => setQuery(event.target.value)}
                     />
                     <span style={{ color: '#888b92', fontSize: 11 }}>
-                        {view === 'Requests' ? requests.length : inventory.length} records · live
+                        {view === 'Requests' ? requests.length : inventoryTypes.length} records · live
                     </span>
                 </div>
 
@@ -206,12 +226,12 @@ export function InventorySection() {
                         {requests.map((request) => (
                             <div className="request-row" key={request.id}>
                                 <div>
-                                    <span className="request-id">{request.id}</span>
-                                    <h4>{request.title}</h4>
+                                    <span className="request-id">REQ-{request.displayId}</span>
+                                    <h4>{request.name}</h4>
                                     <div className="request-items">
                                         {request.requester.name} ·{' '}
-                                        {format(new Date(request.fromDate), 'd MMM')}–{' '}
-                                        {format(new Date(request.toDate), 'd MMM yyyy')}
+                                        {format(new Date(request.startDate), 'd MMM')}–{' '}
+                                        {format(new Date(request.endDate), 'd MMM yyyy')}
                                     </div>
                                     <div className="request-items">
                                         {request.items
@@ -222,12 +242,13 @@ export function InventorySection() {
                                 <div
                                     className="request-actions"
                                     style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                    {request.isOverdue && (
-                                        <Tag color="error" variant="filled">
-                                            Overdue
-                                        </Tag>
-                                    )}
                                     <StatusTag status={request.status} />
+                                    <Button
+                                        size="small"
+                                        icon={<CommentOutlined />}
+                                        onClick={() => setDetailRequestId(request.id)}>
+                                        {request.comments.length || 'Comments'}
+                                    </Button>
                                     {state.currentUser.role === 'admin' &&
                                         requestActions(request).map((nextStatus) => (
                                             <Button
@@ -254,24 +275,21 @@ export function InventorySection() {
                     </div>
                 ) : (
                     <div className="list-stack">
-                        {inventory.map((item) => {
-                            const percentage = Math.round((item.available / item.total) * 100);
+                        {inventoryTypes.map((type) => {
+                            const percentage = Math.round(
+                                (type.availableQuantity / type.totalQuantity) * 100,
+                            );
                             return (
-                                <div className="inventory-row" key={item.id}>
-                                    <div className="inventory-icon">
-                                        <ShoppingOutlined />
-                                    </div>
+                                <div className="inventory-row" key={type.id}>
                                     <div>
-                                        <p className="row-title">{item.name}</p>
-                                        <p className="row-meta">
-                                            {item.type} · {item.location}
-                                        </p>
+                                        <p className="row-title">{type.name}</p>
+                                        <p className="row-meta">{type.description ?? 'No description'}</p>
                                     </div>
                                     <div className="stock-bar">
                                         <div className="stock-bar-label">
                                             <span>Available</span>
                                             <strong>
-                                                {item.available}/{item.total}
+                                                {type.availableQuantity}/{type.totalQuantity}
                                             </strong>
                                         </div>
                                         <Progress
@@ -281,7 +299,7 @@ export function InventorySection() {
                                             strokeColor={percentage <= 30 ? '#e04f5f' : '#58c9bd'}
                                         />
                                     </div>
-                                    <Tag variant="filled">{item.serialNumber ?? 'Untracked'}</Tag>
+                                    <Tag variant="filled">{type.requestable ? 'Requestable' : 'Internal'}</Tag>
                                 </div>
                             );
                         })}
@@ -298,24 +316,24 @@ export function InventorySection() {
                 destroyOnHidden>
                 <Form form={form} layout="vertical" onFinish={createRequest}>
                     <Form.Item
-                        name="title"
+                        name="name"
                         label="Request name"
                         rules={[{ required: true, min: 3 }]}>
                         <Input placeholder="e.g. APAC 7 Step setup" />
                     </Form.Item>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        <Form.Item name="fromDate" label="From" rules={[{ required: true }]}>
+                        <Form.Item name="startDate" label="From" rules={[{ required: true }]}>
                             <Input type="date" prefix={<CalendarOutlined />} />
                         </Form.Item>
                         <Form.Item
-                            name="toDate"
+                            name="endDate"
                             label="To"
-                            dependencies={['fromDate']}
+                            dependencies={['startDate']}
                             rules={[
                                 { required: true },
                                 ({ getFieldValue }) => ({
                                     validator(_, value) {
-                                        return !value || value >= getFieldValue('fromDate')
+                                        return !value || value >= getFieldValue('startDate')
                                             ? Promise.resolve()
                                             : Promise.reject(
                                                   new Error('End date must be after start date.'),
@@ -327,17 +345,19 @@ export function InventorySection() {
                         </Form.Item>
                     </div>
                     <Form.Item
-                        name="inventoryItemId"
+                        name="inventoryTypeId"
                         label="Equipment"
                         rules={[{ required: true }]}>
                         <Select
                             showSearch
                             optionFilterProp="label"
-                            options={state.inventory.map((item) => ({
-                                value: item.id,
-                                label: `${item.name} · ${item.available} available`,
-                                disabled: item.available === 0,
-                            }))}
+                            options={state.inventoryTypes
+                                .filter((type) => type.requestable)
+                                .map((type) => ({
+                                    value: type.id,
+                                    label: `${type.name} · ${type.availableQuantity} available`,
+                                    disabled: type.availableQuantity === 0,
+                                }))}
                         />
                     </Form.Item>
                     <Form.Item
@@ -347,11 +367,8 @@ export function InventorySection() {
                         rules={[{ required: true }]}>
                         <InputNumber min={1} precision={0} style={{ width: '100%' }} />
                     </Form.Item>
-                    <Form.Item name="purpose" label="Purpose" rules={[{ required: true, min: 5 }]}>
-                        <Input.TextArea
-                            rows={3}
-                            placeholder="Where and how will the equipment be used?"
-                        />
+                    <Form.Item label="Photos (optional)">
+                        <PhotoSlots images={requestImages} onChange={setRequestImages} />
                     </Form.Item>
                 </Form>
             </Modal>
@@ -395,11 +412,24 @@ export function InventorySection() {
                 />
                 {actionDialog?.nextStatus === 'returned' && (
                     <div style={{ marginTop: 16 }}>
-                        <AttachmentUploader
-                            ownerType="inventory_request"
-                            ownerId={actionDialog.request.recordId}
-                        />
+                        <label style={{ display: 'block', marginBottom: 7, fontWeight: 650 }}>
+                            Photos
+                        </label>
+                        <PhotoSlots images={actionImages} onChange={setActionImages} />
                     </div>
+                )}
+            </Modal>
+
+            <Modal
+                title={detailRequest ? `REQ-${detailRequest.displayId} · ${detailRequest.name}` : 'Request'}
+                open={Boolean(detailRequest)}
+                onCancel={() => setDetailRequestId(null)}
+                footer={null}>
+                {detailRequest && (
+                    <CommentsPanel
+                        comments={detailRequest.comments}
+                        onAdd={(message) => actions.addInventoryComment(detailRequest.id, message)}
+                    />
                 )}
             </Modal>
         </>

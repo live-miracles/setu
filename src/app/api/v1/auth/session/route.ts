@@ -1,13 +1,13 @@
 import { apiHandler, jsonOk } from '@/lib/api';
-import { getCurrentProfile } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { isDemoMode } from '@/lib/env';
 
 export async function GET() {
     return apiHandler(async () => {
-        const profile = await getCurrentProfile();
+        const user = await getCurrentUser();
         return jsonOk({
-            authenticated: Boolean(profile),
-            profile,
+            authenticated: Boolean(user),
+            profile: user,
             mode: isDemoMode ? 'demo' : 'production',
         });
     });

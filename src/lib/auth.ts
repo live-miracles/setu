@@ -1,7 +1,8 @@
-import type { Profile } from '@/domain/types';
+import type { User } from '@/domain/types';
 import { isDemoMode } from '@/lib/env';
 import { demoState } from '@/demo/data';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 export class AuthenticationError extends Error {
     status = 401;
@@ -11,56 +12,52 @@ export class AuthorizationError extends Error {
     status = 403;
 }
 
-export async function getCurrentProfile(): Promise<Profile | null> {
+export async function getCurrentUser(): Promise<User | null> {
     if (isDemoMode) return demoState.currentUser;
 
     const supabase = await createServerSupabaseClient();
     const {
         data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user?.email) return null;
 
-    const { data: profile, error } = await supabase
-        .from('profiles')
-        .select(
-            'id,name,email,role,status,phone,whatsapp,timezone,notification_email,notification_push,departments(name)',
-        )
-        .eq('auth_user_id', user.id)
+    // Table reads use the service-role client: RLS is enabled with no
+    // policies (default-deny) everywhere, so the RLS-scoped client would
+    // never see a row here.
+    const admin = createSupabaseAdminClient();
+    const { data: row, error } = await admin
+        .from('users')
+        .select('id,name,role,phone,whatsapp,timezone,departments(name)')
+        .eq('id', user.email.toLowerCase())
         .single();
 
-    if (error || !profile || profile.status !== 'active') return null;
-    const departmentValue = profile.departments as { name: string } | { name: string }[] | null;
+    if (error || !row) return null;
+    const departmentValue = row.departments as { name: string } | { name: string }[] | null;
     const department = Array.isArray(departmentValue)
         ? departmentValue[0]?.name
         : departmentValue?.name;
 
     return {
-        id: profile.id,
-        name: profile.name,
-        email: profile.email,
-        role: profile.role,
-        status: profile.status,
-        phone: profile.phone ?? undefined,
-        whatsapp: profile.whatsapp ?? undefined,
-        timezone: profile.timezone,
+        id: row.id,
+        name: row.name,
+        role: row.role,
+        phone: row.phone ?? undefined,
+        whatsapp: row.whatsapp ?? undefined,
+        timezone: row.timezone,
         department: department ?? 'Unassigned',
-        notificationPreferences: {
-            email: profile.notification_email,
-            push: profile.notification_push,
-        },
     };
 }
 
 export async function requireUser() {
-    const profile = await getCurrentProfile();
-    if (!profile) throw new AuthenticationError('Sign in is required.');
-    return profile;
+    const user = await getCurrentUser();
+    if (!user) throw new AuthenticationError('Sign in is required.');
+    return user;
 }
 
 export async function requireAdmin() {
-    const profile = await requireUser();
-    if (profile.role !== 'admin') {
+    const user = await requireUser();
+    if (user.role !== 'admin') {
         throw new AuthorizationError('Administrator access is required.');
     }
-    return profile;
+    return user;
 }

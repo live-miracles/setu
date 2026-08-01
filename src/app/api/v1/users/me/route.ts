@@ -9,8 +9,6 @@ const updateSchema = z.object({
     phone: z.string().trim().max(40).nullable().optional(),
     whatsapp: z.string().trim().max(40).nullable().optional(),
     timezone: z.string().trim().min(3).max(100).optional(),
-    notificationEmail: z.boolean().optional(),
-    notificationPush: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -20,14 +18,12 @@ export async function PATCH(request: Request) {
         if (isDemoMode) return jsonOk({ ...user, ...input });
         const admin = createSupabaseAdminClient();
         const { data, error } = await admin
-            .from('profiles')
+            .from('users')
             .update({
                 name: input.name,
                 phone: input.phone,
                 whatsapp: input.whatsapp,
                 timezone: input.timezone,
-                notification_email: input.notificationEmail,
-                notification_push: input.notificationPush,
             })
             .eq('id', user.id)
             .select()

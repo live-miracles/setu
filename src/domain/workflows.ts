@@ -1,4 +1,9 @@
-import type { InventoryRequestStatus, ReturnCondition, TicketStatus } from './types';
+import type {
+    InventoryRequestStatus,
+    ProgramRequestStatus,
+    ReturnCondition,
+    TicketStatus,
+} from './types';
 
 const requestTransitions: Record<InventoryRequestStatus, InventoryRequestStatus[]> = {
     draft: ['submitted', 'cancelled'],
@@ -7,6 +12,15 @@ const requestTransitions: Record<InventoryRequestStatus, InventoryRequestStatus[
     rejected: ['closed'],
     issued: ['returned'],
     returned: ['closed'],
+    cancelled: ['closed'],
+    closed: [],
+};
+
+const programRequestTransitions: Record<ProgramRequestStatus, ProgramRequestStatus[]> = {
+    draft: ['submitted', 'cancelled'],
+    submitted: ['approved', 'rejected', 'cancelled'],
+    approved: ['cancelled', 'closed'],
+    rejected: ['closed'],
     cancelled: ['closed'],
     closed: [],
 };
@@ -21,6 +35,10 @@ export function canTransitionRequest(from: InventoryRequestStatus, to: Inventory
     return requestTransitions[from].includes(to);
 }
 
+export function canTransitionProgramRequest(from: ProgramRequestStatus, to: ProgramRequestStatus) {
+    return programRequestTransitions[from].includes(to);
+}
+
 export function canTransitionTicket(from: TicketStatus, to: TicketStatus) {
     return ticketTransitions[from].includes(to);
 }
@@ -30,11 +48,4 @@ export function inventoryDeltaForReturn(quantity: number, condition: ReturnCondi
         throw new Error('Return quantity must be a positive integer.');
     }
     return condition === 'good' ? quantity : 0;
-}
-
-export function requireIdempotencyKey(value: string | null) {
-    if (!value || value.trim().length < 8) {
-        throw new Error('A valid Idempotency-Key header is required.');
-    }
-    return value;
 }

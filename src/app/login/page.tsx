@@ -16,7 +16,7 @@ export default function LoginPage() {
     useEffect(() => {
         const error = new URLSearchParams(window.location.search).get('error');
         if (error === 'not-approved') {
-            message.error('This Google account is not active on the allowlist.');
+            message.error('This Google account is not part of the organisation.');
         } else if (error === 'oauth') {
             message.error('Google sign-in could not be completed.');
         }
@@ -61,8 +61,8 @@ export default function LoginPage() {
                     />
                     <h2>Welcome back</h2>
                     <p>
-                        Sign in with an approved Google account. Access is managed by the Livestream
-                        operations admins.
+                        Sign in with your organisation Google account. Access is granted
+                        automatically to accounts on the organisation’s domain.
                     </p>
                     <Button
                         type="primary"

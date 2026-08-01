@@ -6,107 +6,109 @@ export const paginationSchema = z.object({
     q: z.string().trim().max(100).default(''),
 });
 
-export const createShiftSchema = z
+export const createRosterSchema = z
     .object({
-        startsAt: z.iso.datetime(),
-        endsAt: z.iso.datetime(),
-        period: z.enum(['Morning', 'Evening', 'Night']),
-        locationId: z.uuid().optional(),
-        locationName: z.string().trim().min(2).max(120),
-        assigneeIds: z.array(z.uuid()).min(1).max(20),
-        notes: z.string().trim().max(1000).optional(),
+        name: z.string().trim().min(2).max(160),
+        startDate: z.iso.date(),
+        endDate: z.iso.date(),
+        startTime: z
+            .string()
+            .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use 24-hour HH:MM.'),
+        endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use 24-hour HH:MM.'),
+        userId: z.email(),
     })
-    .refine((data) => new Date(data.endsAt) > new Date(data.startsAt), {
-        message: 'Shift end must be after its start.',
-        path: ['endsAt'],
+    .refine((data) => data.endDate >= data.startDate, {
+        message: 'End date must not be before start date.',
+        path: ['endDate'],
     });
+
+export const createInventoryTypeSchema = z.object({
+    name: z.string().trim().min(2).max(160),
+    description: z.string().trim().max(2000).optional(),
+    requestable: z.boolean().default(true),
+    totalQuantity: z.number().int().min(0).max(100_000),
+    imageDriveId: z.string().trim().max(200).optional(),
+});
+
+const imagesSchema = z.array(z.string().trim().min(1).max(200)).max(3);
 
 export const createInventoryRequestSchema = z
     .object({
-        title: z.string().trim().min(3).max(160),
-        fromDate: z.iso.date(),
-        toDate: z.iso.date(),
-        purpose: z.string().trim().min(5).max(2000),
+        name: z.string().trim().min(3).max(160),
+        startDate: z.iso.date(),
+        endDate: z.iso.date(),
         items: z
             .array(
                 z.object({
-                    inventoryItemId: z.uuid(),
+                    inventoryTypeId: z.uuid(),
                     quantity: z.number().int().min(1).max(1000),
                 }),
             )
             .min(1)
             .max(50),
+        images: imagesSchema.default([]),
     })
-    .refine((data) => data.toDate >= data.fromDate, {
+    .refine((data) => data.endDate >= data.startDate, {
         message: 'End date must not be before start date.',
-        path: ['toDate'],
+        path: ['endDate'],
     });
 
-export const createInventoryItemSchema = z
-    .object({
-        name: z.string().trim().min(2).max(160),
-        equipmentTypeId: z.uuid(),
-        locationId: z.uuid().nullable().optional(),
-        serialNumber: z.string().trim().max(120).nullable().optional(),
-        totalQuantity: z.number().int().min(0).max(100_000),
-        availableQuantity: z.number().int().min(0).max(100_000),
-        adminNotes: z.string().trim().max(2000).nullable().optional(),
-    })
-    .refine((data) => data.availableQuantity <= data.totalQuantity, {
-        message: 'Available quantity cannot exceed total quantity.',
-        path: ['availableQuantity'],
-    });
-
-export const requestActionSchema = z.object({
+export const inventoryRequestActionSchema = z.object({
     note: z.string().trim().max(2000).default(''),
     returns: z
         .array(
             z.object({
-                requestItemId: z.uuid(),
-                quantity: z.number().int().min(1),
+                itemId: z.uuid(),
                 condition: z.enum(['good', 'damaged', 'missing']),
-                notes: z.string().trim().min(3).max(1000),
             }),
         )
         .max(50)
         .default([]),
+    images: imagesSchema.optional(),
+});
+
+const sessionInputSchema = z
+    .object({
+        name: z.string().trim().min(2).max(160),
+        type: z.string().trim().min(2).max(120),
+        startDateTime: z.iso.datetime(),
+        endDateTime: z.iso.datetime(),
+    })
+    .refine((data) => new Date(data.endDateTime) > new Date(data.startDateTime), {
+        message: 'Session end must be after its start.',
+        path: ['endDateTime'],
+    });
+
+export const createProgramRequestSchema = z.object({
+    name: z.string().trim().min(3).max(160),
+    type: z.string().trim().min(2).max(120),
+    placeId: z.uuid(),
+    sessions: z.array(sessionInputSchema).min(1).max(50),
+});
+
+export const programRequestActionSchema = z.object({
+    note: z.string().trim().max(2000).default(''),
 });
 
 export const createTicketSchema = z.object({
     title: z.string().trim().min(3).max(160),
     description: z.string().trim().min(8).max(4000),
-    locationId: z.uuid().optional(),
-    locationName: z.string().trim().min(2).max(120),
-    priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
 export const ticketActionSchema = z.object({
-    assigneeId: z.uuid().optional(),
+    assigneeId: z.email().optional(),
 });
 
-export const pushSubscriptionSchema = z.object({
-    endpoint: z.url().max(2000),
-    keys: z.object({
-        p256dh: z.string().min(10).max(1000),
-        auth: z.string().min(5).max(500),
-    }),
+export const addCommentSchema = z.object({
+    message: z.string().trim().min(1).max(4000),
 });
 
-export const uploadUrlSchema = z.object({
-    ownerType: z.enum([
-        'profile',
-        'inventory_item',
-        'inventory_request',
-        'inventory_return',
-        'ticket',
-        'ticket_comment',
-    ]),
-    ownerId: z.uuid(),
+export const imageUploadSchema = z.object({
     fileName: z.string().trim().min(1).max(200),
-    contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+    contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
     sizeBytes: z
         .number()
         .int()
         .min(1)
-        .max(15 * 1024 * 1024),
+        .max(50 * 1024),
 });

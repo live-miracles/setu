@@ -3,68 +3,54 @@
 import {
     AppstoreOutlined,
     EnvironmentOutlined,
+    ExclamationCircleOutlined,
     HomeOutlined,
     LinkOutlined,
-    PlusOutlined,
     TeamOutlined,
     UserSwitchOutlined,
 } from '@ant-design/icons';
 import {
     App,
-    Avatar,
     Button,
     Card,
     Form,
     Input,
     InputNumber,
     Modal,
-    Select,
-    Space,
     Switch,
     Table,
     Tag,
     type TableProps,
 } from 'antd';
 import { useState } from 'react';
-import type { Profile } from '@/domain/types';
+import type { FailedEmail, User } from '@/domain/types';
 import { useDemoStore } from '@/demo/store';
-import { initials } from './shared';
+import { DriveImageUploader } from './drive-image-uploader';
 
-type Manager = 'department' | 'location' | 'equipmentType' | 'inventory' | 'link' | 'home';
-
-interface MasterOption {
-    id: string;
-    name: string;
-}
+type Manager = 'department' | 'place' | 'inventoryType' | 'link' | 'home';
 
 export function AdminSection() {
     const { state, actions } = useDemoStore();
     const { message } = App.useApp();
     const [query, setQuery] = useState('');
-    const [inviteOpen, setInviteOpen] = useState(false);
-    const [inviteForm] = Form.useForm();
     const [manager, setManager] = useState<Manager | null>(null);
     const [managerForm] = Form.useForm();
-    const [equipmentTypes, setEquipmentTypes] = useState<MasterOption[]>([]);
-    const [locations, setLocations] = useState<MasterOption[]>([]);
-    const people = state.profiles.filter((profile) =>
-        [profile.name, profile.email, profile.department]
-            .join(' ')
-            .toLowerCase()
-            .includes(query.toLowerCase()),
+    const [imageDriveId, setImageDriveId] = useState<string | undefined>();
+    const [failedEmailsOpen, setFailedEmailsOpen] = useState(false);
+    const [failedEmails, setFailedEmails] = useState<FailedEmail[]>([]);
+
+    const people = state.users.filter((user) =>
+        [user.name, user.id, user.department].join(' ').toLowerCase().includes(query.toLowerCase()),
     );
 
-    const columns: TableProps<Profile>['columns'] = [
+    const columns: TableProps<User>['columns'] = [
         {
             title: 'Person',
             key: 'person',
-            render: (_, profile) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Avatar style={{ background: '#ff6257' }}>{initials(profile.name)}</Avatar>
-                    <div>
-                        <strong style={{ display: 'block', fontSize: 12 }}>{profile.name}</strong>
-                        <span style={{ color: '#85888f', fontSize: 10 }}>{profile.email}</span>
-                    </div>
+            render: (_, user) => (
+                <div>
+                    <strong style={{ display: 'block', fontSize: 12 }}>{user.name}</strong>
+                    <span style={{ color: '#85888f', fontSize: 10 }}>{user.id}</span>
                 </div>
             ),
         },
@@ -81,47 +67,24 @@ export function AdminSection() {
             ),
         },
         {
-            title: 'Status',
-            dataIndex: 'status',
-            render: (status: string) => (
-                <Tag color={status === 'active' ? 'success' : 'warning'}>{status}</Tag>
-            ),
-        },
-        {
             title: 'Actions',
             key: 'actions',
-            render: (_, profile) => (
-                <Space size={6}>
-                    <Button
-                        size="small"
-                        disabled={profile.id === state.currentUser.id}
-                        onClick={() =>
-                            void updateAccess(profile.id, {
-                                role: profile.role === 'admin' ? 'member' : 'admin',
-                            })
-                        }>
-                        {profile.role === 'admin' ? 'Make member' : 'Make admin'}
-                    </Button>
-                    <Button
-                        size="small"
-                        danger={profile.status === 'active'}
-                        disabled={profile.id === state.currentUser.id}
-                        onClick={() =>
-                            void updateAccess(profile.id, {
-                                status: profile.status === 'active' ? 'disabled' : 'active',
-                            })
-                        }>
-                        {profile.status === 'active' ? 'Disable' : 'Enable'}
-                    </Button>
-                </Space>
+            render: (_, user) => (
+                <Button
+                    size="small"
+                    disabled={user.id === state.currentUser.id}
+                    onClick={() =>
+                        void updateAccess(user.id, {
+                            role: user.role === 'admin' ? 'member' : 'admin',
+                        })
+                    }>
+                    {user.role === 'admin' ? 'Make member' : 'Make admin'}
+                </Button>
             ),
         },
     ];
 
-    const updateAccess = async (
-        id: string,
-        input: { role?: 'admin' | 'member'; status?: 'active' | 'disabled' },
-    ) => {
+    const updateAccess = async (id: string, input: { role?: 'admin' | 'member' }) => {
         try {
             await actions.updateUserAccess(id, input);
             message.success('Access updated.');
@@ -130,71 +93,40 @@ export function AdminSection() {
         }
     };
 
-    const openManager = async (nextManager: Manager) => {
+    const openManager = (nextManager: Manager) => {
         setManager(nextManager);
+        setImageDriveId(undefined);
         if (nextManager === 'home') {
             managerForm.setFieldsValue(state.homeContent);
         } else {
             managerForm.resetFields();
-            managerForm.setFieldsValue({
-                requestable: true,
-                enabled: true,
-                displayOrder: 0,
-                totalQuantity: 1,
-                availableQuantity: 1,
-            });
+            managerForm.setFieldsValue({ requestable: true, totalQuantity: 1 });
         }
-        if (nextManager === 'inventory') {
-            try {
-                const [typeResponse, locationResponse] = await Promise.all([
-                    fetch('/api/v1/equipment-types'),
-                    fetch('/api/v1/locations'),
-                ]);
-                const [typeBody, locationBody] = (await Promise.all([
-                    typeResponse.json(),
-                    locationResponse.json(),
-                ])) as [{ data: MasterOption[] }, { data: MasterOption[] }];
-                setEquipmentTypes(typeBody.data);
-                setLocations(locationBody.data);
-            } catch {
-                message.error('Master data could not be loaded.');
-            }
+    };
+
+    const openFailedEmails = async () => {
+        setFailedEmailsOpen(true);
+        try {
+            const response = await fetch('/api/v1/admin/failed-emails');
+            const body = (await response.json()) as { data: FailedEmail[] };
+            setFailedEmails(body.data ?? []);
+        } catch {
+            message.error('Failed emails could not be loaded.');
         }
     };
 
     const saveManager = async (values: Record<string, unknown>) => {
         if (!manager) return;
         const config: Record<Manager, { path: string; method: 'POST' | 'PUT'; label: string }> = {
-            department: {
-                path: '/api/v1/departments',
+            department: { path: '/api/v1/departments', method: 'POST', label: 'Department' },
+            place: { path: '/api/v1/places', method: 'POST', label: 'Place' },
+            inventoryType: {
+                path: '/api/v1/inventory-types',
                 method: 'POST',
-                label: 'Department',
+                label: 'Inventory type',
             },
-            location: {
-                path: '/api/v1/locations',
-                method: 'POST',
-                label: 'Location',
-            },
-            equipmentType: {
-                path: '/api/v1/equipment-types',
-                method: 'POST',
-                label: 'Equipment type',
-            },
-            inventory: {
-                path: '/api/v1/inventory/items',
-                method: 'POST',
-                label: 'Inventory item',
-            },
-            link: {
-                path: '/api/v1/admin/links',
-                method: 'POST',
-                label: 'Quick link',
-            },
-            home: {
-                path: '/api/v1/admin/home-content',
-                method: 'PUT',
-                label: 'Home content',
-            },
+            link: { path: '/api/v1/admin/links', method: 'POST', label: 'Quick link' },
+            home: { path: '/api/v1/admin/home-content', method: 'PUT', label: 'Home content' },
         };
         try {
             const selected = config[manager];
@@ -202,16 +134,15 @@ export function AdminSection() {
                 manager === 'home'
                     ? {
                           ...values,
-                          whatsappUrl: values.whatsappUrl || null,
-                          tutorialUrl: values.tutorialUrl || null,
+                          whatsappUrl: values.whatsappUrl || '',
+                          tutorialUrl: values.tutorialUrl || '',
                       }
-                    : values;
+                    : manager === 'inventoryType'
+                      ? { ...values, imageDriveId }
+                      : values;
             const response = await fetch(selected.path, {
                 method: selected.method,
-                headers: {
-                    'content-type': 'application/json',
-                    'Idempotency-Key': crypto.randomUUID(),
-                },
+                headers: { 'content-type': 'application/json' },
                 body: JSON.stringify(payload),
             });
             if (!response.ok) {
@@ -235,51 +166,49 @@ export function AdminSection() {
                     <h2>Keep the workspace clean and current.</h2>
                     <p>Manage access, master data and the content shown to the operations team.</p>
                 </div>
-                <div className="page-actions">
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={() => setInviteOpen(true)}>
-                        Invite person
-                    </Button>
-                </div>
             </div>
 
             <div className="admin-grid">
                 <AdminTile
                     icon={<UserSwitchOutlined />}
                     title="People & access"
-                    description={`${state.profiles.filter((profile) => profile.status === 'active').length} active people, roles and Google account access.`}
+                    description={`${state.users.length} people with access from the org's Google domain.`}
                 />
                 <AdminTile
                     icon={<TeamOutlined />}
                     title="Departments"
                     description="Team ownership, contact points and roster grouping."
-                    onClick={() => void openManager('department')}
+                    onClick={() => openManager('department')}
                 />
                 <AdminTile
                     icon={<EnvironmentOutlined />}
-                    title="Locations"
-                    description="Studios, storage bays and operational work areas."
-                    onClick={() => void openManager('location')}
+                    title="Places"
+                    description="Studios, storage bays and program venues."
+                    onClick={() => openManager('place')}
                 />
                 <AdminTile
                     icon={<AppstoreOutlined />}
-                    title="Equipment types"
-                    description={`${state.inventory.length} tracked inventory items and availability.`}
-                    onClick={() => void openManager('inventory')}
+                    title="Inventory types"
+                    description={`${state.inventoryTypes.length} tracked equipment types and availability.`}
+                    onClick={() => openManager('inventoryType')}
                 />
                 <AdminTile
                     icon={<LinkOutlined />}
                     title="Quick links"
                     description={`${state.links.length} operational resources displayed on Home.`}
-                    onClick={() => void openManager('link')}
+                    onClick={() => openManager('link')}
                 />
                 <AdminTile
                     icon={<HomeOutlined />}
                     title="Home content"
                     description="Guidelines, support chat and booking tutorial links."
-                    onClick={() => void openManager('home')}
+                    onClick={() => openManager('home')}
+                />
+                <AdminTile
+                    icon={<ExclamationCircleOutlined />}
+                    title="Failed emails"
+                    description="Notifications that could not be delivered."
+                    onClick={() => void openFailedEmails()}
                 />
             </div>
 
@@ -287,7 +216,7 @@ export function AdminSection() {
                 <div className="card-heading">
                     <div>
                         <h3>People & access</h3>
-                        <p>Only active, approved Google accounts can enter</p>
+                        <p>Anyone signing in from the org’s Google domain gets an account automatically</p>
                     </div>
                     <Input.Search
                         allowClear
@@ -301,55 +230,9 @@ export function AdminSection() {
                     columns={columns}
                     dataSource={people}
                     pagination={{ pageSize: 5, hideOnSinglePage: true }}
-                    scroll={{ x: 620 }}
+                    scroll={{ x: 480 }}
                 />
             </Card>
-
-            <Modal
-                title="Invite a team member"
-                open={inviteOpen}
-                onCancel={() => setInviteOpen(false)}
-                onOk={() => inviteForm.submit()}
-                okText="Add to allowlist"
-                destroyOnHidden>
-                <Form
-                    form={inviteForm}
-                    layout="vertical"
-                    initialValues={{ role: 'member', timezone: 'Asia/Kolkata' }}
-                    onFinish={async (values) => {
-                        try {
-                            await actions.inviteProfile(values);
-                            inviteForm.resetFields();
-                            setInviteOpen(false);
-                            message.success('Person added. They can now sign in with Google.');
-                        } catch (error) {
-                            message.error(
-                                error instanceof Error ? error.message : 'Invite failed.',
-                            );
-                        }
-                    }}>
-                    <Form.Item
-                        name="email"
-                        label="Google account email"
-                        rules={[{ required: true, type: 'email' }]}>
-                        <Input autoComplete="email" />
-                    </Form.Item>
-                    <Form.Item name="name" label="Display name" rules={[{ required: true }]}>
-                        <Input />
-                    </Form.Item>
-                    <Form.Item name="role" label="Role" rules={[{ required: true }]}>
-                        <Select
-                            options={[
-                                { value: 'member', label: 'Member' },
-                                { value: 'admin', label: 'Administrator' },
-                            ]}
-                        />
-                    </Form.Item>
-                    <Form.Item name="timezone" label="Time zone" rules={[{ required: true }]}>
-                        <Input />
-                    </Form.Item>
-                </Form>
-            </Modal>
 
             <Modal
                 title={managerTitle(manager)}
@@ -358,10 +241,7 @@ export function AdminSection() {
                 onOk={() => managerForm.submit()}
                 okText="Save"
                 destroyOnHidden>
-                <Form
-                    form={managerForm}
-                    layout="vertical"
-                    onFinish={(values) => void saveManager(values)}>
+                <Form form={managerForm} layout="vertical" onFinish={(values) => void saveManager(values)}>
                     {manager === 'department' && (
                         <>
                             <Form.Item
@@ -375,12 +255,12 @@ export function AdminSection() {
                             </Form.Item>
                         </>
                     )}
-                    {manager === 'location' && (
-                        <Form.Item name="name" label="Location name" rules={[{ required: true }]}>
+                    {manager === 'place' && (
+                        <Form.Item name="name" label="Place name" rules={[{ required: true }]}>
                             <Input />
                         </Form.Item>
                     )}
-                    {manager === 'equipmentType' && (
+                    {manager === 'inventoryType' && (
                         <>
                             <Form.Item name="name" label="Type name" rules={[{ required: true }]}>
                                 <Input />
@@ -394,67 +274,14 @@ export function AdminSection() {
                                 valuePropName="checked">
                                 <Switch />
                             </Form.Item>
-                        </>
-                    )}
-                    {manager === 'inventory' && (
-                        <>
-                            <Form.Item name="name" label="Item name" rules={[{ required: true }]}>
-                                <Input />
-                            </Form.Item>
                             <Form.Item
-                                name="equipmentTypeId"
-                                label="Equipment type"
+                                name="totalQuantity"
+                                label="Total quantity"
                                 rules={[{ required: true }]}>
-                                <Select
-                                    options={equipmentTypes.map((item) => ({
-                                        value: item.id,
-                                        label: item.name,
-                                    }))}
-                                    dropdownRender={(menu) => (
-                                        <>
-                                            {menu}
-                                            <Button
-                                                type="link"
-                                                onClick={() => void openManager('equipmentType')}>
-                                                Add equipment type
-                                            </Button>
-                                        </>
-                                    )}
-                                />
+                                <InputNumber min={0} precision={0} style={{ width: '100%' }} />
                             </Form.Item>
-                            <Form.Item name="locationId" label="Location">
-                                <Select
-                                    allowClear
-                                    options={locations.map((item) => ({
-                                        value: item.id,
-                                        label: item.name,
-                                    }))}
-                                />
-                            </Form.Item>
-                            <Form.Item name="serialNumber" label="Serial / asset number">
-                                <Input />
-                            </Form.Item>
-                            <div
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr',
-                                    gap: 12,
-                                }}>
-                                <Form.Item
-                                    name="totalQuantity"
-                                    label="Total"
-                                    rules={[{ required: true }]}>
-                                    <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-                                </Form.Item>
-                                <Form.Item
-                                    name="availableQuantity"
-                                    label="Available"
-                                    rules={[{ required: true }]}>
-                                    <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-                                </Form.Item>
-                            </div>
-                            <Form.Item name="adminNotes" label="Admin notes">
-                                <Input.TextArea rows={3} />
+                            <Form.Item label="Photo">
+                                <DriveImageUploader value={imageDriveId} onChange={setImageDriveId} />
                             </Form.Item>
                         </>
                     )}
@@ -468,12 +295,6 @@ export function AdminSection() {
                                 label="URL"
                                 rules={[{ required: true, type: 'url' }]}>
                                 <Input />
-                            </Form.Item>
-                            <Form.Item name="displayOrder" label="Display order">
-                                <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-                            </Form.Item>
-                            <Form.Item name="enabled" label="Visible" valuePropName="checked">
-                                <Switch />
                             </Form.Item>
                         </>
                     )}
@@ -507,6 +328,29 @@ export function AdminSection() {
                     )}
                 </Form>
             </Modal>
+
+            <Modal
+                title="Failed emails"
+                open={failedEmailsOpen}
+                onCancel={() => setFailedEmailsOpen(false)}
+                footer={null}
+                width={720}>
+                <Table
+                    rowKey="id"
+                    dataSource={failedEmails}
+                    pagination={{ pageSize: 5, hideOnSinglePage: true }}
+                    columns={[
+                        {
+                            title: 'When',
+                            dataIndex: 'timestamp',
+                            render: (value: string) => new Date(value).toLocaleString(),
+                        },
+                        { title: 'To', dataIndex: ['user', 'name'] },
+                        { title: 'Title', dataIndex: 'title' },
+                        { title: 'Error', dataIndex: 'error' },
+                    ]}
+                />
+            </Modal>
         </>
     );
 }
@@ -538,9 +382,8 @@ function AdminTile({
 function managerTitle(manager: Manager | null) {
     const titles: Record<Manager, string> = {
         department: 'Add department',
-        location: 'Add location',
-        equipmentType: 'Add equipment type',
-        inventory: 'Add inventory item',
+        place: 'Add place',
+        inventoryType: 'Add inventory type',
         link: 'Add quick link',
         home: 'Edit Home content',
     };

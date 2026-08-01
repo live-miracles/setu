@@ -1,20 +1,17 @@
 import { apiHandler, jsonOk } from '@/lib/api';
 import { requireAdmin } from '@/lib/auth';
-import { demoState } from '@/demo/data';
 import { isDemoMode } from '@/lib/env';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
-// There is no invite flow anymore — anyone signing in from the allowed
-// email domain self-registers (see auth/callback/route.ts). This endpoint
-// only lists existing users for admins to edit.
 export async function GET() {
     return apiHandler(async () => {
         await requireAdmin();
-        if (isDemoMode) return jsonOk(demoState.users);
+        if (isDemoMode) return jsonOk([]);
         const { data, error } = await createSupabaseAdminClient()
-            .from('users')
-            .select('*,departments(name)')
-            .order('name');
+            .from('failed_emails')
+            .select('*,user:users!user_id(id,name)')
+            .order('timestamp', { ascending: false })
+            .limit(100);
         if (error) throw error;
         return jsonOk(data);
     });

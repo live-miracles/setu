@@ -1,10 +1,7 @@
 'use client';
 
 import {
-    BellOutlined,
-    CheckCircleOutlined,
     EnvironmentOutlined,
-    MailOutlined,
     PhoneOutlined,
     SafetyCertificateOutlined,
     SettingOutlined,
@@ -12,11 +9,9 @@ import {
     UserOutlined,
     WhatsAppOutlined,
 } from '@ant-design/icons';
-import { App, Avatar, Button, Card, Divider, Form, Input, Modal, Switch, Tag } from 'antd';
+import { App, Button, Card, Form, Input, Modal, Tag } from 'antd';
 import { useState } from 'react';
 import { useDemoStore } from '@/demo/store';
-import { subscribeCurrentDeviceToPush } from '@/lib/push-client';
-import { initials } from './shared';
 import type { SectionKey } from './workspace-app';
 
 export function ProfileSection({ onNavigate }: { onNavigate?: (section: SectionKey) => void }) {
@@ -26,36 +21,13 @@ export function ProfileSection({ onNavigate }: { onNavigate?: (section: SectionK
     const [form] = Form.useForm();
     const user = state.currentUser;
 
-    const enablePush = async () => {
-        if (!('Notification' in window)) {
-            message.error('This browser does not support Web Push.');
-            return;
-        }
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-            message.warning('Push permission was not granted. Email remains enabled.');
-            return;
-        }
-        try {
-            await subscribeCurrentDeviceToPush();
-            actions.enablePush();
-            message.success('Web Push is enabled on this device.');
-        } catch (error) {
-            message.error(
-                error instanceof Error ? error.message : 'Web Push could not be enabled.',
-            );
-        }
-    };
-
     return (
         <>
             <div className="page-heading">
                 <div>
                     <p className="eyebrow">Personal settings</p>
                     <h2>Your operations identity.</h2>
-                    <p>
-                        Contact details, team assignment and delivery preferences for this device.
-                    </p>
+                    <p>Contact details and team assignment.</p>
                 </div>
                 <div className="page-actions">
                     <Button type="primary" onClick={() => setEditOpen(true)}>
@@ -66,17 +38,8 @@ export function ProfileSection({ onNavigate }: { onNavigate?: (section: SectionK
 
             <div className="profile-grid">
                 <Card className="surface-card profile-card">
-                    <Avatar
-                        size={88}
-                        style={{
-                            background: '#ff6257',
-                            fontSize: 28,
-                            fontWeight: 700,
-                        }}>
-                        {initials(user.name)}
-                    </Avatar>
                     <h2>{user.name}</h2>
-                    <p>{user.email}</p>
+                    <p>{user.id}</p>
                     <Tag
                         color={user.role === 'admin' ? 'volcano' : 'default'}
                         variant="filled"
@@ -115,49 +78,8 @@ export function ProfileSection({ onNavigate }: { onNavigate?: (section: SectionK
                     <Card className="surface-card">
                         <div className="card-heading">
                             <div>
-                                <h3>Notification channels</h3>
-                                <p>Choose how important operations updates reach you</p>
-                            </div>
-                            <BellOutlined />
-                        </div>
-
-                        <NotificationRow
-                            icon={<CheckCircleOutlined />}
-                            title="In-app notifications"
-                            description="Always on for assignments, approvals and tickets."
-                            action={<Tag color="success">Always on</Tag>}
-                        />
-                        <Divider style={{ margin: '13px 0' }} />
-                        <NotificationRow
-                            icon={<MailOutlined />}
-                            title="Email"
-                            description="Reliable delivery even when the app is closed."
-                            action={
-                                <Switch checked={user.notificationPreferences.email} disabled />
-                            }
-                        />
-                        <Divider style={{ margin: '13px 0' }} />
-                        <NotificationRow
-                            icon={<BellOutlined />}
-                            title="Web Push"
-                            description="Instant alerts on this phone or browser."
-                            action={
-                                user.notificationPreferences.push ? (
-                                    <Tag color="success">Enabled</Tag>
-                                ) : (
-                                    <Button size="small" onClick={() => void enablePush()}>
-                                        Enable
-                                    </Button>
-                                )
-                            }
-                        />
-                    </Card>
-
-                    <Card className="surface-card">
-                        <div className="card-heading">
-                            <div>
                                 <h3>Account security</h3>
-                                <p>Managed through your approved Google account</p>
+                                <p>Managed through your Google account</p>
                             </div>
                             <SafetyCertificateOutlined />
                         </div>
@@ -175,10 +97,10 @@ export function ProfileSection({ onNavigate }: { onNavigate?: (section: SectionK
                             </span>
                             <div>
                                 <strong style={{ display: 'block', fontSize: 13 }}>
-                                    Google sign-in + allowlist
+                                    Google sign-in
                                 </strong>
                                 <span style={{ color: '#7d8087', fontSize: 11 }}>
-                                    Your access is active. Contact an admin if your account changes.
+                                    Your access is active. Updates are sent to this email address.
                                 </span>
                             </div>
                         </div>
@@ -247,34 +169,5 @@ export function ProfileSection({ onNavigate }: { onNavigate?: (section: SectionK
                 </Form>
             </Modal>
         </>
-    );
-}
-
-function NotificationRow({
-    icon,
-    title,
-    description,
-    action,
-}: {
-    icon: React.ReactNode;
-    title: string;
-    description: string;
-    action: React.ReactNode;
-}) {
-    return (
-        <div
-            style={{
-                display: 'grid',
-                gridTemplateColumns: '36px minmax(0, 1fr) auto',
-                gap: 12,
-                alignItems: 'center',
-            }}>
-            <span className="metric-icon">{icon}</span>
-            <div>
-                <strong style={{ display: 'block', fontSize: 13 }}>{title}</strong>
-                <span style={{ color: '#868990', fontSize: 11 }}>{description}</span>
-            </div>
-            {action}
-        </div>
     );
 }
