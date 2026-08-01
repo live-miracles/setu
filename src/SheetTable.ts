@@ -18,8 +18,17 @@ function withLock<T>(fn: () => T): T {
     }
 }
 
-function SheetTable<T extends { Id: string }>(tabName: string, headers: (keyof T & string)[]) {
-    const idCol = headers.indexOf('Id' as keyof T & string) + 1;
+// keyColumn defaults to 'Id' but Users is keyed by 'Email' instead (its
+// primary key is the account email itself, not a generated id) — insert()
+// only auto-generates a uuid for the key column when the caller didn't
+// already supply one, which is what makes both keying schemes work through
+// the same helper.
+function SheetTable<T extends Record<string, any>>(
+    tabName: string,
+    headers: (keyof T & string)[],
+    keyColumn: keyof T & string = 'Id' as keyof T & string,
+) {
+    const keyCol = headers.indexOf(keyColumn) + 1;
 
     function sheet(): GoogleAppsScript.Spreadsheet.Sheet {
         const sh = SpreadsheetApp.openById(getSpreadsheetId()).getSheetByName(tabName);
@@ -47,22 +56,22 @@ function SheetTable<T extends { Id: string }>(tabName: string, headers: (keyof T
             .getRange(2, 1, lastRow - 1, headers.length)
             .getValues()
             .map(rowToObject)
-            .filter((o) => o.Id !== '' && o.Id != null);
+            .filter((o: any) => o[keyColumn] !== '' && o[keyColumn] != null);
     }
 
-    function findRowIndexById(id: string): number {
+    function findRowIndexById(key: string): number {
         const sh = sheet();
         const lastRow = sh.getLastRow();
         if (lastRow < 2) return -1;
-        const ids = sh.getRange(2, idCol, lastRow - 1, 1).getValues();
-        for (let i = 0; i < ids.length; i++) {
-            if (ids[i][0] === id) return i + 2;
+        const keys = sh.getRange(2, keyCol, lastRow - 1, 1).getValues();
+        for (let i = 0; i < keys.length; i++) {
+            if (keys[i][0] === key) return i + 2;
         }
         return -1;
     }
 
-    function findById(id: string): T | null {
-        const rowIndex = findRowIndexById(id);
+    function findById(key: string): T | null {
+        const rowIndex = findRowIndexById(key);
         if (rowIndex === -1) return null;
         return rowToObject(sheet().getRange(rowIndex, 1, 1, headers.length).getValues()[0]);
     }
@@ -72,26 +81,30 @@ function SheetTable<T extends { Id: string }>(tabName: string, headers: (keyof T
     }
 
     function insert(obj: Partial<T>): T {
-        const record = Object.assign({ Id: Utilities.getUuid() }, obj) as T;
+        const record = Object.assign({}, obj) as T;
+        if ((record as any)[keyColumn] === undefined || (record as any)[keyColumn] === '') {
+            (record as any)[keyColumn] = Utilities.getUuid();
+        }
         sheet().appendRow(objectToRow(record));
         return record;
     }
 
-    function updateById(id: string, patch: Partial<T>): T {
-        const rowIndex = findRowIndexById(id);
-        if (rowIndex === -1) throw new Error(tabName + ' row not found: ' + id);
+    function updateById(key: string, patch: Partial<T>): T {
+        const rowIndex = findRowIndexById(key);
+        if (rowIndex === -1) throw new Error(tabName + ' row not found: ' + key);
         const current = rowToObject(
             sheet().getRange(rowIndex, 1, 1, headers.length).getValues()[0],
         );
-        const updated = Object.assign({}, current, patch, { Id: id }) as T;
+        const updated = Object.assign({}, current, patch) as T;
+        (updated as any)[keyColumn] = key;
         sheet()
             .getRange(rowIndex, 1, 1, headers.length)
             .setValues([objectToRow(updated)]);
         return updated;
     }
 
-    function deleteById(id: string): boolean {
-        const rowIndex = findRowIndexById(id);
+    function deleteById(key: string): boolean {
+        const rowIndex = findRowIndexById(key);
         if (rowIndex === -1) return false;
         sheet().deleteRow(rowIndex);
         return true;
@@ -100,6 +113,7 @@ function SheetTable<T extends { Id: string }>(tabName: string, headers: (keyof T
     return {
         tabName,
         headers,
+        keyColumn,
         readAll,
         findById,
         findWhere,
@@ -113,82 +127,95 @@ function SheetTable<T extends { Id: string }>(tabName: string, headers: (keyof T
 
 const Tables = {
     Departments: SheetTable<Department>('Departments', ['Id', 'Name', 'ShortName']),
-    Locations: SheetTable<Place>('Locations', ['Id', 'Name']),
-    Profiles: SheetTable<Profile>('Profiles', [
-        'Id',
+    Places: SheetTable<Place>('Places', ['Id', 'Name']),
+    Users: SheetTable<User>(
+        'Users',
+        ['Email', 'Name', 'Role', 'DepartmentId', 'Timezone', 'Phone', 'Whatsapp'],
         'Email',
-        'Name',
-        'Role',
-        'Status',
-        'DepartmentId',
-        'Timezone',
-        'Phone',
-        'Whatsapp',
-        'NotificationEmail',
-    ]),
-    RosterShifts: SheetTable<RosterShift>('RosterShifts', [
+    ),
+    Rosters: SheetTable<Roster>('Rosters', [
         'Id',
+        'Name',
         'StartDate',
         'EndDate',
         'StartTime',
         'EndTime',
-        'ShiftName',
-        'AssigneeProfileId',
+        'UserId',
     ]),
-    EquipmentTypes: SheetTable<EquipmentType>('EquipmentTypes', [
+    InventoryTypes: SheetTable<InventoryType>('InventoryTypes', [
         'Id',
         'Name',
         'Description',
         'Requestable',
-        'ImageDriveFileId',
+        'ImageId',
         'TotalQuantity',
     ]),
     InventoryRequests: SheetTable<InventoryRequest>('InventoryRequests', [
         'Id',
         'DisplayId',
-        'Title',
-        'RequesterId',
-        'FromDate',
-        'ToDate',
-        'Purpose',
+        'Name',
+        'UserId',
+        'StartDate',
+        'EndDate',
         'Status',
-        'AdminNote',
+        'Image1Id',
+        'Image2Id',
+        'Image3Id',
+        'Participants',
     ]),
-    InventoryRequestItems: SheetTable<InventoryRequestItem>('InventoryRequestItems', [
+    InventoryItems: SheetTable<InventoryItem>('InventoryItems', [
         'Id',
         'RequestId',
-        'EquipmentTypeId',
+        'InventoryTypeId',
         'Quantity',
         'IssuedQuantity',
         'ReturnedQuantity',
         'Condition',
+    ]),
+    ProgramRequests: SheetTable<ProgramRequest>('ProgramRequests', [
+        'Id',
+        'DisplayId',
+        'Name',
+        'Type',
+        'UserId',
+        'Status',
+        'PlaceId',
+        'Participants',
+    ]),
+    Sessions: SheetTable<ProgramSession>('Sessions', [
+        'Id',
+        'Name',
+        'Type',
+        'RequestId',
+        'StartDateTime',
+        'EndDateTime',
     ]),
     Tickets: SheetTable<Ticket>('Tickets', [
         'Id',
         'DisplayId',
         'Title',
         'Description',
-        'LocationId',
-        'Priority',
         'Status',
-        'ReporterId',
         'AssigneeId',
     ]),
+    // Exactly one of ProgramRequestId/InventoryRequestId is set per row —
+    // see the CommentRecord comment in shared/types.d.ts.
     Comments: SheetTable<CommentRecord>('Comments', [
         'Id',
-        'OwnerType',
-        'OwnerId',
-        'AuthorId',
+        'Timestamp',
+        'ProgramRequestId',
+        'InventoryRequestId',
+        'UserId',
         'Message',
-        'CreatedAt',
     ]),
-    Links: SheetTable<Link>('Links', ['Id', 'Name', 'Url', 'Enabled']),
+    // No separate Links tab: links are stored as one JSON-encoded row here
+    // (Id 'links'), the same generic-key-value pattern HomeContent already
+    // uses — see readLinks/writeLinks in Admin.ts.
     Settings: SheetTable<SettingRow>('Settings', ['Id', 'Value']),
-    FailedNotifications: SheetTable<FailedNotification>('FailedNotifications', [
+    FailedEmails: SheetTable<FailedEmail>('FailedEmails', [
         'Id',
         'Timestamp',
-        'RecipientId',
-        'Channel',
+        'UserId',
         'Title',
         'Message',
         'Error',

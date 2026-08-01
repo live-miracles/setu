@@ -1,93 +1,94 @@
 const INVENTORY_REQUESTS_PAGE_SIZE = 20;
 
-// Outstanding (issued but not yet returned) quantity per equipment type —
+// Outstanding (issued but not yet returned) quantity per inventory type —
 // subtracted from TotalQuantity to derive availableQuantity on read, rather
 // than storing a mutable counter that could drift from the underlying
 // request rows. Damaged/missing returns aren't deducted here: an admin
 // corrects TotalQuantity by hand when equipment is permanently lost.
 function computeDeductionsByType(): Record<string, number> {
     const deductions: Record<string, number> = {};
-    Tables.InventoryRequestItems.readAll().forEach((item) => {
-        deductions[item.EquipmentTypeId] =
-            (deductions[item.EquipmentTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
+    Tables.InventoryItems.readAll().forEach((item) => {
+        deductions[item.InventoryTypeId] =
+            (deductions[item.InventoryTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
     });
     return deductions;
 }
 
-function buildEquipmentTypeDTOs(types: EquipmentType[]): EquipmentTypeDTO[] {
+function buildInventoryTypeDTOs(types: InventoryType[]): InventoryTypeDTO[] {
     const deductions = computeDeductionsByType();
     return types.map((t) =>
         Object.assign({}, t, { availableQuantity: t.TotalQuantity - (deductions[t.Id] || 0) }),
     );
 }
 
-function buildInventoryRequestItemDTO(
-    item: InventoryRequestItem,
-    equipmentTypesById: Record<string, EquipmentType>,
-): InventoryRequestItemDTO {
+function buildInventoryItemDTO(
+    item: InventoryItem,
+    inventoryTypesById: Record<string, InventoryType>,
+): InventoryItemDTO {
     return Object.assign({}, item, {
-        itemName: (equipmentTypesById[item.EquipmentTypeId] || ({} as EquipmentType)).Name || '',
+        itemName: (inventoryTypesById[item.InventoryTypeId] || ({} as InventoryType)).Name || '',
     });
 }
 
 function buildInventoryRequestDTO(
     request: InventoryRequest,
-    itemsByRequest: Record<string, InventoryRequestItem[]>,
-    equipmentTypesById: Record<string, EquipmentType>,
-    profilesById: Record<string, Profile>,
-    commentsByOwnerId: Record<string, CommentRecord[]>,
+    itemsByRequest: Record<string, InventoryItem[]>,
+    inventoryTypesById: Record<string, InventoryType>,
+    usersByEmail: Record<string, User>,
+    commentsByRequestId: Record<string, CommentRecord[]>,
 ): InventoryRequestDTO {
     const items = (itemsByRequest[request.Id] || []).map((i) =>
-        buildInventoryRequestItemDTO(i, equipmentTypesById),
+        buildInventoryItemDTO(i, inventoryTypesById),
     );
-    const requester = profilesById[request.RequesterId];
-    const comments = commentsFor('inventory_request', request.Id, commentsByOwnerId, profilesById);
+    const requester = usersByEmail[request.UserId];
+    const comments = commentsFor(request.Id, commentsByRequestId, usersByEmail);
     return Object.assign({}, request, {
-        requesterName: requester ? requester.Name : '',
+        userName: requester ? requester.Name : '',
+        participants: parseParticipants(request.Participants),
         items,
         comments,
     });
 }
 
-function listEquipmentTypes(): EquipmentTypeDTO[] {
+function listInventoryTypes(): InventoryTypeDTO[] {
     requireUser();
-    return buildEquipmentTypeDTOs(Tables.EquipmentTypes.readAll());
+    return buildInventoryTypeDTOs(Tables.InventoryTypes.readAll());
 }
 
-function createEquipmentType(
-    input: CreateEquipmentTypeInput,
+function createInventoryType(
+    input: CreateInventoryTypeInput,
     requestId: string,
-): EquipmentTypeDTO {
+): InventoryTypeDTO {
     requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     if (!(input.totalQuantity >= 0))
         throw new ValidationError('total_quantity_must_be_non_negative');
-    const { result } = withLockedDedupe('equipment_type:create', requestId, () => {
-        return Tables.EquipmentTypes.insert({
+    const { result } = withLockedDedupe('inventory_type:create', requestId, () => {
+        return Tables.InventoryTypes.insert({
             Name: name,
             Description: input.description || '',
             Requestable: input.requestable !== false,
-            ImageDriveFileId: '',
+            ImageId: '',
             TotalQuantity: input.totalQuantity,
         });
     });
-    return buildEquipmentTypeDTOs([result])[0];
+    return buildInventoryTypeDTOs([result])[0];
 }
 
 function listInventoryRequests(page: number): Paginated<InventoryRequestDTO> {
     requireUser();
-    const itemsByRequest = groupBy(Tables.InventoryRequestItems.readAll(), (i) => i.RequestId);
-    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
-    const profilesById = indexById(Tables.Profiles.readAll());
-    const commentsByOwnerId = groupBy(Tables.Comments.readAll(), (c) => c.OwnerId);
+    const itemsByRequest = groupBy(Tables.InventoryItems.readAll(), (i) => i.RequestId);
+    const inventoryTypesById = indexBy(Tables.InventoryTypes.readAll(), (t) => t.Id);
+    const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
+    const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const dtos = Tables.InventoryRequests.readAll()
         .map((r) =>
             buildInventoryRequestDTO(
                 r,
                 itemsByRequest,
-                equipmentTypesById,
-                profilesById,
-                commentsByOwnerId,
+                inventoryTypesById,
+                usersByEmail,
+                commentsByRequestId,
             ),
         )
         .sort((a, b) =>
@@ -103,74 +104,77 @@ function createInventoryRequest(
     requestId: string,
 ): InventoryRequestDTO {
     const actor = requireUser();
-    const title = requireNonEmpty(input.title, 'Title is required.');
-    if (!input.fromDate || !input.toDate || input.toDate < input.fromDate) {
-        throw new ValidationError('toDate must be on or after fromDate.');
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
+        throw new ValidationError('endDate must be on or after startDate.');
     }
     if (!input.items || input.items.length === 0)
         throw new ValidationError('At least one item is required.');
     const lines = input.items.map((line) => {
         if (!(line.quantity > 0)) throw new ValidationError('quantity_must_be_positive');
-        const equipmentType = Tables.EquipmentTypes.findById(line.equipmentTypeId);
-        if (!equipmentType) throw new ValidationError('equipment_type_not_found');
-        return { equipmentType, quantity: line.quantity };
+        const inventoryType = Tables.InventoryTypes.findById(line.inventoryTypeId);
+        if (!inventoryType) throw new ValidationError('inventory_type_not_found');
+        return { inventoryType, quantity: line.quantity };
     });
+    const images = (input.images || []).filter(Boolean).slice(0, 3);
+    const participants = parseParticipants(input.participants);
 
     const { result } = withLockedDedupe('inventory_request:create', requestId, () => {
         const created = Tables.InventoryRequests.insert({
             DisplayId: getNextDisplayId('inventory_request'),
-            Title: title,
-            RequesterId: actor.Id,
-            FromDate: input.fromDate,
-            ToDate: input.toDate,
-            Purpose: input.purpose || '',
+            Name: name,
+            UserId: actor.Email,
+            StartDate: input.startDate,
+            EndDate: input.endDate,
             Status: 'submitted',
-            AdminNote: '',
+            Image1Id: images[0] || '',
+            Image2Id: images[1] || '',
+            Image3Id: images[2] || '',
+            Participants: formatParticipants(participants),
         });
         lines.forEach((line) => {
-            Tables.InventoryRequestItems.insert({
+            Tables.InventoryItems.insert({
                 RequestId: created.Id,
-                EquipmentTypeId: line.equipmentType.Id,
+                InventoryTypeId: line.inventoryType.Id,
                 Quantity: line.quantity,
                 IssuedQuantity: 0,
                 ReturnedQuantity: 0,
                 Condition: '',
             });
         });
-        const comment = insertSystemComment(
-            'inventory_request',
+        const comment = insertActionComment(
+            'inventory',
             created.Id,
+            actor.Email,
             actor.Name + ' submitted this request.',
         );
         return { request: created, comment };
     });
     const { request, comment } = result;
 
-    const admins = Tables.Profiles.findWhere(
-        (p) => p.Role === 'admin' && p.Status === 'active' && p.Id !== actor.Id,
-    );
+    const admins = Tables.Users.findWhere((u) => u.Role === 'admin' && u.Email !== actor.Email);
     admins.forEach((admin) => {
         sendNotificationEmail(
-            admin.Id,
+            admin.Email,
             'inventory:' + request.Id + ':submitted',
             'New equipment request: REQ-' + request.DisplayId,
             actor.Name +
                 ' requested equipment for ' +
-                request.FromDate +
+                request.StartDate +
                 ' to ' +
-                request.ToDate +
+                request.EndDate +
                 '.',
             '?section=inventory',
         );
     });
 
-    const requestItems = Tables.InventoryRequestItems.findWhere((i) => i.RequestId === request.Id);
-    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
+    const requestItems = Tables.InventoryItems.findWhere((i) => i.RequestId === request.Id);
+    const inventoryTypesById = indexBy(Tables.InventoryTypes.readAll(), (t) => t.Id);
     return buildInventoryRequestDTO(
         request,
         { [request.Id]: requestItems },
-        equipmentTypesById,
-        indexById([actor]),
+        inventoryTypesById,
+        indexBy([actor], (u) => u.Email),
         { [request.Id]: [comment] },
     );
 }
@@ -197,13 +201,17 @@ function performInventoryRequestAction(
             let computedStatus: InventoryRequestStatus;
 
             if (action === 'submit') {
-                if (request.RequesterId !== actor.Id || request.Status !== 'draft')
+                const participants = parseParticipants(request.Participants);
+                const isOwner =
+                    request.UserId === actor.Email || participants.indexOf(actor.Email) !== -1;
+                if (!isOwner || request.Status !== 'draft')
                     throw new ValidationError('invalid_transition');
                 computedStatus = 'submitted';
                 Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
-                insertSystemComment(
-                    'inventory_request',
+                insertActionComment(
+                    'inventory',
                     requestId,
+                    actor.Email,
                     actor.Name + ' submitted this request.',
                 );
             } else {
@@ -213,13 +221,11 @@ function performInventoryRequestAction(
                     if (request.Status !== 'submitted')
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'approved';
-                    Tables.InventoryRequests.updateById(requestId, {
-                        Status: computedStatus,
-                        AdminNote: note || '',
-                    });
-                    insertSystemComment(
-                        'inventory_request',
+                    Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
+                    insertActionComment(
+                        'inventory',
                         requestId,
+                        actor.Email,
                         actor.Name + ' approved this request.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'reject') {
@@ -231,53 +237,55 @@ function performInventoryRequestAction(
                     if (request.Status !== 'submitted')
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'rejected';
-                    Tables.InventoryRequests.updateById(requestId, {
-                        Status: computedStatus,
-                        AdminNote: note,
-                    });
-                    insertSystemComment(
-                        'inventory_request',
+                    Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
+                    insertActionComment(
+                        'inventory',
                         requestId,
+                        actor.Email,
                         actor.Name + ' rejected this request. ' + note,
                     );
                 } else if (action === 'issue') {
                     if (request.Status !== 'approved')
                         throw new ValidationError('invalid_transition');
-                    const items = Tables.InventoryRequestItems.findWhere(
+                    const items = Tables.InventoryItems.findWhere(
                         (i) => i.RequestId === requestId,
                     );
-                    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
+                    const inventoryTypesById = indexBy(
+                        Tables.InventoryTypes.readAll(),
+                        (t) => t.Id,
+                    );
                     const deductions = computeDeductionsByType();
                     items.forEach((item) => {
-                        const type = equipmentTypesById[item.EquipmentTypeId];
-                        if (!type) throw new ValidationError('equipment_type_not_found');
+                        const type = inventoryTypesById[item.InventoryTypeId];
+                        if (!type) throw new ValidationError('inventory_type_not_found');
                         const available = type.TotalQuantity - (deductions[type.Id] || 0);
                         if (available < item.Quantity)
                             throw new ValidationError('insufficient_inventory');
                         deductions[type.Id] = (deductions[type.Id] || 0) + item.Quantity;
-                        Tables.InventoryRequestItems.updateById(item.Id, {
+                        Tables.InventoryItems.updateById(item.Id, {
                             IssuedQuantity: item.Quantity,
                         });
                     });
                     computedStatus = 'issued';
-                    Tables.InventoryRequests.updateById(requestId, {
-                        Status: computedStatus,
-                        AdminNote: note || request.AdminNote,
-                    });
-                    insertSystemComment(
-                        'inventory_request',
+                    Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
+                    insertActionComment(
+                        'inventory',
                         requestId,
+                        actor.Email,
                         actor.Name + ' issued the equipment.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'return') {
                     if (request.Status !== 'issued' || !returnItems || returnItems.length === 0) {
                         throw new ValidationError('invalid_transition_or_return_items');
                     }
-                    const equipmentTypesById = indexById(Tables.EquipmentTypes.readAll());
+                    const inventoryTypesById = indexBy(
+                        Tables.InventoryTypes.readAll(),
+                        (t) => t.Id,
+                    );
                     const summaries: string[] = [];
                     returnItems.forEach((ret) => {
                         if (!(ret.quantity >= 1)) throw new ValidationError('invalid_return_item');
-                        const item = Tables.InventoryRequestItems.findById(ret.requestItemId);
+                        const item = Tables.InventoryItems.findById(ret.requestItemId);
                         if (
                             !item ||
                             item.RequestId !== requestId ||
@@ -285,28 +293,33 @@ function performInventoryRequestAction(
                         ) {
                             throw new ValidationError('invalid_return_quantity');
                         }
-                        const type = equipmentTypesById[item.EquipmentTypeId];
-                        Tables.InventoryRequestItems.updateById(item.Id, {
+                        const type = inventoryTypesById[item.InventoryTypeId];
+                        Tables.InventoryItems.updateById(item.Id, {
                             ReturnedQuantity: item.ReturnedQuantity + ret.quantity,
                             Condition: ret.condition,
                         });
                         summaries.push(
-                            ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
+                            ret.quantity +
+                                '× ' +
+                                (type ? type.Name : '') +
+                                ' (' +
+                                ret.condition +
+                                ')',
                         );
                     });
-                    const remaining = Tables.InventoryRequestItems.findWhere(
+                    const remaining = Tables.InventoryItems.findWhere(
                         (i) => i.RequestId === requestId && i.ReturnedQuantity < i.IssuedQuantity,
                     );
                     computedStatus = remaining.length === 0 ? 'returned' : 'issued';
-                    insertSystemComment(
-                        'inventory_request',
+                    insertActionComment(
+                        'inventory',
                         requestId,
+                        actor.Email,
                         actor.Name + ' returned ' + summaries.join(', ') + '.',
                     );
                     if (computedStatus === 'returned') {
                         Tables.InventoryRequests.updateById(requestId, {
                             Status: computedStatus,
-                            AdminNote: note || request.AdminNote,
                         });
                     }
                 } else if (action === 'cancel') {
@@ -318,26 +331,22 @@ function performInventoryRequestAction(
                     if (['draft', 'submitted', 'approved'].indexOf(request.Status) === -1)
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'cancelled';
-                    Tables.InventoryRequests.updateById(requestId, {
-                        Status: computedStatus,
-                        AdminNote: note,
-                    });
-                    insertSystemComment(
-                        'inventory_request',
+                    Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
+                    insertActionComment(
+                        'inventory',
                         requestId,
+                        actor.Email,
                         actor.Name + ' cancelled this request. ' + note,
                     );
                 } else if (action === 'close') {
                     if (['returned', 'rejected', 'cancelled'].indexOf(request.Status) === -1)
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'closed';
-                    Tables.InventoryRequests.updateById(requestId, {
-                        Status: computedStatus,
-                        AdminNote: note || request.AdminNote,
-                    });
-                    insertSystemComment(
-                        'inventory_request',
+                    Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
+                    insertActionComment(
+                        'inventory',
                         requestId,
+                        actor.Email,
                         actor.Name + ' closed this request.' + (note ? ' ' + note : ''),
                     );
                 } else {
@@ -358,17 +367,26 @@ function performInventoryRequestAction(
 function notifyOnInventoryRequestAction(
     requestId: string,
     action: InventoryRequestAction,
-    actor: Profile,
+    actor: User,
     newStatus: InventoryRequestStatus,
     dedupeRequestId: string,
 ): void {
     const request = Tables.InventoryRequests.findById(requestId);
-    if (!request || request.RequesterId === actor.Id) return;
-    sendNotificationEmail(
-        request.RequesterId,
-        'inventory:' + requestId + ':' + action + ':' + dedupeRequestId,
-        'REQ-' + request.DisplayId + ' ' + newStatus,
-        actor.Name + ' ' + action + 'd your equipment request.',
-        '?section=inventory',
-    );
+    if (!request) return;
+    const owner: RequestOwner = {
+        kind: 'inventory',
+        displayId: request.DisplayId,
+        userId: request.UserId,
+        participants: parseParticipants(request.Participants),
+    };
+    const eventKey = 'inventory:' + requestId + ':' + action + ':' + dedupeRequestId;
+    requestOwnerRecipients(owner, actor.Email).forEach((email) => {
+        sendNotificationEmail(
+            email,
+            eventKey,
+            'REQ-' + request.DisplayId + ' ' + newStatus,
+            actor.Name + ' ' + action + 'd your equipment request.',
+            '?section=inventory',
+        );
+    });
 }

@@ -11,6 +11,7 @@ function setupSheets(): void {
 
     ensureTabWithHeaders(ss, 'Counters', ['Name', 'NextValue']);
     seedCounterIfMissing(ss, 'inventory_request', 1);
+    seedCounterIfMissing(ss, 'program_request', 1);
     seedCounterIfMissing(ss, 'ticket', 1);
 
     removeDefaultSheetIfEmpty(ss);

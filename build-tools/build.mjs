@@ -17,6 +17,7 @@ const FRONTEND_TS_ORDER = [
     '05-render-home.ts',
     '06-render-roster.ts',
     '07-render-inventory.ts',
+    '13-render-programs.ts',
     '08-render-tickets.ts',
     '09-render-profile.ts',
     '10-render-admin.ts',

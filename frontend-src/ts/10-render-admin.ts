@@ -1,65 +1,26 @@
 async function renderAdmin(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
     const users = await api.listUsers();
-    const activePeople = users.filter((u) => u.Status === 'active').length;
 
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('shield', 'Admin', 'People, master data and app settings.')}
 
       ${
-          dashboard.failedNotificationCount > 0
+          dashboard.failedEmailCount > 0
               ? `<div class="alert alert-warning">
                   ${icon('alert', 'size-5')}
-                  <span>${dashboard.failedNotificationCount} notification email(s) failed to send in the last 7 days.</span>
+                  <span>${dashboard.failedEmailCount} notification email(s) failed to send in the last 7 days.</span>
                 </div>`
               : ''
       }
 
       <div class="card border border-base-300 bg-base-100 shadow">
-        <div class="card-body gap-3">
-          <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} Invite person</h2>
-          <form id="invite-user-form" class="space-y-3">
-            <fieldset class="fieldset">
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label class="label" for="invite-email">Email</label>
-                  <input id="invite-email" name="email" type="email" class="input w-full" placeholder="name@company.com" required />
-                </div>
-                <div>
-                  <label class="label" for="invite-name">Name</label>
-                  <input id="invite-name" name="name" class="input w-full" required />
-                </div>
-                <div>
-                  <label class="label" for="invite-role">Role</label>
-                  <select id="invite-role" name="role" class="select w-full">
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="label" for="invite-department">Department</label>
-                  <select id="invite-department" name="departmentId" class="select w-full">
-                    <option value="">No department</option>
-                    ${dashboard.departments.map((d) => `<option value="${d.Id}">${escapeHtml(d.Name)}</option>`).join('')}
-                  </select>
-                </div>
-                <div class="sm:col-span-2">
-                  <label class="label" for="invite-timezone">Time zone</label>
-                  <input id="invite-timezone" name="timezone" class="input w-full" value="Asia/Kolkata" />
-                </div>
-              </div>
-            </fieldset>
-            <button type="submit" class="btn btn-primary">Invite</button>
-          </form>
-        </div>
-      </div>
-
-      <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-2">
           <div class="flex items-center justify-between">
             <h2 class="card-title text-base">${icon('user', 'size-5 text-primary')} People</h2>
-            <span class="text-xs text-base-content/50">${activePeople} active</span>
+            <span class="text-xs text-base-content/50">${users.length} with access from your Google domain</span>
           </div>
+          <p class="text-sm text-base-content/60">People self-register automatically the first time they sign in from your organisation's Google domain — there is no invite step. Set someone's role or department here.</p>
           <ul id="user-list" class="divide-y divide-base-200"></ul>
         </div>
       </div>
@@ -69,14 +30,14 @@ async function renderAdmin(container: HTMLElement, dashboard: DashboardPayload):
             { field: 'Name', label: 'Name' },
             { field: 'ShortName', label: 'Short name' },
         ])}
-        ${renderSimpleAdminList('Locations', 'pin', 'location', dashboard.locations, [
+        ${renderSimpleAdminList('Places', 'pin', 'place', dashboard.places, [
             { field: 'Name', label: 'Name' },
         ])}
         ${renderSimpleAdminList(
-            'Equipment types',
+            'Inventory types',
             'box',
-            'equipment-type',
-            dashboard.equipmentTypes,
+            'inventory-type',
+            dashboard.inventoryTypes,
             [
                 { field: 'Name', label: 'Name' },
                 { field: 'Description', label: 'Description' },
@@ -117,7 +78,6 @@ async function renderAdmin(container: HTMLElement, dashboard: DashboardPayload):
   `;
 
     renderUserList(users, dashboard);
-    wireInviteUserForm();
     wireSimpleAdminForms();
     wireHomeContentForm();
 }
@@ -170,10 +130,10 @@ function wireSimpleAdminForms(): void {
                         },
                         requestId,
                     );
-                } else if (kind === 'location') {
-                    await api.createLocation({ name: String(data.get('Name')) }, requestId);
-                } else if (kind === 'equipment-type') {
-                    await api.createEquipmentType(
+                } else if (kind === 'place') {
+                    await api.createPlace({ name: String(data.get('Name')) }, requestId);
+                } else if (kind === 'inventory-type') {
+                    await api.createInventoryType(
                         {
                             name: String(data.get('Name')),
                             description: String(data.get('Description') || ''),
@@ -202,26 +162,21 @@ function wireSimpleAdminForms(): void {
     });
 }
 
-function renderUserList(users: ProfileDTO[], dashboard: DashboardPayload): void {
+function renderUserList(users: UserDTO[], dashboard: DashboardPayload): void {
     const list = document.getElementById('user-list');
     if (!list) return;
     list.innerHTML = users
         .map(
             (u) => `
-        <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" data-user-id="${u.Id}">
+        <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" data-user-id="${u.Email}">
           <div class="min-w-0">
             <div class="font-medium">${escapeHtml(u.Name)} <span class="text-sm font-normal opacity-60">${escapeHtml(u.Email)}</span></div>
             <div class="text-sm text-base-content/60">${escapeHtml(u.departmentName || 'No department')}</div>
           </div>
           <div class="flex shrink-0 items-center gap-2">
-            <select class="select select-sm role-select" ${u.Id === dashboard.me.Id ? 'disabled' : ''} aria-label="Role for ${escapeHtml(u.Name)}">
+            <select class="select select-sm role-select" ${u.Email === dashboard.me.Email ? 'disabled' : ''} aria-label="Role for ${escapeHtml(u.Name)}">
               <option value="member" ${u.Role === 'member' ? 'selected' : ''}>Member</option>
               <option value="admin" ${u.Role === 'admin' ? 'selected' : ''}>Admin</option>
-            </select>
-            <select class="select select-sm status-select" ${u.Id === dashboard.me.Id ? 'disabled' : ''} aria-label="Status for ${escapeHtml(u.Name)}">
-              <option value="invited" ${u.Status === 'invited' ? 'selected' : ''}>Invited</option>
-              <option value="active" ${u.Status === 'active' ? 'selected' : ''}>Active</option>
-              <option value="disabled" ${u.Status === 'disabled' ? 'selected' : ''}>Disabled</option>
             </select>
           </div>
         </li>`,
@@ -231,52 +186,18 @@ function renderUserList(users: ProfileDTO[], dashboard: DashboardPayload): void 
     list.querySelectorAll('li[data-user-id]').forEach((li) => {
         const userId = (li as HTMLElement).dataset.userId!;
         const roleSelect = li.querySelector('.role-select') as HTMLSelectElement;
-        const statusSelect = li.querySelector('.status-select') as HTMLSelectElement;
 
-        async function saveChange(patch: UpdateUserInput): Promise<void> {
+        roleSelect.addEventListener('change', async () => {
             try {
                 showSavingBadge(true);
-                await api.updateUser(userId, patch);
+                await api.updateUser(userId, { role: roleSelect.value as UserRole });
                 await refreshDashboard();
             } catch (err) {
                 showErrorAlert(err);
             } finally {
                 showSavingBadge(false);
             }
-        }
-
-        roleSelect.addEventListener('change', () =>
-            saveChange({ role: roleSelect.value as UserRole }),
-        );
-        statusSelect.addEventListener('change', () =>
-            saveChange({ status: statusSelect.value as ProfileStatus }),
-        );
-    });
-}
-
-function wireInviteUserForm(): void {
-    const form = document.getElementById('invite-user-form') as HTMLFormElement;
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const data = new FormData(form);
-        try {
-            showSavingBadge(true);
-            await api.inviteUser(
-                {
-                    email: String(data.get('email')),
-                    name: String(data.get('name')),
-                    role: String(data.get('role')) as UserRole,
-                    departmentId: String(data.get('departmentId') || ''),
-                    timezone: String(data.get('timezone') || 'Asia/Kolkata'),
-                },
-                generateRequestId(),
-            );
-            await refreshDashboard();
-        } catch (err) {
-            showErrorAlert(err);
-        } finally {
-            showSavingBadge(false);
-        }
+        });
     });
 }
 

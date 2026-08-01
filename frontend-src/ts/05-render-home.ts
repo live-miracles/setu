@@ -14,24 +14,28 @@ function todayDateOnly(): string {
 
 async function renderHome(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
     const today = todayDateOnly();
-    const todayShifts = dashboard.upcomingShifts.filter(
-        (s) => s.StartDate <= today && s.EndDate >= today,
+    const todayRosters = dashboard.upcomingRosters.filter(
+        (r) => r.StartDate <= today && r.EndDate >= today,
     );
-    const todayAssignments = todayShifts.filter((s) => s.AssigneeProfileId).length;
+    const todayAssignments = todayRosters.filter((r) => r.UserId).length;
 
     const activeRequests = dashboard.inventoryRequests.filter(
         (r) => ['submitted', 'approved', 'issued'].indexOf(r.Status) !== -1,
     );
     const awaitingApproval = activeRequests.filter((r) => r.Status === 'submitted').length;
 
-    const openTickets = dashboard.tickets.filter((t) => t.Status !== 'closed');
-    const highPriorityOpen = openTickets.filter((t) => t.Priority === 'high').length;
+    const activePrograms = dashboard.programRequests.filter(
+        (r) => ['submitted', 'approved'].indexOf(r.Status) !== -1,
+    );
+    const programsAwaitingApproval = activePrograms.filter((r) => r.Status === 'submitted').length;
 
-    const lowStockItems = dashboard.equipmentTypes.filter(
+    const openTickets = dashboard.tickets.filter((t) => t.Status !== 'closed');
+
+    const lowStockItems = dashboard.inventoryTypes.filter(
         (t) => t.TotalQuantity > 0 && t.availableQuantity / t.TotalQuantity <= 0.3,
     );
 
-    const nextShift = [...dashboard.upcomingShifts].sort((a, b) =>
+    const nextRoster = [...dashboard.upcomingRosters].sort((a, b) =>
         (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime),
     )[0];
 
@@ -53,6 +57,10 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
                 ${icon('box', 'size-4')}
                 Request equipment
               </button>
+              <button class="btn btn-sm btn-primary" data-nav-section="programs">
+                ${icon('clapper', 'size-4')}
+                Book a program
+              </button>
               <button class="btn btn-outline btn-sm" data-nav-section="roster">
                 ${icon('calendar', 'size-4')}
                 View roster
@@ -65,12 +73,12 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
           <div class="card-body gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Next shift</span>
             ${
-                nextShift
+                nextRoster
                     ? `
-              <h3 class="text-lg font-bold">${escapeHtml(nextShift.ShiftName)}</h3>
-              <p class="text-sm text-base-content/60">${formatShiftSchedule(nextShift)}</p>
+              <h3 class="text-lg font-bold">${escapeHtml(nextRoster.Name)}</h3>
+              <p class="text-sm text-base-content/60">${formatRosterSchedule(nextRoster)}</p>
               <div class="mt-1.5 flex flex-wrap gap-1">
-                ${nextShift.AssigneeProfileId ? namePill(nextShift.assigneeName) : '<span class="text-sm text-base-content/50">Unassigned</span>'}
+                ${nextRoster.UserId ? namePill(nextRoster.userName) : '<span class="text-sm text-base-content/50">Unassigned</span>'}
               </div>`
                     : `<p class="text-sm text-base-content/50">No shifts scheduled yet.</p>`
             }
@@ -82,7 +90,7 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
         <div class="stat">
           <div class="stat-figure text-primary">${icon('calendar', 'size-6')}</div>
           <div class="stat-title">Today's shifts</div>
-          <div class="stat-value text-2xl">${todayShifts.length}</div>
+          <div class="stat-value text-2xl">${todayRosters.length}</div>
           <div class="stat-desc">${todayAssignments} crew assignment${todayAssignments === 1 ? '' : 's'}</div>
         </div>
         <div class="stat">
@@ -92,10 +100,15 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
           <div class="stat-desc">${awaitingApproval} awaiting approval</div>
         </div>
         <div class="stat">
+          <div class="stat-figure text-secondary">${icon('clapper', 'size-6')}</div>
+          <div class="stat-title">Program requests</div>
+          <div class="stat-value text-2xl">${activePrograms.length}</div>
+          <div class="stat-desc">${programsAwaitingApproval} awaiting approval</div>
+        </div>
+        <div class="stat">
           <div class="stat-figure text-info">${icon('ticket', 'size-6')}</div>
           <div class="stat-title">Open tickets</div>
           <div class="stat-value text-2xl">${openTickets.length}</div>
-          <div class="stat-desc">${highPriorityOpen} high priority</div>
         </div>
         <div class="stat">
           <div class="stat-figure text-error">${icon('alert', 'size-6')}</div>
@@ -113,17 +126,17 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
               <button class="btn btn-ghost btn-xs" data-nav-section="roster">View all</button>
             </div>
             ${
-                dashboard.upcomingShifts.length === 0
+                dashboard.upcomingRosters.length === 0
                     ? renderEmptyState('calendar', 'No upcoming shifts.')
-                    : `<ul class="divide-y divide-base-200">${dashboard.upcomingShifts
+                    : `<ul class="divide-y divide-base-200">${dashboard.upcomingRosters
                           .slice(0, 4)
                           .map(
-                              (shift) => `
+                              (roster) => `
                       <li class="flex items-start justify-between gap-3 py-2.5">
                         <div class="min-w-0">
-                          <div class="truncate font-medium">${escapeHtml(shift.ShiftName)}</div>
-                          <div class="text-sm text-base-content/60">${formatShiftSchedule(shift)}</div>
-                          <div class="mt-1 text-sm text-base-content/70">${shift.assigneeName ? escapeHtml(shift.assigneeName) : 'Unassigned'}</div>
+                          <div class="truncate font-medium">${escapeHtml(roster.Name)}</div>
+                          <div class="text-sm text-base-content/60">${formatRosterSchedule(roster)}</div>
+                          <div class="mt-1 text-sm text-base-content/70">${roster.userName ? escapeHtml(roster.userName) : 'Unassigned'}</div>
                         </div>
                       </li>`,
                           )
@@ -148,8 +161,8 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
                       <li class="border-l-2 ${INVENTORY_REQUEST_STATUS_ACCENT[r.Status]} py-2.5 pl-3">
                         <div class="flex items-start justify-between gap-2">
                           <div class="min-w-0">
-                            <div class="truncate font-medium">${escapeHtml(r.Title)}</div>
-                            <div class="text-sm text-base-content/60">${escapeHtml(r.requesterName)} · ${r.items.map((i) => `${i.Quantity}× ${escapeHtml(i.itemName)}`).join(', ')}</div>
+                            <div class="truncate font-medium">${escapeHtml(r.Name)}</div>
+                            <div class="text-sm text-base-content/60">${escapeHtml(r.userName)} · ${r.items.map((i) => `${i.Quantity}× ${escapeHtml(i.itemName)}`).join(', ')}</div>
                           </div>
                           <div class="flex shrink-0 flex-col items-end gap-1">
                             ${isRequestOverdue(r) ? '<span class="badge badge-error badge-sm">Overdue</span>' : ''}

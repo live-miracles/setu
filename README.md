@@ -12,7 +12,7 @@ Browser
 Apps Script web app (doGet + ~30 exposed functions)
    |
    +--> Google Sheet (one tab per entity, via the SheetTable helper)
-   +--> Google Drive (private "Setu Attachments" folder)
+   +--> Google Drive (native DriveApp — request photos, "anyone with the link" view access)
    +--> MailApp (notification emails)
 
 Time-driven trigger --> daily overdue-request scan
@@ -52,11 +52,12 @@ All pushing/deploying happens in CI (see below) — nothing here needs `clasp` i
     - `CLASPRC_JSON` — the raw file contents printed by `cat ~/.clasprc.json` in step 4 (paste as-is, no encoding needed — GitHub secrets hold multi-line text fine). This is a long-lived OAuth refresh token for whichever Google account ran `clasp login` — treat it like a password; rotate by re-running `clasp login` and re-pasting.
 6. **Set Script Properties** (Apps Script editor → Project Settings → Script Properties):
     - `SPREADSHEET_ID` — the Sheet ID from step 1.
-    - `BOOTSTRAP_ADMIN_EMAIL` — the lowercase Google account email of the first administrator. The first person to open the app with that email becomes the first active admin; everyone else needs to be invited from the Admin section first.
+    - `ALLOWED_EMAIL_DOMAIN` — your organisation's Google Workspace email domain (e.g. `example.org`). Anyone signing in with a Google account on that domain self-registers as a member on first visit — see "Access" below.
+    - `BOOTSTRAP_ADMIN_EMAIL` — the lowercase Google account email of the first administrator. That email must also be on `ALLOWED_EMAIL_DOMAIN`; it's granted the `admin` role on first sign-in instead of `member`.
+    - `IMAGES_DRIVE_FOLDER_ID` — the ID of a Drive folder the deploying account already has edit access to, where request photos get uploaded.
 7. **Push the first version tag** (e.g. `git tag v0.1.0 && git push origin v0.1.0`), or run the workflow manually from the Actions tab, to build and push the real code to the deployment from step 3.
 8. **Run the one-time setup functions.** In the Apps Script editor, select and run (once each, in this order):
-    - `setupSheets` — idempotently creates all 19 tabs with their headers.
-    - `ensureAttachmentsFolder` — creates the private "Setu Attachments" Drive folder and stores its ID as a Script Property.
+    - `setupSheets` — idempotently creates all the tabs (one per table plus `Counters`) with their headers.
     - `installTriggers` — installs the daily overdue-request-scan trigger.
 9. **Find the live URL.** Apps Script editor → Deploy → Manage deployments, next to the deployment ID from step 3.
 
@@ -70,9 +71,11 @@ Each run: pushes the built code, creates an immutable Apps Script version named 
 
 The workflow reconstructs `.clasp.json` and `~/.clasprc.json` on the runner from the `APPS_SCRIPT_ID` and `CLASPRC_JSON` secrets before every run — neither file needs to (or should) exist in the repo or on your machine.
 
-## Inviting people
+## Access
 
-Access is gated by the `Profiles` sheet tab itself — there is no separate allowlist. An admin invites someone from the Admin section (creates a row with status `invited`); that person's first successful visit with the matching Google account flips them to `active`. Disabling a user immediately blocks every backend call for them.
+There is no invite flow and no per-user disable switch. The `Users` sheet tab (keyed by email) is the allowlist: anyone signing in with a Google account on `ALLOWED_EMAIL_DOMAIN` self-registers as a `member` on their first visit (or `admin`, for `BOOTSTRAP_ADMIN_EMAIL`). Revoking someone's organisation Google account revokes their access to this app — an admin can still change a person's role or department from the Admin section, but there is no in-app way to block a still-valid account.
+
+Inventory and program requests can also list `Participants` — a comma-separated list of emails notified alongside the requester and given the same submit permission on that request. Participants don't need to be registered Setu users; an email with no account just receives the notification.
 
 ## What's simplified vs. a "real" backend
 
@@ -80,11 +83,11 @@ This rewrite deliberately trades a few things for staying free and simple, appro
 
 - **Locking:** one coarse `LockService` mutex per mutation instead of Postgres row-level locking. Every create/action function wraps its _entire_ read-modify-write sequence in one lock (see `SheetTable.ts`'s `withLock`) — this specifically avoids the race multi-lang-qa's reference pattern has, where only the final write was locked.
 - **Idempotency:** a `CacheService`-backed dedupe check (`Dedupe.ts`) instead of a formal ledger table — good enough to survive double-taps and network retries, not a durable audit trail.
-- **Notifications:** email (`MailApp`) + in-app only. No push notifications — if `MailApp.sendEmail` throws, the failure is logged to the `FailedNotifications` tab and execution continues rather than retrying.
-- **Attachments:** private Google Drive folder instead of signed URLs. Every download re-runs the same access check that produced the upload permission, which is the closest equivalent without Storage-style signed links.
-- **Audit trail:** a plain append-only `ActivityLog` tab instead of an RLS-guarded, immutable audit table.
+- **Notifications:** email (`MailApp`) only. If `MailApp.sendEmail` throws, the failure is logged to the `FailedEmails` tab and execution continues rather than retrying.
+- **Images:** native `DriveApp` uploads (see `Images.ts`) with "anyone with the link" view access, rather than signed URLs — the closest equivalent without Storage-style signed links.
+- **Audit trail:** every status change on an inventory or program request is narrated as a plain comment authored by whoever performed it (see `Comments.ts`), rather than a separate immutable audit table.
 
 ## Known gaps in this build
 
-- Attachment upload isn't wired into the Inventory/Tickets UI yet (the backend functions and Drive folder structure exist; the file-picker widget in the frontend doesn't).
+- Participants and images can only be set when a request is created — there's no way to edit either afterward yet.
 - The UI is functional but not visually polished — action confirmations use `window.prompt`/`window.confirm` rather than proper modals.

@@ -40,10 +40,12 @@ function escapeHtml(value: unknown): string {
         .replace(/'/g, '&#39;');
 }
 
-function indexById<T extends { Id: string }>(rows: T[]): Record<string, T> {
+// Takes a keyFn (like groupBy below) rather than assuming an `Id` field,
+// since Users is keyed by Email instead — see SheetTable.ts's keyColumn.
+function indexBy<T>(rows: T[], keyFn: (row: T) => string): Record<string, T> {
     const map: Record<string, T> = {};
     rows.forEach((row) => {
-        map[row.Id] = row;
+        map[keyFn(row)] = row;
     });
     return map;
 }
@@ -83,4 +85,22 @@ function requireMinLength(value: string, min: number, message: string): string {
     const trimmed = String(value || '').trim();
     if (trimmed.length < min) throw new ValidationError(message);
     return trimmed;
+}
+
+// Participants is stored as one comma-separated cell (see InventoryRequest/
+// ProgramRequest in shared/types.d.ts) rather than a child table — trimmed,
+// lowercased and deduped on write so membership checks are plain string
+// equality against Session.getActiveUser().getEmail().
+function parseParticipants(raw: string): string[] {
+    const seen = new Set<string>();
+    String(raw || '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter((email) => email.length > 0)
+        .forEach((email) => seen.add(email));
+    return Array.from(seen);
+}
+
+function formatParticipants(emails: string[]): string {
+    return parseParticipants(emails.join(',')).join(', ');
 }

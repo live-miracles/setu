@@ -1,61 +1,32 @@
-function listUsers(): ProfileDTO[] {
+function listUsers(): UserDTO[] {
     requireAdmin();
-    return Tables.Profiles.readAll().map(toProfileDTO);
+    return Tables.Users.readAll().map(toUserDTO);
 }
 
-function inviteUser(input: InviteUserInput, requestId: string): ProfileDTO {
+function updateUser(userId: string, patch: UpdateUserInput): UserDTO {
     const actor = requireAdmin();
-    const email = requireNonEmpty(input.email, 'Email is required.').toLowerCase();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-
-    const { result } = withLockedDedupe('profile:invite', requestId, () => {
-        const existing = Tables.Profiles.findWhere((p) => p.Email === email)[0];
-        if (existing) throw new ConflictError('A profile with this email already exists.');
-        const created = Tables.Profiles.insert({
-            Email: email,
-            Name: name,
-            Role: input.role,
-            Status: 'invited',
-            DepartmentId: input.departmentId || '',
-            Timezone: input.timezone || 'Asia/Kolkata',
-            Phone: '',
-            Whatsapp: '',
-            NotificationEmail: true,
-        });
-        return created;
-    });
-
-    return toProfileDTO(result);
-}
-
-function updateUser(profileId: string, patch: UpdateUserInput): ProfileDTO {
-    const actor = requireAdmin();
-    const target = Tables.Profiles.findById(profileId);
+    const target = Tables.Users.findById(userId);
     if (!target) throw new ValidationError('not_found');
 
-    if (target.Id === actor.Id) {
-        if (patch.role && patch.role !== 'admin')
-            throw new ConflictError('You cannot demote your own account.');
-        if (patch.status && patch.status !== 'active')
-            throw new ConflictError('You cannot disable your own account.');
+    if (target.Email === actor.Email && patch.role && patch.role !== 'admin') {
+        throw new ConflictError('You cannot remove your own administrator access.');
     }
 
     const updated = withLock(() =>
-        Tables.Profiles.updateById(profileId, {
+        Tables.Users.updateById(userId, {
             Role: patch.role !== undefined ? patch.role : target.Role,
-            Status: patch.status !== undefined ? patch.status : target.Status,
             DepartmentId:
                 patch.departmentId !== undefined ? patch.departmentId : target.DepartmentId,
             Timezone: patch.timezone !== undefined ? patch.timezone : target.Timezone,
         }),
     );
-    return toProfileDTO(updated);
+    return toUserDTO(updated);
 }
 
-function updateOwnProfile(patch: UpdateOwnProfileInput): ProfileDTO {
+function updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO {
     const actor = requireUser();
     const updated = withLock(() =>
-        Tables.Profiles.updateById(actor.Id, {
+        Tables.Users.updateById(actor.Email, {
             Name:
                 patch.name !== undefined
                     ? requireNonEmpty(patch.name, 'Name is required.')
@@ -63,13 +34,9 @@ function updateOwnProfile(patch: UpdateOwnProfileInput): ProfileDTO {
             Phone: patch.phone !== undefined ? patch.phone : actor.Phone,
             Whatsapp: patch.whatsapp !== undefined ? patch.whatsapp : actor.Whatsapp,
             Timezone: patch.timezone !== undefined ? patch.timezone : actor.Timezone,
-            NotificationEmail:
-                patch.notificationEmail !== undefined
-                    ? patch.notificationEmail
-                    : actor.NotificationEmail,
         }),
     );
-    return toProfileDTO(updated);
+    return toUserDTO(updated);
 }
 
 function listDepartments(): Department[] {
@@ -89,25 +56,42 @@ function createDepartment(input: CreateDepartmentInput, requestId: string): Depa
     return result;
 }
 
-function listLocations(): Place[] {
+function listPlaces(): Place[] {
     requireUser();
-    return Tables.Locations.readAll();
+    return Tables.Places.readAll();
 }
 
-function createLocation(input: CreateLocationInput, requestId: string): Place {
+function createPlace(input: CreatePlaceInput, requestId: string): Place {
     requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result } = withLockedDedupe('location:create', requestId, () => {
-        return Tables.Locations.insert({
+    const { result } = withLockedDedupe('place:create', requestId, () => {
+        return Tables.Places.insert({
             Name: name,
         });
     });
     return result;
 }
 
+// Links have no dedicated tab — they're a JSON-encoded array in one
+// Settings row (Id 'links'), the same generic-key-value approach
+// HomeContent below already uses for its individual fields.
+function readLinks(): Link[] {
+    const setting = Tables.Settings.findById('links');
+    if (!setting || !setting.Value) return [];
+    try {
+        return JSON.parse(setting.Value) as Link[];
+    } catch (err) {
+        return [];
+    }
+}
+
+function writeLinks(links: Link[]): void {
+    upsertSetting('links', JSON.stringify(links));
+}
+
 function listLinks(): Link[] {
     requireUser();
-    return Tables.Links.readAll().sort((a, b) => a.Name.localeCompare(b.Name));
+    return readLinks().sort((a, b) => a.Name.localeCompare(b.Name));
 }
 
 function createLink(input: CreateLinkInput, requestId: string): Link {
@@ -115,11 +99,16 @@ function createLink(input: CreateLinkInput, requestId: string): Link {
     const name = requireNonEmpty(input.name, 'Name is required.');
     const url = requireNonEmpty(input.url, 'URL is required.');
     const { result } = withLockedDedupe('link:create', requestId, () => {
-        return Tables.Links.insert({
+        const created: Link = {
+            Id: Utilities.getUuid(),
             Name: name,
             Url: url,
             Enabled: input.enabled !== false,
-        });
+        };
+        const links = readLinks();
+        links.push(created);
+        writeLinks(links);
+        return created;
     });
     return result;
 }
@@ -127,7 +116,7 @@ function createLink(input: CreateLinkInput, requestId: string): Link {
 // Home content is just a handful of settings rows, keyed by field name
 // (see SettingRow in shared/types.d.ts).
 function readHomeContent(): HomeContent {
-    const settingsById = indexById(Tables.Settings.readAll());
+    const settingsById = indexBy(Tables.Settings.readAll(), (s) => s.Id);
     return {
         SupportMessage: settingsById['SupportMessage'] ? settingsById['SupportMessage'].Value : '',
         Guidelines: settingsById['Guidelines'] ? settingsById['Guidelines'].Value : '',

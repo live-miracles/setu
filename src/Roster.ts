@@ -1,24 +1,21 @@
 const ROSTER_PAGE_SIZE = 20;
 
-function buildRosterShiftDTO(
-    shift: RosterShift,
-    profilesById: Record<string, Profile>,
-): RosterShiftDTO {
-    const assignee = profilesById[shift.AssigneeProfileId];
-    return Object.assign({}, shift, { assigneeName: assignee ? assignee.Name : '' });
+function buildRosterDTO(roster: Roster, usersByEmail: Record<string, User>): RosterDTO {
+    const user = usersByEmail[roster.UserId];
+    return Object.assign({}, roster, { userName: user ? user.Name : '' });
 }
 
-function listRosterShifts(page: number): Paginated<RosterShiftDTO> {
+function listRosters(page: number): Paginated<RosterDTO> {
     requireUser();
-    const profilesById = indexById(Tables.Profiles.readAll());
-    const sorted = Tables.RosterShifts.readAll().sort((a, b) =>
+    const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
+    const sorted = Tables.Rosters.readAll().sort((a, b) =>
         (b.StartDate + b.StartTime).localeCompare(a.StartDate + a.StartTime),
     );
-    const dtos = sorted.map((shift) => buildRosterShiftDTO(shift, profilesById));
+    const dtos = sorted.map((roster) => buildRosterDTO(roster, usersByEmail));
     return paginate(dtos, page, ROSTER_PAGE_SIZE);
 }
 
-function createRosterShift(input: CreateRosterShiftInput, requestId: string): RosterShiftDTO {
+function createRoster(input: CreateRosterInput, requestId: string): RosterDTO {
     requireAdmin();
 
     if (!input.startDate || !input.endDate) {
@@ -35,34 +32,34 @@ function createRosterShift(input: CreateRosterShiftInput, requestId: string): Ro
     ) {
         throw new ValidationError('endTime must be after startTime.');
     }
-    if (!input.shiftName || !input.shiftName.trim()) {
-        throw new ValidationError('shiftName is required.');
+    if (!input.name || !input.name.trim()) {
+        throw new ValidationError('name is required.');
     }
 
-    if (!input.assigneeProfileId) throw new ValidationError('assigneeProfileId is required.');
-    const assignee = Tables.Profiles.findById(input.assigneeProfileId);
-    if (!assignee || assignee.Status !== 'active') {
-        throw new ValidationError('assignee_not_active: ' + input.assigneeProfileId);
+    if (!input.userId) throw new ValidationError('userId is required.');
+    const user = Tables.Users.findById(input.userId);
+    if (!user) {
+        throw new ValidationError('user_not_found: ' + input.userId);
     }
 
-    const { result: shift } = withLockedDedupe('roster:create', requestId, () => {
-        return Tables.RosterShifts.insert({
+    const { result: roster } = withLockedDedupe('roster:create', requestId, () => {
+        return Tables.Rosters.insert({
             StartDate: input.startDate,
             EndDate: input.endDate,
             StartTime: input.startTime || '',
             EndTime: input.endTime || '',
-            ShiftName: input.shiftName.trim(),
-            AssigneeProfileId: assignee.Id,
+            Name: input.name.trim(),
+            UserId: user.Email,
         });
     });
 
     sendNotificationEmail(
-        assignee.Id,
-        'roster:' + shift.Id + ':assigned',
+        user.Email,
+        'roster:' + roster.Id + ':assigned',
         'New shift scheduled',
-        'You have been assigned to a shift on ' + shift.StartDate + '.',
+        'You have been assigned to a shift on ' + roster.StartDate + '.',
         '?section=roster',
     );
 
-    return Object.assign({}, shift, { assigneeName: assignee.Name });
+    return Object.assign({}, roster, { userName: user.Name });
 }

@@ -1,55 +1,39 @@
 const TICKETS_PAGE_SIZE = 20;
 
-function buildTicketDTO(
-    ticket: Ticket,
-    profilesById: Record<string, Profile>,
-    locationsById: Record<string, Place>,
-): TicketDTO {
-    const reporter = profilesById[ticket.ReporterId];
-    const assignee = ticket.AssigneeId ? profilesById[ticket.AssigneeId] : undefined;
-    const location = locationsById[ticket.LocationId];
+function buildTicketDTO(ticket: Ticket, usersByEmail: Record<string, User>): TicketDTO {
+    const assignee = ticket.AssigneeId ? usersByEmail[ticket.AssigneeId] : undefined;
     return Object.assign({}, ticket, {
-        locationName: location ? location.Name : '',
-        reporterName: reporter ? reporter.Name : '',
         assigneeName: assignee ? assignee.Name : '',
     });
 }
 
 function listTickets(page: number): Paginated<TicketDTO> {
     requireUser();
-    const profilesById = indexById(Tables.Profiles.readAll());
-    const locationsById = indexById(Tables.Locations.readAll());
+    const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const dtos = Tables.Tickets.readAll()
         .sort((a, b) => b.DisplayId - a.DisplayId)
-        .map((t) => buildTicketDTO(t, profilesById, locationsById));
+        .map((t) => buildTicketDTO(t, usersByEmail));
     return paginate(dtos, page, TICKETS_PAGE_SIZE);
 }
 
 function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
     const actor = requireUser();
     const title = requireNonEmpty(input.title, 'Title is required.');
-    const location = Tables.Locations.findById(input.locationId);
-    if (!location) throw new ValidationError('location_not_found');
 
     const { result: ticket } = withLockedDedupe('ticket:create', requestId, () => {
         return Tables.Tickets.insert({
             DisplayId: getNextDisplayId('ticket'),
             Title: title,
             Description: input.description || '',
-            LocationId: input.locationId,
-            Priority: input.priority,
             Status: 'unassigned',
-            ReporterId: actor.Id,
             AssigneeId: '',
         });
     });
 
-    const admins = Tables.Profiles.findWhere(
-        (p) => p.Role === 'admin' && p.Status === 'active' && p.Id !== actor.Id,
-    );
+    const admins = Tables.Users.findWhere((u) => u.Role === 'admin' && u.Email !== actor.Email);
     admins.forEach((admin) => {
         sendNotificationEmail(
-            admin.Id,
+            admin.Email,
             'ticket:' + ticket.Id + ':created',
             'New ticket: TKT-' + ticket.DisplayId,
             actor.Name + ' reported: ' + ticket.Title,
@@ -57,11 +41,12 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
         );
     });
 
-    return buildTicketDTO(ticket, indexById([actor]), indexById([location]));
+    return buildTicketDTO(ticket, indexBy([actor], (u) => u.Email));
 }
 
 // Ported from the source app's `perform_ticket_action` Postgres function,
-// same one-lock-spans-the-whole-sequence discipline as Inventory.ts.
+// same one-lock-spans-the-whole-sequence discipline as Inventory.ts. There
+// is no reporter anymore, so 'close' is admin-or-assignee only.
 function performTicketAction(
     ticketId: string,
     action: TicketAction,
@@ -81,16 +66,15 @@ function performTicketAction(
             if (action === 'assign') {
                 if (actor.Role !== 'admin') throw new AuthorizationError('admin_required');
                 if (!assigneeId) throw new ValidationError('assignee_required');
-                const assignee = Tables.Profiles.findById(assigneeId);
-                if (!assignee || assignee.Status !== 'active')
-                    throw new ValidationError('assignee_not_active');
+                const assignee = Tables.Users.findById(assigneeId);
+                if (!assignee) throw new ValidationError('assignee_not_found');
                 computedStatus = 'pending';
                 Tables.Tickets.updateById(ticketId, {
                     Status: computedStatus,
                     AssigneeId: assigneeId,
                 });
             } else if (action === 'close') {
-                const isAssignee = ticket.AssigneeId === actor.Id;
+                const isAssignee = ticket.AssigneeId === actor.Email;
                 if (actor.Role !== 'admin' && !isAssignee)
                     throw new AuthorizationError('not_ticket_owner');
                 if (['unassigned', 'pending'].indexOf(ticket.Status) === -1)
@@ -119,7 +103,7 @@ function performTicketAction(
 function notifyOnTicketAction(
     ticketId: string,
     action: TicketAction,
-    actor: Profile,
+    actor: User,
     dedupeRequestId: string,
 ): void {
     const ticket = Tables.Tickets.findById(ticketId);
@@ -127,38 +111,17 @@ function notifyOnTicketAction(
     const eventKey = 'ticket:' + ticketId + ':' + action + ':' + dedupeRequestId;
     const title = 'TKT-' + ticket.DisplayId + ' ' + action + 'ed';
 
-    if (action === 'assign') {
-        if (ticket.AssigneeId && ticket.AssigneeId !== actor.Id) {
-            sendNotificationEmail(
-                ticket.AssigneeId,
-                eventKey,
-                title,
-                actor.Name + ' assigned you to: ' + ticket.Title,
-                '?section=tickets',
-            );
-        }
-    } else if (action === 'close') {
-        if (ticket.ReporterId !== actor.Id) {
-            sendNotificationEmail(
-                ticket.ReporterId,
-                eventKey,
-                title,
-                actor.Name + ' closed: ' + ticket.Title,
-                '?section=tickets',
-            );
-        }
-    } else if (action === 'reopen') {
-        const recipients = Array.from(
-            new Set([ticket.ReporterId, ticket.AssigneeId].filter((id) => id && id !== actor.Id)),
+    // The assignee is the only other interested party now that there's no
+    // reporter to track — notify them for any action they didn't perform
+    // themselves.
+    if (ticket.AssigneeId && ticket.AssigneeId !== actor.Email) {
+        const verb = action === 'assign' ? 'assigned you to' : action + 'd';
+        sendNotificationEmail(
+            ticket.AssigneeId,
+            eventKey,
+            title,
+            actor.Name + ' ' + verb + ': ' + ticket.Title,
+            '?section=tickets',
         );
-        recipients.forEach((id) => {
-            sendNotificationEmail(
-                id,
-                eventKey,
-                title,
-                actor.Name + ' reopened: ' + ticket.Title,
-                '?section=tickets',
-            );
-        });
     }
 }

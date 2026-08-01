@@ -1,8 +1,8 @@
 // Local-dev-only stand-in for the Apps Script backend. Excluded from the
 // production build (see build-tools/build.mjs). Rather than hand-writing one
-// stub per backend function (multi-lang-qa's style, fine for 7 functions),
-// this uses a generic Proxy so 02-api.ts's call sites are identical whether
-// they end up talking to `google.script.run` or to this mock.
+// stub per backend function, this uses a generic Proxy so 02-api.ts's call
+// sites are identical whether they end up talking to `google.script.run` or
+// to this mock.
 
 function mockNowIso(): string {
     return new Date().toISOString();
@@ -12,127 +12,118 @@ function mockUuid(): string {
     return 'mock-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
-const MOCK_SYSTEM_AUTHOR_ID = 'system';
+function mockParseParticipants(raw: string): string[] {
+    const seen = new Set<string>();
+    (raw || '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter((email) => email.length > 0)
+        .forEach((email) => seen.add(email));
+    return Array.from(seen);
+}
 
 const mockData = {
-    currentUserId: 'user-1',
-    profiles: [
+    currentUserId: 'admin@example.com',
+    users: [
         {
-            Id: 'user-1',
             Email: 'admin@example.com',
             Name: 'Alex Admin',
             Role: 'admin' as UserRole,
-            Status: 'active' as ProfileStatus,
             DepartmentId: 'dep-1',
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
-            NotificationEmail: true,
         },
         {
-            Id: 'user-2',
             Email: 'sam@example.com',
             Name: 'Sam Member',
             Role: 'member' as UserRole,
-            Status: 'active' as ProfileStatus,
             DepartmentId: 'dep-1',
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
-            NotificationEmail: true,
         },
-        {
-            Id: 'user-3',
-            Email: 'riya@example.com',
-            Name: 'Riya Crew',
-            Role: 'member' as UserRole,
-            Status: 'invited' as ProfileStatus,
-            DepartmentId: '',
-            Timezone: 'Asia/Kolkata',
-            Phone: '',
-            Whatsapp: '',
-            NotificationEmail: true,
-        },
-    ] as Profile[],
+    ] as User[],
     departments: [{ Id: 'dep-1', Name: 'Production', ShortName: 'PROD' }] as Department[],
-    locations: [
-        { Id: 'loc-1', Name: 'Studio A' },
-        { Id: 'loc-2', Name: 'Studio B' },
+    places: [
+        { Id: 'place-1', Name: 'Studio A' },
+        { Id: 'place-2', Name: 'Studio B' },
     ] as Place[],
-    equipmentTypes: [
+    inventoryTypes: [
         {
-            Id: 'eq-1',
+            Id: 'inv-1',
             Name: 'Camera',
             Description: 'Sony A7S III',
             Requestable: true,
-            ImageDriveFileId: '',
+            ImageId: '',
             TotalQuantity: 3,
         },
         {
-            Id: 'eq-2',
+            Id: 'inv-2',
             Name: 'Microphone',
             Description: 'Shure SM7B',
             Requestable: true,
-            ImageDriveFileId: '',
+            ImageId: '',
             TotalQuantity: 5,
         },
-    ] as EquipmentType[],
+    ] as InventoryType[],
     inventoryRequests: [
         {
             Id: 'req-1',
             DisplayId: 1,
-            Title: 'Weekend shoot',
-            RequesterId: 'user-2',
-            FromDate: new Date().toISOString().slice(0, 10),
-            ToDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
-            Purpose: 'Outdoor interview',
+            Name: 'Weekend shoot',
+            UserId: 'sam@example.com',
+            StartDate: new Date().toISOString().slice(0, 10),
+            EndDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
             Status: 'submitted' as InventoryRequestStatus,
-            AdminNote: '',
+            Image1Id: '',
+            Image2Id: '',
+            Image3Id: '',
+            Participants: '',
         },
     ] as InventoryRequest[],
-    inventoryRequestItems: [
+    inventoryItems: [
         {
             Id: 'reqitem-1',
             RequestId: 'req-1',
-            EquipmentTypeId: 'eq-1',
+            InventoryTypeId: 'inv-1',
             Quantity: 1,
             IssuedQuantity: 0,
             ReturnedQuantity: 0,
-            Condition: '',
+            Condition: '' as ReturnCondition | '',
         },
-    ] as InventoryRequestItem[],
-    rosterShifts: [
+    ] as InventoryItem[],
+    programRequests: [] as ProgramRequest[],
+    sessions: [] as ProgramSession[],
+    rosters: [
         {
-            Id: 'shift-1',
+            Id: 'roster-1',
+            Name: 'Morning',
             StartDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
             EndDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
             StartTime: '09:00',
             EndTime: '13:00',
-            ShiftName: 'Morning',
-            AssigneeProfileId: 'user-2',
+            UserId: 'sam@example.com',
         },
-    ] as RosterShift[],
+    ] as Roster[],
     tickets: [
         {
             Id: 'ticket-1',
             DisplayId: 1,
             Title: 'Projector flickering',
             Description: 'Studio A projector flickers after 30 minutes.',
-            LocationId: 'loc-1',
-            Priority: 'medium' as TicketPriority,
             Status: 'unassigned' as TicketStatus,
-            ReporterId: 'user-2',
             AssigneeId: '',
         },
     ] as Ticket[],
     comments: [
         {
             Id: 'comment-1',
-            OwnerType: 'inventory_request' as CommentOwnerType,
-            OwnerId: 'req-1',
-            AuthorId: MOCK_SYSTEM_AUTHOR_ID,
+            Timestamp: mockNowIso(),
+            ProgramRequestId: '',
+            InventoryRequestId: 'req-1',
+            UserId: 'sam@example.com',
             Message: 'Sam Member submitted this request.',
-            CreatedAt: mockNowIso(),
         },
     ] as CommentRecord[],
     links: [
@@ -149,139 +140,137 @@ const mockData = {
         WhatsappUrl: 'https://wa.me/10000000000',
         TutorialUrl: '',
     } as HomeContent,
-    nextDisplayId: { inventory_request: 2, ticket: 2 },
+    nextDisplayId: { inventory_request: 2, program_request: 1, ticket: 2 },
 };
 
-function mockCurrentProfile(): Profile {
-    return mockData.profiles.find((p) => p.Id === mockData.currentUserId)!;
+function mockCurrentUser(): User {
+    return mockData.users.find((u) => u.Email === mockData.currentUserId)!;
 }
 
-function mockToProfileDTO(profile: Profile): ProfileDTO {
-    const department = mockData.departments.find((d) => d.Id === profile.DepartmentId);
-    return Object.assign({}, profile, { departmentName: department ? department.Name : '' });
+function mockToUserDTO(user: User): UserDTO {
+    const department = mockData.departments.find((d) => d.Id === user.DepartmentId);
+    return Object.assign({}, user, { departmentName: department ? department.Name : '' });
 }
 
-function mockBuildRosterShiftDTO(shift: RosterShift): RosterShiftDTO {
-    const assignee = mockData.profiles.find((p) => p.Id === shift.AssigneeProfileId);
-    return Object.assign({}, shift, { assigneeName: assignee ? assignee.Name : '' });
+function mockBuildRosterDTO(roster: Roster): RosterDTO {
+    const user = mockData.users.find((u) => u.Email === roster.UserId);
+    return Object.assign({}, roster, { userName: user ? user.Name : '' });
 }
 
 function mockComputeDeductionsByType(): Record<string, number> {
     const deductions: Record<string, number> = {};
-    mockData.inventoryRequestItems.forEach((item) => {
-        deductions[item.EquipmentTypeId] =
-            (deductions[item.EquipmentTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
+    mockData.inventoryItems.forEach((item) => {
+        deductions[item.InventoryTypeId] =
+            (deductions[item.InventoryTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
     });
     return deductions;
 }
 
-function mockBuildEquipmentTypeDTOs(): EquipmentTypeDTO[] {
+function mockBuildInventoryTypeDTOs(): InventoryTypeDTO[] {
     const deductions = mockComputeDeductionsByType();
-    return mockData.equipmentTypes.map((t) =>
+    return mockData.inventoryTypes.map((t) =>
         Object.assign({}, t, { availableQuantity: t.TotalQuantity - (deductions[t.Id] || 0) }),
     );
 }
 
 function mockBuildCommentDTO(comment: CommentRecord): CommentDTO {
-    const author = mockData.profiles.find((p) => p.Id === comment.AuthorId);
-    const authorName =
-        comment.AuthorId === MOCK_SYSTEM_AUTHOR_ID ? 'Setu' : author ? author.Name : '';
-    return Object.assign({}, comment, { authorName });
+    const user = mockData.users.find((u) => u.Email === comment.UserId);
+    return Object.assign({}, comment, { userName: user ? user.Name : '' });
 }
 
-function mockCommentsFor(ownerType: CommentOwnerType, ownerId: string): CommentDTO[] {
+function mockCommentsForRequest(requestId: string): CommentDTO[] {
     return mockData.comments
-        .filter((c) => c.OwnerType === ownerType && c.OwnerId === ownerId)
-        .sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt))
+        .filter((c) => c.InventoryRequestId === requestId || c.ProgramRequestId === requestId)
+        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp))
         .map(mockBuildCommentDTO);
 }
 
-function mockInsertSystemComment(
-    ownerType: CommentOwnerType,
-    ownerId: string,
+function mockInsertActionComment(
+    kind: 'inventory' | 'program',
+    requestId: string,
+    actorId: string,
     message: string,
-): void {
-    mockData.comments.push({
+): CommentRecord {
+    const created: CommentRecord = {
         Id: mockUuid(),
-        OwnerType: ownerType,
-        OwnerId: ownerId,
-        AuthorId: MOCK_SYSTEM_AUTHOR_ID,
+        Timestamp: mockNowIso(),
+        InventoryRequestId: kind === 'inventory' ? requestId : '',
+        ProgramRequestId: kind === 'program' ? requestId : '',
+        UserId: actorId,
         Message: message,
-        CreatedAt: mockNowIso(),
-    });
+    };
+    mockData.comments.push(created);
+    return created;
 }
 
 function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryRequestDTO {
-    const requester = mockData.profiles.find((p) => p.Id === request.RequesterId);
-    const items = mockData.inventoryRequestItems
+    const requester = mockData.users.find((u) => u.Email === request.UserId);
+    const items = mockData.inventoryItems
         .filter((i) => i.RequestId === request.Id)
         .map((i) => {
-            const type = mockData.equipmentTypes.find((t) => t.Id === i.EquipmentTypeId);
+            const type = mockData.inventoryTypes.find((t) => t.Id === i.InventoryTypeId);
             return Object.assign({}, i, { itemName: type ? type.Name : '' });
         });
     return Object.assign({}, request, {
-        requesterName: requester ? requester.Name : '',
+        userName: requester ? requester.Name : '',
+        participants: mockParseParticipants(request.Participants),
         items,
-        comments: mockCommentsFor('inventory_request', request.Id),
+        comments: mockCommentsForRequest(request.Id),
+    });
+}
+
+function mockBuildProgramRequestDTO(request: ProgramRequest): ProgramRequestDTO {
+    const requester = mockData.users.find((u) => u.Email === request.UserId);
+    const place = mockData.places.find((p) => p.Id === request.PlaceId);
+    const sessions = mockData.sessions
+        .filter((s) => s.RequestId === request.Id)
+        .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
+    return Object.assign({}, request, {
+        userName: requester ? requester.Name : '',
+        placeName: place ? place.Name : '',
+        participants: mockParseParticipants(request.Participants),
+        sessions,
+        comments: mockCommentsForRequest(request.Id),
     });
 }
 
 function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
-    const reporter = mockData.profiles.find((p) => p.Id === ticket.ReporterId);
-    const assignee = mockData.profiles.find((p) => p.Id === ticket.AssigneeId);
-    const location = mockData.locations.find((l) => l.Id === ticket.LocationId);
+    const assignee = mockData.users.find((u) => u.Email === ticket.AssigneeId);
     return Object.assign({}, ticket, {
-        locationName: location ? location.Name : '',
-        reporterName: reporter ? reporter.Name : '',
         assigneeName: assignee ? assignee.Name : '',
     });
 }
 
 function mockBuildDashboard(): DashboardPayload {
     return {
-        me: mockToProfileDTO(mockCurrentProfile()),
+        me: mockToUserDTO(mockCurrentUser()),
         departments: mockData.departments,
-        locations: mockData.locations,
-        equipmentTypes: mockBuildEquipmentTypeDTOs(),
-        upcomingShifts: mockData.rosterShifts.map(mockBuildRosterShiftDTO),
+        places: mockData.places,
+        inventoryTypes: mockBuildInventoryTypeDTOs(),
+        upcomingRosters: mockData.rosters.map(mockBuildRosterDTO),
         inventoryRequests: mockData.inventoryRequests.map(mockBuildInventoryRequestDTO),
+        programRequests: mockData.programRequests.map(mockBuildProgramRequestDTO),
         tickets: mockData.tickets.map(mockBuildTicketDTO),
         links: mockData.links.filter((l) => l.Enabled),
         homeContent: mockData.homeContent,
-        failedNotificationCount: 0,
+        failedEmailCount: 0,
     };
 }
 
 const mockHandlers: Record<string, (...args: any[]) => any> = {
-    whoAmI: () => mockToProfileDTO(mockCurrentProfile()),
+    whoAmI: () => mockToUserDTO(mockCurrentUser()),
     getDashboard: () => mockBuildDashboard(),
 
-    listUsers: () => mockData.profiles.map(mockToProfileDTO),
-    inviteUser: (input: InviteUserInput) => {
-        const created: Profile = {
-            Id: mockUuid(),
-            Email: input.email.toLowerCase(),
-            Name: input.name,
-            Role: input.role,
-            Status: 'invited',
-            DepartmentId: input.departmentId || '',
-            Timezone: input.timezone || 'Asia/Kolkata',
-            Phone: '',
-            Whatsapp: '',
-            NotificationEmail: true,
-        };
-        mockData.profiles.push(created);
-        return mockToProfileDTO(created);
-    },
-    updateUser: (profileId: string, patch: UpdateUserInput) => {
-        const profile = mockData.profiles.find((p) => p.Id === profileId)!;
-        Object.assign(profile, patch);
-        return mockToProfileDTO(profile);
+    listUsers: () => mockData.users.map(mockToUserDTO),
+    updateUser: (userId: string, patch: UpdateUserInput) => {
+        const user = mockData.users.find((u) => u.Email === userId)!;
+        Object.assign(user, patch);
+        return mockToUserDTO(user);
     },
     updateOwnProfile: (patch: UpdateOwnProfileInput) => {
-        const profile = mockCurrentProfile();
-        Object.assign(profile, patch);
-        return mockToProfileDTO(profile);
+        const user = mockCurrentUser();
+        Object.assign(user, patch);
+        return mockToUserDTO(user);
     },
 
     listDepartments: () => mockData.departments,
@@ -295,10 +284,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return created;
     },
 
-    listLocations: () => mockData.locations,
-    createLocation: (input: CreateLocationInput) => {
+    listPlaces: () => mockData.places,
+    createPlace: (input: CreatePlaceInput) => {
         const created: Place = { Id: mockUuid(), Name: input.name };
-        mockData.locations.push(created);
+        mockData.places.push(created);
         return created;
     },
 
@@ -325,36 +314,36 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return mockData.homeContent;
     },
 
-    listRosterShifts: (page: number) => {
-        const items = mockData.rosterShifts.map(mockBuildRosterShiftDTO);
+    listRosters: (page: number) => {
+        const items = mockData.rosters.map(mockBuildRosterDTO);
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
-    createRosterShift: (input: CreateRosterShiftInput) => {
-        const created: RosterShift = {
+    createRoster: (input: CreateRosterInput) => {
+        const created: Roster = {
             Id: mockUuid(),
             StartDate: input.startDate,
             EndDate: input.endDate,
             StartTime: input.startTime || '',
             EndTime: input.endTime || '',
-            ShiftName: input.shiftName,
-            AssigneeProfileId: input.assigneeProfileId,
+            Name: input.name,
+            UserId: input.userId,
         };
-        mockData.rosterShifts.push(created);
-        return mockBuildRosterShiftDTO(created);
+        mockData.rosters.push(created);
+        return mockBuildRosterDTO(created);
     },
 
-    listEquipmentTypes: () => mockBuildEquipmentTypeDTOs(),
-    createEquipmentType: (input: CreateEquipmentTypeInput) => {
-        const created: EquipmentType = {
+    listInventoryTypes: () => mockBuildInventoryTypeDTOs(),
+    createInventoryType: (input: CreateInventoryTypeInput) => {
+        const created: InventoryType = {
             Id: mockUuid(),
             Name: input.name,
             Description: input.description || '',
             Requestable: input.requestable !== false,
-            ImageDriveFileId: '',
+            ImageId: '',
             TotalQuantity: input.totalQuantity,
         };
-        mockData.equipmentTypes.push(created);
-        return mockBuildEquipmentTypeDTOs().find((t) => t.Id === created.Id);
+        mockData.inventoryTypes.push(created);
+        return mockBuildInventoryTypeDTOs().find((t) => t.Id === created.Id);
     },
 
     listInventoryRequests: (page: number) => {
@@ -362,33 +351,38 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
     createInventoryRequest: (input: CreateInventoryRequestInput) => {
+        const participants = mockParseParticipants(input.participants);
+        const images = (input.images || []).slice(0, 3);
         const created: InventoryRequest = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.inventory_request++,
-            Title: input.title,
-            RequesterId: mockData.currentUserId,
-            FromDate: input.fromDate,
-            ToDate: input.toDate,
-            Purpose: input.purpose || '',
+            Name: input.name,
+            UserId: mockData.currentUserId,
+            StartDate: input.startDate,
+            EndDate: input.endDate,
             Status: 'submitted',
-            AdminNote: '',
+            Image1Id: images[0] || '',
+            Image2Id: images[1] || '',
+            Image3Id: images[2] || '',
+            Participants: participants.join(', '),
         };
         mockData.inventoryRequests.push(created);
         input.items.forEach((line) => {
-            mockData.inventoryRequestItems.push({
+            mockData.inventoryItems.push({
                 Id: mockUuid(),
                 RequestId: created.Id,
-                EquipmentTypeId: line.equipmentTypeId,
+                InventoryTypeId: line.inventoryTypeId,
                 Quantity: line.quantity,
                 IssuedQuantity: 0,
                 ReturnedQuantity: 0,
                 Condition: '',
             });
         });
-        mockInsertSystemComment(
-            'inventory_request',
+        mockInsertActionComment(
+            'inventory',
             created.Id,
-            mockCurrentProfile().Name + ' submitted this request.',
+            mockData.currentUserId,
+            mockCurrentUser().Name + ' submitted this request.',
         );
         return mockBuildInventoryRequestDTO(created);
     },
@@ -401,75 +395,171 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const request = mockData.inventoryRequests.find((r) => r.Id === requestId)!;
         if (!canTransitionInventoryRequest(request.Status, action))
             throw new Error('invalid_transition');
-        const actorName = mockCurrentProfile().Name;
+        const actorName = mockCurrentUser().Name;
+        const actorId = mockData.currentUserId;
 
         if (action === 'submit') {
             request.Status = 'submitted';
-            mockInsertSystemComment(
-                'inventory_request',
+            mockInsertActionComment(
+                'inventory',
                 requestId,
+                actorId,
                 actorName + ' submitted this request.',
             );
         } else if (action === 'approve') {
             request.Status = 'approved';
-            mockInsertSystemComment(
-                'inventory_request',
+            mockInsertActionComment(
+                'inventory',
                 requestId,
+                actorId,
                 actorName + ' approved this request.' + (note ? ' ' + note : ''),
             );
         } else if (action === 'reject') {
             request.Status = 'rejected';
-            request.AdminNote = note;
-            mockInsertSystemComment(
-                'inventory_request',
+            mockInsertActionComment(
+                'inventory',
                 requestId,
+                actorId,
                 actorName + ' rejected this request. ' + note,
             );
         } else if (action === 'issue') {
             request.Status = 'issued';
-            mockData.inventoryRequestItems
+            mockData.inventoryItems
                 .filter((i) => i.RequestId === requestId)
                 .forEach((item) => {
                     item.IssuedQuantity = item.Quantity;
                 });
-            mockInsertSystemComment(
-                'inventory_request',
+            mockInsertActionComment(
+                'inventory',
                 requestId,
+                actorId,
                 actorName + ' issued the equipment.' + (note ? ' ' + note : ''),
             );
         } else if (action === 'return' && returnItems) {
             const summaries: string[] = [];
             returnItems.forEach((ret) => {
-                const item = mockData.inventoryRequestItems.find(
-                    (i) => i.Id === ret.requestItemId,
-                )!;
+                const item = mockData.inventoryItems.find((i) => i.Id === ret.requestItemId)!;
                 item.ReturnedQuantity += ret.quantity;
                 item.Condition = ret.condition;
-                const type = mockData.equipmentTypes.find((t) => t.Id === item.EquipmentTypeId);
-                summaries.push(ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')');
+                const type = mockData.inventoryTypes.find((t) => t.Id === item.InventoryTypeId);
+                summaries.push(
+                    ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
+                );
             });
-            const allReturned = mockData.inventoryRequestItems
+            const allReturned = mockData.inventoryItems
                 .filter((i) => i.RequestId === requestId)
                 .every((i) => i.ReturnedQuantity >= i.IssuedQuantity);
             request.Status = allReturned ? 'returned' : 'issued';
-            mockInsertSystemComment(
-                'inventory_request',
+            mockInsertActionComment(
+                'inventory',
                 requestId,
+                actorId,
                 actorName + ' returned ' + summaries.join(', ') + '.',
             );
         } else if (action === 'cancel') {
             request.Status = 'cancelled';
-            request.AdminNote = note;
-            mockInsertSystemComment(
-                'inventory_request',
+            mockInsertActionComment(
+                'inventory',
                 requestId,
+                actorId,
                 actorName + ' cancelled this request. ' + note,
             );
         } else if (action === 'close') {
             request.Status = 'closed';
-            mockInsertSystemComment(
-                'inventory_request',
+            mockInsertActionComment(
+                'inventory',
                 requestId,
+                actorId,
+                actorName + ' closed this request.',
+            );
+        }
+        return request.Status;
+    },
+
+    listProgramRequests: (page: number) => {
+        const items = mockData.programRequests.map(mockBuildProgramRequestDTO);
+        return { items, page: page || 1, pageSize: 20, totalCount: items.length };
+    },
+    createProgramRequest: (input: CreateProgramRequestInput) => {
+        const participants = mockParseParticipants(input.participants);
+        const created: ProgramRequest = {
+            Id: mockUuid(),
+            DisplayId: mockData.nextDisplayId.program_request++,
+            Name: input.name,
+            Type: input.type,
+            UserId: mockData.currentUserId,
+            Status: 'submitted',
+            PlaceId: input.placeId,
+            Participants: participants.join(', '),
+        };
+        mockData.programRequests.push(created);
+        input.sessions.forEach((session) => {
+            mockData.sessions.push({
+                Id: mockUuid(),
+                Name: session.name,
+                Type: session.type,
+                RequestId: created.Id,
+                StartDateTime: session.startDateTime,
+                EndDateTime: session.endDateTime,
+            });
+        });
+        mockInsertActionComment(
+            'program',
+            created.Id,
+            mockData.currentUserId,
+            mockCurrentUser().Name + ' submitted this request.',
+        );
+        return mockBuildProgramRequestDTO(created);
+    },
+    performProgramRequestAction: (
+        requestId: string,
+        action: ProgramRequestAction,
+        note: string,
+    ) => {
+        const request = mockData.programRequests.find((r) => r.Id === requestId)!;
+        if (!canTransitionProgramRequest(request.Status, action))
+            throw new Error('invalid_transition');
+        const actorName = mockCurrentUser().Name;
+        const actorId = mockData.currentUserId;
+
+        if (action === 'submit') {
+            request.Status = 'submitted';
+            mockInsertActionComment(
+                'program',
+                requestId,
+                actorId,
+                actorName + ' submitted this request.',
+            );
+        } else if (action === 'approve') {
+            request.Status = 'approved';
+            mockInsertActionComment(
+                'program',
+                requestId,
+                actorId,
+                actorName + ' approved this request.' + (note ? ' ' + note : ''),
+            );
+        } else if (action === 'reject') {
+            request.Status = 'rejected';
+            mockInsertActionComment(
+                'program',
+                requestId,
+                actorId,
+                actorName + ' rejected this request. ' + note,
+            );
+        } else if (action === 'cancel') {
+            request.Status = 'cancelled';
+            mockInsertActionComment(
+                'program',
+                requestId,
+                actorId,
+                actorName + ' cancelled this request. ' + note,
+            );
+        } else if (action === 'close') {
+            request.Status = 'closed';
+            mockInsertActionComment(
+                'program',
+                requestId,
+                actorId,
                 actorName + ' closed this request.',
             );
         }
@@ -486,10 +576,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             DisplayId: mockData.nextDisplayId.ticket++,
             Title: input.title,
             Description: input.description || '',
-            LocationId: input.locationId,
-            Priority: input.priority,
             Status: 'unassigned',
-            ReporterId: mockData.currentUserId,
             AssigneeId: '',
         };
         mockData.tickets.push(created);
@@ -508,18 +595,18 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         }
         return ticket.Status;
     },
-    addComment: (ownerType: CommentOwnerType, ownerId: string, message: string) => {
-        const created: CommentRecord = {
-            Id: mockUuid(),
-            OwnerType: ownerType,
-            OwnerId: ownerId,
-            AuthorId: mockData.currentUserId,
-            Message: message,
-            CreatedAt: mockNowIso(),
-        };
-        mockData.comments.push(created);
+    addComment: (requestId: string, message: string) => {
+        const isInventory = mockData.inventoryRequests.some((r) => r.Id === requestId);
+        const created = mockInsertActionComment(
+            isInventory ? 'inventory' : 'program',
+            requestId,
+            mockData.currentUserId,
+            message,
+        );
         return mockBuildCommentDTO(created);
     },
+
+    uploadImage: (_base64Data: string, fileName: string) => 'mock-image-' + mockUuid() + '-' + fileName,
 };
 
 function mockRunner(

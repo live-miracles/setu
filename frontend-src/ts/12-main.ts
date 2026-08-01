@@ -1,4 +1,11 @@
-type SectionKey = 'home' | 'roster' | 'inventory' | 'tickets' | 'profile' | 'admin';
+type SectionKey =
+    | 'home'
+    | 'roster'
+    | 'inventory'
+    | 'programs'
+    | 'tickets'
+    | 'profile'
+    | 'admin';
 
 type SectionRenderer = (
     container: HTMLElement,
@@ -9,6 +16,7 @@ const SECTION_RENDERERS: Record<SectionKey, SectionRenderer> = {
     home: renderHome,
     roster: renderRoster,
     inventory: renderInventory,
+    programs: renderPrograms,
     tickets: renderTickets,
     profile: renderProfile,
     admin: renderAdmin,

@@ -4,16 +4,19 @@
 function dailyOverdueScan(): { scanned: number } {
     const todayIso = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
     const overdue = Tables.InventoryRequests.findWhere(
-        (r) => r.Status === 'issued' && r.ToDate < todayIso,
+        (r) => r.Status === 'issued' && r.EndDate < todayIso,
     );
     overdue.forEach((r) => {
-        sendNotificationEmail(
-            r.RequesterId,
-            'inventory:' + r.Id + ':overdue:' + todayIso,
-            'REQ-' + r.DisplayId + ' is overdue',
-            'The equipment was due on ' + r.ToDate + '. Please arrange its return.',
-            '?section=inventory',
-        );
+        const recipients = Array.from(new Set([r.UserId, ...parseParticipants(r.Participants)]));
+        recipients.forEach((email) => {
+            sendNotificationEmail(
+                email,
+                'inventory:' + r.Id + ':overdue:' + todayIso,
+                'REQ-' + r.DisplayId + ' is overdue',
+                'The equipment was due on ' + r.EndDate + '. Please arrange its return.',
+                '?section=inventory',
+            );
+        });
     });
     return { scanned: overdue.length };
 }

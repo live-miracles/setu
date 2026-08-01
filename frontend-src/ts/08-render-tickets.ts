@@ -24,22 +24,6 @@ async function renderTickets(container: HTMLElement, dashboard: DashboardPayload
               <input id="ticket-title" name="title" class="input w-full" placeholder="Short, searchable title" required />
               <label class="label" for="ticket-description">Description</label>
               <textarea id="ticket-description" name="description" class="textarea w-full" placeholder="What happened, when, and what have you already tried?"></textarea>
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label class="label" for="ticket-location">Location</label>
-                  <select id="ticket-location" name="locationId" class="select w-full" required>
-                    ${dashboard.locations.map((l) => `<option value="${l.Id}">${escapeHtml(l.Name)}</option>`).join('')}
-                  </select>
-                </div>
-                <div>
-                  <label class="label" for="ticket-priority">Priority</label>
-                  <select id="ticket-priority" name="priority" class="select w-full">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-              </div>
             </fieldset>
             <button type="submit" class="btn btn-primary">Create ticket</button>
           </form>
@@ -66,8 +50,6 @@ function wireCreateTicketForm(): void {
                 {
                     title: String(data.get('title')),
                     description: String(data.get('description') || ''),
-                    locationId: String(data.get('locationId')),
-                    priority: String(data.get('priority')) as TicketPriority,
                 },
                 generateRequestId(),
             );
@@ -115,7 +97,7 @@ function renderTicketCard(
     isAdmin: boolean,
     allActions: TicketAction[],
 ): string {
-    const isAssignee = ticket.AssigneeId === dashboard.me.Id;
+    const isAssignee = ticket.AssigneeId === dashboard.me.Email;
     const actions = allActions.filter((action) => {
         if (!canTransitionTicket(ticket.Status, action)) return false;
         if (action === 'close') return isAdmin || isAssignee;
@@ -130,13 +112,8 @@ function renderTicketCard(
             <div class="font-mono text-xs text-base-content/50">TKT-${ticket.DisplayId}</div>
             <h4 class="truncate font-medium leading-snug">${escapeHtml(ticket.Title)}</h4>
           </div>
-          ${
-              ticket.assigneeName
-                  ? `<span class="badge badge-ghost badge-sm shrink-0">${escapeHtml(ticket.assigneeName)}</span>`
-                  : `<span class="badge badge-sm shrink-0 ${TICKET_PRIORITY_BADGE[ticket.Priority]}">${escapeHtml(ticket.Priority)}</span>`
-          }
+          ${ticket.assigneeName ? `<span class="badge badge-ghost badge-sm shrink-0">${escapeHtml(ticket.assigneeName)}</span>` : ''}
         </div>
-        <div class="text-sm text-base-content/60">${escapeHtml(ticket.locationName)} · reported by ${escapeHtml(ticket.reporterName)}</div>
         ${ticket.Description ? `<p class="text-sm text-base-content/70">${escapeHtml(ticket.Description)}</p>` : ''}
 
         <div class="ticket-actions flex flex-wrap gap-2">
@@ -163,12 +140,11 @@ async function handleTicketAction(ticketId: string, action: TicketAction): Promi
     let assigneeId: string | null = null;
     if (action === 'assign') {
         const users = await api.listUsers();
-        const active = users.filter((u) => u.Status === 'active');
-        const names = active.map((u, i) => `${i + 1}. ${u.Name} (${u.Email})`).join('\n');
+        const names = users.map((u, i) => `${i + 1}. ${u.Name} (${u.Email})`).join('\n');
         const choice = window.prompt('Assign to (enter number):\n' + names);
         const index = Number(choice) - 1;
-        if (!active[index]) return;
-        assigneeId = active[index].Id;
+        if (!users[index]) return;
+        assigneeId = users[index].Email;
     }
 
     try {

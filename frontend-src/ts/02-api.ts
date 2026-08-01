@@ -32,15 +32,14 @@ const api: AsyncApi = {
     getDashboard: (...args) => callBackend('getDashboard', ...args),
 
     listUsers: (...args) => callBackend('listUsers', ...args),
-    inviteUser: (...args) => callBackend('inviteUser', ...args),
     updateUser: (...args) => callBackend('updateUser', ...args),
     updateOwnProfile: (...args) => callBackend('updateOwnProfile', ...args),
 
     listDepartments: (...args) => callBackend('listDepartments', ...args),
     createDepartment: (...args) => callBackend('createDepartment', ...args),
 
-    listLocations: (...args) => callBackend('listLocations', ...args),
-    createLocation: (...args) => callBackend('createLocation', ...args),
+    listPlaces: (...args) => callBackend('listPlaces', ...args),
+    createPlace: (...args) => callBackend('createPlace', ...args),
 
     listLinks: (...args) => callBackend('listLinks', ...args),
     createLink: (...args) => callBackend('createLink', ...args),
@@ -48,20 +47,25 @@ const api: AsyncApi = {
     getHomeContent: (...args) => callBackend('getHomeContent', ...args),
     updateHomeContent: (...args) => callBackend('updateHomeContent', ...args),
 
-    listRosterShifts: (...args) => callBackend('listRosterShifts', ...args),
-    createRosterShift: (...args) => callBackend('createRosterShift', ...args),
+    listRosters: (...args) => callBackend('listRosters', ...args),
+    createRoster: (...args) => callBackend('createRoster', ...args),
 
-    listEquipmentTypes: (...args) => callBackend('listEquipmentTypes', ...args),
-    createEquipmentType: (...args) => callBackend('createEquipmentType', ...args),
+    listInventoryTypes: (...args) => callBackend('listInventoryTypes', ...args),
+    createInventoryType: (...args) => callBackend('createInventoryType', ...args),
 
     listInventoryRequests: (...args) => callBackend('listInventoryRequests', ...args),
     createInventoryRequest: (...args) => callBackend('createInventoryRequest', ...args),
     performInventoryRequestAction: (...args) =>
         callBackend('performInventoryRequestAction', ...args),
 
+    listProgramRequests: (...args) => callBackend('listProgramRequests', ...args),
+    createProgramRequest: (...args) => callBackend('createProgramRequest', ...args),
+    performProgramRequestAction: (...args) => callBackend('performProgramRequestAction', ...args),
+
     listTickets: (...args) => callBackend('listTickets', ...args),
     createTicket: (...args) => callBackend('createTicket', ...args),
     performTicketAction: (...args) => callBackend('performTicketAction', ...args),
     addComment: (...args) => callBackend('addComment', ...args),
 
+    uploadImage: (...args) => callBackend('uploadImage', ...args),
 };

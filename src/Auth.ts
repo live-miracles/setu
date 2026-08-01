@@ -1,14 +1,16 @@
-function toProfileDTO(profile: Profile): ProfileDTO {
-    const department = profile.DepartmentId
-        ? Tables.Departments.findById(profile.DepartmentId)
-        : null;
-    return Object.assign({}, profile, { departmentName: department ? department.Name : '' });
+function toUserDTO(user: User): UserDTO {
+    const department = user.DepartmentId ? Tables.Departments.findById(user.DepartmentId) : null;
+    return Object.assign({}, user, { departmentName: department ? department.Name : '' });
 }
 
-// The `Profiles` sheet itself is the allowlist: a row must already exist
-// (created by an admin via inviteUser, status 'invited') before a Google
-// account is granted access. First successful call flips invited -> active.
-function getCurrentActor(): Profile {
+// The `Users` sheet is keyed by email (see SheetTable.ts's keyColumn) and
+// doubles as the allowlist, but unlike an invite flow there is no separate
+// approval step: anyone signing in with a Google account on
+// ALLOWED_EMAIL_DOMAIN self-registers as a member on first call, matching
+// the source app's domain-based auto-registration. There is also no
+// per-user disable switch — revoking access is entirely a matter of the
+// underlying Google account/domain membership, not a flag in this sheet.
+function getCurrentActor(): User {
     const email = String(Session.getActiveUser().getEmail() || '').toLowerCase();
     if (!email) {
         throw new AuthenticationError(
@@ -16,52 +18,41 @@ function getCurrentActor(): Profile {
         );
     }
 
-    let profile = Tables.Profiles.findWhere((p) => p.Email === email)[0] || null;
+    const existing = Tables.Users.findById(email);
+    if (existing) return existing;
 
-    if (!profile) {
-        const bootstrapEmail = (
-            PropertiesService.getScriptProperties().getProperty('BOOTSTRAP_ADMIN_EMAIL') || ''
-        ).toLowerCase();
-        const noProfilesYet = Tables.Profiles.readAll().length === 0;
-        if (noProfilesYet && bootstrapEmail && email === bootstrapEmail) {
-            profile = withLock(() => {
-                const alreadyCreated = Tables.Profiles.findWhere((p) => p.Email === email)[0];
-                if (alreadyCreated) return alreadyCreated;
-                return Tables.Profiles.insert({
-                    Email: email,
-                    Name: email.split('@')[0],
-                    Role: 'admin',
-                    Status: 'active',
-                    DepartmentId: '',
-                    Timezone: 'Asia/Kolkata',
-                    Phone: '',
-                    Whatsapp: '',
-                    NotificationEmail: true,
-                });
-            });
-        } else {
-            throw new AuthenticationError(
-                'Your Google account is not registered for this app. Ask an administrator to invite you.',
-            );
-        }
+    const props = PropertiesService.getScriptProperties();
+    const allowedDomain = (props.getProperty('ALLOWED_EMAIL_DOMAIN') || '').toLowerCase();
+    const emailDomain = email.split('@')[1] || '';
+    if (!allowedDomain || emailDomain !== allowedDomain) {
+        throw new AuthenticationError(
+            'Your Google account is not registered for this app. Ask an administrator.',
+        );
     }
 
-    if (profile.Status === 'disabled') {
-        throw new AuthorizationError('Your access has been disabled.');
-    }
+    const bootstrapEmail = (props.getProperty('BOOTSTRAP_ADMIN_EMAIL') || '').toLowerCase();
+    const isBootstrapAdmin = Boolean(bootstrapEmail) && email === bootstrapEmail;
 
-    if (profile.Status === 'invited') {
-        profile = withLock(() => Tables.Profiles.updateById(profile!.Id, { Status: 'active' }));
-    }
-
-    return profile;
+    return withLock(() => {
+        const alreadyCreated = Tables.Users.findById(email);
+        if (alreadyCreated) return alreadyCreated;
+        return Tables.Users.insert({
+            Email: email,
+            Name: email.split('@')[0],
+            Role: isBootstrapAdmin ? 'admin' : 'member',
+            DepartmentId: '',
+            Timezone: 'Asia/Kolkata',
+            Phone: '',
+            Whatsapp: '',
+        });
+    });
 }
 
-function requireUser(): Profile {
+function requireUser(): User {
     return getCurrentActor();
 }
 
-function requireAdmin(): Profile {
+function requireAdmin(): User {
     const actor = getCurrentActor();
     if (actor.Role !== 'admin') {
         throw new AuthorizationError('Administrator access is required.');
@@ -69,6 +60,6 @@ function requireAdmin(): Profile {
     return actor;
 }
 
-function whoAmI(): ProfileDTO {
-    return toProfileDTO(requireUser());
+function whoAmI(): UserDTO {
+    return toUserDTO(requireUser());
 }

@@ -34,12 +34,11 @@ async function renderRoster(container: HTMLElement, dashboard: DashboardPayload)
   `;
 
     wireInternalNavLinks(container);
-    renderRosterList(dashboard.upcomingShifts);
+    renderRosterList(dashboard.upcomingRosters);
     if (isAdmin) wireCreateShiftForm();
 }
 
-function renderCreateShiftForm(users: ProfileDTO[]): string {
-    const activeUsers = users.filter((u) => u.Status === 'active');
+function renderCreateShiftForm(users: UserDTO[]): string {
     return `
     <form id="${CREATE_SHIFT_FORM_ID}" class="card border border-base-300 bg-base-100 shadow">
       <div class="card-body gap-3">
@@ -74,9 +73,9 @@ function renderCreateShiftForm(users: ProfileDTO[]): string {
             <input id="${SHIFT_NAME_CUSTOM_INPUT_ID}" name="shiftNameCustom" type="text" class="input w-full" placeholder="e.g. Overnight standby" />
           </div>
           <label class="label" for="shift-assignee">Assignee</label>
-          <select id="shift-assignee" name="assigneeProfileId" class="select w-full" required>
+          <select id="shift-assignee" name="userId" class="select w-full" required>
             <option value="" disabled selected>Select a team member</option>
-            ${activeUsers.map((u) => `<option value="${u.Id}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`).join('')}
+            ${users.map((u) => `<option value="${u.Email}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`).join('')}
           </select>
         </fieldset>
         <div>
@@ -110,14 +109,14 @@ function wireCreateShiftForm(): void {
 
         try {
             showSavingBadge(true);
-            await api.createRosterShift(
+            await api.createRoster(
                 {
                     startDate: String(data.get('startDate')),
                     endDate: String(data.get('endDate')),
                     startTime: String(data.get('startTime') || ''),
                     endTime: String(data.get('endTime') || ''),
-                    shiftName,
-                    assigneeProfileId: String(data.get('assigneeProfileId')),
+                    name: shiftName,
+                    userId: String(data.get('userId')),
                 },
                 generateRequestId(),
             );
@@ -130,15 +129,15 @@ function wireCreateShiftForm(): void {
     });
 }
 
-function renderRosterList(shifts: RosterShiftDTO[]): void {
+function renderRosterList(rosters: RosterDTO[]): void {
     const list = document.getElementById(ROSTER_LIST_ID);
     if (!list) return;
     list.innerHTML =
-        shifts.length === 0
+        rosters.length === 0
             ? `<li class="py-2">${renderEmptyState('calendar', 'No shifts scheduled.')}</li>`
-            : shifts
-                  .map((shift) => {
-                      const tile = formatDayTile(shift.StartDate);
+            : rosters
+                  .map((roster) => {
+                      const tile = formatDayTile(roster.StartDate);
                       return `
               <li class="flex items-start gap-4 py-3">
                 <div class="flex w-14 shrink-0 flex-col items-center justify-center rounded-box bg-base-200 py-1.5">
@@ -147,11 +146,11 @@ function renderRosterList(shifts: RosterShiftDTO[]): void {
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-center gap-2">
-                    <span class="font-medium">${escapeHtml(shift.ShiftName)}</span>
-                    <span class="text-sm text-base-content/60">${formatShiftSchedule(shift)}</span>
+                    <span class="font-medium">${escapeHtml(roster.Name)}</span>
+                    <span class="text-sm text-base-content/60">${formatRosterSchedule(roster)}</span>
                   </div>
                   <div class="mt-1.5 flex flex-wrap gap-1">
-                    ${shift.AssigneeProfileId ? namePill(shift.assigneeName) : '<span class="text-sm text-base-content/50">Unassigned</span>'}
+                    ${roster.UserId ? namePill(roster.userName) : '<span class="text-sm text-base-content/50">Unassigned</span>'}
                   </div>
                 </div>
               </li>`;

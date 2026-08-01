@@ -1,5 +1,5 @@
 // Mandatory anywhere untrusted strings (ticket titles/descriptions/comments,
-// purposes, admin notes, names) get interpolated into innerHTML-built
+// request names, admin notes, names) get interpolated into innerHTML-built
 // templates — fixes a known XSS gap in the multi-lang-qa reference pattern
 // rather than reproducing it.
 function escapeHtml(value: unknown): string {
@@ -54,25 +54,37 @@ function formatTimeOfDay(time: string): string {
     });
 }
 
-function formatShiftSchedule(shift: {
+function formatRosterSchedule(roster: {
     StartDate: string;
     EndDate: string;
     StartTime: string;
     EndTime: string;
 }): string {
     const dateLabel =
-        shift.StartDate === shift.EndDate
-            ? formatDateOnly(shift.StartDate)
-            : `${formatDateOnly(shift.StartDate)} – ${formatDateOnly(shift.EndDate)}`;
-    const startTime = formatTimeOfDay(shift.StartTime);
-    const endTime = formatTimeOfDay(shift.EndTime);
+        roster.StartDate === roster.EndDate
+            ? formatDateOnly(roster.StartDate)
+            : `${formatDateOnly(roster.StartDate)} – ${formatDateOnly(roster.EndDate)}`;
+    const startTime = formatTimeOfDay(roster.StartTime);
+    const endTime = formatTimeOfDay(roster.EndTime);
     const timeLabel = startTime && endTime ? `${startTime} – ${endTime}` : startTime || endTime;
     return timeLabel ? `${dateLabel} · ${timeLabel}` : dateLabel;
 }
 
+function formatDateTime(iso: string): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+}
+
 function isRequestOverdue(request: InventoryRequestDTO): boolean {
-    if (request.Status !== 'issued' || !request.ToDate) return false;
-    return new Date(request.ToDate).getTime() < Date.now();
+    if (request.Status !== 'issued' || !request.EndDate) return false;
+    return new Date(request.EndDate).getTime() < Date.now();
 }
 
 function showSavingBadge(saving: boolean): void {
@@ -122,6 +134,7 @@ type IconName =
     | 'home'
     | 'calendar'
     | 'box'
+    | 'clapper'
     | 'ticket'
     | 'user'
     | 'shield'
@@ -137,6 +150,8 @@ const ICON_PATHS: Record<IconName, string> = {
     calendar:
         '<rect x="4" y="5" width="16" height="15" rx="2" /><line x1="4" y1="9" x2="20" y2="9" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="16" y1="3" x2="16" y2="7" />',
     box: '<path d="M3.5 8 12 4l8.5 4L12 12 3.5 8Z" /><path d="M3.5 8v8L12 20l8.5-4V8" /><path d="M12 12v8" />',
+    clapper:
+        '<path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9Z" /><path d="M4 9 5 5h3l-1 4Z" /><path d="M9.5 9 10.5 5h3l-1 4Z" /><path d="M15 9l1-4h3l-1 4Z" />',
     ticket: '<rect x="3" y="6" width="18" height="12" rx="2" /><line x1="9" y1="6" x2="9" y2="18" stroke-dasharray="2.2 2.2" />',
     user: '<circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3.2-6 7-6s7 2.5 7 6" />',
     shield: '<path d="M12 3.5 5 6v5.5c0 5 3 8 7 9 4-1 7-4 7-9V6l-7-2.5Z" /><path d="M9 12l2 2 4-4" />',
@@ -201,6 +216,24 @@ const INVENTORY_REQUEST_STATUS_ACCENT: Record<InventoryRequestStatus, string> = 
     cancelled: 'border-base-300',
 };
 
+const PROGRAM_REQUEST_STATUS_BADGE: Record<ProgramRequestStatus, string> = {
+    draft: 'badge-ghost',
+    submitted: 'badge-soft badge-warning',
+    approved: 'badge-soft badge-success',
+    closed: 'badge-ghost',
+    rejected: 'badge-soft badge-error',
+    cancelled: 'badge-ghost',
+};
+
+const PROGRAM_REQUEST_STATUS_ACCENT: Record<ProgramRequestStatus, string> = {
+    draft: 'border-base-300',
+    submitted: 'border-warning',
+    approved: 'border-success',
+    closed: 'border-base-300',
+    rejected: 'border-error',
+    cancelled: 'border-base-300',
+};
+
 const TICKET_STATUS_BADGE: Record<TicketStatus, string> = {
     unassigned: 'badge-soft badge-warning',
     pending: 'badge-soft badge-info',
@@ -213,24 +246,20 @@ const TICKET_STATUS_ACCENT: Record<TicketStatus, string> = {
     closed: 'border-base-300',
 };
 
-const TICKET_PRIORITY_BADGE: Record<TicketPriority, string> = {
-    low: 'badge-ghost',
-    medium: 'badge-soft badge-warning',
-    high: 'badge-soft badge-error',
-};
-
-const PROFILE_STATUS_BADGE: Record<ProfileStatus, string> = {
-    invited: 'badge-soft badge-warning',
-    active: 'badge-soft badge-success',
-    disabled: 'badge-soft badge-error',
-};
-
 const INVENTORY_REQUEST_ACTION_BTN: Record<InventoryRequestAction, string> = {
     submit: 'btn-primary btn-soft',
     approve: 'btn-success btn-soft',
     reject: 'btn-error btn-soft',
     issue: 'btn-info btn-soft',
     return: 'btn-success btn-soft',
+    cancel: 'btn-ghost',
+    close: 'btn-ghost',
+};
+
+const PROGRAM_REQUEST_ACTION_BTN: Record<ProgramRequestAction, string> = {
+    submit: 'btn-primary btn-soft',
+    approve: 'btn-success btn-soft',
+    reject: 'btn-error btn-soft',
     cancel: 'btn-ghost',
     close: 'btn-ghost',
 };
@@ -272,11 +301,6 @@ function timeAgo(iso: string): string {
     return 'just now';
 }
 
-const SYSTEM_COMMENT_AUTHOR_ID = 'system';
-
 function renderCommentLine(comment: CommentDTO): string {
-    if (comment.AuthorId === SYSTEM_COMMENT_AUTHOR_ID) {
-        return `<div class="italic text-base-content/50">${escapeHtml(comment.Message)}</div>`;
-    }
-    return `<div><span class="font-medium">${escapeHtml(comment.authorName)}</span> <span class="text-base-content/70">${escapeHtml(comment.Message)}</span></div>`;
+    return `<div><span class="font-medium">${escapeHtml(comment.userName)}</span> <span class="text-base-content/70">${escapeHtml(comment.Message)}</span></div>`;
 }

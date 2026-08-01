@@ -2,7 +2,7 @@ async function renderProfile(container: HTMLElement, dashboard: DashboardPayload
     const me = dashboard.me;
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderSectionHeader('user', 'Profile', 'Your contact details and notification preferences.')}
+      ${renderSectionHeader('user', 'Profile', 'Your contact details.')}
 
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-3">
@@ -54,10 +54,6 @@ async function renderProfile(container: HTMLElement, dashboard: DashboardPayload
               </div>
               <label class="label" for="profile-timezone">Time zone</label>
               <input id="profile-timezone" name="timezone" class="input w-full" value="${escapeHtml(me.Timezone)}" />
-              <label class="label mt-1 cursor-pointer justify-start gap-2">
-                <input type="checkbox" name="notificationEmail" class="checkbox checkbox-sm" ${me.NotificationEmail ? 'checked' : ''} />
-                <span>Email me about assignments, approvals and tickets</span>
-              </label>
             </fieldset>
             <button type="submit" class="btn btn-primary">Save changes</button>
           </form>
@@ -77,7 +73,6 @@ async function renderProfile(container: HTMLElement, dashboard: DashboardPayload
                 phone: String(data.get('phone') || ''),
                 whatsapp: String(data.get('whatsapp') || ''),
                 timezone: String(data.get('timezone') || ''),
-                notificationEmail: data.get('notificationEmail') === 'on',
             });
             await refreshDashboard();
         } catch (err) {

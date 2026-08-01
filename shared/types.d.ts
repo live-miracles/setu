@@ -8,7 +8,6 @@
 // `nowIso`, etc. are callable from any other file with no import).
 
 type UserRole = 'admin' | 'member';
-type ProfileStatus = 'invited' | 'active' | 'disabled';
 type InventoryRequestStatus =
     | 'draft'
     | 'submitted'
@@ -18,19 +17,22 @@ type InventoryRequestStatus =
     | 'returned'
     | 'cancelled'
     | 'closed';
+type ProgramRequestStatus =
+    | 'draft'
+    | 'submitted'
+    | 'approved'
+    | 'rejected'
+    | 'cancelled'
+    | 'closed';
 type ReturnCondition = 'good' | 'damaged' | 'missing';
 type TicketStatus = 'unassigned' | 'pending' | 'closed';
-type TicketPriority = 'low' | 'medium' | 'high';
 type InventoryRequestAction =
     'submit' | 'approve' | 'reject' | 'issue' | 'return' | 'cancel' | 'close';
+type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel' | 'close';
 type TicketAction = 'assign' | 'close' | 'reopen';
-// Only inventory requests carry comments today (their status-change
-// history, plus manual notes). Extend this union when a new commentable
-// section is added (e.g. studio booking requests).
-type CommentOwnerType = 'inventory_request';
 
 // ---------------------------------------------------------------------------
-// Sheet row shapes (raw, one per tab; see plan section 1)
+// Sheet row shapes (raw, one per tab)
 // ---------------------------------------------------------------------------
 
 interface Department {
@@ -44,60 +46,89 @@ interface Place {
     Name: string;
 }
 
-interface Profile {
-    Id: string;
+// Email is the primary key itself (lowercased) — no separate generated id.
+// See the email-domain auto-registration in Auth.ts and the keyColumn
+// support in SheetTable.ts.
+interface User {
     Email: string;
     Name: string;
     Role: UserRole;
-    Status: ProfileStatus;
     DepartmentId: string;
     Timezone: string;
     Phone: string;
     Whatsapp: string;
-    NotificationEmail: boolean;
 }
 
-interface RosterShift {
+interface Roster {
     Id: string;
+    Name: string;
     StartDate: string;
     EndDate: string;
     StartTime: string;
     EndTime: string;
-    ShiftName: string;
-    AssigneeProfileId: string;
+    UserId: string;
 }
 
-interface EquipmentType {
+// Type-level catalog only; there is no per-unit/serial-tracked row.
+// "Available" is computed on read, not stored — see Inventory.ts.
+interface InventoryType {
     Id: string;
     Name: string;
     Description: string;
     Requestable: boolean;
-    ImageDriveFileId: string;
+    ImageId: string;
     TotalQuantity: number;
 }
 
-// Status-change history (who/when) lives in Comments (OwnerType
-// 'inventory_request'), posted by the system actor — see Comments.ts.
+// Status-change history (who/when) lives in Comments — every transition is
+// narrated there as a comment authored by the acting user. See Comments.ts.
 interface InventoryRequest {
     Id: string;
     DisplayId: number;
-    Title: string;
-    RequesterId: string;
-    FromDate: string;
-    ToDate: string;
-    Purpose: string;
+    Name: string;
+    UserId: string;
+    StartDate: string;
+    EndDate: string;
     Status: InventoryRequestStatus;
-    AdminNote: string;
+    Image1Id: string;
+    Image2Id: string;
+    Image3Id: string;
+    // Comma-separated emails. Co-own the request (see the submit-permission
+    // check in Inventory.ts) and are notified alongside UserId.
+    Participants: string;
 }
 
-interface InventoryRequestItem {
+interface InventoryItem {
     Id: string;
     RequestId: string;
-    EquipmentTypeId: string;
+    InventoryTypeId: string;
     Quantity: number;
     IssuedQuantity: number;
     ReturnedQuantity: number;
     Condition: ReturnCondition | '';
+}
+
+interface ProgramRequest {
+    Id: string;
+    DisplayId: number;
+    Name: string;
+    Type: string;
+    UserId: string;
+    Status: ProgramRequestStatus;
+    PlaceId: string;
+    Participants: string;
+}
+
+// One or more scheduled sessions per program request. Named ProgramSession
+// (not Session) to avoid colliding with Apps Script's own global `Session`
+// service (Session.getActiveUser(), used in Auth.ts).
+interface ProgramSession {
+    Id: string;
+    Name: string;
+    Type: string;
+    RequestId: string;
+    StartDateTime: string;
+    EndDateTime: string;
 }
 
 interface Ticket {
@@ -105,23 +136,24 @@ interface Ticket {
     DisplayId: number;
     Title: string;
     Description: string;
-    LocationId: string;
-    Priority: TicketPriority;
     Status: TicketStatus;
-    ReporterId: string;
     AssigneeId: string;
 }
 
-// Also used to narrate status changes on its owner: AuthorId ===
-// SYSTEM_ACTOR_ID for those, a real Profile Id for user-typed comments.
-// See Comments.ts.
+// The audit trail for InventoryRequests and ProgramRequests: every status
+// change is narrated here by the acting user, alongside whatever comments
+// people type themselves. Exactly one of ProgramRequestId/InventoryRequestId
+// is set per row (mirrors master's two-nullable-FK design); addComment
+// resolves which one to populate by looking the request id up in
+// InventoryRequests then ProgramRequests — see findRequestOwner in
+// Comments.ts. Tickets have no comments.
 interface CommentRecord {
     Id: string;
-    OwnerType: CommentOwnerType;
-    OwnerId: string;
-    AuthorId: string;
+    Timestamp: string;
+    ProgramRequestId: string;
+    InventoryRequestId: string;
+    UserId: string;
     Message: string;
-    CreatedAt: string;
 }
 
 interface Link {
@@ -131,9 +163,10 @@ interface Link {
     Enabled: boolean;
 }
 
-// Generic key-value store, e.g. for the Home content fields below — Id
-// doubles as the setting's key (see readHomeContent/upsertSetting in
-// Admin.ts).
+// Generic key-value store, e.g. for the Home content fields below and
+// display-id counters — Id doubles as the setting's key (see
+// readHomeContent/upsertSetting in Admin.ts, getNextDisplayId in
+// SheetTable.ts).
 interface SettingRow {
     Id: string;
     Value: string;
@@ -146,11 +179,10 @@ interface HomeContent {
     TutorialUrl: string;
 }
 
-interface FailedNotification {
+interface FailedEmail {
     Id: string;
     Timestamp: string;
-    RecipientId: string;
-    Channel: 'email';
+    UserId: string;
     Title: string;
     Message: string;
     Error: string;
@@ -160,35 +192,42 @@ interface FailedNotification {
 // Joined/display DTOs returned to the frontend
 // ---------------------------------------------------------------------------
 
-interface ProfileDTO extends Profile {
+interface UserDTO extends User {
     departmentName: string;
 }
 
-interface RosterShiftDTO extends RosterShift {
-    assigneeName: string;
+interface RosterDTO extends Roster {
+    userName: string;
 }
 
-interface EquipmentTypeDTO extends EquipmentType {
+interface InventoryTypeDTO extends InventoryType {
     availableQuantity: number;
 }
 
-interface InventoryRequestItemDTO extends InventoryRequestItem {
+interface InventoryItemDTO extends InventoryItem {
     itemName: string;
 }
 
 interface InventoryRequestDTO extends InventoryRequest {
-    requesterName: string;
-    items: InventoryRequestItemDTO[];
+    userName: string;
+    participants: string[];
+    items: InventoryItemDTO[];
+    comments: CommentDTO[];
+}
+
+interface ProgramRequestDTO extends ProgramRequest {
+    userName: string;
+    placeName: string;
+    participants: string[];
+    sessions: ProgramSession[];
     comments: CommentDTO[];
 }
 
 interface CommentDTO extends CommentRecord {
-    authorName: string;
+    userName: string;
 }
 
 interface TicketDTO extends Ticket {
-    locationName: string;
-    reporterName: string;
     assigneeName: string;
 }
 
@@ -200,16 +239,17 @@ interface Paginated<T> {
 }
 
 interface DashboardPayload {
-    me: ProfileDTO;
+    me: UserDTO;
     departments: Department[];
-    locations: Place[];
-    equipmentTypes: EquipmentTypeDTO[];
-    upcomingShifts: RosterShiftDTO[];
+    places: Place[];
+    inventoryTypes: InventoryTypeDTO[];
+    upcomingRosters: RosterDTO[];
     inventoryRequests: InventoryRequestDTO[];
+    programRequests: ProgramRequestDTO[];
     tickets: TicketDTO[];
     links: Link[];
     homeContent: HomeContent;
-    failedNotificationCount: number;
+    failedEmailCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -221,21 +261,12 @@ interface CreateDepartmentInput {
     shortName: string;
 }
 
-interface CreateLocationInput {
+interface CreatePlaceInput {
     name: string;
-}
-
-interface InviteUserInput {
-    email: string;
-    name: string;
-    role: UserRole;
-    departmentId: string;
-    timezone: string;
 }
 
 interface UpdateUserInput {
     role?: UserRole;
-    status?: ProfileStatus;
     departmentId?: string;
     timezone?: string;
 }
@@ -245,19 +276,18 @@ interface UpdateOwnProfileInput {
     phone?: string;
     whatsapp?: string;
     timezone?: string;
-    notificationEmail?: boolean;
 }
 
-interface CreateRosterShiftInput {
+interface CreateRosterInput {
+    name: string;
     startDate: string;
     endDate: string;
     startTime: string;
     endTime: string;
-    shiftName: string;
-    assigneeProfileId: string;
+    userId: string;
 }
 
-interface CreateEquipmentTypeInput {
+interface CreateInventoryTypeInput {
     name: string;
     description: string;
     requestable: boolean;
@@ -265,11 +295,12 @@ interface CreateEquipmentTypeInput {
 }
 
 interface CreateInventoryRequestInput {
-    title: string;
-    fromDate: string;
-    toDate: string;
-    purpose: string;
-    items: { equipmentTypeId: string; quantity: number }[];
+    name: string;
+    startDate: string;
+    endDate: string;
+    items: { inventoryTypeId: string; quantity: number }[];
+    images: string[];
+    participants: string;
 }
 
 interface ReturnItemInput {
@@ -278,11 +309,24 @@ interface ReturnItemInput {
     condition: ReturnCondition;
 }
 
+interface ProgramSessionInput {
+    name: string;
+    type: string;
+    startDateTime: string;
+    endDateTime: string;
+}
+
+interface CreateProgramRequestInput {
+    name: string;
+    type: string;
+    placeId: string;
+    sessions: ProgramSessionInput[];
+    participants: string;
+}
+
 interface CreateTicketInput {
     title: string;
     description: string;
-    locationId: string;
-    priority: TicketPriority;
 }
 
 interface CreateLinkInput {
@@ -304,19 +348,18 @@ interface UpdateHomeContentInput {
 // ---------------------------------------------------------------------------
 
 interface Api {
-    whoAmI(): ProfileDTO;
+    whoAmI(): UserDTO;
     getDashboard(): DashboardPayload;
 
-    listUsers(): ProfileDTO[];
-    inviteUser(input: InviteUserInput, requestId: string): ProfileDTO;
-    updateUser(profileId: string, patch: UpdateUserInput): ProfileDTO;
-    updateOwnProfile(patch: UpdateOwnProfileInput): ProfileDTO;
+    listUsers(): UserDTO[];
+    updateUser(userId: string, patch: UpdateUserInput): UserDTO;
+    updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO;
 
     listDepartments(): Department[];
     createDepartment(input: CreateDepartmentInput, requestId: string): Department;
 
-    listLocations(): Place[];
-    createLocation(input: CreateLocationInput, requestId: string): Place;
+    listPlaces(): Place[];
+    createPlace(input: CreatePlaceInput, requestId: string): Place;
 
     listLinks(): Link[];
     createLink(input: CreateLinkInput, requestId: string): Link;
@@ -324,11 +367,11 @@ interface Api {
     getHomeContent(): HomeContent;
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;
 
-    listRosterShifts(page: number): Paginated<RosterShiftDTO>;
-    createRosterShift(input: CreateRosterShiftInput, requestId: string): RosterShiftDTO;
+    listRosters(page: number): Paginated<RosterDTO>;
+    createRoster(input: CreateRosterInput, requestId: string): RosterDTO;
 
-    listEquipmentTypes(): EquipmentTypeDTO[];
-    createEquipmentType(input: CreateEquipmentTypeInput, requestId: string): EquipmentTypeDTO;
+    listInventoryTypes(): InventoryTypeDTO[];
+    createInventoryType(input: CreateInventoryTypeInput, requestId: string): InventoryTypeDTO;
 
     listInventoryRequests(page: number): Paginated<InventoryRequestDTO>;
     createInventoryRequest(
@@ -343,6 +386,15 @@ interface Api {
         dedupeRequestId: string,
     ): InventoryRequestStatus;
 
+    listProgramRequests(page: number): Paginated<ProgramRequestDTO>;
+    createProgramRequest(input: CreateProgramRequestInput, requestId: string): ProgramRequestDTO;
+    performProgramRequestAction(
+        requestId: string,
+        action: ProgramRequestAction,
+        note: string,
+        dedupeRequestId: string,
+    ): ProgramRequestStatus;
+
     listTickets(page: number): Paginated<TicketDTO>;
     createTicket(input: CreateTicketInput, requestId: string): TicketDTO;
     performTicketAction(
@@ -351,11 +403,7 @@ interface Api {
         assigneeId: string | null,
         dedupeRequestId: string,
     ): TicketStatus;
-    addComment(
-        ownerType: CommentOwnerType,
-        ownerId: string,
-        message: string,
-        requestId: string,
-    ): CommentDTO;
+    addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO;
 
+    uploadImage(base64Data: string, fileName: string, mimeType: string): string;
 }

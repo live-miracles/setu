@@ -1,7 +1,8 @@
 // Client-side transition guards, mirroring the source app's
 // src/domain/workflows.ts and kept in sync with the server-side state
-// machines in Inventory.ts/Tickets.ts. These only decide which action
-// buttons the UI offers — the backend remains the authoritative check.
+// machines in Inventory.ts/Programs.ts/Tickets.ts. These only decide which
+// action buttons the UI offers — the backend remains the authoritative
+// check.
 
 const INVENTORY_REQUEST_TRANSITIONS: Record<InventoryRequestStatus, InventoryRequestAction[]> = {
     draft: ['submit', 'cancel'],
@@ -19,6 +20,24 @@ function canTransitionInventoryRequest(
     action: InventoryRequestAction,
 ): boolean {
     return (INVENTORY_REQUEST_TRANSITIONS[status] || []).indexOf(action) !== -1;
+}
+
+// No issue/return step — a program request only ever moves draft ->
+// submitted -> approved/rejected -> cancelled -> closed.
+const PROGRAM_REQUEST_TRANSITIONS: Record<ProgramRequestStatus, ProgramRequestAction[]> = {
+    draft: ['submit', 'cancel'],
+    submitted: ['approve', 'reject', 'cancel'],
+    approved: ['cancel', 'close'],
+    rejected: ['close'],
+    cancelled: ['close'],
+    closed: [],
+};
+
+function canTransitionProgramRequest(
+    status: ProgramRequestStatus,
+    action: ProgramRequestAction,
+): boolean {
+    return (PROGRAM_REQUEST_TRANSITIONS[status] || []).indexOf(action) !== -1;
 }
 
 // 'assign' has no status precondition server-side (an admin can reassign a

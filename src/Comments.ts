@@ -1,97 +1,114 @@
-// Comments are the audit trail for InventoryRequests: every status change is
-// narrated here as a system-authored comment instead of a dedicated *At
-// column, alongside whatever comments real users type. Designed to extend
-// to other commentable sections later (e.g. studio booking requests) via
-// CommentOwnerType.
-const SYSTEM_ACTOR_ID = 'system';
+// Comments are the audit trail for InventoryRequests and ProgramRequests:
+// every status change is narrated here — authored by whichever user
+// actually performed the action, no system/bot actor — alongside whatever
+// comments people type themselves. Exactly one of InventoryRequestId/
+// ProgramRequestId is set per row; requestId lookups below try
+// InventoryRequests then ProgramRequests since a raw id carries no type tag
+// of its own. Tickets have no comments.
 
-function buildCommentDTO(
-    comment: CommentRecord,
-    profilesById: Record<string, Profile>,
-): CommentDTO {
-    const authorName =
-        comment.AuthorId === SYSTEM_ACTOR_ID
-            ? 'Setu'
-            : (profilesById[comment.AuthorId] || ({} as Profile)).Name || '';
-    return Object.assign({}, comment, { authorName });
+interface RequestOwner {
+    kind: 'inventory' | 'program';
+    displayId: number;
+    userId: string;
+    participants: string[];
 }
 
-function commentsFor(
-    ownerType: CommentOwnerType,
-    ownerId: string,
-    commentsByOwnerId: Record<string, CommentRecord[]>,
-    profilesById: Record<string, Profile>,
-): CommentDTO[] {
-    return (commentsByOwnerId[ownerId] || [])
-        .filter((c) => c.OwnerType === ownerType)
-        .sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt))
-        .map((c) => buildCommentDTO(c, profilesById));
+function findRequestOwner(requestId: string): RequestOwner | null {
+    const inventoryRequest = Tables.InventoryRequests.findById(requestId);
+    if (inventoryRequest) {
+        return {
+            kind: 'inventory',
+            displayId: inventoryRequest.DisplayId,
+            userId: inventoryRequest.UserId,
+            participants: parseParticipants(inventoryRequest.Participants),
+        };
+    }
+    const programRequest = Tables.ProgramRequests.findById(requestId);
+    if (programRequest) {
+        return {
+            kind: 'program',
+            displayId: programRequest.DisplayId,
+            userId: programRequest.UserId,
+            participants: parseParticipants(programRequest.Participants),
+        };
+    }
+    return null;
 }
 
-// Sort key for "most recently active first" request lists, now that
-// InventoryRequests no longer carry their own UpdatedAt: the latest
-// comment's CreatedAt (every row gets a system comment at creation, so this
-// is always populated), falling back to DisplayId for the rare empty case.
-function latestActivityAt(comments: CommentDTO[], displayId: number): string {
-    if (comments.length === 0) return String(displayId).padStart(10, '0');
-    return comments[comments.length - 1].CreatedAt;
+function requestOwnerRecipients(owner: RequestOwner, excludingActorId: string): string[] {
+    return Array.from(new Set([owner.userId, ...owner.participants])).filter(
+        (email) => email && email !== excludingActorId,
+    );
 }
 
-function insertSystemComment(
-    ownerType: CommentOwnerType,
-    ownerId: string,
+function insertActionComment(
+    kind: 'inventory' | 'program',
+    requestId: string,
+    actorId: string,
     message: string,
 ): CommentRecord {
     return Tables.Comments.insert({
-        OwnerType: ownerType,
-        OwnerId: ownerId,
-        AuthorId: SYSTEM_ACTOR_ID,
+        Timestamp: nowIso(),
+        InventoryRequestId: kind === 'inventory' ? requestId : '',
+        ProgramRequestId: kind === 'program' ? requestId : '',
+        UserId: actorId,
         Message: message,
-        CreatedAt: nowIso(),
     });
 }
 
-function addComment(
-    ownerType: CommentOwnerType,
-    ownerId: string,
-    message: string,
+function buildCommentDTO(comment: CommentRecord, usersByEmail: Record<string, User>): CommentDTO {
+    const user = usersByEmail[comment.UserId];
+    return Object.assign({}, comment, { userName: user ? user.Name : '' });
+}
+
+function groupCommentsByRequestId(comments: CommentRecord[]): Record<string, CommentRecord[]> {
+    return groupBy(comments, (c) => c.InventoryRequestId || c.ProgramRequestId);
+}
+
+function commentsFor(
     requestId: string,
-): CommentDTO {
+    commentsByRequestId: Record<string, CommentRecord[]>,
+    usersByEmail: Record<string, User>,
+): CommentDTO[] {
+    return (commentsByRequestId[requestId] || [])
+        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp))
+        .map((c) => buildCommentDTO(c, usersByEmail));
+}
+
+// Sort key for "most recently active first" request lists: the latest
+// comment's Timestamp (every row gets a comment at creation, so this is
+// always populated), falling back to DisplayId for the rare empty case.
+function latestActivityAt(comments: CommentDTO[], displayId: number): string {
+    if (comments.length === 0) return String(displayId).padStart(10, '0');
+    return comments[comments.length - 1].Timestamp;
+}
+
+function addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO {
     const actor = requireUser();
     const trimmedMessage = requireNonEmpty(message, 'Message is required.');
 
-    if (ownerType !== 'inventory_request') throw new ValidationError('unsupported_owner_type');
-    const request = Tables.InventoryRequests.findById(ownerId);
-    if (!request) throw new ValidationError('request_not_found');
+    const owner = findRequestOwner(requestId);
+    if (!owner) throw new ValidationError('request_not_found');
 
     const { result: comment, duplicate } = withLockedDedupe(
-        ownerType + ':' + ownerId + ':comment',
-        requestId,
-        () => {
-            return Tables.Comments.insert({
-                OwnerType: ownerType,
-                OwnerId: ownerId,
-                AuthorId: actor.Id,
-                Message: trimmedMessage,
-                CreatedAt: nowIso(),
-            });
-        },
+        owner.kind + ':' + requestId + ':comment',
+        dedupeRequestId,
+        () => insertActionComment(owner.kind, requestId, actor.Email, trimmedMessage),
     );
 
     if (!duplicate) {
-        const recipients = Array.from(
-            new Set([request.RequesterId].filter((id) => id && id !== actor.Id)),
-        );
-        recipients.forEach((id) => {
+        const prefix = owner.kind === 'inventory' ? 'REQ-' : 'PRG-';
+        const section = owner.kind === 'inventory' ? 'inventory' : 'programs';
+        requestOwnerRecipients(owner, actor.Email).forEach((email) => {
             sendNotificationEmail(
-                id,
-                ownerType + ':' + ownerId + ':comment:' + comment.Id,
-                'New comment on REQ-' + request.DisplayId,
+                email,
+                owner.kind + ':' + requestId + ':comment:' + comment.Id,
+                'New comment on ' + prefix + owner.displayId,
                 actor.Name + ' commented: ' + trimmedMessage,
-                '?section=inventory',
+                '?section=' + section,
             );
         });
     }
 
-    return buildCommentDTO(comment, indexById([actor]));
+    return buildCommentDTO(comment, indexBy([actor], (u) => u.Email));
 }
