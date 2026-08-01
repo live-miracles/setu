@@ -24,9 +24,10 @@ function updateUser(userId: string, patch: UpdateUserInput): UserDTO {
 }
 
 // Also doubles as the registration-completion call: the frontend shows a
-// mandatory registration form (gated on User.Registered) instead of the app
-// on first sign-in, and submitting it hits this same endpoint. Any
-// successful save — first-time or a later edit — marks the user registered.
+// mandatory registration form (gated on Phone being unset) instead of the
+// app on first sign-in, and submitting it hits this same endpoint. Phone is
+// required (like Name), so the first successful save is what completes
+// registration — there is no separate registered flag.
 function updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO {
     const actor = requireUser();
     const updated = withLock(() =>
@@ -36,10 +37,12 @@ function updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO {
                     ? requireNonEmpty(patch.name, 'Name is required.')
                     : actor.Name,
             DepartmentId: patch.departmentId !== undefined ? patch.departmentId : actor.DepartmentId,
-            Phone: patch.phone !== undefined ? patch.phone : actor.Phone,
+            Phone:
+                patch.phone !== undefined
+                    ? requireNonEmpty(patch.phone, 'Phone is required.')
+                    : actor.Phone,
             Whatsapp: patch.whatsapp !== undefined ? patch.whatsapp : actor.Whatsapp,
             Timezone: patch.timezone !== undefined ? patch.timezone : actor.Timezone,
-            Registered: true,
         }),
     );
     return toUserDTO(updated);

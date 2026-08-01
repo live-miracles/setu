@@ -35,9 +35,10 @@ async function renderCurrentSection(): Promise<void> {
     if (!container) return;
 
     renderNavIdentity(dashboard);
-    toggleNavVisibility(dashboard.me.Registered);
+    const isRegistered = Boolean(dashboard.me.Phone);
+    toggleNavVisibility(isRegistered);
 
-    if (!dashboard.me.Registered) {
+    if (!isRegistered) {
         await renderRegistrationGate(container, dashboard);
         return;
     }
@@ -48,7 +49,7 @@ async function renderCurrentSection(): Promise<void> {
     toggleAdminNavVisibility(dashboard);
 }
 
-// New sign-ins land with Registered: false (see Auth.ts) until they fill in
+// New sign-ins land with an empty Phone (see Auth.ts) until they fill in
 // the registration form, so the nav must stay hidden — otherwise they could
 // tap into other sections while their profile (department, etc.) is still
 // unset.

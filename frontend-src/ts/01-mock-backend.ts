@@ -31,9 +31,8 @@ const mockData = {
             Role: 'admin' as UserRole,
             DepartmentId: 'dep-1',
             Timezone: 'Asia/Kolkata',
-            Phone: '',
+            Phone: '+91 90000 00001',
             Whatsapp: '',
-            Registered: true,
         },
         {
             Email: 'sam@example.com',
@@ -41,9 +40,8 @@ const mockData = {
             Role: 'member' as UserRole,
             DepartmentId: 'dep-1',
             Timezone: 'Asia/Kolkata',
-            Phone: '',
+            Phone: '+91 90000 00002',
             Whatsapp: '',
-            Registered: true,
         },
     ] as User[],
     departments: [{ Id: 'dep-1', Name: 'Production', ShortName: 'PROD' }] as Department[],
@@ -278,7 +276,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (patch.phone !== undefined) user.Phone = patch.phone;
         if (patch.whatsapp !== undefined) user.Whatsapp = patch.whatsapp;
         if (patch.timezone !== undefined) user.Timezone = patch.timezone;
-        user.Registered = true;
         return mockToUserDTO(user);
     },
 

@@ -47,7 +47,7 @@ async function renderProfile(container: HTMLElement, dashboard: DashboardPayload
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label class="label" for="profile-phone">Phone</label>
-                  <input id="profile-phone" name="phone" class="input w-full" value="${escapeHtml(me.Phone)}" />
+                  <input id="profile-phone" name="phone" class="input w-full" value="${escapeHtml(me.Phone)}" required />
                 </div>
                 <div>
                   <label class="label" for="profile-whatsapp">WhatsApp</label>
@@ -103,9 +103,9 @@ function renderDepartmentSelect(
     </select>`;
 }
 
-// Shown instead of the normal app shell while User.Registered is false (see
-// Auth.ts/Admin.ts) — 12-main.ts's renderCurrentSection gates on that flag
-// and hides all nav until this form is submitted. Reuses updateOwnProfile
+// Shown instead of the normal app shell while User.Phone is unset (see
+// Auth.ts/Admin.ts) — 12-main.ts's renderCurrentSection gates on that and
+// hides all nav until this form is submitted. Reuses updateOwnProfile
 // rather than a separate endpoint since completing this form and later
 // editing your profile are the same action server-side.
 async function renderRegistrationGate(
@@ -136,7 +136,7 @@ async function renderRegistrationGate(
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label class="label" for="reg-phone">Phone</label>
-                  <input id="reg-phone" name="phone" class="input w-full" value="${escapeHtml(me.Phone)}" />
+                  <input id="reg-phone" name="phone" class="input w-full" value="${escapeHtml(me.Phone)}" required />
                 </div>
                 <div>
                   <label class="label" for="reg-whatsapp">WhatsApp</label>
