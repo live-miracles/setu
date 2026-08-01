@@ -9,11 +9,6 @@ function setupSheets(): void {
         ensureTabWithHeaders(ss, table.tabName, table.headers as string[]);
     });
 
-    ensureTabWithHeaders(ss, 'Counters', ['Name', 'NextValue']);
-    seedCounterIfMissing(ss, 'inventory_request', 1);
-    seedCounterIfMissing(ss, 'program_request', 1);
-    seedCounterIfMissing(ss, 'ticket', 1);
-
     removeDefaultSheetIfEmpty(ss);
 }
 
@@ -32,17 +27,6 @@ function ensureTabWithHeaders(
         sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
     if (sheet.getFrozenRows() < 1) sheet.setFrozenRows(1);
-}
-
-function seedCounterIfMissing(
-    ss: GoogleAppsScript.Spreadsheet.Spreadsheet,
-    name: string,
-    startValue: number,
-): void {
-    const sheet = ss.getSheetByName('Counters')!;
-    const data = sheet.getDataRange().getValues();
-    const exists = data.some((row, i) => i > 0 && row[0] === name);
-    if (!exists) sheet.appendRow([name, startValue]);
 }
 
 function removeDefaultSheetIfEmpty(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): void {

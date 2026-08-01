@@ -222,17 +222,19 @@ const Tables = {
     ]),
 };
 
+// No separate Counters tab: each counter is a JSON-free Settings row keyed
+// 'counter:<name>', the same generic-key-value pattern the Settings table
+// already uses for links/home content — see Admin.ts. Callers already run
+// this inside a withLock/withLockedDedupe critical section, so no locking
+// here.
 function getNextDisplayId(counterName: string): number {
-    const sh = SpreadsheetApp.openById(getSpreadsheetId()).getSheetByName('Counters');
-    if (!sh) throw new Error('Sheet tab not found: Counters');
-    const data = sh.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-        if (data[i][0] === counterName) {
-            const next = data[i][1];
-            sh.getRange(i + 1, 2).setValue(next + 1);
-            return next;
-        }
+    const key = 'counter:' + counterName;
+    const setting = Tables.Settings.findById(key);
+    if (!setting) {
+        Tables.Settings.insert({ Id: key, Value: '2' });
+        return 1;
     }
-    sh.appendRow([counterName, 2]);
-    return 1;
+    const next = parseInt(setting.Value, 10);
+    Tables.Settings.updateById(key, { Value: String(next + 1) });
+    return next;
 }
