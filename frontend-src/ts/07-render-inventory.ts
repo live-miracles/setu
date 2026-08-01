@@ -276,11 +276,9 @@ async function handleInventoryRequestAction(
             if (!qtyStr) continue;
             const quantity = Number(qtyStr);
             if (!(quantity > 0)) continue;
-            const notes = window.prompt('Condition notes (required, at least 3 characters):') || '';
-            if (notes.trim().length < 3) continue;
             const condition = (window.prompt('Condition: good, damaged, or missing', 'good') ||
                 'good') as ReturnCondition;
-            returnItems.push({ requestItemId: item.Id, quantity, condition, notes });
+            returnItems.push({ requestItemId: item.Id, quantity, condition });
         }
         if (returnItems.length === 0) return;
     }

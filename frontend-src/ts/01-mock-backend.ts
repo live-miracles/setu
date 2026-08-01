@@ -98,9 +98,9 @@ const mockData = {
             Quantity: 1,
             IssuedQuantity: 0,
             ReturnedQuantity: 0,
+            Condition: '',
         },
     ] as InventoryRequestItem[],
-    inventoryReturns: [] as InventoryReturn[],
     rosterShifts: [
         {
             Id: 'shift-1',
@@ -175,12 +175,6 @@ function mockComputeDeductionsByType(): Record<string, number> {
     mockData.inventoryRequestItems.forEach((item) => {
         deductions[item.EquipmentTypeId] =
             (deductions[item.EquipmentTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
-    });
-    mockData.inventoryReturns.forEach((ret) => {
-        if (ret.Condition === 'good') return;
-        const item = mockData.inventoryRequestItems.find((i) => i.Id === ret.RequestItemId);
-        if (!item) return;
-        deductions[item.EquipmentTypeId] = (deductions[item.EquipmentTypeId] || 0) + ret.Quantity;
     });
     return deductions;
 }
@@ -386,6 +380,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 Quantity: line.quantity,
                 IssuedQuantity: 0,
                 ReturnedQuantity: 0,
+                Condition: '',
             });
         });
         mockInsertSystemComment(
@@ -447,14 +442,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                     (i) => i.Id === ret.requestItemId,
                 )!;
                 item.ReturnedQuantity += ret.quantity;
-                mockData.inventoryReturns.push({
-                    Id: mockUuid(),
-                    RequestItemId: item.Id,
-                    Quantity: ret.quantity,
-                    Condition: ret.condition,
-                    Notes: ret.notes,
-                    ReceivedBy: mockData.currentUserId,
-                });
+                item.Condition = ret.condition;
                 const type = mockData.equipmentTypes.find((t) => t.Id === item.EquipmentTypeId);
                 summaries.push(ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')');
             });

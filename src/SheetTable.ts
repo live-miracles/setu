@@ -161,14 +161,7 @@ const Tables = {
         'Quantity',
         'IssuedQuantity',
         'ReturnedQuantity',
-    ]),
-    InventoryReturns: SheetTable<InventoryReturn>('InventoryReturns', [
-        'Id',
-        'RequestItemId',
-        'Quantity',
         'Condition',
-        'Notes',
-        'ReceivedBy',
     ]),
     Tickets: SheetTable<Ticket>('Tickets', [
         'Id',

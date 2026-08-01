@@ -1,22 +1,15 @@
 const INVENTORY_REQUESTS_PAGE_SIZE = 20;
 
-// Outstanding (issued but not yet returned) plus permanently-lost (returned
-// damaged/missing) quantity per equipment type — subtracted from
-// TotalQuantity to derive availableQuantity on read, rather than storing a
-// mutable counter that could drift from the underlying request/return rows.
+// Outstanding (issued but not yet returned) quantity per equipment type —
+// subtracted from TotalQuantity to derive availableQuantity on read, rather
+// than storing a mutable counter that could drift from the underlying
+// request rows. Damaged/missing returns aren't deducted here: an admin
+// corrects TotalQuantity by hand when equipment is permanently lost.
 function computeDeductionsByType(): Record<string, number> {
-    const requestItems = Tables.InventoryRequestItems.readAll();
-    const requestItemsById = indexById(requestItems);
     const deductions: Record<string, number> = {};
-    requestItems.forEach((item) => {
+    Tables.InventoryRequestItems.readAll().forEach((item) => {
         deductions[item.EquipmentTypeId] =
             (deductions[item.EquipmentTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
-    });
-    Tables.InventoryReturns.readAll().forEach((ret) => {
-        if (ret.Condition === 'good') return;
-        const item = requestItemsById[ret.RequestItemId];
-        if (!item) return;
-        deductions[item.EquipmentTypeId] = (deductions[item.EquipmentTypeId] || 0) + ret.Quantity;
     });
     return deductions;
 }
@@ -141,6 +134,7 @@ function createInventoryRequest(
                 Quantity: line.quantity,
                 IssuedQuantity: 0,
                 ReturnedQuantity: 0,
+                Condition: '',
             });
         });
         const comment = insertSystemComment(
@@ -283,11 +277,6 @@ function performInventoryRequestAction(
                     const summaries: string[] = [];
                     returnItems.forEach((ret) => {
                         if (!(ret.quantity >= 1)) throw new ValidationError('invalid_return_item');
-                        requireMinLength(
-                            ret.notes,
-                            3,
-                            'A note of at least 3 characters is required for each returned item.',
-                        );
                         const item = Tables.InventoryRequestItems.findById(ret.requestItemId);
                         if (
                             !item ||
@@ -297,15 +286,9 @@ function performInventoryRequestAction(
                             throw new ValidationError('invalid_return_quantity');
                         }
                         const type = equipmentTypesById[item.EquipmentTypeId];
-                        Tables.InventoryReturns.insert({
-                            RequestItemId: item.Id,
-                            Quantity: ret.quantity,
-                            Condition: ret.condition,
-                            Notes: ret.notes,
-                            ReceivedBy: actor.Id,
-                        });
                         Tables.InventoryRequestItems.updateById(item.Id, {
                             ReturnedQuantity: item.ReturnedQuantity + ret.quantity,
+                            Condition: ret.condition,
                         });
                         summaries.push(
                             ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',

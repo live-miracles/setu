@@ -97,15 +97,7 @@ interface InventoryRequestItem {
     Quantity: number;
     IssuedQuantity: number;
     ReturnedQuantity: number;
-}
-
-interface InventoryReturn {
-    Id: string;
-    RequestItemId: string;
-    Quantity: number;
-    Condition: ReturnCondition;
-    Notes: string;
-    ReceivedBy: string;
+    Condition: ReturnCondition | '';
 }
 
 interface Ticket {
@@ -279,7 +271,6 @@ interface ReturnItemInput {
     requestItemId: string;
     quantity: number;
     condition: ReturnCondition;
-    notes: string;
 }
 
 interface CreateTicketInput {
