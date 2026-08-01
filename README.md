@@ -73,7 +73,7 @@ The workflow reconstructs `.clasp.json` and `~/.clasprc.json` on the runner from
 
 ## Access
 
-There is no invite flow and no per-user disable switch. The `Users` sheet tab (keyed by email) is the allowlist: anyone signing in with a Google account on `ALLOWED_EMAIL_DOMAIN` self-registers as a `member` on their first visit (or `admin`, for `BOOTSTRAP_ADMIN_EMAIL`). Revoking someone's organisation Google account revokes their access to this app — an admin can still change a person's role or department from the Admin section, but there is no in-app way to block a still-valid account.
+There is no invite flow and no per-user disable switch. The `Users` sheet tab (keyed by email) is the allowlist: anyone signing in with a Google account on `ALLOWED_EMAIL_DOMAIN` self-registers as a `member` on their first visit (or `admin`, for `BOOTSTRAP_ADMIN_EMAIL`), with `Registered: false` until they submit the registration form the frontend shows in place of the app on that first visit (name, department, phone, WhatsApp — see `updateOwnProfile` in `Admin.ts`). Revoking someone's organisation Google account revokes their access to this app — an admin can still change a person's role or department from the Admin section, but there is no in-app way to block a still-valid account.
 
 Inventory and program requests can also list `Participants` — a comma-separated list of emails notified alongside the requester and given the same submit permission on that request. Participants don't need to be registered Setu users; an email with no account just receives the notification.
 

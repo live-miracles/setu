@@ -130,7 +130,7 @@ const Tables = {
     Places: SheetTable<Place>('Places', ['Id', 'Name']),
     Users: SheetTable<User>(
         'Users',
-        ['Email', 'Name', 'Role', 'DepartmentId', 'Timezone', 'Phone', 'Whatsapp'],
+        ['Email', 'Name', 'Role', 'DepartmentId', 'Timezone', 'Phone', 'Whatsapp', 'Registered'],
         'Email',
     ),
     Rosters: SheetTable<Roster>('Rosters', [

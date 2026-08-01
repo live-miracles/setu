@@ -33,6 +33,7 @@ const mockData = {
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
+            Registered: true,
         },
         {
             Email: 'sam@example.com',
@@ -42,6 +43,7 @@ const mockData = {
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
+            Registered: true,
         },
     ] as User[],
     departments: [{ Id: 'dep-1', Name: 'Production', ShortName: 'PROD' }] as Department[],
@@ -264,12 +266,19 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     listUsers: () => mockData.users.map(mockToUserDTO),
     updateUser: (userId: string, patch: UpdateUserInput) => {
         const user = mockData.users.find((u) => u.Email === userId)!;
-        Object.assign(user, patch);
+        if (patch.role !== undefined) user.Role = patch.role;
+        if (patch.departmentId !== undefined) user.DepartmentId = patch.departmentId;
+        if (patch.timezone !== undefined) user.Timezone = patch.timezone;
         return mockToUserDTO(user);
     },
     updateOwnProfile: (patch: UpdateOwnProfileInput) => {
         const user = mockCurrentUser();
-        Object.assign(user, patch);
+        if (patch.name !== undefined) user.Name = patch.name;
+        if (patch.departmentId !== undefined) user.DepartmentId = patch.departmentId;
+        if (patch.phone !== undefined) user.Phone = patch.phone;
+        if (patch.whatsapp !== undefined) user.Whatsapp = patch.whatsapp;
+        if (patch.timezone !== undefined) user.Timezone = patch.timezone;
+        user.Registered = true;
         return mockToUserDTO(user);
     },
 

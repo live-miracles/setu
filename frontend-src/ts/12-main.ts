@@ -33,11 +33,30 @@ async function renderCurrentSection(): Promise<void> {
     if (!dashboard) return;
     const container = document.getElementById('app-content');
     if (!container) return;
+
+    renderNavIdentity(dashboard);
+    toggleNavVisibility(dashboard.me.Registered);
+
+    if (!dashboard.me.Registered) {
+        await renderRegistrationGate(container, dashboard);
+        return;
+    }
+
     const sectionKey = (SECTION_RENDERERS[section as SectionKey] ? section : 'home') as SectionKey;
     await SECTION_RENDERERS[sectionKey](container, dashboard);
     renderNavActive(sectionKey);
-    renderNavIdentity(dashboard);
     toggleAdminNavVisibility(dashboard);
+}
+
+// New sign-ins land with Registered: false (see Auth.ts) until they fill in
+// the registration form, so the nav must stay hidden — otherwise they could
+// tap into other sections while their profile (department, etc.) is still
+// unset.
+function toggleNavVisibility(show: boolean): void {
+    const desktopNav = document.getElementById('desktop-nav');
+    const mobileDock = document.getElementById('mobile-dock');
+    if (desktopNav) desktopNav.style.display = show ? '' : 'none';
+    if (mobileDock) mobileDock.style.display = show ? '' : 'none';
 }
 
 function renderNavActive(section: SectionKey): void {

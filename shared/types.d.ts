@@ -48,7 +48,10 @@ interface Place {
 
 // Email is the primary key itself (lowercased) — no separate generated id.
 // See the email-domain auto-registration in Auth.ts and the keyColumn
-// support in SheetTable.ts.
+// support in SheetTable.ts. Registered starts false on auto-creation and
+// flips true the first time the user submits the registration/profile form
+// (see updateOwnProfile in Admin.ts) — the frontend gates the rest of the
+// app behind that flag.
 interface User {
     Email: string;
     Name: string;
@@ -57,6 +60,7 @@ interface User {
     Timezone: string;
     Phone: string;
     Whatsapp: string;
+    Registered: boolean;
 }
 
 interface Roster {
@@ -273,6 +277,7 @@ interface UpdateUserInput {
 
 interface UpdateOwnProfileInput {
     name?: string;
+    departmentId?: string;
     phone?: string;
     whatsapp?: string;
     timezone?: string;

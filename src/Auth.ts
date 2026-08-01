@@ -10,6 +10,9 @@ function toUserDTO(user: User): UserDTO {
 // the source app's domain-based auto-registration. There is also no
 // per-user disable switch — revoking access is entirely a matter of the
 // underlying Google account/domain membership, not a flag in this sheet.
+// The row is created with Registered: false and placeholder details — the
+// frontend shows a mandatory registration form (gated on that flag) until
+// the user fills in their own name/department, via updateOwnProfile.
 function getCurrentActor(): User {
     const email = String(Session.getActiveUser().getEmail() || '').toLowerCase();
     if (!email) {
@@ -44,6 +47,7 @@ function getCurrentActor(): User {
             Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
+            Registered: false,
         });
     });
 }
