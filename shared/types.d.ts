@@ -106,7 +106,6 @@ interface Ticket {
     Title: string;
     Description: string;
     LocationId: string;
-    LocationName: string;
     Priority: TicketPriority;
     Status: TicketStatus;
     ReporterId: string;
@@ -129,17 +128,22 @@ interface Link {
     Id: string;
     Name: string;
     Url: string;
-    DisplayOrder: number;
     Enabled: boolean;
 }
 
-interface HomeContent {
+// Generic key-value store, e.g. for the Home content fields below — Id
+// doubles as the setting's key (see readHomeContent/upsertSetting in
+// Admin.ts).
+interface SettingRow {
     Id: string;
+    Value: string;
+}
+
+interface HomeContent {
     SupportMessage: string;
     Guidelines: string;
     WhatsappUrl: string;
     TutorialUrl: string;
-    UpdatedBy: string;
 }
 
 interface FailedNotification {
@@ -183,6 +187,7 @@ interface CommentDTO extends CommentRecord {
 }
 
 interface TicketDTO extends Ticket {
+    locationName: string;
     reporterName: string;
     assigneeName: string;
 }
@@ -283,7 +288,6 @@ interface CreateTicketInput {
 interface CreateLinkInput {
     name: string;
     url: string;
-    displayOrder: number;
     enabled: boolean;
 }
 

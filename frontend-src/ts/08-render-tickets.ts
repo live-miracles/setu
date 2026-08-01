@@ -136,7 +136,7 @@ function renderTicketCard(
                   : `<span class="badge badge-sm shrink-0 ${TICKET_PRIORITY_BADGE[ticket.Priority]}">${escapeHtml(ticket.Priority)}</span>`
           }
         </div>
-        <div class="text-sm text-base-content/60">${escapeHtml(ticket.LocationName)} · reported by ${escapeHtml(ticket.reporterName)}</div>
+        <div class="text-sm text-base-content/60">${escapeHtml(ticket.locationName)} · reported by ${escapeHtml(ticket.reporterName)}</div>
         ${ticket.Description ? `<p class="text-sm text-base-content/70">${escapeHtml(ticket.Description)}</p>` : ''}
 
         <div class="ticket-actions flex flex-wrap gap-2">

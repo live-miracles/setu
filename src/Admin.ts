@@ -107,7 +107,7 @@ function createLocation(input: CreateLocationInput, requestId: string): Place {
 
 function listLinks(): Link[] {
     requireUser();
-    return Tables.Links.readAll().sort((a, b) => a.DisplayOrder - b.DisplayOrder);
+    return Tables.Links.readAll().sort((a, b) => a.Name.localeCompare(b.Name));
 }
 
 function createLink(input: CreateLinkInput, requestId: string): Link {
@@ -118,27 +118,44 @@ function createLink(input: CreateLinkInput, requestId: string): Link {
         return Tables.Links.insert({
             Name: name,
             Url: url,
-            DisplayOrder: input.displayOrder || 0,
             Enabled: input.enabled !== false,
         });
     });
     return result;
 }
 
+// Home content is just a handful of settings rows, keyed by field name
+// (see SettingRow in shared/types.d.ts).
+function readHomeContent(): HomeContent {
+    const settingsById = indexById(Tables.Settings.readAll());
+    return {
+        SupportMessage: settingsById['SupportMessage'] ? settingsById['SupportMessage'].Value : '',
+        Guidelines: settingsById['Guidelines'] ? settingsById['Guidelines'].Value : '',
+        WhatsappUrl: settingsById['WhatsappUrl'] ? settingsById['WhatsappUrl'].Value : '',
+        TutorialUrl: settingsById['TutorialUrl'] ? settingsById['TutorialUrl'].Value : '',
+    };
+}
+
+function upsertSetting(key: string, value: string): void {
+    if (Tables.Settings.findById(key)) {
+        Tables.Settings.updateById(key, { Value: value });
+    } else {
+        Tables.Settings.insert({ Id: key, Value: value });
+    }
+}
+
 function getHomeContent(): HomeContent {
     requireUser();
-    return Tables.HomeContent.findById('singleton')!;
+    return readHomeContent();
 }
 
 function updateHomeContent(input: UpdateHomeContentInput): HomeContent {
-    const actor = requireAdmin();
-    return withLock(() =>
-        Tables.HomeContent.updateById('singleton', {
-            SupportMessage: input.supportMessage || '',
-            Guidelines: input.guidelines || '',
-            WhatsappUrl: input.whatsappUrl || '',
-            TutorialUrl: input.tutorialUrl || '',
-            UpdatedBy: actor.Id,
-        }),
-    );
+    requireAdmin();
+    return withLock(() => {
+        upsertSetting('SupportMessage', input.supportMessage || '');
+        upsertSetting('Guidelines', input.guidelines || '');
+        upsertSetting('WhatsappUrl', input.whatsappUrl || '');
+        upsertSetting('TutorialUrl', input.tutorialUrl || '');
+        return readHomeContent();
+    });
 }

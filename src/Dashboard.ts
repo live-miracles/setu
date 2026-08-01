@@ -48,16 +48,17 @@ function getDashboard(): DashboardPayload {
         )
         .slice(0, 250);
 
+    const locationsById = indexById(locations);
     const tickets = Tables.Tickets.readAll()
         .sort((a, b) => b.DisplayId - a.DisplayId)
         .slice(0, 250)
-        .map((ticket) => buildTicketDTO(ticket, profilesById));
+        .map((ticket) => buildTicketDTO(ticket, profilesById, locationsById));
 
-    const links = Tables.Links.findWhere((l) => toBool(l.Enabled)).sort(
-        (a, b) => a.DisplayOrder - b.DisplayOrder,
+    const links = Tables.Links.findWhere((l) => toBool(l.Enabled)).sort((a, b) =>
+        a.Name.localeCompare(b.Name),
     );
 
-    const homeContent = Tables.HomeContent.findById('singleton')!;
+    const homeContent = readHomeContent();
 
     const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const failedNotificationCount = Tables.FailedNotifications.findWhere(

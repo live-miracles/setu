@@ -187,7 +187,6 @@ function wireSimpleAdminForms(): void {
                         {
                             name: String(data.get('Name')),
                             url: String(data.get('Url')),
-                            displayOrder: 0,
                             enabled: true,
                         },
                         requestId,

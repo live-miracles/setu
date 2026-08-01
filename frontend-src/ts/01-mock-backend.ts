@@ -119,7 +119,6 @@ const mockData = {
             Title: 'Projector flickering',
             Description: 'Studio A projector flickers after 30 minutes.',
             LocationId: 'loc-1',
-            LocationName: 'Studio A',
             Priority: 'medium' as TicketPriority,
             Status: 'unassigned' as TicketStatus,
             ReporterId: 'user-2',
@@ -141,17 +140,14 @@ const mockData = {
             Id: 'link-1',
             Name: 'Team wiki',
             Url: 'https://example.com/wiki',
-            DisplayOrder: 0,
             Enabled: true,
         },
     ] as Link[],
     homeContent: {
-        Id: 'singleton',
         SupportMessage: 'Reach out on WhatsApp for urgent issues.',
         Guidelines: 'Please return equipment within 24 hours of your shoot ending.',
         WhatsappUrl: 'https://wa.me/10000000000',
         TutorialUrl: '',
-        UpdatedBy: 'user-1',
     } as HomeContent,
     nextDisplayId: { inventory_request: 2, ticket: 2 },
 };
@@ -233,7 +229,9 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
 function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
     const reporter = mockData.profiles.find((p) => p.Id === ticket.ReporterId);
     const assignee = mockData.profiles.find((p) => p.Id === ticket.AssigneeId);
+    const location = mockData.locations.find((l) => l.Id === ticket.LocationId);
     return Object.assign({}, ticket, {
+        locationName: location ? location.Name : '',
         reporterName: reporter ? reporter.Name : '',
         assigneeName: assignee ? assignee.Name : '',
     });
@@ -304,13 +302,12 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return created;
     },
 
-    listLinks: () => mockData.links,
+    listLinks: () => [...mockData.links].sort((a, b) => a.Name.localeCompare(b.Name)),
     createLink: (input: CreateLinkInput) => {
         const created: Link = {
             Id: mockUuid(),
             Name: input.name,
             Url: input.url,
-            DisplayOrder: input.displayOrder || 0,
             Enabled: input.enabled !== false,
         };
         mockData.links.push(created);
@@ -319,7 +316,12 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
 
     getHomeContent: () => mockData.homeContent,
     updateHomeContent: (input: UpdateHomeContentInput) => {
-        Object.assign(mockData.homeContent, input, { UpdatedBy: mockData.currentUserId });
+        mockData.homeContent = {
+            SupportMessage: input.supportMessage || '',
+            Guidelines: input.guidelines || '',
+            WhatsappUrl: input.whatsappUrl || '',
+            TutorialUrl: input.tutorialUrl || '',
+        };
         return mockData.homeContent;
     },
 
@@ -479,14 +481,12 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
     createTicket: (input: CreateTicketInput) => {
-        const location = mockData.locations.find((l) => l.Id === input.locationId)!;
         const created: Ticket = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.ticket++,
             Title: input.title,
             Description: input.description || '',
             LocationId: input.locationId,
-            LocationName: location.Name,
             Priority: input.priority,
             Status: 'unassigned',
             ReporterId: mockData.currentUserId,

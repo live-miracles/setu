@@ -13,7 +13,6 @@ function setupSheets(): void {
     seedCounterIfMissing(ss, 'inventory_request', 1);
     seedCounterIfMissing(ss, 'ticket', 1);
 
-    seedHomeContentSingletonIfMissing();
     removeDefaultSheetIfEmpty(ss);
 }
 
@@ -43,20 +42,6 @@ function seedCounterIfMissing(
     const data = sheet.getDataRange().getValues();
     const exists = data.some((row, i) => i > 0 && row[0] === name);
     if (!exists) sheet.appendRow([name, startValue]);
-}
-
-function seedHomeContentSingletonIfMissing(): void {
-    withLock(() => {
-        if (Tables.HomeContent.findById('singleton')) return;
-        Tables.HomeContent.insert({
-            Id: 'singleton',
-            SupportMessage: '',
-            Guidelines: '',
-            WhatsappUrl: '',
-            TutorialUrl: '',
-            UpdatedBy: '',
-        });
-    });
 }
 
 function removeDefaultSheetIfEmpty(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): void {

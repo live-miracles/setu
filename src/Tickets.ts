@@ -1,9 +1,15 @@
 const TICKETS_PAGE_SIZE = 20;
 
-function buildTicketDTO(ticket: Ticket, profilesById: Record<string, Profile>): TicketDTO {
+function buildTicketDTO(
+    ticket: Ticket,
+    profilesById: Record<string, Profile>,
+    locationsById: Record<string, Place>,
+): TicketDTO {
     const reporter = profilesById[ticket.ReporterId];
     const assignee = ticket.AssigneeId ? profilesById[ticket.AssigneeId] : undefined;
+    const location = locationsById[ticket.LocationId];
     return Object.assign({}, ticket, {
+        locationName: location ? location.Name : '',
         reporterName: reporter ? reporter.Name : '',
         assigneeName: assignee ? assignee.Name : '',
     });
@@ -12,9 +18,10 @@ function buildTicketDTO(ticket: Ticket, profilesById: Record<string, Profile>): 
 function listTickets(page: number): Paginated<TicketDTO> {
     requireUser();
     const profilesById = indexById(Tables.Profiles.readAll());
+    const locationsById = indexById(Tables.Locations.readAll());
     const dtos = Tables.Tickets.readAll()
         .sort((a, b) => b.DisplayId - a.DisplayId)
-        .map((t) => buildTicketDTO(t, profilesById));
+        .map((t) => buildTicketDTO(t, profilesById, locationsById));
     return paginate(dtos, page, TICKETS_PAGE_SIZE);
 }
 
@@ -30,7 +37,6 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
             Title: title,
             Description: input.description || '',
             LocationId: input.locationId,
-            LocationName: location.Name,
             Priority: input.priority,
             Status: 'unassigned',
             ReporterId: actor.Id,
@@ -51,7 +57,7 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
         );
     });
 
-    return buildTicketDTO(ticket, indexById([actor]));
+    return buildTicketDTO(ticket, indexById([actor]), indexById([location]));
 }
 
 // Ported from the source app's `perform_ticket_action` Postgres function,
