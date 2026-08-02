@@ -74,6 +74,10 @@ async function renderCurrentSection(): Promise<void> {
     }
 
     const sectionKey = resolveSection(section, dashboard);
+    // The roster's shift calendar needs far more width than the shared
+    // max-w-3xl reading column gives every other section.
+    container.classList.toggle('max-w-3xl', sectionKey !== 'roster');
+    container.classList.toggle('max-w-[100rem]', sectionKey === 'roster');
     await sections[sectionKey](container, dashboard);
     renderNavActive(sectionKey);
     toggleRoleNavVisibility(dashboard);
@@ -90,13 +94,13 @@ function toggleNavVisibility(show: boolean): void {
     if (mobileDock) mobileDock.style.display = show ? '' : 'none';
 }
 
-// One of btn-active/dock-active/menu-active applies per element depending
+// One of tab-active/dock-active/menu-active applies per element depending
 // on where it lives (nav bar, mobile dock, Settings dropdown); the other two
 // are inert there.
 function renderNavActive(section: SectionKey): void {
     document.querySelectorAll('[data-nav-section]').forEach((el) => {
         const isActive = (el as HTMLElement).dataset.navSection === section;
-        el.classList.toggle('btn-active', isActive);
+        el.classList.toggle('tab-active', isActive);
         el.classList.toggle('dock-active', isActive);
         el.classList.toggle('menu-active', isActive);
     });

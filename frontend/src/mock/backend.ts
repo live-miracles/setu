@@ -22,6 +22,10 @@ function mockUuid(): string {
     return 'mock-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+function mockAddDays(days: number): string {
+    return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+}
+
 function mockParseParticipants(raw: string): string[] {
     const seen = new Set<string>();
     (raw || '')
@@ -72,10 +76,21 @@ const mockData = {
             Whatsapp: '',
         },
     ] as User[],
-    departments: [{ Id: 'dep-1', Name: 'Production', ShortName: 'PROD' }] as Department[],
+    departments: [
+        { Id: 'dep-1', Name: 'Production', ShortName: 'PROD' },
+        { Id: 'dep-2', Name: 'Post-Production', ShortName: 'POST' },
+        { Id: 'dep-3', Name: 'Marketing', ShortName: 'MKTG' },
+        { Id: 'dep-4', Name: 'Engineering', ShortName: 'ENG' },
+        { Id: 'dep-5', Name: 'Operations', ShortName: 'OPS' },
+        { Id: 'dep-6', Name: 'Finance', ShortName: 'FIN' },
+    ] as Department[],
     places: [
         { Id: 'place-1', Name: 'Studio A' },
         { Id: 'place-2', Name: 'Studio B' },
+        { Id: 'place-3', Name: 'Studio C' },
+        { Id: 'place-4', Name: 'Edit Suite 1' },
+        { Id: 'place-5', Name: 'Podcast Room' },
+        { Id: 'place-6', Name: 'Green Room' },
     ] as Place[],
     inventoryTypes: [
         {
@@ -101,8 +116,8 @@ const mockData = {
             DisplayId: 1,
             Name: 'Weekend shoot',
             UserId: 'sam@example.com',
-            StartDate: new Date().toISOString().slice(0, 10),
-            EndDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+            StartDate: mockAddDays(0),
+            EndDate: mockAddDays(3),
             Status: 'submitted' as InventoryRequestStatus,
             Image1Id: '',
             Image2Id: '',
@@ -123,13 +138,69 @@ const mockData = {
     sessions: [] as ProgramSession[],
     rosters: [
         {
+            // Same day/name/time as roster-2 below - the calendar merges the
+            // two into one block listing both assignees. Times match the
+            // Morning shift preset.
             Id: 'roster-1',
             Name: 'Morning',
-            StartDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-            EndDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-            StartTime: '09:00',
-            EndTime: '13:00',
+            StartDate: mockAddDays(1),
+            EndDate: mockAddDays(1),
+            StartTime: '04:00',
+            EndTime: '13:30',
             UserId: 'sam@example.com',
+        },
+        {
+            Id: 'roster-2',
+            Name: 'Morning',
+            StartDate: mockAddDays(1),
+            EndDate: mockAddDays(1),
+            StartTime: '04:00',
+            EndTime: '13:30',
+            UserId: 'ana@example.com',
+        },
+        {
+            // Multi-day range - appears on the calendar every day from
+            // start to end. Times match the Evening shift preset.
+            Id: 'roster-3',
+            Name: 'Evening',
+            StartDate: mockAddDays(1),
+            EndDate: mockAddDays(3),
+            StartTime: '13:30',
+            EndTime: '22:00',
+            UserId: 'vic@example.com',
+        },
+        {
+            // Times match the Night shift preset.
+            Id: 'roster-4',
+            Name: 'Night',
+            StartDate: mockAddDays(2),
+            EndDate: mockAddDays(2),
+            StartTime: '22:00',
+            EndTime: '04:00',
+            UserId: 'sam@example.com',
+        },
+        {
+            // No start/end time set - the calendar treats this as an
+            // all-day 00:00-24:00 block, matching the Day shift preset
+            // (also always full-day).
+            Id: 'roster-5',
+            Name: 'Day',
+            StartDate: mockAddDays(4),
+            EndDate: mockAddDays(4),
+            StartTime: '',
+            EndTime: '',
+            UserId: 'ana@example.com',
+        },
+        {
+            // Custom name (not a preset) with its end time left blank -
+            // defaults to 24:00.
+            Id: 'roster-6',
+            Name: 'Overnight standby',
+            StartDate: mockAddDays(5),
+            EndDate: mockAddDays(6),
+            StartTime: '20:00',
+            EndTime: '',
+            UserId: 'vic@example.com',
         },
     ] as Roster[],
     tickets: [
@@ -166,6 +237,15 @@ const mockData = {
         WhatsappUrl: 'https://wa.me/10000000000',
         TutorialUrl: '',
     } as HomeContent,
+    shiftPresets: [
+        { Id: 'shift-preset-1', Name: 'Morning', DefaultStartTime: '04:00', DefaultEndTime: '13:30' },
+        { Id: 'shift-preset-2', Name: 'Evening', DefaultStartTime: '13:30', DefaultEndTime: '22:00' },
+        { Id: 'shift-preset-3', Name: 'Night', DefaultStartTime: '22:00', DefaultEndTime: '04:00' },
+        // Blank times mean the full day - see the Roster.StartTime/EndTime
+        // comment in shared/types.d.ts and isAllDayShiftBlock in roster.ts.
+        { Id: 'shift-preset-4', Name: 'Day', DefaultStartTime: '', DefaultEndTime: '' },
+        { Id: 'shift-preset-5', Name: 'Vacation', DefaultStartTime: '', DefaultEndTime: '' },
+    ] as ShiftPreset[],
     nextDisplayId: { inventory_request: 2, program_request: 1, ticket: 2 },
 };
 
@@ -299,6 +379,7 @@ function mockBuildDashboard(): DashboardPayload {
             : [],
         links: mockData.links.filter((l) => l.Enabled),
         homeContent: mockData.homeContent,
+        shiftPresets: [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
         failedEmailCount: 0,
     };
 }
@@ -335,12 +416,31 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.departments.push(created);
         return created;
     },
+    updateDepartment: (id: string, input: CreateDepartmentInput) => {
+        const department = mockData.departments.find((d) => d.Id === id);
+        if (!department) throw new Error('not_found');
+        department.Name = input.name;
+        department.ShortName = input.shortName || '';
+        return department;
+    },
+    deleteDepartment: (id: string) => {
+        mockData.departments = mockData.departments.filter((d) => d.Id !== id);
+    },
 
     listPlaces: () => mockData.places,
     createPlace: (input: CreatePlaceInput) => {
         const created: Place = { Id: mockUuid(), Name: input.name };
         mockData.places.push(created);
         return created;
+    },
+    updatePlace: (id: string, input: CreatePlaceInput) => {
+        const place = mockData.places.find((p) => p.Id === id);
+        if (!place) throw new Error('not_found');
+        place.Name = input.name;
+        return place;
+    },
+    deletePlace: (id: string) => {
+        mockData.places = mockData.places.filter((p) => p.Id !== id);
     },
 
     listLinks: () => [...mockData.links].sort((a, b) => a.Name.localeCompare(b.Name)),
@@ -354,6 +454,17 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.links.push(created);
         return created;
     },
+    updateLink: (id: string, input: CreateLinkInput) => {
+        const link = mockData.links.find((l) => l.Id === id);
+        if (!link) throw new Error('not_found');
+        link.Name = input.name;
+        link.Url = input.url;
+        link.Enabled = input.enabled !== false;
+        return link;
+    },
+    deleteLink: (id: string) => {
+        mockData.links = mockData.links.filter((l) => l.Id !== id);
+    },
 
     getHomeContent: () => mockData.homeContent,
     updateHomeContent: (input: UpdateHomeContentInput) => {
@@ -364,6 +475,29 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             TutorialUrl: input.tutorialUrl || '',
         };
         return mockData.homeContent;
+    },
+
+    listShiftPresets: () => [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
+    createShiftPreset: (input: CreateShiftPresetInput) => {
+        const created: ShiftPreset = {
+            Id: mockUuid(),
+            Name: input.name,
+            DefaultStartTime: input.defaultStartTime || '',
+            DefaultEndTime: input.defaultEndTime || '',
+        };
+        mockData.shiftPresets.push(created);
+        return created;
+    },
+    updateShiftPreset: (id: string, input: CreateShiftPresetInput) => {
+        const preset = mockData.shiftPresets.find((p) => p.Id === id);
+        if (!preset) throw new Error('not_found');
+        preset.Name = input.name;
+        preset.DefaultStartTime = input.defaultStartTime || '';
+        preset.DefaultEndTime = input.defaultEndTime || '';
+        return preset;
+    },
+    deleteShiftPreset: (id: string) => {
+        mockData.shiftPresets = mockData.shiftPresets.filter((p) => p.Id !== id);
     },
 
     listRosters: (page: number) => {
@@ -399,6 +533,18 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         };
         mockData.inventoryTypes.push(created);
         return mockBuildInventoryTypeDTOs().find((t) => t.Id === created.Id);
+    },
+    updateInventoryType: (id: string, input: CreateInventoryTypeInput) => {
+        const type = mockData.inventoryTypes.find((t) => t.Id === id);
+        if (!type) throw new Error('not_found');
+        type.Name = input.name;
+        type.Description = input.description || '';
+        type.Requestable = input.requestable !== false;
+        type.TotalQuantity = input.totalQuantity;
+        return mockBuildInventoryTypeDTOs().find((t) => t.Id === id);
+    },
+    deleteInventoryType: (id: string) => {
+        mockData.inventoryTypes = mockData.inventoryTypes.filter((t) => t.Id !== id);
     },
 
     listInventoryRequests: (page: number) => {

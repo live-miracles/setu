@@ -136,7 +136,7 @@ interface SettingsList {
     iconName: IconName;
     addLabel: string;
     emptyMessage: string;
-    fields: { field: string; label: string }[];
+    fields: { field: string; label: string; type?: string }[];
 }
 
 // A list that also gets a page to itself, so it needs a header subtitle and
@@ -200,6 +200,32 @@ const SETTINGS_LINKS_LIST: SettingsList = {
     ],
 };
 
+// Also embedded rather than a page of its own. Picking one of these by name
+// in the roster's "Schedule a shift" form prefills its default start/end
+// time — see wireCreateShiftForm in roster.ts.
+const SETTINGS_SHIFT_PRESETS_LIST: SettingsList = {
+    kind: 'shift-preset',
+    title: 'Shift presets',
+    iconName: 'calendar',
+    addLabel: 'Add a shift preset',
+    emptyMessage: 'No shift presets yet.',
+    fields: [
+        { field: 'Name', label: 'Name' },
+        { field: 'DefaultStartTime', label: 'Default start time', type: 'time' },
+        { field: 'DefaultEndTime', label: 'Default end time', type: 'time' },
+    ],
+};
+
+// Keyed by `kind` (not by the page-map keys above, which are plural/page
+// slugs) so a row's own data-kind attribute can look up its field list for
+// the inline edit form and dispatch its update/delete call — see
+// wireSettingsRow below.
+const SETTINGS_LIST_BY_KIND: Record<string, SettingsList> = {
+    ...Object.fromEntries(Object.values(SETTINGS_LIST_PAGES).map((p) => [p.kind, p])),
+    [SETTINGS_LINKS_LIST.kind]: SETTINGS_LINKS_LIST,
+    [SETTINGS_SHIFT_PRESETS_LIST.kind]: SETTINGS_SHIFT_PRESETS_LIST,
+};
+
 export function renderSettingsList(
     page: SettingsListPage,
     container: HTMLElement,
@@ -213,6 +239,7 @@ export function renderSettingsList(
   `;
 
     wireSettingsForm();
+    wireSettingsListRows();
 }
 
 // The add-form and list cards on their own, so Home content can embed the
@@ -228,7 +255,7 @@ function renderSettingsListCards(page: SettingsList, rows: Record<string, any>[]
                     (f, i) => `
               <div class="flex-1" style="min-width: 10rem;">
                 <label class="label text-xs">${escapeHtml(f.label)}</label>
-                <input name="${f.field}" class="input input-sm w-full" ${i === 0 ? 'required' : ''} />
+                <input name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" ${i === 0 ? 'required' : ''} />
               </div>`,
                 )
                 .join('')}
@@ -247,65 +274,171 @@ function renderSettingsListCards(page: SettingsList, rows: Record<string, any>[]
               rows.length === 0
                   ? renderEmptyState(page.iconName, page.emptyMessage)
                   : `<ul class="divide-y divide-base-200">${rows
-                        .map(
-                            (r) => `
-                    <li class="flex flex-wrap items-baseline gap-x-2 py-2 text-sm">
-                      <span class="font-medium">${escapeHtml(r[page.fields[0].field] ?? '')}</span>
-                      ${page.fields
-                          .slice(1)
-                          .map(
-                              (f) =>
-                                  `<span class="text-base-content/60">${escapeHtml(r[f.field] ?? '')}</span>`,
-                          )
-                          .join('')}
-                    </li>`,
-                        )
+                        .map((r) => renderSettingsRowHtml(page, r))
                         .join('')}</ul>`
           }
         </div>
       </div>`;
 }
 
-function wireSettingsForm(): void {
-    const form = document.querySelector('form.settings-form') as HTMLFormElement | null;
-    if (!form) return;
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const kind = form.dataset.kind!;
-        const data = new FormData(form);
+// A row's read-only view: name + the rest of its fields, plus edit/delete.
+// Shared between the initial render and restoring a row after Cancel.
+function renderSettingsRowViewInner(page: SettingsList, row: Record<string, any>): string {
+    return `
+      <div class="flex flex-wrap items-baseline gap-x-2">
+        <span class="font-medium">${escapeHtml(row[page.fields[0].field] ?? '')}</span>
+        ${page.fields
+            .slice(1)
+            .map(
+                (f) => `<span class="text-base-content/60">${escapeHtml(row[f.field] ?? '')}</span>`,
+            )
+            .join('')}
+      </div>
+      <div class="flex shrink-0 items-center gap-1">
+        <button type="button" class="btn btn-ghost btn-xs settings-row-edit" aria-label="Edit ${escapeHtml(row[page.fields[0].field] ?? '')}">${icon('edit', 'size-4')}</button>
+        <button type="button" class="btn btn-ghost btn-xs text-error settings-row-delete" aria-label="Delete ${escapeHtml(row[page.fields[0].field] ?? '')}">${icon('trash', 'size-4')}</button>
+      </div>`;
+}
+
+// data-raw-<Field> carries each field's untouched value so edit mode (and a
+// Cancel back out of it) can rebuild the row without re-fetching — HTML
+// attribute names/lookups are case-insensitive, so the PascalCase field
+// names round-trip fine as long as they're written and read the same way.
+function renderSettingsRowHtml(page: SettingsList, row: Record<string, any>): string {
+    const rawAttrs = page.fields
+        .map((f) => `data-raw-${f.field}="${escapeHtml(String(row[f.field] ?? ''))}"`)
+        .join(' ');
+    return `
+    <li class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm" data-id="${escapeHtml(row.Id ?? '')}" data-kind="${page.kind}" ${rawAttrs}>${renderSettingsRowViewInner(page, row)}</li>`;
+}
+
+// The inline edit form for a row, reusing the same field list as the add
+// form above.
+function renderSettingsRowEditInner(page: SettingsList, row: Record<string, any>): string {
+    return `
+      <form class="settings-row-edit-form flex flex-1 flex-wrap items-end gap-2">
+        ${page.fields
+            .map(
+                (f, i) => `
+          <div class="flex-1" style="min-width: 8rem;">
+            <label class="label text-xs">${escapeHtml(f.label)}</label>
+            <input name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" value="${escapeHtml(String(row[f.field] ?? ''))}" ${i === 0 ? 'required' : ''} />
+          </div>`,
+            )
+            .join('')}
+        <div class="flex shrink-0 items-center gap-1">
+          <button type="submit" class="btn btn-primary btn-xs">Save</button>
+          <button type="button" class="btn btn-ghost btn-xs settings-row-cancel">Cancel</button>
+        </div>
+      </form>`;
+}
+
+function readRowValuesFromLi(
+    li: HTMLElement,
+    page: SettingsList,
+    id: string,
+): Record<string, any> {
+    const row: Record<string, any> = { Id: id };
+    page.fields.forEach((f) => {
+        row[f.field] = li.getAttribute('data-raw-' + f.field) || '';
+    });
+    return row;
+}
+
+async function updateSettingsRow(
+    kind: string,
+    id: string,
+    v: Record<string, string>,
+    requestId: string,
+): Promise<void> {
+    if (kind === 'department') {
+        await api.updateDepartment(id, { name: v.Name, shortName: v.ShortName || '' }, requestId);
+    } else if (kind === 'place') {
+        await api.updatePlace(id, { name: v.Name }, requestId);
+    } else if (kind === 'inventory-type') {
+        await api.updateInventoryType(
+            id,
+            {
+                name: v.Name,
+                description: v.Description || '',
+                requestable: true,
+                totalQuantity: Number(v.TotalQuantity || 0),
+            },
+            requestId,
+        );
+    } else if (kind === 'link') {
+        await api.updateLink(id, { name: v.Name, url: v.Url, enabled: true }, requestId);
+    } else if (kind === 'shift-preset') {
+        await api.updateShiftPreset(
+            id,
+            {
+                name: v.Name,
+                defaultStartTime: v.DefaultStartTime || '',
+                defaultEndTime: v.DefaultEndTime || '',
+            },
+            requestId,
+        );
+    }
+}
+
+async function deleteSettingsRow(kind: string, id: string, requestId: string): Promise<void> {
+    if (kind === 'department') await api.deleteDepartment(id, requestId);
+    else if (kind === 'place') await api.deletePlace(id, requestId);
+    else if (kind === 'inventory-type') await api.deleteInventoryType(id, requestId);
+    else if (kind === 'link') await api.deleteLink(id, requestId);
+    else if (kind === 'shift-preset') await api.deleteShiftPreset(id, requestId);
+}
+
+// Wires one row's edit/delete buttons. Called for every row on initial
+// render, and again on a row after Cancel restores its read view (a fresh
+// element only exists for `.settings-row-edit`/`-delete` at that point, so
+// the listeners need re-attaching).
+function wireSettingsRow(li: HTMLElement): void {
+    const kind = li.dataset.kind;
+    const page = kind ? SETTINGS_LIST_BY_KIND[kind] : undefined;
+    const id = li.dataset.id;
+    if (!page || !id) return;
+
+    const editBtn = li.querySelector('.settings-row-edit') as HTMLButtonElement | null;
+    const deleteBtn = li.querySelector('.settings-row-delete') as HTMLButtonElement | null;
+
+    editBtn?.addEventListener('click', () => {
+        const values = readRowValuesFromLi(li, page, id);
+        li.innerHTML = renderSettingsRowEditInner(page, values);
+
+        const form = li.querySelector('.settings-row-edit-form') as HTMLFormElement;
+        const cancelBtn = li.querySelector('.settings-row-cancel') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => {
+            li.innerHTML = renderSettingsRowViewInner(page, values);
+            wireSettingsRow(li);
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = new FormData(form);
+            const patch: Record<string, string> = {};
+            page.fields.forEach((f) => {
+                patch[f.field] = String(data.get(f.field) || '');
+            });
+            try {
+                showSavingBadge(true);
+                await updateSettingsRow(kind!, id, patch, generateRequestId());
+                await refreshDashboard();
+            } catch (err) {
+                showErrorAlert(err);
+            } finally {
+                showSavingBadge(false);
+            }
+        });
+    });
+
+    deleteBtn?.addEventListener('click', async () => {
+        const label = li.getAttribute('data-raw-' + page.fields[0].field) || 'this item';
+        if (!confirm(`Delete "${label}"? This can't be undone.`)) return;
         try {
             showSavingBadge(true);
-            const requestId = generateRequestId();
-            if (kind === 'department') {
-                await api.createDepartment(
-                    {
-                        name: String(data.get('Name')),
-                        shortName: String(data.get('ShortName') || ''),
-                    },
-                    requestId,
-                );
-            } else if (kind === 'place') {
-                await api.createPlace({ name: String(data.get('Name')) }, requestId);
-            } else if (kind === 'inventory-type') {
-                await api.createInventoryType(
-                    {
-                        name: String(data.get('Name')),
-                        description: String(data.get('Description') || ''),
-                        requestable: true,
-                        totalQuantity: Number(data.get('TotalQuantity') || 0),
-                    },
-                    requestId,
-                );
-            } else if (kind === 'link') {
-                await api.createLink(
-                    {
-                        name: String(data.get('Name')),
-                        url: String(data.get('Url')),
-                        enabled: true,
-                    },
-                    requestId,
-                );
-            }
+            await deleteSettingsRow(kind!, id, generateRequestId());
             await refreshDashboard();
         } catch (err) {
             showErrorAlert(err);
@@ -315,15 +448,83 @@ function wireSettingsForm(): void {
     });
 }
 
+function wireSettingsListRows(): void {
+    document
+        .querySelectorAll('li[data-kind][data-id]')
+        .forEach((li) => wireSettingsRow(li as HTMLElement));
+}
+
+// A page can embed more than one settings-form (Home content embeds both
+// Quick links and Shift presets), so every match gets wired, not just the
+// first.
+function wireSettingsForm(): void {
+    document.querySelectorAll('form.settings-form').forEach((formEl) => {
+        const form = formEl as HTMLFormElement;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const kind = form.dataset.kind!;
+            const data = new FormData(form);
+            try {
+                showSavingBadge(true);
+                const requestId = generateRequestId();
+                if (kind === 'department') {
+                    await api.createDepartment(
+                        {
+                            name: String(data.get('Name')),
+                            shortName: String(data.get('ShortName') || ''),
+                        },
+                        requestId,
+                    );
+                } else if (kind === 'place') {
+                    await api.createPlace({ name: String(data.get('Name')) }, requestId);
+                } else if (kind === 'inventory-type') {
+                    await api.createInventoryType(
+                        {
+                            name: String(data.get('Name')),
+                            description: String(data.get('Description') || ''),
+                            requestable: true,
+                            totalQuantity: Number(data.get('TotalQuantity') || 0),
+                        },
+                        requestId,
+                    );
+                } else if (kind === 'link') {
+                    await api.createLink(
+                        {
+                            name: String(data.get('Name')),
+                            url: String(data.get('Url')),
+                            enabled: true,
+                        },
+                        requestId,
+                    );
+                } else if (kind === 'shift-preset') {
+                    await api.createShiftPreset(
+                        {
+                            name: String(data.get('Name')),
+                            defaultStartTime: String(data.get('DefaultStartTime') || ''),
+                            defaultEndTime: String(data.get('DefaultEndTime') || ''),
+                        },
+                        requestId,
+                    );
+                }
+                await refreshDashboard();
+            } catch (err) {
+                showErrorAlert(err);
+            } finally {
+                showSavingBadge(false);
+            }
+        });
+    });
+}
+
 // ---------------------------------------------------------------------------
-// Home content — the message and guidelines, plus the quick links, since
-// everything on this page is something the Home screen renders.
+// Others — the Home screen's message and guidelines, quick links and shift
+// presets: everything that didn't earn a Settings page of its own.
 // ---------------------------------------------------------------------------
 
 export function renderHomeContent(container: HTMLElement, dashboard: DashboardPayload): void {
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderSectionHeader('home', 'Home content', 'The message, guidelines and links shown on Home.')}
+      ${renderSectionHeader('home', 'Others', 'The message and guidelines shown on Home, quick links, and shift presets.')}
 
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-3">
@@ -350,11 +551,13 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
       </div>
 
       ${renderSettingsListCards(SETTINGS_LINKS_LIST, dashboard.links)}
+      ${renderSettingsListCards(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets)}
     </section>
   `;
 
     wireHomeContentForm();
     wireSettingsForm();
+    wireSettingsListRows();
 }
 
 function wireHomeContentForm(): void {

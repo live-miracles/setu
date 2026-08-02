@@ -15,7 +15,11 @@ export type IconName =
     | 'inbox'
     | 'alert'
     | 'chevronDown'
-    | 'pin';
+    | 'chevronLeft'
+    | 'chevronRight'
+    | 'pin'
+    | 'edit'
+    | 'trash';
 
 const ICON_PATHS: Record<IconName, string> = {
     home: '<path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />',
@@ -33,7 +37,11 @@ const ICON_PATHS: Record<IconName, string> = {
     inbox: '<path d="M4 12h4l2 3h4l2-3h4" /><path d="M4 12 6 5h12l2 7" /><path d="M4 12v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6" />',
     alert: '<path d="M12 4 3 20h18L12 4Z" /><line x1="12" y1="10" x2="12" y2="13.5" /><circle cx="12" cy="16.5" r="0.75" fill="currentColor" stroke="none" />',
     chevronDown: '<polyline points="6 9 12 15 18 9" />',
+    chevronLeft: '<polyline points="15 6 9 12 15 18" />',
+    chevronRight: '<polyline points="9 6 15 12 9 18" />',
     pin: '<path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.3" />',
+    edit: '<path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z" /><line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />',
+    trash: '<path d="M5 7h14" /><path d="M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />',
 };
 
 export function icon(name: IconName, className = 'size-5'): string {

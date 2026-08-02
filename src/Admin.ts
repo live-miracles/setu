@@ -72,6 +72,24 @@ function createDepartment(input: CreateDepartmentInput, requestId: string): Depa
     return result;
 }
 
+function updateDepartment(id: string, input: CreateDepartmentInput, requestId: string): Department {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('department:update', requestId, () => {
+        if (!Tables.Departments.findById(id)) throw new ValidationError('not_found');
+        return Tables.Departments.updateById(id, { Name: name, ShortName: input.shortName || '' });
+    });
+    return result;
+}
+
+function deleteDepartment(id: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('department:delete', requestId, () => {
+        Tables.Departments.deleteById(id);
+        return null;
+    });
+}
+
 function listPlaces(): Place[] {
     requireUser();
     return Tables.Places.readAll();
@@ -86,6 +104,24 @@ function createPlace(input: CreatePlaceInput, requestId: string): Place {
         });
     });
     return result;
+}
+
+function updatePlace(id: string, input: CreatePlaceInput, requestId: string): Place {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('place:update', requestId, () => {
+        if (!Tables.Places.findById(id)) throw new ValidationError('not_found');
+        return Tables.Places.updateById(id, { Name: name });
+    });
+    return result;
+}
+
+function deletePlace(id: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('place:delete', requestId, () => {
+        Tables.Places.deleteById(id);
+        return null;
+    });
 }
 
 // Links have no dedicated tab — they're a JSON-encoded array in one
@@ -127,6 +163,98 @@ function createLink(input: CreateLinkInput, requestId: string): Link {
         return created;
     });
     return result;
+}
+
+function updateLink(id: string, input: CreateLinkInput, requestId: string): Link {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const url = requireNonEmpty(input.url, 'URL is required.');
+    const { result } = withLockedDedupe('link:update', requestId, () => {
+        const links = readLinks();
+        const existing = links.find((l) => l.Id === id);
+        if (!existing) throw new ValidationError('not_found');
+        existing.Name = name;
+        existing.Url = url;
+        existing.Enabled = input.enabled !== false;
+        writeLinks(links);
+        return existing;
+    });
+    return result;
+}
+
+function deleteLink(id: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('link:delete', requestId, () => {
+        writeLinks(readLinks().filter((l) => l.Id !== id));
+        return null;
+    });
+}
+
+// Shift presets have no dedicated tab either, for the same reason as
+// Links above — a JSON-encoded array in one Settings row (Id 'shiftPresets').
+function readShiftPresets(): ShiftPreset[] {
+    const setting = Tables.Settings.findById('shiftPresets');
+    if (!setting || !setting.Value) return [];
+    try {
+        return JSON.parse(setting.Value) as ShiftPreset[];
+    } catch (err) {
+        return [];
+    }
+}
+
+function writeShiftPresets(presets: ShiftPreset[]): void {
+    upsertSetting('shiftPresets', JSON.stringify(presets));
+}
+
+function listShiftPresets(): ShiftPreset[] {
+    requireUser();
+    return readShiftPresets().sort((a, b) => a.Name.localeCompare(b.Name));
+}
+
+function createShiftPreset(input: CreateShiftPresetInput, requestId: string): ShiftPreset {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('shift-preset:create', requestId, () => {
+        const created: ShiftPreset = {
+            Id: Utilities.getUuid(),
+            Name: name,
+            DefaultStartTime: input.defaultStartTime || '',
+            DefaultEndTime: input.defaultEndTime || '',
+        };
+        const presets = readShiftPresets();
+        presets.push(created);
+        writeShiftPresets(presets);
+        return created;
+    });
+    return result;
+}
+
+function updateShiftPreset(
+    id: string,
+    input: CreateShiftPresetInput,
+    requestId: string,
+): ShiftPreset {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('shift-preset:update', requestId, () => {
+        const presets = readShiftPresets();
+        const existing = presets.find((p) => p.Id === id);
+        if (!existing) throw new ValidationError('not_found');
+        existing.Name = name;
+        existing.DefaultStartTime = input.defaultStartTime || '';
+        existing.DefaultEndTime = input.defaultEndTime || '';
+        writeShiftPresets(presets);
+        return existing;
+    });
+    return result;
+}
+
+function deleteShiftPreset(id: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('shift-preset:delete', requestId, () => {
+        writeShiftPresets(readShiftPresets().filter((p) => p.Id !== id));
+        return null;
+    });
 }
 
 // Home content is just a handful of settings rows, keyed by field name

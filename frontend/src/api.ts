@@ -37,21 +37,34 @@ export const api: AsyncApi = {
 
     listDepartments: (...args) => callBackend('listDepartments', ...args),
     createDepartment: (...args) => callBackend('createDepartment', ...args),
+    updateDepartment: (...args) => callBackend('updateDepartment', ...args),
+    deleteDepartment: (...args) => callBackend('deleteDepartment', ...args),
 
     listPlaces: (...args) => callBackend('listPlaces', ...args),
     createPlace: (...args) => callBackend('createPlace', ...args),
+    updatePlace: (...args) => callBackend('updatePlace', ...args),
+    deletePlace: (...args) => callBackend('deletePlace', ...args),
 
     listLinks: (...args) => callBackend('listLinks', ...args),
     createLink: (...args) => callBackend('createLink', ...args),
+    updateLink: (...args) => callBackend('updateLink', ...args),
+    deleteLink: (...args) => callBackend('deleteLink', ...args),
 
     getHomeContent: (...args) => callBackend('getHomeContent', ...args),
     updateHomeContent: (...args) => callBackend('updateHomeContent', ...args),
+
+    listShiftPresets: (...args) => callBackend('listShiftPresets', ...args),
+    createShiftPreset: (...args) => callBackend('createShiftPreset', ...args),
+    updateShiftPreset: (...args) => callBackend('updateShiftPreset', ...args),
+    deleteShiftPreset: (...args) => callBackend('deleteShiftPreset', ...args),
 
     listRosters: (...args) => callBackend('listRosters', ...args),
     createRoster: (...args) => callBackend('createRoster', ...args),
 
     listInventoryTypes: (...args) => callBackend('listInventoryTypes', ...args),
     createInventoryType: (...args) => callBackend('createInventoryType', ...args),
+    updateInventoryType: (...args) => callBackend('updateInventoryType', ...args),
+    deleteInventoryType: (...args) => callBackend('deleteInventoryType', ...args),
 
     listInventoryRequests: (...args) => callBackend('listInventoryRequests', ...args),
     createInventoryRequest: (...args) => callBackend('createInventoryRequest', ...args),

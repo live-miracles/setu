@@ -168,6 +168,17 @@ interface Link {
     Enabled: boolean;
 }
 
+// A named shift with default clock-in/out times, so scheduling a roster
+// entry can prefill Start time/End time once a preset is picked instead of
+// requiring both every time. See listShiftPresets/createShiftPreset in
+// Admin.ts and the shift-name select in roster.ts.
+interface ShiftPreset {
+    Id: string;
+    Name: string;
+    DefaultStartTime: string;
+    DefaultEndTime: string;
+}
+
 // Generic key-value store, e.g. for the Home content fields below and
 // display-id counters — Id doubles as the setting's key (see
 // readHomeContent/upsertSetting in Admin.ts, getNextDisplayId in
@@ -254,6 +265,7 @@ interface DashboardPayload {
     tickets: TicketDTO[];
     links: Link[];
     homeContent: HomeContent;
+    shiftPresets: ShiftPreset[];
     failedEmailCount: number;
 }
 
@@ -350,6 +362,12 @@ interface UpdateHomeContentInput {
     tutorialUrl: string;
 }
 
+interface CreateShiftPresetInput {
+    name: string;
+    defaultStartTime: string;
+    defaultEndTime: string;
+}
+
 // ---------------------------------------------------------------------------
 // The full google.script.run contract. Backend functions must match these
 // signatures; the frontend's api.ts typed wrapper is authored directly against
@@ -366,21 +384,38 @@ interface Api {
 
     listDepartments(): Department[];
     createDepartment(input: CreateDepartmentInput, requestId: string): Department;
+    updateDepartment(id: string, input: CreateDepartmentInput, requestId: string): Department;
+    deleteDepartment(id: string, requestId: string): void;
 
     listPlaces(): Place[];
     createPlace(input: CreatePlaceInput, requestId: string): Place;
+    updatePlace(id: string, input: CreatePlaceInput, requestId: string): Place;
+    deletePlace(id: string, requestId: string): void;
 
     listLinks(): Link[];
     createLink(input: CreateLinkInput, requestId: string): Link;
+    updateLink(id: string, input: CreateLinkInput, requestId: string): Link;
+    deleteLink(id: string, requestId: string): void;
 
     getHomeContent(): HomeContent;
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;
+
+    listShiftPresets(): ShiftPreset[];
+    createShiftPreset(input: CreateShiftPresetInput, requestId: string): ShiftPreset;
+    updateShiftPreset(id: string, input: CreateShiftPresetInput, requestId: string): ShiftPreset;
+    deleteShiftPreset(id: string, requestId: string): void;
 
     listRosters(page: number): Paginated<RosterDTO>;
     createRoster(input: CreateRosterInput, requestId: string): RosterDTO;
 
     listInventoryTypes(): InventoryTypeDTO[];
     createInventoryType(input: CreateInventoryTypeInput, requestId: string): InventoryTypeDTO;
+    updateInventoryType(
+        id: string,
+        input: CreateInventoryTypeInput,
+        requestId: string,
+    ): InventoryTypeDTO;
+    deleteInventoryType(id: string, requestId: string): void;
 
     listInventoryRequests(page: number): Paginated<InventoryRequestDTO>;
     createInventoryRequest(

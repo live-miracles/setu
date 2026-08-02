@@ -88,6 +88,7 @@ function getDashboard(): DashboardPayload {
         .sort((a, b) => a.Name.localeCompare(b.Name));
 
     const homeContent = readHomeContent();
+    const shiftPresets = readShiftPresets().sort((a, b) => a.Name.localeCompare(b.Name));
 
     // Only the Admin section surfaces this, so non-admins skip the read
     // entirely rather than being handed a count they can't act on.
@@ -107,6 +108,7 @@ function getDashboard(): DashboardPayload {
         tickets,
         links,
         homeContent,
+        shiftPresets,
         failedEmailCount,
     };
 }

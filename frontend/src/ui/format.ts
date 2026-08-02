@@ -41,7 +41,7 @@ function formatDateOnly(dateStr: string): string {
     return `${MONTH_SHORT_NAMES[monthIdx]} ${Number(day)}, ${year}`;
 }
 
-function formatTimeOfDay(time: string): string {
+export function formatTimeOfDay(time: string): string {
     if (!time) return '';
     const [h, m] = time.split(':').map(Number);
     if (isNaN(h) || isNaN(m)) return '';

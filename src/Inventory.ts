@@ -77,6 +77,35 @@ function createInventoryType(input: CreateInventoryTypeInput, requestId: string)
     return buildInventoryTypeDTOs([result])[0];
 }
 
+function updateInventoryType(
+    id: string,
+    input: CreateInventoryTypeInput,
+    requestId: string,
+): InventoryTypeDTO {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    if (!(input.totalQuantity >= 0))
+        throw new ValidationError('total_quantity_must_be_non_negative');
+    const { result } = withLockedDedupe('inventory_type:update', requestId, () => {
+        if (!Tables.InventoryTypes.findById(id)) throw new ValidationError('not_found');
+        return Tables.InventoryTypes.updateById(id, {
+            Name: name,
+            Description: input.description || '',
+            Requestable: input.requestable !== false,
+            TotalQuantity: input.totalQuantity,
+        });
+    });
+    return buildInventoryTypeDTOs([result])[0];
+}
+
+function deleteInventoryType(id: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('inventory_type:delete', requestId, () => {
+        Tables.InventoryTypes.deleteById(id);
+        return null;
+    });
+}
+
 function listInventoryRequests(page: number): Paginated<InventoryRequestDTO> {
     const actor = requireUser();
     const itemsByRequest = groupBy(Tables.InventoryItems.readAll(), (i) => i.RequestId);
