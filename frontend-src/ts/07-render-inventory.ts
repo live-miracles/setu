@@ -225,7 +225,7 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
                       ${request.items
                           .map(
                               (i) =>
-                                  `<li>${escapeHtml(i.itemName)} × ${i.Quantity}${i.IssuedQuantity ? ` (issued ${i.IssuedQuantity}, returned ${i.ReturnedQuantity})` : ''}</li>`,
+                                  `<li>${escapeHtml(i.itemName)} × ${i.Quantity}${i.Condition ? ` (${escapeHtml(i.Condition)})` : ''}</li>`,
                           )
                           .join('')}
                     </ul>
@@ -305,20 +305,13 @@ async function handleInventoryRequestAction(
         if (!request) return;
         returnItems = [];
         for (const item of request.items) {
-            const remaining = item.IssuedQuantity - item.ReturnedQuantity;
-            if (remaining <= 0) continue;
-            const qtyStr = window.prompt(
-                `Return quantity for ${item.itemName} (up to ${remaining}):`,
-                String(remaining),
+            const condition = window.prompt(
+                `Condition for ${item.itemName}: good, damaged, or missing`,
+                'good',
             );
-            if (!qtyStr) continue;
-            const quantity = Number(qtyStr);
-            if (!(quantity > 0)) continue;
-            const condition = (window.prompt('Condition: good, damaged, or missing', 'good') ||
-                'good') as ReturnCondition;
-            returnItems.push({ requestItemId: item.Id, quantity, condition });
+            if (!condition) return;
+            returnItems.push({ requestItemId: item.Id, condition: condition as ReturnCondition });
         }
-        if (returnItems.length === 0) return;
     }
 
     try {

@@ -88,8 +88,6 @@ const mockData = {
             RequestId: 'req-1',
             InventoryTypeId: 'inv-1',
             Quantity: 1,
-            IssuedQuantity: 0,
-            ReturnedQuantity: 0,
             Condition: '' as ReturnCondition | '',
         },
     ] as InventoryItem[],
@@ -160,8 +158,9 @@ function mockBuildRosterDTO(roster: Roster): RosterDTO {
 function mockComputeDeductionsByType(): Record<string, number> {
     const deductions: Record<string, number> = {};
     mockData.inventoryItems.forEach((item) => {
-        deductions[item.InventoryTypeId] =
-            (deductions[item.InventoryTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
+        const request = mockData.inventoryRequests.find((r) => r.Id === item.RequestId);
+        if (!request || request.Status !== 'issued') return;
+        deductions[item.InventoryTypeId] = (deductions[item.InventoryTypeId] || 0) + item.Quantity;
     });
     return deductions;
 }
@@ -379,8 +378,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 RequestId: created.Id,
                 InventoryTypeId: line.inventoryTypeId,
                 Quantity: line.quantity,
-                IssuedQuantity: 0,
-                ReturnedQuantity: 0,
                 Condition: '',
             });
         });
@@ -430,11 +427,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             );
         } else if (action === 'issue') {
             request.Status = 'issued';
-            mockData.inventoryItems
-                .filter((i) => i.RequestId === requestId)
-                .forEach((item) => {
-                    item.IssuedQuantity = item.Quantity;
-                });
             mockInsertActionComment(
                 'inventory',
                 requestId,
@@ -445,17 +437,13 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             const summaries: string[] = [];
             returnItems.forEach((ret) => {
                 const item = mockData.inventoryItems.find((i) => i.Id === ret.requestItemId)!;
-                item.ReturnedQuantity += ret.quantity;
                 item.Condition = ret.condition;
                 const type = mockData.inventoryTypes.find((t) => t.Id === item.InventoryTypeId);
                 summaries.push(
-                    ret.quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
+                    item.Quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
                 );
             });
-            const allReturned = mockData.inventoryItems
-                .filter((i) => i.RequestId === requestId)
-                .every((i) => i.ReturnedQuantity >= i.IssuedQuantity);
-            request.Status = allReturned ? 'returned' : 'issued';
+            request.Status = 'returned';
             mockInsertActionComment(
                 'inventory',
                 requestId,

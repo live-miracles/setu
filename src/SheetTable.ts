@@ -168,8 +168,6 @@ const Tables = {
         'RequestId',
         'InventoryTypeId',
         'Quantity',
-        'IssuedQuantity',
-        'ReturnedQuantity',
         'Condition',
     ]),
     ProgramRequests: SheetTable<ProgramRequest>('ProgramRequests', [

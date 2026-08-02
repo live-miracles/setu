@@ -106,8 +106,6 @@ interface InventoryItem {
     RequestId: string;
     InventoryTypeId: string;
     Quantity: number;
-    IssuedQuantity: number;
-    ReturnedQuantity: number;
     Condition: ReturnCondition | '';
 }
 
@@ -307,9 +305,11 @@ interface CreateInventoryRequestInput {
     participants: string;
 }
 
+// A return always covers every item on the request in full — see
+// performInventoryRequestAction's 'return' branch in Inventory.ts — so this
+// only needs to carry the condition each item came back in, not a quantity.
 interface ReturnItemInput {
     requestItemId: string;
-    quantity: number;
     condition: ReturnCondition;
 }
 

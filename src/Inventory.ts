@@ -3,13 +3,18 @@ const INVENTORY_REQUESTS_PAGE_SIZE = 20;
 // Outstanding (issued but not yet returned) quantity per inventory type —
 // subtracted from TotalQuantity to derive availableQuantity on read, rather
 // than storing a mutable counter that could drift from the underlying
-// request rows. Damaged/missing returns aren't deducted here: an admin
-// corrects TotalQuantity by hand when equipment is permanently lost.
+// request rows. Returns are all-or-nothing per request (see the 'return'
+// branch below), so an item's full Quantity counts as outstanding exactly
+// while its request's Status is 'issued'. Damaged/missing returns aren't
+// deducted here: an admin corrects TotalQuantity by hand when equipment is
+// permanently lost.
 function computeDeductionsByType(): Record<string, number> {
+    const requestsById = indexBy(Tables.InventoryRequests.readAll(), (r) => r.Id);
     const deductions: Record<string, number> = {};
     Tables.InventoryItems.readAll().forEach((item) => {
-        deductions[item.InventoryTypeId] =
-            (deductions[item.InventoryTypeId] || 0) + (item.IssuedQuantity - item.ReturnedQuantity);
+        const request = requestsById[item.RequestId];
+        if (!request || request.Status !== 'issued') return;
+        deductions[item.InventoryTypeId] = (deductions[item.InventoryTypeId] || 0) + item.Quantity;
     });
     return deductions;
 }
@@ -137,8 +142,6 @@ function createInventoryRequest(
                 RequestId: created.Id,
                 InventoryTypeId: line.inventoryType.Id,
                 Quantity: line.quantity,
-                IssuedQuantity: 0,
-                ReturnedQuantity: 0,
                 Condition: '',
             });
         });
@@ -262,9 +265,6 @@ function performInventoryRequestAction(
                         if (available < item.Quantity)
                             throw new ValidationError('insufficient_inventory');
                         deductions[type.Id] = (deductions[type.Id] || 0) + item.Quantity;
-                        Tables.InventoryItems.updateById(item.Id, {
-                            IssuedQuantity: item.Quantity,
-                        });
                     });
                     computedStatus = 'issued';
                     Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
@@ -278,50 +278,40 @@ function performInventoryRequestAction(
                     if (request.Status !== 'issued' || !returnItems || returnItems.length === 0) {
                         throw new ValidationError('invalid_transition_or_return_items');
                     }
+                    // A return closes out the whole request in one step — see the
+                    // ReturnItemInput comment in shared/types.d.ts — so every item
+                    // on the request must be present exactly once.
+                    const items = Tables.InventoryItems.findWhere(
+                        (i) => i.RequestId === requestId,
+                    );
+                    const returnedIds = new Set(returnItems.map((r) => r.requestItemId));
+                    const coversAllItems =
+                        returnItems.length === items.length &&
+                        items.every((item) => returnedIds.has(item.Id));
+                    if (!coversAllItems) throw new ValidationError('invalid_return_items');
+
+                    const itemsById = indexBy(items, (i) => i.Id);
                     const inventoryTypesById = indexBy(
                         Tables.InventoryTypes.readAll(),
                         (t) => t.Id,
                     );
                     const summaries: string[] = [];
                     returnItems.forEach((ret) => {
-                        if (!(ret.quantity >= 1)) throw new ValidationError('invalid_return_item');
-                        const item = Tables.InventoryItems.findById(ret.requestItemId);
-                        if (
-                            !item ||
-                            item.RequestId !== requestId ||
-                            item.ReturnedQuantity + ret.quantity > item.IssuedQuantity
-                        ) {
-                            throw new ValidationError('invalid_return_quantity');
-                        }
+                        const item = itemsById[ret.requestItemId];
                         const type = inventoryTypesById[item.InventoryTypeId];
-                        Tables.InventoryItems.updateById(item.Id, {
-                            ReturnedQuantity: item.ReturnedQuantity + ret.quantity,
-                            Condition: ret.condition,
-                        });
+                        Tables.InventoryItems.updateById(item.Id, { Condition: ret.condition });
                         summaries.push(
-                            ret.quantity +
-                                '× ' +
-                                (type ? type.Name : '') +
-                                ' (' +
-                                ret.condition +
-                                ')',
+                            item.Quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
                         );
                     });
-                    const remaining = Tables.InventoryItems.findWhere(
-                        (i) => i.RequestId === requestId && i.ReturnedQuantity < i.IssuedQuantity,
-                    );
-                    computedStatus = remaining.length === 0 ? 'returned' : 'issued';
+                    computedStatus = 'returned';
+                    Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
                     insertActionComment(
                         'inventory',
                         requestId,
                         actor.Email,
                         actor.Name + ' returned ' + summaries.join(', ') + '.',
                     );
-                    if (computedStatus === 'returned') {
-                        Tables.InventoryRequests.updateById(requestId, {
-                            Status: computedStatus,
-                        });
-                    }
                 } else if (action === 'cancel') {
                     requireMinLength(
                         note,
