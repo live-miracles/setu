@@ -14,9 +14,9 @@ function buildProgramRequestDTO(
     const place = placesById[request.PlaceId];
     const requester = usersByEmail[request.UserId];
     const comments = commentsFor(request.Id, commentsByRequestId, usersByEmail);
-    const sessions = (sessionsByRequest[request.Id] || []).slice().sort((a, b) =>
-        a.StartDateTime.localeCompare(b.StartDateTime),
-    );
+    const sessions = (sessionsByRequest[request.Id] || [])
+        .slice()
+        .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         placeName: place ? place.Name : '',
@@ -27,12 +27,13 @@ function buildProgramRequestDTO(
 }
 
 function listProgramRequests(page: number): Paginated<ProgramRequestDTO> {
-    requireUser();
+    const actor = requireUser();
     const sessionsByRequest = groupBy(Tables.Sessions.readAll(), (s) => s.RequestId);
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const dtos = Tables.ProgramRequests.readAll()
+        .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
         .map((r) =>
             buildProgramRequestDTO(
                 r,
@@ -109,10 +110,10 @@ function createProgramRequest(
     });
     const { request, sessions: createdSessions, comment } = result;
 
-    const admins = Tables.Users.findWhere((u) => u.Role === 'admin' && u.Email !== actor.Email);
-    admins.forEach((admin) => {
+    const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
+    approvers.forEach((approver) => {
         sendNotificationEmail(
-            admin.Email,
+            approver.Email,
             'program:' + request.Id + ':submitted',
             'New program request: PRG-' + request.DisplayId,
             actor.Name + ' requested a program: ' + request.Name + '.',
@@ -164,7 +165,7 @@ function performProgramRequestAction(
                     actor.Name + ' submitted this request.',
                 );
             } else {
-                if (actor.Role !== 'admin') throw new AuthorizationError('admin_required');
+                if (!canApprove(actor)) throw new AuthorizationError('approver_required');
 
                 if (action === 'approve') {
                     if (request.Status !== 'submitted')

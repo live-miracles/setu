@@ -1,5 +1,8 @@
+// Approvers get this list read-only — they need it to pick a ticket
+// assignee or a shift's crew member — but only an admin can write to it via
+// updateUser below.
 function listUsers(): UserDTO[] {
-    requireAdmin();
+    requireApprover();
     return Tables.Users.readAll().map(toUserDTO);
 }
 
@@ -8,6 +11,9 @@ function updateUser(userId: string, patch: UpdateUserInput): UserDTO {
     const target = Tables.Users.findById(userId);
     if (!target) throw new ValidationError('not_found');
 
+    if (patch.role !== undefined && USER_ROLES.indexOf(patch.role) === -1) {
+        throw new ValidationError('unknown_role');
+    }
     if (target.Email === actor.Email && patch.role && patch.role !== 'admin') {
         throw new ConflictError('You cannot remove your own administrator access.');
     }
@@ -36,7 +42,8 @@ function updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO {
                 patch.name !== undefined
                     ? requireNonEmpty(patch.name, 'Name is required.')
                     : actor.Name,
-            DepartmentId: patch.departmentId !== undefined ? patch.departmentId : actor.DepartmentId,
+            DepartmentId:
+                patch.departmentId !== undefined ? patch.departmentId : actor.DepartmentId,
             Phone:
                 patch.phone !== undefined
                     ? requireNonEmpty(patch.phone, 'Phone is required.')

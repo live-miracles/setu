@@ -66,7 +66,8 @@ function wireSessionRows(): void {
 
     function addRow(): void {
         const row = document.createElement('div');
-        row.className = 'grid gap-2 rounded-box border border-base-200 p-2 sm:grid-cols-2 program-session-row';
+        row.className =
+            'grid gap-2 rounded-box border border-base-200 p-2 sm:grid-cols-2 program-session-row';
         row.innerHTML = `
       <input class="input input-sm" name="sessionName" placeholder="Session name" />
       <div class="flex gap-2">
@@ -95,9 +96,8 @@ function wireCreateProgramForm(): void {
             const startDateTime = (
                 row.querySelector('input[name="startDateTime"]') as HTMLInputElement
             ).value;
-            const endDateTime = (
-                row.querySelector('input[name="endDateTime"]') as HTMLInputElement
-            ).value;
+            const endDateTime = (row.querySelector('input[name="endDateTime"]') as HTMLInputElement)
+                .value;
             return {
                 name: String(
                     (row.querySelector('input[name="sessionName"]') as HTMLInputElement).value,
@@ -137,7 +137,7 @@ function wireCreateProgramForm(): void {
 function renderProgramRequestList(dashboard: DashboardPayload): void {
     const list = document.getElementById('program-request-list');
     if (!list) return;
-    const isAdmin = dashboard.me.Role === 'admin';
+    const isApprover = canApprove(dashboard.me);
     const allActions: ProgramRequestAction[] = ['submit', 'approve', 'reject', 'cancel', 'close'];
 
     list.innerHTML =
@@ -150,7 +150,7 @@ function renderProgramRequestList(dashboard: DashboardPayload): void {
                           request.participants.indexOf(dashboard.me.Email) !== -1;
                       const actions = allActions.filter((action) => {
                           if (!canTransitionProgramRequest(request.Status, action)) return false;
-                          return action === 'submit' ? isOwner : isAdmin;
+                          return action === 'submit' ? isOwner : isApprover;
                       });
                       return `
               <li class="rounded-box border-l-4 ${PROGRAM_REQUEST_STATUS_ACCENT[request.Status]} bg-base-200/40 p-3" data-request-id="${request.Id}">

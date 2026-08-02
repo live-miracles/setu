@@ -7,8 +7,20 @@ function buildTicketDTO(ticket: Ticket, usersByEmail: Record<string, User>): Tic
     });
 }
 
+// Tickets are hidden from the `user` role entirely (canUseTickets in
+// Auth.ts): no listing, no reporting, no being assigned one. Every entry
+// point below closes that off rather than relying on the frontend hiding
+// the section.
+function requireTicketAccess(): User {
+    const actor = requireUser();
+    if (!canUseTickets(actor)) {
+        throw new AuthorizationError('Tickets are not available for your role.');
+    }
+    return actor;
+}
+
 function listTickets(page: number): Paginated<TicketDTO> {
-    requireUser();
+    requireTicketAccess();
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const dtos = Tables.Tickets.readAll()
         .sort((a, b) => b.DisplayId - a.DisplayId)
@@ -17,7 +29,7 @@ function listTickets(page: number): Paginated<TicketDTO> {
 }
 
 function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
-    const actor = requireUser();
+    const actor = requireTicketAccess();
     const title = requireNonEmpty(input.title, 'Title is required.');
 
     const { result: ticket } = withLockedDedupe('ticket:create', requestId, () => {
@@ -30,10 +42,10 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
         });
     });
 
-    const admins = Tables.Users.findWhere((u) => u.Role === 'admin' && u.Email !== actor.Email);
-    admins.forEach((admin) => {
+    const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
+    approvers.forEach((approver) => {
         sendNotificationEmail(
-            admin.Email,
+            approver.Email,
             'ticket:' + ticket.Id + ':created',
             'New ticket: TKT-' + ticket.DisplayId,
             actor.Name + ' reported: ' + ticket.Title,
@@ -41,19 +53,22 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
         );
     });
 
-    return buildTicketDTO(ticket, indexBy([actor], (u) => u.Email));
+    return buildTicketDTO(
+        ticket,
+        indexBy([actor], (u) => u.Email),
+    );
 }
 
 // Ported from the source app's `perform_ticket_action` Postgres function,
 // same one-lock-spans-the-whole-sequence discipline as Inventory.ts. There
-// is no reporter anymore, so 'close' is admin-or-assignee only.
+// is no reporter anymore, so 'close' is approver-or-assignee only.
 function performTicketAction(
     ticketId: string,
     action: TicketAction,
     assigneeId: string | null,
     dedupeRequestId: string,
 ): TicketStatus {
-    const actor = requireUser();
+    const actor = requireTicketAccess();
 
     const { duplicate, result: nextStatus } = withLockedDedupe(
         'ticket:' + ticketId + ':' + action,
@@ -64,10 +79,14 @@ function performTicketAction(
             let computedStatus: TicketStatus;
 
             if (action === 'assign') {
-                if (actor.Role !== 'admin') throw new AuthorizationError('admin_required');
+                if (!canApprove(actor)) throw new AuthorizationError('approver_required');
                 if (!assigneeId) throw new ValidationError('assignee_required');
                 const assignee = Tables.Users.findById(assigneeId);
                 if (!assignee) throw new ValidationError('assignee_not_found');
+                // Assigning to someone who can't see the board would be a
+                // dead end — they'd get the email and find nothing.
+                if (!canUseTickets(assignee))
+                    throw new ValidationError('assignee_cannot_access_tickets');
                 computedStatus = 'pending';
                 Tables.Tickets.updateById(ticketId, {
                     Status: computedStatus,
@@ -75,14 +94,14 @@ function performTicketAction(
                 });
             } else if (action === 'close') {
                 const isAssignee = ticket.AssigneeId === actor.Email;
-                if (actor.Role !== 'admin' && !isAssignee)
+                if (!canApprove(actor) && !isAssignee)
                     throw new AuthorizationError('not_ticket_owner');
                 if (['unassigned', 'pending'].indexOf(ticket.Status) === -1)
                     throw new ValidationError('invalid_transition');
                 computedStatus = 'closed';
                 Tables.Tickets.updateById(ticketId, { Status: computedStatus });
             } else if (action === 'reopen') {
-                if (actor.Role !== 'admin') throw new AuthorizationError('admin_required');
+                if (!canApprove(actor)) throw new AuthorizationError('approver_required');
                 if (ticket.Status !== 'closed') throw new ValidationError('invalid_transition');
                 computedStatus = 'pending';
                 Tables.Tickets.updateById(ticketId, { Status: computedStatus });

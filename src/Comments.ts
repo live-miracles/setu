@@ -89,6 +89,11 @@ function addComment(requestId: string, message: string, dedupeRequestId: string)
 
     const owner = findRequestOwner(requestId);
     if (!owner) throw new ValidationError('request_not_found');
+    // A `user` is scoped to requests they raised or are a participant on, so
+    // knowing an id must not be enough to comment on someone else's request.
+    if (!canViewRequest(actor, owner.userId, owner.participants)) {
+        throw new AuthorizationError('You do not have access to this request.');
+    }
 
     const { result: comment, duplicate } = withLockedDedupe(
         owner.kind + ':' + requestId + ':comment',
@@ -110,5 +115,8 @@ function addComment(requestId: string, message: string, dedupeRequestId: string)
         });
     }
 
-    return buildCommentDTO(comment, indexBy([actor], (u) => u.Email));
+    return buildCommentDTO(
+        comment,
+        indexBy([actor], (u) => u.Email),
+    );
 }

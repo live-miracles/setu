@@ -52,8 +52,8 @@ All pushing/deploying happens in CI (see below) — nothing here needs `clasp` i
     - `CLASPRC_JSON` — the raw file contents printed by `cat ~/.clasprc.json` in step 4 (paste as-is, no encoding needed — GitHub secrets hold multi-line text fine). This is a long-lived OAuth refresh token for whichever Google account ran `clasp login` — treat it like a password; rotate by re-running `clasp login` and re-pasting.
 6. **Set Script Properties** (Apps Script editor → Project Settings → Script Properties):
     - `SPREADSHEET_ID` — the Sheet ID from step 1.
-    - `ALLOWED_EMAIL_DOMAIN` — your organisation's Google Workspace email domain (e.g. `example.org`). Anyone signing in with a Google account on that domain self-registers as a member on first visit — see "Access" below.
-    - `BOOTSTRAP_ADMIN_EMAIL` — the lowercase Google account email of the first administrator. That email must also be on `ALLOWED_EMAIL_DOMAIN`; it's granted the `admin` role on first sign-in instead of `member`.
+    - `ALLOWED_EMAIL_DOMAIN` — your organisation's Google Workspace email domain (e.g. `example.org`). Anyone signing in with a Google account on that domain self-registers on first visit with the least privileged role — see "Access" below.
+    - `BOOTSTRAP_ADMIN_EMAIL` — the lowercase Google account email of the first administrator. That email must also be on `ALLOWED_EMAIL_DOMAIN`; it's granted the `admin` role on first sign-in instead of `user`.
     - `IMAGES_DRIVE_FOLDER_ID` — the ID of a Drive folder the deploying account already has edit access to, where request photos get uploaded.
 7. **Push the first version tag** (e.g. `git tag v0.1.0 && git push origin v0.1.0`), or run the workflow manually from the Actions tab, to build and push the real code to the deployment from step 3.
 8. **Run the one-time setup functions.** In the Apps Script editor, select and run (once each, in this order):
@@ -73,7 +73,28 @@ The workflow reconstructs `.clasp.json` and `~/.clasprc.json` on the runner from
 
 ## Access
 
-There is no invite flow and no per-user disable switch. The `Users` sheet tab (keyed by email) is the allowlist: anyone signing in with a Google account on `ALLOWED_EMAIL_DOMAIN` self-registers as a `member` on their first visit (or `admin`, for `BOOTSTRAP_ADMIN_EMAIL`), with an empty `Phone` until they submit the registration form the frontend shows in place of the app on that first visit (name, department, phone, WhatsApp — see `updateOwnProfile` in `Admin.ts`). Revoking someone's organisation Google account revokes their access to this app — an admin can still change a person's role or department from the Admin section, but there is no in-app way to block a still-valid account.
+There is no invite flow and no per-user disable switch. The `Users` sheet tab (keyed by email) is the allowlist: anyone signing in with a Google account on `ALLOWED_EMAIL_DOMAIN` self-registers as a `user` on their first visit (or `admin`, for `BOOTSTRAP_ADMIN_EMAIL`), with an empty `Phone` until they submit the registration form the frontend shows in place of the app on that first visit (name, department, phone, WhatsApp — see `updateOwnProfile` in `Admin.ts`). Revoking someone's organisation Google account revokes their access to this app — an admin can still change a person's role from Settings → Users, but there is no in-app way to block a still-valid account.
+
+### Roles
+
+Four roles, strictly nested — each row can do everything the row below it can:
+
+| Role       | Sections              | Requests                   | Can also                                                                                          |
+| ---------- | --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `admin`    | all                   | every request              | edit departments, places, inventory types, quick links and home content, and change anyone's role |
+| `approver` | all                   | every request              | approve/reject/issue/return/cancel/close, assign and reopen tickets, schedule shifts, read People |
+| `viewer`   | no Roster             | every request              | —                                                                                                 |
+| `user`     | no Roster, no Tickets | own + participant requests | —                                                                                                 |
+
+Inventory, Programs, Home and Profile are open to everyone. Roster is admin/approver-only — reading it, not just scheduling into it. Tickets are hidden from `user` outright (a `Ticket` row has no reporter column, so there is nothing to scope a personal ticket list by); `user` can't list, report, act on or be assigned one, and the assignee picker skips them.
+
+There is no combined Admin page. The navbar's **Settings** dropdown holds one page per list — Users, Departments, Places, Inventory types, Home content. Quick links sit on the Home content page rather than a page of their own, since both feed the same screen. Users is visible to approvers as a read-only roster of who has access; the other four are admin-only, and the dropdown itself is hidden from viewers and users. The "notification emails failed" warning lives on Home, where only admins see it.
+
+Everyone, `user` included, can raise equipment and program requests, and comment on any request they can see.
+
+Roles are interpreted in exactly one place — the `canManageConfig`/`canApprove`/`canViewAllRequests`/`canUseTickets`/`canViewRequest` helpers in `Auth.ts`, which every endpoint calls; `11-workflows.ts` mirrors the first three client-side purely to decide which sections and buttons to draw, and `getDashboard` sends empty lists for the sections a role can't open. `roleOf` folds any unrecognised `Role` cell (including the pre-split `member` value, and anything typed by hand into the Sheet) down to `user`, so a bad value fails closed rather than granting access.
+
+One consequence worth knowing: crew scheduled onto a shift who are on `viewer` or `user` get the assignment email but have no in-app roster to check. Anyone in the `Users` tab can still be a shift assignee — that is deliberate, since restricting it to admins and approvers would make scheduling useless.
 
 Inventory and program requests can also list `Participants` — a comma-separated list of emails notified alongside the requester and given the same submit permission on that request. Participants don't need to be registered Setu users; an email with no account just receives the notification.
 

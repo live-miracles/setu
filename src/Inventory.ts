@@ -60,10 +60,7 @@ function listInventoryTypes(): InventoryTypeDTO[] {
     return buildInventoryTypeDTOs(Tables.InventoryTypes.readAll());
 }
 
-function createInventoryType(
-    input: CreateInventoryTypeInput,
-    requestId: string,
-): InventoryTypeDTO {
+function createInventoryType(input: CreateInventoryTypeInput, requestId: string): InventoryTypeDTO {
     requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     if (!(input.totalQuantity >= 0))
@@ -81,12 +78,13 @@ function createInventoryType(
 }
 
 function listInventoryRequests(page: number): Paginated<InventoryRequestDTO> {
-    requireUser();
+    const actor = requireUser();
     const itemsByRequest = groupBy(Tables.InventoryItems.readAll(), (i) => i.RequestId);
     const inventoryTypesById = indexBy(Tables.InventoryTypes.readAll(), (t) => t.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const dtos = Tables.InventoryRequests.readAll()
+        .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
         .map((r) =>
             buildInventoryRequestDTO(
                 r,
@@ -155,10 +153,10 @@ function createInventoryRequest(
     });
     const { request, comment } = result;
 
-    const admins = Tables.Users.findWhere((u) => u.Role === 'admin' && u.Email !== actor.Email);
-    admins.forEach((admin) => {
+    const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
+    approvers.forEach((approver) => {
         sendNotificationEmail(
-            admin.Email,
+            approver.Email,
             'inventory:' + request.Id + ':submitted',
             'New equipment request: REQ-' + request.DisplayId,
             actor.Name +
@@ -218,7 +216,7 @@ function performInventoryRequestAction(
                     actor.Name + ' submitted this request.',
                 );
             } else {
-                if (actor.Role !== 'admin') throw new AuthorizationError('admin_required');
+                if (!canApprove(actor)) throw new AuthorizationError('approver_required');
 
                 if (action === 'approve') {
                     if (request.Status !== 'submitted')
@@ -250,9 +248,7 @@ function performInventoryRequestAction(
                 } else if (action === 'issue') {
                     if (request.Status !== 'approved')
                         throw new ValidationError('invalid_transition');
-                    const items = Tables.InventoryItems.findWhere(
-                        (i) => i.RequestId === requestId,
-                    );
+                    const items = Tables.InventoryItems.findWhere((i) => i.RequestId === requestId);
                     const inventoryTypesById = indexBy(
                         Tables.InventoryTypes.readAll(),
                         (t) => t.Id,
@@ -281,9 +277,7 @@ function performInventoryRequestAction(
                     // A return closes out the whole request in one step — see the
                     // ReturnItemInput comment in shared/types.d.ts — so every item
                     // on the request must be present exactly once.
-                    const items = Tables.InventoryItems.findWhere(
-                        (i) => i.RequestId === requestId,
-                    );
+                    const items = Tables.InventoryItems.findWhere((i) => i.RequestId === requestId);
                     const returnedIds = new Set(returnItems.map((r) => r.requestItemId));
                     const coversAllItems =
                         returnItems.length === items.length &&
@@ -301,7 +295,12 @@ function performInventoryRequestAction(
                         const type = inventoryTypesById[item.InventoryTypeId];
                         Tables.InventoryItems.updateById(item.Id, { Condition: ret.condition });
                         summaries.push(
-                            item.Quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
+                            item.Quantity +
+                                '× ' +
+                                (type ? type.Name : '') +
+                                ' (' +
+                                ret.condition +
+                                ')',
                         );
                     });
                     computedStatus = 'returned';

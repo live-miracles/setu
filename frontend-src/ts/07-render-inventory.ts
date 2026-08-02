@@ -55,7 +55,10 @@ async function renderInventory(container: HTMLElement, dashboard: DashboardPaylo
                   ? renderEmptyState('box', 'No equipment catalogued yet.')
                   : `<ul class="divide-y divide-base-200">${dashboard.inventoryTypes
                         .map((type) => {
-                            const stock = stockLevelClass(type.availableQuantity, type.TotalQuantity);
+                            const stock = stockLevelClass(
+                                type.availableQuantity,
+                                type.TotalQuantity,
+                            );
                             return `
                       <li class="flex items-center gap-3 py-2.5">
                         <div class="min-w-0 flex-1">
@@ -187,7 +190,7 @@ function renderRequestImages(request: InventoryRequestDTO): string {
 function renderInventoryRequestList(dashboard: DashboardPayload): void {
     const list = document.getElementById('inventory-request-list');
     if (!list) return;
-    const isAdmin = dashboard.me.Role === 'admin';
+    const isApprover = canApprove(dashboard.me);
     const allActions: InventoryRequestAction[] = [
         'submit',
         'approve',
@@ -208,7 +211,7 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
                           request.participants.indexOf(dashboard.me.Email) !== -1;
                       const actions = allActions.filter((action) => {
                           if (!canTransitionInventoryRequest(request.Status, action)) return false;
-                          return action === 'submit' ? isOwner : isAdmin;
+                          return action === 'submit' ? isOwner : isApprover;
                       });
                       const overdue = isRequestOverdue(request);
                       return `

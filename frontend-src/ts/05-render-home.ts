@@ -13,6 +13,13 @@ function todayDateOnly(): string {
 }
 
 async function renderHome(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+    // Home summarises every section, so it drops the cards, stats and jump
+    // links for the two sections a role may not open at all — otherwise it
+    // would advertise a roster or ticket board that isn't there. The
+    // payload is empty for those anyway (see getDashboard).
+    const showRoster = canApprove(dashboard.me);
+    const showTickets = canUseTickets(dashboard.me);
+
     const today = todayDateOnly();
     const todayRosters = dashboard.upcomingRosters.filter(
         (r) => r.StartDate <= today && r.EndDate >= today,
@@ -43,7 +50,16 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
     <section class="space-y-6">
       ${renderSectionHeader('home', greetingForNow(), "Here's today's operations pulse.")}
 
-      <div class="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+      ${
+          canManageConfig(dashboard.me) && dashboard.failedEmailCount > 0
+              ? `<div class="alert alert-warning">
+              ${icon('alert', 'size-5')}
+              <span>${dashboard.failedEmailCount} notification email(s) failed to send in the last 7 days.</span>
+            </div>`
+              : ''
+      }
+
+      <div class="grid gap-4 ${showRoster ? 'lg:grid-cols-[1.3fr_1fr]' : ''}">
         <div class="card border border-base-300 bg-base-100 shadow">
           <div class="card-body gap-3">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Welcome back</span>
@@ -61,15 +77,21 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
                 ${icon('clapper', 'size-4')}
                 Book a program
               </button>
-              <button class="btn btn-outline btn-sm" data-nav-section="roster">
+              ${
+                  showRoster
+                      ? `<button class="btn btn-outline btn-sm" data-nav-section="roster">
                 ${icon('calendar', 'size-4')}
                 View roster
-              </button>
+              </button>`
+                      : ''
+              }
             </div>
           </div>
         </div>
 
-        <div class="card border border-base-300 bg-base-100 shadow">
+        ${
+            showRoster
+                ? `<div class="card border border-base-300 bg-base-100 shadow">
           <div class="card-body gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Next shift</span>
             ${
@@ -83,16 +105,22 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
                     : `<p class="text-sm text-base-content/50">No shifts scheduled yet.</p>`
             }
           </div>
-        </div>
+        </div>`
+                : ''
+        }
       </div>
 
       <div class="stats stats-vertical w-full border border-base-300 bg-base-100 shadow sm:stats-horizontal">
-        <div class="stat">
+        ${
+            showRoster
+                ? `<div class="stat">
           <div class="stat-figure text-primary">${icon('calendar', 'size-6')}</div>
           <div class="stat-title">Today's shifts</div>
           <div class="stat-value text-2xl">${todayRosters.length}</div>
           <div class="stat-desc">${todayAssignments} crew assignment${todayAssignments === 1 ? '' : 's'}</div>
-        </div>
+        </div>`
+                : ''
+        }
         <div class="stat">
           <div class="stat-figure text-warning">${icon('box', 'size-6')}</div>
           <div class="stat-title">Active requests</div>
@@ -105,11 +133,15 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
           <div class="stat-value text-2xl">${activePrograms.length}</div>
           <div class="stat-desc">${programsAwaitingApproval} awaiting approval</div>
         </div>
-        <div class="stat">
+        ${
+            showTickets
+                ? `<div class="stat">
           <div class="stat-figure text-info">${icon('ticket', 'size-6')}</div>
           <div class="stat-title">Open tickets</div>
           <div class="stat-value text-2xl">${openTickets.length}</div>
-        </div>
+        </div>`
+                : ''
+        }
         <div class="stat">
           <div class="stat-figure text-error">${icon('alert', 'size-6')}</div>
           <div class="stat-title">Low stock</div>
@@ -118,8 +150,10 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
         </div>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="card border border-base-300 bg-base-100 shadow">
+      <div class="grid gap-4 ${showRoster ? 'md:grid-cols-2' : ''}">
+        ${
+            showRoster
+                ? `<div class="card border border-base-300 bg-base-100 shadow">
           <div class="card-body gap-2">
             <div class="flex items-center justify-between">
               <h2 class="card-title text-base">${icon('calendar', 'size-5 text-primary')} Upcoming roster</h2>
@@ -143,7 +177,9 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
                           .join('')}</ul>`
             }
           </div>
-        </div>
+        </div>`
+                : ''
+        }
 
         <div class="card border border-base-300 bg-base-100 shadow">
           <div class="card-body gap-2">

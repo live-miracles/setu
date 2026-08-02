@@ -7,7 +7,16 @@
 // execution model (the same reason SheetTable.ts's `Tables`, Utils.ts's
 // `nowIso`, etc. are callable from any other file with no import).
 
-type UserRole = 'admin' | 'member';
+// Listed most- to least-privileged, and strictly nested: `user` sees only
+// requests they raised or are a participant on; `viewer` sees every request
+// but can act on none; `approver` can additionally approve/reject/issue/
+// return requests, assign tickets and schedule shifts; `admin` can also edit
+// configuration (departments, places, inventory types, links, home content)
+// and other people's roles. Every check goes through the canX helpers in
+// Auth.ts rather than comparing User.Role directly — rows written before
+// this split carry the old 'member' value, which those helpers fold into
+// 'user'.
+type UserRole = 'admin' | 'approver' | 'viewer' | 'user';
 type InventoryRequestStatus =
     | 'draft'
     | 'submitted'
@@ -18,12 +27,7 @@ type InventoryRequestStatus =
     | 'cancelled'
     | 'closed';
 type ProgramRequestStatus =
-    | 'draft'
-    | 'submitted'
-    | 'approved'
-    | 'rejected'
-    | 'cancelled'
-    | 'closed';
+    'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled' | 'closed';
 type ReturnCondition = 'good' | 'damaged' | 'missing';
 type TicketStatus = 'unassigned' | 'pending' | 'closed';
 type InventoryRequestAction =

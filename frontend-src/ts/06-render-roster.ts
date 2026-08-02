@@ -17,13 +17,13 @@ function formatDayTile(dateStr: string): { day: string; month: string } {
 }
 
 async function renderRoster(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
-    const isAdmin = dashboard.me.Role === 'admin';
-    const users = isAdmin ? await api.listUsers() : [];
+    const canSchedule = canApprove(dashboard.me);
+    const users = canSchedule ? await api.listUsers() : [];
 
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('calendar', 'Roster', 'Plan shifts and keep the team aligned.')}
-      ${isAdmin ? renderCreateShiftForm(users) : ''}
+      ${canSchedule ? renderCreateShiftForm(users) : ''}
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-2">
           <h2 class="card-title text-base">Shifts</h2>
@@ -35,7 +35,7 @@ async function renderRoster(container: HTMLElement, dashboard: DashboardPayload)
 
     wireInternalNavLinks(container);
     renderRosterList(dashboard.upcomingRosters);
-    if (isAdmin) wireCreateShiftForm();
+    if (canSchedule) wireCreateShiftForm();
 }
 
 function renderCreateShiftForm(users: UserDTO[]): string {

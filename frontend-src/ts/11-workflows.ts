@@ -55,3 +55,22 @@ function canTransitionTicket(status: TicketStatus, action: TicketAction): boolea
 function inventoryDeltaForReturn(quantity: number, condition: ReturnCondition): number {
     return condition === 'good' ? quantity : 0;
 }
+
+// Role predicates, mirroring canManageConfig/canApprove in Auth.ts — same
+// caveat as the transition tables above: they only decide what the UI
+// offers, and the backend re-checks every one of them. There's no
+// client-side equivalent of canViewAllRequests: request scoping happens
+// server-side, so a `user` simply never receives the rows they can't see.
+function canManageConfig(me: UserDTO): boolean {
+    return me.Role === 'admin';
+}
+
+function canApprove(me: UserDTO): boolean {
+    return me.Role === 'admin' || me.Role === 'approver';
+}
+
+// The ticket board is hidden from `user` outright, so the nav entry, the
+// Home stat and the assignee picker all gate on this.
+function canUseTickets(me: UserDTO): boolean {
+    return me.Role !== 'user';
+}

@@ -65,7 +65,7 @@ function wireCreateTicketForm(): void {
 function renderTicketBoard(dashboard: DashboardPayload): void {
     const board = document.getElementById('ticket-board');
     if (!board) return;
-    const isAdmin = dashboard.me.Role === 'admin';
+    const isApprover = canApprove(dashboard.me);
     const allActions: TicketAction[] = ['assign', 'close', 'reopen'];
 
     board.innerHTML = TICKET_BOARD_COLUMNS.map((column) => {
@@ -81,7 +81,9 @@ function renderTicketBoard(dashboard: DashboardPayload): void {
               tickets.length === 0
                   ? `<div class="rounded-box border border-dashed border-base-300 py-6 text-center text-sm text-base-content/40">No tickets</div>`
                   : tickets
-                        .map((ticket) => renderTicketCard(ticket, dashboard, isAdmin, allActions))
+                        .map((ticket) =>
+                            renderTicketCard(ticket, dashboard, isApprover, allActions),
+                        )
                         .join('')
           }
         </div>
@@ -94,14 +96,14 @@ function renderTicketBoard(dashboard: DashboardPayload): void {
 function renderTicketCard(
     ticket: TicketDTO,
     dashboard: DashboardPayload,
-    isAdmin: boolean,
+    isApprover: boolean,
     allActions: TicketAction[],
 ): string {
     const isAssignee = ticket.AssigneeId === dashboard.me.Email;
     const actions = allActions.filter((action) => {
         if (!canTransitionTicket(ticket.Status, action)) return false;
-        if (action === 'close') return isAdmin || isAssignee;
-        return isAdmin;
+        if (action === 'close') return isApprover || isAssignee;
+        return isApprover;
     });
 
     return `
@@ -139,7 +141,9 @@ function wireTicketBoard(board: HTMLElement): void {
 async function handleTicketAction(ticketId: string, action: TicketAction): Promise<void> {
     let assigneeId: string | null = null;
     if (action === 'assign') {
-        const users = await api.listUsers();
+        // Anyone on the `user` role can't open the ticket board at all, so
+        // they're not offerable as an assignee — the backend rejects it too.
+        const users = (await api.listUsers()).filter(canUseTickets);
         const names = users.map((u, i) => `${i + 1}. ${u.Name} (${u.Email})`).join('\n');
         const choice = window.prompt('Assign to (enter number):\n' + names);
         const index = Number(choice) - 1;

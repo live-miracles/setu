@@ -35,12 +35,30 @@ const mockData = {
             Whatsapp: '',
         },
         {
-            Email: 'sam@example.com',
-            Name: 'Sam Member',
-            Role: 'member' as UserRole,
+            Email: 'ana@example.com',
+            Name: 'Ana Approver',
+            Role: 'approver' as UserRole,
             DepartmentId: 'dep-1',
             Timezone: 'Asia/Kolkata',
             Phone: '+91 90000 00002',
+            Whatsapp: '',
+        },
+        {
+            Email: 'vic@example.com',
+            Name: 'Vic Viewer',
+            Role: 'viewer' as UserRole,
+            DepartmentId: 'dep-1',
+            Timezone: 'Asia/Kolkata',
+            Phone: '+91 90000 00003',
+            Whatsapp: '',
+        },
+        {
+            Email: 'sam@example.com',
+            Name: 'Sam User',
+            Role: 'user' as UserRole,
+            DepartmentId: 'dep-1',
+            Timezone: 'Asia/Kolkata',
+            Phone: '+91 90000 00004',
             Whatsapp: '',
         },
     ] as User[],
@@ -121,7 +139,7 @@ const mockData = {
             ProgramRequestId: '',
             InventoryRequestId: 'req-1',
             UserId: 'sam@example.com',
-            Message: 'Sam Member submitted this request.',
+            Message: 'Sam User submitted this request.',
         },
     ] as CommentRecord[],
     links: [
@@ -143,6 +161,17 @@ const mockData = {
 
 function mockCurrentUser(): User {
     return mockData.users.find((u) => u.Email === mockData.currentUserId)!;
+}
+
+// Mirrors canViewRequest in Auth.ts, so the scoped lists a `user` sees
+// locally match what the real backend would actually return.
+function mockCanViewRequest(request: { UserId: string; Participants: string }): boolean {
+    const me = mockCurrentUser();
+    if (me.Role !== 'user') return true;
+    return (
+        request.UserId === me.Email ||
+        mockParseParticipants(request.Participants).indexOf(me.Email) !== -1
+    );
 }
 
 function mockToUserDTO(user: User): UserDTO {
@@ -246,10 +275,18 @@ function mockBuildDashboard(): DashboardPayload {
         departments: mockData.departments,
         places: mockData.places,
         inventoryTypes: mockBuildInventoryTypeDTOs(),
-        upcomingRosters: mockData.rosters.map(mockBuildRosterDTO),
-        inventoryRequests: mockData.inventoryRequests.map(mockBuildInventoryRequestDTO),
-        programRequests: mockData.programRequests.map(mockBuildProgramRequestDTO),
-        tickets: mockData.tickets.map(mockBuildTicketDTO),
+        upcomingRosters: canApprove(mockToUserDTO(mockCurrentUser()))
+            ? mockData.rosters.map(mockBuildRosterDTO)
+            : [],
+        inventoryRequests: mockData.inventoryRequests
+            .filter(mockCanViewRequest)
+            .map(mockBuildInventoryRequestDTO),
+        programRequests: mockData.programRequests
+            .filter(mockCanViewRequest)
+            .map(mockBuildProgramRequestDTO),
+        tickets: canUseTickets(mockToUserDTO(mockCurrentUser()))
+            ? mockData.tickets.map(mockBuildTicketDTO)
+            : [],
         links: mockData.links.filter((l) => l.Enabled),
         homeContent: mockData.homeContent,
         failedEmailCount: 0,
@@ -320,6 +357,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
 
     listRosters: (page: number) => {
+        if (!canApprove(mockToUserDTO(mockCurrentUser()))) {
+            throw new Error('Approver access is required.');
+        }
         const items = mockData.rosters.map(mockBuildRosterDTO);
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
@@ -352,7 +392,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
 
     listInventoryRequests: (page: number) => {
-        const items = mockData.inventoryRequests.map(mockBuildInventoryRequestDTO);
+        const items = mockData.inventoryRequests
+            .filter(mockCanViewRequest)
+            .map(mockBuildInventoryRequestDTO);
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
     createInventoryRequest: (input: CreateInventoryRequestInput) => {
@@ -471,7 +513,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
 
     listProgramRequests: (page: number) => {
-        const items = mockData.programRequests.map(mockBuildProgramRequestDTO);
+        const items = mockData.programRequests
+            .filter(mockCanViewRequest)
+            .map(mockBuildProgramRequestDTO);
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
     createProgramRequest: (input: CreateProgramRequestInput) => {
@@ -561,6 +605,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
 
     listTickets: (page: number) => {
+        if (!canUseTickets(mockToUserDTO(mockCurrentUser()))) {
+            throw new Error('Tickets are not available for your role.');
+        }
         const items = mockData.tickets.map(mockBuildTicketDTO);
         return { items, page: page || 1, pageSize: 20, totalCount: items.length };
     },
@@ -600,7 +647,8 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return mockBuildCommentDTO(created);
     },
 
-    uploadImage: (_base64Data: string, fileName: string) => 'mock-image-' + mockUuid() + '-' + fileName,
+    uploadImage: (_base64Data: string, fileName: string) =>
+        'mock-image-' + mockUuid() + '-' + fileName,
 };
 
 function mockRunner(
@@ -630,6 +678,20 @@ function mockRunner(
         },
     );
 }
+
+// Dev convenience: there's no sign-in to switch, so call
+// `mockSignInAs('sam@example.com')` from the browser console to re-render
+// the app as another mock user and check how each role sees it.
+(window as any).mockSignInAs = function (email: string): void {
+    if (!mockData.users.some((u) => u.Email === email)) {
+        console.warn(
+            'No mock user ' + email + '. Try: ' + mockData.users.map((u) => u.Email).join(', '),
+        );
+        return;
+    }
+    mockData.currentUserId = email;
+    refreshDashboard();
+};
 
 (window as any).googleMock = {
     script: {

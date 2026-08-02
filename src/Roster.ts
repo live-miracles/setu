@@ -5,8 +5,12 @@ function buildRosterDTO(roster: Roster, usersByEmail: Record<string, User>): Ros
     return Object.assign({}, roster, { userName: user ? user.Name : '' });
 }
 
+// The whole roster — reading it, not just scheduling into it — is limited
+// to admins and approvers (canApprove in Auth.ts). Crew on the `viewer` or
+// `user` role still get the assignment email from createRoster below; they
+// just have no in-app shift list.
 function listRosters(page: number): Paginated<RosterDTO> {
-    requireUser();
+    requireApprover();
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const sorted = Tables.Rosters.readAll().sort((a, b) =>
         (b.StartDate + b.StartTime).localeCompare(a.StartDate + a.StartTime),
@@ -15,8 +19,11 @@ function listRosters(page: number): Paginated<RosterDTO> {
     return paginate(dtos, page, ROSTER_PAGE_SIZE);
 }
 
+// Scheduling is an approver power, not an admin one. Anyone in the Users
+// tab can be the assignee, including roles that can't open the roster
+// themselves — the notification below is how they hear about the shift.
 function createRoster(input: CreateRosterInput, requestId: string): RosterDTO {
-    requireAdmin();
+    requireApprover();
 
     if (!input.startDate || !input.endDate) {
         throw new ValidationError('startDate and endDate are required.');

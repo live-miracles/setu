@@ -20,7 +20,7 @@ const FRONTEND_TS_ORDER = [
     '13-render-programs.ts',
     '08-render-tickets.ts',
     '09-render-profile.ts',
-    '10-render-admin.ts',
+    '10-render-settings.ts',
     '12-main.ts',
 ];
 

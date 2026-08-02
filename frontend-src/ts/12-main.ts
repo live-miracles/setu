@@ -1,3 +1,5 @@
+// The last five are the Settings pages, reached from the navbar dropdown
+// rather than the main nav — see 10-render-settings.ts.
 type SectionKey =
     | 'home'
     | 'roster'
@@ -5,7 +7,11 @@ type SectionKey =
     | 'programs'
     | 'tickets'
     | 'profile'
-    | 'admin';
+    | 'users'
+    | 'departments'
+    | 'places'
+    | 'inventory-types'
+    | 'home-content';
 
 type SectionRenderer = (
     container: HTMLElement,
@@ -19,8 +25,16 @@ const SECTION_RENDERERS: Record<SectionKey, SectionRenderer> = {
     programs: renderPrograms,
     tickets: renderTickets,
     profile: renderProfile,
-    admin: renderAdmin,
+    users: renderUsers,
+    departments: (c, d) => renderSettingsList(SETTINGS_LIST_PAGES.departments, c, d),
+    places: (c, d) => renderSettingsList(SETTINGS_LIST_PAGES.places, c, d),
+    'inventory-types': (c, d) => renderSettingsList(SETTINGS_LIST_PAGES['inventory-types'], c, d),
+    'home-content': renderHomeContent,
 };
+
+// The admin-only Settings pages. Users sits alongside them in the dropdown
+// but is readable by approvers too, so it isn't in this list.
+const CONFIG_SECTIONS: SectionKey[] = ['departments', 'places', 'inventory-types', 'home-content'];
 
 async function refreshDashboard(): Promise<void> {
     const dashboard = await api.getDashboard();
@@ -43,10 +57,10 @@ async function renderCurrentSection(): Promise<void> {
         return;
     }
 
-    const sectionKey = (SECTION_RENDERERS[section as SectionKey] ? section : 'home') as SectionKey;
+    const sectionKey = resolveSection(section, dashboard);
     await SECTION_RENDERERS[sectionKey](container, dashboard);
     renderNavActive(sectionKey);
-    toggleAdminNavVisibility(dashboard);
+    toggleRoleNavVisibility(dashboard);
 }
 
 // New sign-ins land with an empty Phone (see Auth.ts) until they fill in
@@ -60,11 +74,15 @@ function toggleNavVisibility(show: boolean): void {
     if (mobileDock) mobileDock.style.display = show ? '' : 'none';
 }
 
+// One of btn-active/dock-active/menu-active applies per element depending
+// on where it lives (nav bar, mobile dock, Settings dropdown); the other two
+// are inert there.
 function renderNavActive(section: SectionKey): void {
     document.querySelectorAll('[data-nav-section]').forEach((el) => {
         const isActive = (el as HTMLElement).dataset.navSection === section;
         el.classList.toggle('btn-active', isActive);
         el.classList.toggle('dock-active', isActive);
+        el.classList.toggle('menu-active', isActive);
     });
 }
 
@@ -75,10 +93,39 @@ function renderNavIdentity(dashboard: DashboardPayload): void {
     if (emailEl) emailEl.textContent = dashboard.me.Email;
 }
 
-function toggleAdminNavVisibility(dashboard: DashboardPayload): void {
-    document
-        .querySelectorAll('[data-nav-section="admin"]')
-        .forEach((el) => el.classList.toggle('hidden', dashboard.me.Role !== 'admin'));
+// Which sections the signed-in role may open at all. Home, Inventory,
+// Programs and Profile are open to everyone; the rest are role-gated, and
+// the backend enforces the same thing (requireApprover in Admin.ts and
+// Roster.ts, requireAdmin for the config writes, requireTicketAccess in
+// Tickets.ts).
+function canOpenSection(section: SectionKey, me: UserDTO): boolean {
+    if (CONFIG_SECTIONS.indexOf(section) !== -1) return canManageConfig(me);
+    if (section === 'users' || section === 'roster') return canApprove(me);
+    if (section === 'tickets') return canUseTickets(me);
+    return true;
+}
+
+// A saved `?section=tickets` link (or the browser's back button) can name a
+// section the signed-in role can't open — whose renderer would then make an
+// API call it isn't allowed to make — so it resolves to Home instead of
+// failing mid-render. Unknown keys (including the retired `admin`) land on
+// Home the same way.
+function resolveSection(section: string, dashboard: DashboardPayload): SectionKey {
+    const key = (SECTION_RENDERERS[section as SectionKey] ? section : 'home') as SectionKey;
+    return canOpenSection(key, dashboard.me) ? key : 'home';
+}
+
+// Hides the entries for sections this role can't open, wherever they appear
+// — the desktop bar, the mobile dock and the Settings dropdown each render
+// their own copy. The dropdown trigger carries no data-nav-section of its
+// own, so it's hidden separately when nothing inside it is reachable.
+function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
+    document.querySelectorAll<HTMLElement>('[data-nav-section]').forEach((el) => {
+        const section = el.dataset.navSection as SectionKey;
+        el.classList.toggle('hidden', !canOpenSection(section, dashboard.me));
+    });
+    const settingsMenu = document.getElementById('settings-menu');
+    if (settingsMenu) settingsMenu.classList.toggle('hidden', !canApprove(dashboard.me));
 }
 
 function navigateTo(section: SectionKey): void {

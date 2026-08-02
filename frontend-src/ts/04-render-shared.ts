@@ -194,6 +194,42 @@ function renderEmptyState(iconName: IconName, message: string): string {
 // the same lifecycle state the same way.
 // ---------------------------------------------------------------------------
 
+// Roles, in the order they're offered in the Admin section's picker — most
+// to least privileged, matching USER_ROLES in Auth.ts.
+const USER_ROLE_ORDER: UserRole[] = ['admin', 'approver', 'viewer', 'user'];
+
+const USER_ROLE_LABELS: Record<UserRole, string> = {
+    admin: 'Admin',
+    approver: 'Approver',
+    viewer: 'Viewer',
+    user: 'User',
+};
+
+const USER_ROLE_SUMMARIES: Record<UserRole, string> = {
+    admin: 'Full access, including settings and roles',
+    approver: 'Approves requests, assigns tickets, schedules shifts',
+    viewer: 'Sees every request but approves none',
+    user: 'Sees only their own requests',
+};
+
+const USER_ROLE_BADGE: Record<UserRole, string> = {
+    admin: 'badge-secondary',
+    approver: 'badge-primary',
+    viewer: 'badge-accent',
+    user: 'badge-ghost',
+};
+
+// Auth.ts normalises Role before it ever reaches a DTO, so the lookups
+// above always hit — these two just keep an unexpected value rendering as
+// plain text instead of the literal string "undefined".
+function roleLabel(role: UserRole): string {
+    return USER_ROLE_LABELS[role] || String(role);
+}
+
+function roleBadgeClass(role: UserRole): string {
+    return USER_ROLE_BADGE[role] || 'badge-ghost';
+}
+
 const INVENTORY_REQUEST_STATUS_BADGE: Record<InventoryRequestStatus, string> = {
     draft: 'badge-ghost',
     submitted: 'badge-soft badge-warning',

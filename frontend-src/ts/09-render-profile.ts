@@ -11,7 +11,10 @@ async function renderProfile(container: HTMLElement, dashboard: DashboardPayload
               <h2 class="text-lg font-bold">${escapeHtml(me.Name)}</h2>
               <p class="text-sm text-base-content/60">${escapeHtml(me.Email)}</p>
             </div>
-            <span class="badge badge-soft ${me.Role === 'admin' ? 'badge-secondary' : 'badge-ghost'}">${escapeHtml(me.Role)}</span>
+            <div class="text-right">
+              <span class="badge badge-soft ${roleBadgeClass(me.Role)}">${escapeHtml(roleLabel(me.Role))}</span>
+              <p class="mt-1 text-xs text-base-content/50">${escapeHtml(USER_ROLE_SUMMARIES[me.Role] || '')}</p>
+            </div>
           </div>
           <div class="grid gap-3 border-t border-base-200 pt-3 sm:grid-cols-2">
             <div>
@@ -86,11 +89,7 @@ async function renderProfile(container: HTMLElement, dashboard: DashboardPayload
     });
 }
 
-function renderDepartmentSelect(
-    id: string,
-    departments: Department[],
-    selectedId: string,
-): string {
+function renderDepartmentSelect(id: string, departments: Department[], selectedId: string): string {
     const options = departments
         .map(
             (d) =>
