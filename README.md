@@ -40,7 +40,7 @@ All pushing/deploying happens in CI (see below) — nothing here needs `clasp` i
 
 1. **Create the Google Sheet.** Any new spreadsheet works — the app creates its own tabs. Copy its ID from the URL (`https://docs.google.com/spreadsheets/d/<ID>/edit`).
 2. **Create the Apps Script project** at [script.google.com](https://script.google.com) → New project. Rename it, then copy its Script ID from Project Settings (gear icon) → **IDs** → Script ID.
-3. **Deploy as a web app** right away, before any real code is pushed — the placeholder boilerplate is fine, CI will overwrite it. In the Apps Script editor: Deploy → New deployment → Web app → Execute as **Me**, Who has access **Anyone with a Google account**. Copy the deployment ID it gives you.
+3. **Deploy as a web app** right away, before any real code is pushed — the placeholder boilerplate is fine, CI will overwrite it. In the Apps Script editor: Deploy → New deployment → Web app → Execute as **Me**, Who has access **Anyone within [your domain]** (only available if the script is owned by a Workspace account on that domain). Copy the deployment ID it gives you.
 4. **Get a clasp auth token**, on any machine with a browser (doesn't need to be tied to this project or repo):
     ```bash
     npx clasp login   # one-time interactive OAuth, writes ~/.clasprc.json
@@ -73,7 +73,7 @@ The workflow reconstructs `.clasp.json` and `~/.clasprc.json` on the runner from
 
 ## Access
 
-There is no invite flow and no per-user disable switch. The `Users` sheet tab (keyed by email) is the allowlist: anyone signing in with a Google account on `ALLOWED_EMAIL_DOMAIN` self-registers as a `member` on their first visit (or `admin`, for `BOOTSTRAP_ADMIN_EMAIL`), with `Registered: false` until they submit the registration form the frontend shows in place of the app on that first visit (name, department, phone, WhatsApp — see `updateOwnProfile` in `Admin.ts`). Revoking someone's organisation Google account revokes their access to this app — an admin can still change a person's role or department from the Admin section, but there is no in-app way to block a still-valid account.
+There is no invite flow and no per-user disable switch. The `Users` sheet tab (keyed by email) is the allowlist: anyone signing in with a Google account on `ALLOWED_EMAIL_DOMAIN` self-registers as a `member` on their first visit (or `admin`, for `BOOTSTRAP_ADMIN_EMAIL`), with an empty `Phone` until they submit the registration form the frontend shows in place of the app on that first visit (name, department, phone, WhatsApp — see `updateOwnProfile` in `Admin.ts`). Revoking someone's organisation Google account revokes their access to this app — an admin can still change a person's role or department from the Admin section, but there is no in-app way to block a still-valid account.
 
 Inventory and program requests can also list `Participants` — a comma-separated list of emails notified alongside the requester and given the same submit permission on that request. Participants don't need to be registered Setu users; an email with no account just receives the notification.
 
