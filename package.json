@@ -1,12 +1,13 @@
 {
     "name": "setu",
     "version": "0.1.0",
-    "description": "Livestream Operations — a Google Apps Script + Google Sheets internal ops app.",
+    "description": "Setu — a Google Apps Script + Google Sheets internal ops app.",
     "private": true,
     "type": "module",
     "scripts": {
         "dev": "node build-tools/dev.mjs",
         "build": "node build-tools/build.mjs",
+        "pages": "node build-tools/pages.mjs",
         "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
@@ -19,7 +20,6 @@
         "@google/clasp": "^3.3.0",
         "@tailwindcss/cli": "^4.0.0",
         "@types/google-apps-script": "^1.0.83",
-        "browser-sync": "^3.0.4",
         "daisyui": "^5.0.0",
         "esbuild": "^0.25.0",
         "prettier": "^3.3.3",

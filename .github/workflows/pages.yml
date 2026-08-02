@@ -1,0 +1,58 @@
+name: Publish site
+
+# Separate from deploy.yml on purpose. The Apps Script deployment is cut from
+# version tags and is the live app real people use; this site is a demo and an
+# icon host rebuilt from whatever master currently says. Different triggers,
+# different blast radius, so different workflows — sharing one file would mean
+# every step carrying an `if:` describing which half of it it belongs to.
+on:
+    push:
+        branches:
+            - master
+    workflow_dispatch:
+
+permissions:
+    contents: write
+
+# gh-pages is replaced wholesale each run, so two runs in flight would race to
+# be the last force-push and the winner might not be the newer commit. Queue
+# them; don't cancel, since the point is that the branch ends up matching the
+# most recent master rather than the fastest build.
+concurrency:
+    group: pages
+    cancel-in-progress: false
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Type check
+              run: npm run typecheck
+
+            - name: Build site
+              run: npm run pages
+
+            # force_orphan rewrites gh-pages to a single commit every time. The
+            # branch holds ~200KB of generated bundle and icons that change on
+            # most pushes, and none of it has a history worth keeping — without
+            # this the repo grows a fresh copy per push to master, forever.
+            - name: Publish to gh-pages
+              uses: peaceiris/actions-gh-pages@v4.1.0
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  publish_branch: gh-pages
+                  publish_dir: ./site
+                  force_orphan: true

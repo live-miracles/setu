@@ -8,23 +8,24 @@
 // document, so everything has to arrive inlined — esbuild's iife output is
 // exactly that, and the old numeric filename prefixes that used to define
 // concatenation order are now just the import graph.
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
-import { root, esbuildOptions, renderProdShell, TAILWIND_ARGS } from './shell.mjs';
+import { root, esbuildOptions, renderProdShell, compileCss } from './shell.mjs';
 
 console.log('Bundling frontend TypeScript...');
 const result = await esbuild.build(esbuildOptions('prod'));
 const js = result.outputFiles[0].text;
 
 console.log('Compiling Tailwind CSS...');
+// Tailwind only writes to a file, but this CSS is destined for a <style> block
+// rather than a route, so it goes to a scratch directory and gets read back.
 const scratch = mkdtempSync(path.join(tmpdir(), 'setu-css-'));
 const cssFile = path.join(scratch, 'app.css');
 let css;
 try {
-    execFileSync('npx', TAILWIND_ARGS(cssFile, ['--minify']), { cwd: root, stdio: 'inherit' });
+    compileCss(cssFile);
     css = readFileSync(cssFile, 'utf8');
 } finally {
     rmSync(scratch, { recursive: true, force: true });

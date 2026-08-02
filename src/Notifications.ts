@@ -32,7 +32,7 @@ function sendNotificationEmail(
                 '</p><p><a href="' +
                 appUrl +
                 href +
-                '">Open Livestream Operations</a></p>',
+                '">Open Setu</a></p>',
         });
     } catch (err: any) {
         Tables.FailedEmails.insert({

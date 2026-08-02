@@ -1,4 +1,4 @@
-# Livestream Operations — Apps Script + Sheets
+# Setu — Apps Script + Sheets
 
 A Google Apps Script web app that uses a Google Sheet as its database, following the same deployment pattern as `multi-lang-qa`. Runs entirely on Google's free tier: no hosting bill, no database that pauses itself after a week of inactivity.
 
@@ -26,8 +26,9 @@ Apps Script serves one HTML document and has no module loader, so whatever the f
 
 ```
 frontend/
-  shell.html            page chrome — the one copy, templated for both targets
+  shell.html            page chrome — the one copy, templated for all three targets
   input.css             Tailwind + daisyUI entry
+  icons/                the app icon set (512 is the master; 192 is the hosted favicon)
   src/
     main.ts             production entry point
     dev.ts              dev entry point: mock backend + main
@@ -60,11 +61,14 @@ npm install
 npm run dev
 ```
 
-This starts esbuild `--watch` + Tailwind `--watch` + `browser-sync` on `http://localhost:3000`, building `frontend/src/dev.ts` into `frontend/dist/` and serving it against an in-memory mock backend — no Google account, Sheet, or Apps Script project needed to develop the UI. `frontend/dist/` is a build artifact and never gets pushed to Apps Script.
+This starts esbuild `--watch` + Tailwind `--watch` behind a static server on `http://localhost:3000`, building `frontend/src/dev.ts` into `frontend/dist/` and serving it against an in-memory mock backend — no Google account, Sheet, or Apps Script project needed to develop the UI. `frontend/dist/` is a build artifact and never gets pushed to Apps Script.
+
+Rebuilds are automatic, the browser is not: reload the tab once the rebuild logs. There is no live-reload client, so there is nothing to lose its connection and leave you restarting the dev server to get a working page back.
 
 ```bash
 npm run typecheck   # tsc --noEmit against both the backend and frontend programs
 npm run build       # bundles everything into src/{Index,Stylesheet,JavaScript}.html
+npm run pages       # builds the public demo site into site/ (see below)
 ```
 
 `tsc` only type-checks — esbuild does the emitting, so nothing compiles TypeScript twice.
@@ -105,6 +109,20 @@ All pushing/deploying happens in CI (see below) — nothing here needs `clasp` i
 Each run: pushes the built code, creates an immutable Apps Script version named after the tag (`clasp --json version "$TAG"`), then points the existing deployment at that exact version (`clasp deploy --deploymentId ... --versionNumber ...`) — so the live URL never changes, only which version it serves.
 
 The workflow reconstructs `.clasp.json` and `~/.clasprc.json` on the runner from the `APPS_SCRIPT_ID` and `CLASPRC_JSON` secrets before every run — neither file needs to (or should) exist in the repo or on your machine.
+
+## The public site (gh-pages)
+
+`.github/workflows/pages.yml` runs `npm run pages` on every push to `master` and force-pushes the result to the `gh-pages` branch as a single orphan commit, served at **https://live-miracles.github.io/setu/**. The branch is a build output, not a place to edit anything: each run replaces it wholesale, so nothing hand-added there survives.
+
+It carries two things:
+
+**The demo** (`index.html` + `app.js` + `app.css`) — the real UI built against `frontend/src/mock/backend.ts` instead of `google.script.run`, so anyone can click through the whole app with no Google account, no Sheet, and no real data behind it. It is exactly what `npm run dev` serves, minified: same shell, same bundle, same fake `@example.com` roster. Nothing about it can reach the live Sheet, because nothing in it knows the Sheet exists.
+
+**The icon** (`icons/`) — hosted because it has to be. The live app runs in an iframe, so a `<link rel="icon">` in `Index.html` never reaches the browser tab; `setFaviconUrl()` is the only hook, and it takes a URL, not a data URI. `FAVICON_URL` in `src/Code.ts` points at `icons/icon-192.png` on this site. If Pages is off or the URL 404s, the tab just falls back to Google's default icon — the app itself doesn't care.
+
+Deliberately kept separate from `deploy.yml`: this rebuilds from whatever `master` says, while the live Apps Script deployment only ever moves when you push a version tag.
+
+One-time setup, once the workflow has run and created the branch: **Settings → Pages → Source → Deploy from a branch**, branch `gh-pages`, folder `/ (root)`. Nothing else — no secrets, no `CNAME`; the workflow pushes with the `GITHUB_TOKEN` Actions already provides.
 
 ## Access
 
