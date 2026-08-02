@@ -238,8 +238,18 @@ const mockData = {
         TutorialUrl: '',
     } as HomeContent,
     shiftPresets: [
-        { Id: 'shift-preset-1', Name: 'Morning', DefaultStartTime: '04:00', DefaultEndTime: '13:30' },
-        { Id: 'shift-preset-2', Name: 'Evening', DefaultStartTime: '13:30', DefaultEndTime: '22:00' },
+        {
+            Id: 'shift-preset-1',
+            Name: 'Morning',
+            DefaultStartTime: '04:00',
+            DefaultEndTime: '13:30',
+        },
+        {
+            Id: 'shift-preset-2',
+            Name: 'Evening',
+            DefaultStartTime: '13:30',
+            DefaultEndTime: '22:00',
+        },
         { Id: 'shift-preset-3', Name: 'Night', DefaultStartTime: '22:00', DefaultEndTime: '04:00' },
         // Blank times mean the full day - see the Roster.StartTime/EndTime
         // comment in shared/types.d.ts and isAllDayShiftBlock in roster.ts.

@@ -136,7 +136,10 @@ function buildShiftBlocksByDate(rosters: RosterDTO[]): Map<string, ShiftBlock[]>
 }
 
 function monthLabel(year: number, month: number): string {
-    return new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    return new Date(year, month, 1).toLocaleDateString(undefined, {
+        month: 'long',
+        year: 'numeric',
+    });
 }
 
 function startOfWeek(d: Date): Date {
@@ -195,7 +198,11 @@ function renderCalendarWeekHeader(cells: string[]): string {
     <div class="grid grid-cols-7 grid-rows-6 gap-1">${cells.join('')}</div>`;
 }
 
-function renderMonthGrid(shiftsByDate: Map<string, ShiftBlock[]>, year: number, month: number): string {
+function renderMonthGrid(
+    shiftsByDate: Map<string, ShiftBlock[]>,
+    year: number,
+    month: number,
+): string {
     const gridStart = new Date(year, month, 1);
     gridStart.setDate(gridStart.getDate() - gridStart.getDay());
     const todayKey = toDateKey(new Date());
@@ -231,7 +238,9 @@ interface PositionedShiftBlock {
 // blocks that never overlap end up sharing column 0 at full width, and
 // `cols` only grows for genuine same-time overlaps.
 function layoutDayBlocks(blocks: ShiftBlock[]): PositionedShiftBlock[] {
-    const sorted = [...blocks].sort((a, b) => minutesOfDay(a.startTime) - minutesOfDay(b.startTime));
+    const sorted = [...blocks].sort(
+        (a, b) => minutesOfDay(a.startTime) - minutesOfDay(b.startTime),
+    );
     const columnEnds: number[] = [];
     const positioned: PositionedShiftBlock[] = sorted.map((block) => {
         const start = minutesOfDay(block.startTime);
@@ -290,7 +299,9 @@ function renderWeekGrid(shiftsByDate: Map<string, ShiftBlock[]>, weekStart: Date
         </div>`;
     }).join('');
 
-    const allDayByDate = days.map((d) => (shiftsByDate.get(toDateKey(d)) || []).filter(isAllDayShiftBlock));
+    const allDayByDate = days.map((d) =>
+        (shiftsByDate.get(toDateKey(d)) || []).filter(isAllDayShiftBlock),
+    );
     const allDayRow = allDayByDate.some((blocks) => blocks.length > 0)
         ? `
     <div class="flex border-b border-base-300">
@@ -318,11 +329,14 @@ function renderWeekGrid(shiftsByDate: Map<string, ShiftBlock[]>, weekStart: Date
 
     const dayColumns = days
         .map((d) => {
-            const blocks = (shiftsByDate.get(toDateKey(d)) || []).filter((b) => !isAllDayShiftBlock(b));
+            const blocks = (shiftsByDate.get(toDateKey(d)) || []).filter(
+                (b) => !isAllDayShiftBlock(b),
+            );
             const positioned = layoutDayBlocks(blocks);
             const gridLines = Array.from(
                 { length: 24 },
-                () => `<div class="border-t border-base-200" style="height:${WEEK_HOUR_HEIGHT_PX}px"></div>`,
+                () =>
+                    `<div class="border-t border-base-200" style="height:${WEEK_HOUR_HEIGHT_PX}px"></div>`,
             ).join('');
             const blockEls = positioned
                 .map(({ block: b, top, height, col, cols }) => {
@@ -409,7 +423,10 @@ function fitCalendarToViewport(): void {
 
     const available = Math.max(
         CALENDAR_MIN_CONTENT_HEIGHT_PX,
-        window.innerHeight - content.getBoundingClientRect().top - cardBottomChrome - calendarBottomReserve(),
+        window.innerHeight -
+            content.getBoundingClientRect().top -
+            cardBottomChrome -
+            calendarBottomReserve(),
     );
     if (content === weekScroll) {
         content.style.maxHeight = `${available}px`;
@@ -424,13 +441,21 @@ function calendarLabel(anchor: Date, mode: CalendarMode): string {
         : weekRangeLabel(startOfWeek(anchor));
 }
 
-function calendarGrid(shiftsByDate: Map<string, ShiftBlock[]>, anchor: Date, mode: CalendarMode): string {
+function calendarGrid(
+    shiftsByDate: Map<string, ShiftBlock[]>,
+    anchor: Date,
+    mode: CalendarMode,
+): string {
     return mode === 'month'
         ? renderMonthGrid(shiftsByDate, anchor.getFullYear(), anchor.getMonth())
         : renderWeekGrid(shiftsByDate, startOfWeek(anchor));
 }
 
-function renderCalendarCard(shiftsByDate: Map<string, ShiftBlock[]>, anchor: Date, mode: CalendarMode): string {
+function renderCalendarCard(
+    shiftsByDate: Map<string, ShiftBlock[]>,
+    anchor: Date,
+    mode: CalendarMode,
+): string {
     return `
     <div class="card border border-base-300 bg-base-100 shadow">
       <div class="card-body gap-3">

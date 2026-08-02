@@ -290,7 +290,8 @@ function renderSettingsRowViewInner(page: SettingsList, row: Record<string, any>
         ${page.fields
             .slice(1)
             .map(
-                (f) => `<span class="text-base-content/60">${escapeHtml(row[f.field] ?? '')}</span>`,
+                (f) =>
+                    `<span class="text-base-content/60">${escapeHtml(row[f.field] ?? '')}</span>`,
             )
             .join('')}
       </div>
@@ -333,11 +334,7 @@ function renderSettingsRowEditInner(page: SettingsList, row: Record<string, any>
       </form>`;
 }
 
-function readRowValuesFromLi(
-    li: HTMLElement,
-    page: SettingsList,
-    id: string,
-): Record<string, any> {
+function readRowValuesFromLi(li: HTMLElement, page: SettingsList, id: string): Record<string, any> {
     const row: Record<string, any> = { Id: id };
     page.fields.forEach((f) => {
         row[f.field] = li.getAttribute('data-raw-' + f.field) || '';
