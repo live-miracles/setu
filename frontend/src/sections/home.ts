@@ -1,3 +1,9 @@
+import { namePill, renderEmptyState, renderSectionHeader } from '../ui/components';
+import { escapeHtml, formatRosterSchedule } from '../ui/format';
+import { icon } from '../ui/icons';
+import { INVENTORY_REQUEST_STATUS_ACCENT, INVENTORY_REQUEST_STATUS_BADGE } from '../ui/styles';
+import { canApprove, canManageConfig, canUseTickets, isRequestOverdue } from '../workflows';
+
 function greetingForNow(): string {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -12,7 +18,10 @@ function todayDateOnly(): string {
     return `${d.getFullYear()}-${month}-${day}`;
 }
 
-async function renderHome(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+export async function renderHome(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+): Promise<void> {
     // Home summarises every section, so it drops the cards, stats and jump
     // links for the two sections a role may not open at all — otherwise it
     // would advertise a roster or ticket board that isn't there. The
@@ -246,6 +255,4 @@ async function renderHome(container: HTMLElement, dashboard: DashboardPayload): 
       </div>
     </section>
   `;
-
-    wireInternalNavLinks(container);
 }

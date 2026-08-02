@@ -15,7 +15,7 @@ const INVENTORY_REQUEST_TRANSITIONS: Record<InventoryRequestStatus, InventoryReq
     closed: [],
 };
 
-function canTransitionInventoryRequest(
+export function canTransitionInventoryRequest(
     status: InventoryRequestStatus,
     action: InventoryRequestAction,
 ): boolean {
@@ -33,7 +33,7 @@ const PROGRAM_REQUEST_TRANSITIONS: Record<ProgramRequestStatus, ProgramRequestAc
     closed: [],
 };
 
-function canTransitionProgramRequest(
+export function canTransitionProgramRequest(
     status: ProgramRequestStatus,
     action: ProgramRequestAction,
 ): boolean {
@@ -48,12 +48,13 @@ const TICKET_TRANSITIONS: Record<TicketStatus, TicketAction[]> = {
     closed: ['assign', 'reopen'],
 };
 
-function canTransitionTicket(status: TicketStatus, action: TicketAction): boolean {
+export function canTransitionTicket(status: TicketStatus, action: TicketAction): boolean {
     return (TICKET_TRANSITIONS[status] || []).indexOf(action) !== -1;
 }
 
-function inventoryDeltaForReturn(quantity: number, condition: ReturnCondition): number {
-    return condition === 'good' ? quantity : 0;
+export function isRequestOverdue(request: InventoryRequestDTO): boolean {
+    if (request.Status !== 'issued' || !request.EndDate) return false;
+    return new Date(request.EndDate).getTime() < Date.now();
 }
 
 // Role predicates, mirroring canManageConfig/canApprove in Auth.ts — same
@@ -61,16 +62,16 @@ function inventoryDeltaForReturn(quantity: number, condition: ReturnCondition): 
 // offers, and the backend re-checks every one of them. There's no
 // client-side equivalent of canViewAllRequests: request scoping happens
 // server-side, so a `user` simply never receives the rows they can't see.
-function canManageConfig(me: UserDTO): boolean {
+export function canManageConfig(me: UserDTO): boolean {
     return me.Role === 'admin';
 }
 
-function canApprove(me: UserDTO): boolean {
+export function canApprove(me: UserDTO): boolean {
     return me.Role === 'admin' || me.Role === 'approver';
 }
 
 // The ticket board is hidden from `user` outright, so the nav entry, the
 // Home stat and the assignee picker all gate on this.
-function canUseTickets(me: UserDTO): boolean {
+export function canUseTickets(me: UserDTO): boolean {
     return me.Role !== 'user';
 }

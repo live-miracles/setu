@@ -18,7 +18,40 @@ Apps Script web app (doGet + ~30 exposed functions)
 Time-driven trigger --> daily overdue-request scan
 ```
 
-Everything — backend and frontend — is TypeScript. The backend compiles via `clasp push` directly to the Apps Script runtime (V8); the frontend compiles via plain `tsc` (no bundler/framework) into a single inlined `<script>` block served by `HtmlService`. Both share one ambient-global type contract at `shared/types.d.ts`.
+Everything — backend and frontend — is TypeScript. The backend compiles via `clasp push` directly to the Apps Script runtime (V8); the frontend is bundled by esbuild (no framework) into a single inlined `<script>` block served by `HtmlService`. Both share one ambient-global type contract at `shared/types.d.ts`.
+
+## Frontend layout
+
+Apps Script serves one HTML document and has no module loader, so whatever the frontend is written as has to arrive as a single inlined script. esbuild is what makes that a build concern rather than an authoring one: the sources are ordinary ES modules, and the import graph decides the order.
+
+```
+frontend/
+  shell.html            page chrome — the one copy, templated for both targets
+  input.css             Tailwind + daisyUI entry
+  src/
+    main.ts             production entry point
+    dev.ts              dev entry point: mock backend + main
+    router.ts           routing core — navigation, role gating, nav chrome
+    api.ts              the only module that talks to the backend
+    state.ts            the client-side store
+    workflows.ts        client-side mirror of the server state machines
+    ids.ts              client-generated request ids
+    config.ts
+    ui/format.ts        value -> display string (escaping, dates)
+    ui/components.ts    reusable HTML fragments
+    ui/icons.ts         the hand-authored line-icon set
+    ui/styles.ts        domain value -> daisyUI class names
+    ui/feedback.ts      the saving badge and error toast
+    sections/index.ts   the routing table
+    sections/*.ts       one module per section (home, roster, inventory, …)
+    mock/backend.ts     in-memory stand-in for google.script.run
+```
+
+Two properties of that graph are worth preserving:
+
+**It is acyclic.** `router.ts` imports no section — `sections/index.ts` builds the routing table and `main.ts` passes it in via `initRouter()`. Sections import navigation helpers from the router, and nothing in the router reaches back. Typing the table as `Record<SectionKey, SectionRenderer>` still makes a missing section a compile error rather than a blank page.
+
+**The mock cannot ship.** `mock/backend.ts` is reachable only from `dev.ts`, so no import path leads from the production entry point to it — that holds regardless of build flags, rather than depending on a file being left out of a list.
 
 ## Local development
 
@@ -27,12 +60,14 @@ npm install
 npm run dev
 ```
 
-This starts `tsc --watch` + Tailwind `--watch` + `browser-sync` on `http://localhost:3000`, serving `frontend-src/` directly against an in-memory mock backend (`frontend-src/ts/01-mock-backend.ts`) — no Google account, Sheet, or Apps Script project needed to develop the UI. `frontend-src/index.html` is the dev shell; it never gets pushed to Apps Script.
+This starts esbuild `--watch` + Tailwind `--watch` + `browser-sync` on `http://localhost:3000`, building `frontend/src/dev.ts` into `frontend/dist/` and serving it against an in-memory mock backend — no Google account, Sheet, or Apps Script project needed to develop the UI. `frontend/dist/` is a build artifact and never gets pushed to Apps Script.
 
 ```bash
 npm run typecheck   # tsc --noEmit against both the backend and frontend programs
-npm run build       # compiles + concatenates everything into src/{Index,Stylesheet,JavaScript}.html
+npm run build       # bundles everything into src/{Index,Stylesheet,JavaScript}.html
 ```
+
+`tsc` only type-checks — esbuild does the emitting, so nothing compiles TypeScript twice.
 
 ## One-time Google-side setup
 
@@ -92,7 +127,7 @@ There is no combined Admin page. The navbar's **Settings** dropdown holds one pa
 
 Everyone, `user` included, can raise equipment and program requests, and comment on any request they can see.
 
-Roles are interpreted in exactly one place — the `canManageConfig`/`canApprove`/`canViewAllRequests`/`canUseTickets`/`canViewRequest` helpers in `Auth.ts`, which every endpoint calls; `11-workflows.ts` mirrors the first three client-side purely to decide which sections and buttons to draw, and `getDashboard` sends empty lists for the sections a role can't open. `roleOf` folds any unrecognised `Role` cell (including the pre-split `member` value, and anything typed by hand into the Sheet) down to `user`, so a bad value fails closed rather than granting access.
+Roles are interpreted in exactly one place — the `canManageConfig`/`canApprove`/`canViewAllRequests`/`canUseTickets`/`canViewRequest` helpers in `Auth.ts`, which every endpoint calls; `frontend/src/workflows.ts` mirrors the first three client-side purely to decide which sections and buttons to draw, and `getDashboard` sends empty lists for the sections a role can't open. `roleOf` folds any unrecognised `Role` cell (including the pre-split `member` value, and anything typed by hand into the Sheet) down to `user`, so a bad value fails closed rather than granting access.
 
 One consequence worth knowing: crew scheduled onto a shift who are on `viewer` or `user` get the assignment email but have no in-app roster to check. Anyone in the `Users` tab can still be a shift assignee — that is deliberate, since restricting it to admins and approvers would make scheduling useless.
 

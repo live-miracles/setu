@@ -1,3 +1,12 @@
+import { api } from '../api';
+import { generateRequestId } from '../ids';
+import { refreshDashboard } from '../router';
+import { namePill, renderEmptyState, renderSectionHeader } from '../ui/components';
+import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { MONTH_SHORT_NAMES, escapeHtml, formatRosterSchedule } from '../ui/format';
+import { icon } from '../ui/icons';
+import { canApprove } from '../workflows';
+
 const SHIFT_NAME_OTHER = 'Other';
 const SHIFT_NAME_PRESETS = ['Morning', 'Evening', 'Day', 'Night', SHIFT_NAME_OTHER];
 
@@ -16,7 +25,10 @@ function formatDayTile(dateStr: string): { day: string; month: string } {
     return { day: parts[2], month: MONTH_SHORT_NAMES[monthIdx] };
 }
 
-async function renderRoster(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+export async function renderRoster(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+): Promise<void> {
     const canSchedule = canApprove(dashboard.me);
     const users = canSchedule ? await api.listUsers() : [];
 
@@ -33,7 +45,6 @@ async function renderRoster(container: HTMLElement, dashboard: DashboardPayload)
     </section>
   `;
 
-    wireInternalNavLinks(container);
     renderRosterList(dashboard.upcomingRosters);
     if (canSchedule) wireCreateShiftForm();
 }

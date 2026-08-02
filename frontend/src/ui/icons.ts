@@ -1,0 +1,41 @@
+// Small hand-authored line-icon set (no external icon font or CDN, keeping
+// the build free of runtime dependencies). Every icon shares the same
+// stroke weight and cap style so they read as one system.
+
+export type IconName =
+    | 'home'
+    | 'calendar'
+    | 'box'
+    | 'clapper'
+    | 'ticket'
+    | 'user'
+    | 'shield'
+    | 'plus'
+    | 'external'
+    | 'inbox'
+    | 'alert'
+    | 'chevronDown'
+    | 'pin';
+
+const ICON_PATHS: Record<IconName, string> = {
+    home: '<path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />',
+    calendar:
+        '<rect x="4" y="5" width="16" height="15" rx="2" /><line x1="4" y1="9" x2="20" y2="9" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="16" y1="3" x2="16" y2="7" />',
+    box: '<path d="M3.5 8 12 4l8.5 4L12 12 3.5 8Z" /><path d="M3.5 8v8L12 20l8.5-4V8" /><path d="M12 12v8" />',
+    clapper:
+        '<path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9Z" /><path d="M4 9 5 5h3l-1 4Z" /><path d="M9.5 9 10.5 5h3l-1 4Z" /><path d="M15 9l1-4h3l-1 4Z" />',
+    ticket: '<rect x="3" y="6" width="18" height="12" rx="2" /><line x1="9" y1="6" x2="9" y2="18" stroke-dasharray="2.2 2.2" />',
+    user: '<circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3.2-6 7-6s7 2.5 7 6" />',
+    shield: '<path d="M12 3.5 5 6v5.5c0 5 3 8 7 9 4-1 7-4 7-9V6l-7-2.5Z" /><path d="M9 12l2 2 4-4" />',
+    plus: '<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />',
+    external:
+        '<path d="M14 4h6v6" /><line x1="20" y1="4" x2="10" y2="14" /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />',
+    inbox: '<path d="M4 12h4l2 3h4l2-3h4" /><path d="M4 12 6 5h12l2 7" /><path d="M4 12v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6" />',
+    alert: '<path d="M12 4 3 20h18L12 4Z" /><line x1="12" y1="10" x2="12" y2="13.5" /><circle cx="12" cy="16.5" r="0.75" fill="currentColor" stroke="none" />',
+    chevronDown: '<polyline points="6 9 12 15 18 9" />',
+    pin: '<path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.3" />',
+};
+
+export function icon(name: IconName, className = 'size-5'): string {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="${className}" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+}

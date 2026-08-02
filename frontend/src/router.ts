@@ -1,5 +1,16 @@
+import { api } from './api';
+import { APP_SECTION_QUERY_PARAM } from './config';
+import { getState, setState } from './state';
+import { canApprove, canManageConfig, canUseTickets } from './workflows';
+
+// The routing core: it owns navigation, role gating and the nav chrome, but
+// deliberately imports no section. The table of renderers is handed to it by
+// main.ts via initRouter(), which is what keeps the dependency graph acyclic
+// — sections import navigation helpers from here, and nothing here reaches
+// back into them.
+
 // The last five are the Settings pages, reached from the navbar dropdown
-// rather than the main nav — see 10-render-settings.ts.
+// rather than the main nav — see sections/settings.ts.
 type SectionKey =
     | 'home'
     | 'roster'
@@ -18,25 +29,29 @@ type SectionRenderer = (
     dashboard: DashboardPayload,
 ) => Promise<void> | void;
 
-const SECTION_RENDERERS: Record<SectionKey, SectionRenderer> = {
-    home: renderHome,
-    roster: renderRoster,
-    inventory: renderInventory,
-    programs: renderPrograms,
-    tickets: renderTickets,
-    profile: renderProfile,
-    users: renderUsers,
-    departments: (c, d) => renderSettingsList(SETTINGS_LIST_PAGES.departments, c, d),
-    places: (c, d) => renderSettingsList(SETTINGS_LIST_PAGES.places, c, d),
-    'inventory-types': (c, d) => renderSettingsList(SETTINGS_LIST_PAGES['inventory-types'], c, d),
-    'home-content': renderHomeContent,
-};
+export interface RouterConfig {
+    sections: Record<SectionKey, SectionRenderer>;
+    // Shown in place of the whole app until a new sign-in fills in their
+    // profile, so it is a renderer like any other rather than a special case.
+    registrationGate: SectionRenderer;
+}
+
+let config: RouterConfig | null = null;
+
+export function initRouter(routerConfig: RouterConfig): void {
+    config = routerConfig;
+}
+
+function requireConfig(): RouterConfig {
+    if (!config) throw new Error('initRouter() must be called before rendering.');
+    return config;
+}
 
 // The admin-only Settings pages. Users sits alongside them in the dropdown
 // but is readable by approvers too, so it isn't in this list.
 const CONFIG_SECTIONS: SectionKey[] = ['departments', 'places', 'inventory-types', 'home-content'];
 
-async function refreshDashboard(): Promise<void> {
+export async function refreshDashboard(): Promise<void> {
     const dashboard = await api.getDashboard();
     setState({ dashboard });
     await renderCurrentSection();
@@ -48,17 +63,18 @@ async function renderCurrentSection(): Promise<void> {
     const container = document.getElementById('app-content');
     if (!container) return;
 
+    const { sections, registrationGate } = requireConfig();
     renderNavIdentity(dashboard);
     const isRegistered = Boolean(dashboard.me.Phone);
     toggleNavVisibility(isRegistered);
 
     if (!isRegistered) {
-        await renderRegistrationGate(container, dashboard);
+        await registrationGate(container, dashboard);
         return;
     }
 
     const sectionKey = resolveSection(section, dashboard);
-    await SECTION_RENDERERS[sectionKey](container, dashboard);
+    await sections[sectionKey](container, dashboard);
     renderNavActive(sectionKey);
     toggleRoleNavVisibility(dashboard);
 }
@@ -111,7 +127,7 @@ function canOpenSection(section: SectionKey, me: UserDTO): boolean {
 // failing mid-render. Unknown keys (including the retired `admin`) land on
 // Home the same way.
 function resolveSection(section: string, dashboard: DashboardPayload): SectionKey {
-    const key = (SECTION_RENDERERS[section as SectionKey] ? section : 'home') as SectionKey;
+    const key = (requireConfig().sections[section as SectionKey] ? section : 'home') as SectionKey;
     return canOpenSection(key, dashboard.me) ? key : 'home';
 }
 
@@ -137,33 +153,14 @@ function navigateTo(section: SectionKey): void {
     renderCurrentSection();
 }
 
-function wireNav(): void {
-    document.querySelectorAll('[data-nav-section]').forEach((el) => {
-        el.addEventListener('click', () =>
-            navigateTo((el as HTMLElement).dataset.navSection as SectionKey),
-        );
+// One delegated listener covers both the nav chrome in the page shell and
+// the cross-section links a section renders into its own innerHTML (e.g.
+// "View roster" on Home) — those are replaced on every render, so binding
+// them individually would mean re-wiring after each one.
+export function wireNav(): void {
+    document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement | null;
+        const el = target?.closest<HTMLElement>('[data-nav-section]');
+        if (el) navigateTo(el.dataset.navSection as SectionKey);
     });
 }
-
-async function boot(): Promise<void> {
-    const params = new URLSearchParams(window.location.search);
-    const initialSection = (params.get(APP_SECTION_QUERY_PARAM) as SectionKey) || 'home';
-    setState({ section: SECTION_RENDERERS[initialSection] ? initialSection : 'home' });
-
-    wireNav();
-
-    try {
-        await refreshDashboard();
-    } catch (err) {
-        showErrorAlert(err);
-        const container = document.getElementById('app-content');
-        if (container) {
-            container.innerHTML = `<div class="alert alert-error">${escapeHtml(err instanceof Error ? err.message : String(err))}</div>`;
-        }
-        return;
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    boot();
-});

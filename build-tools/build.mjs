@@ -1,54 +1,51 @@
-import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, copyFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+// Production build: frontend/ -> the three files clasp pushes to Apps Script.
+//
+//   frontend/src/main.ts  --esbuild-->  src/JavaScript.html   (one <script>)
+//   frontend/input.css    --tailwind->  src/Stylesheet.html   (one <style>)
+//   frontend/shell.html   --template->  src/Index.html
+//
+// Apps Script has no module loader and serves the page as a single HTML
+// document, so everything has to arrive inlined — esbuild's iife output is
+// exactly that, and the old numeric filename prefixes that used to define
+// concatenation order are now just the import graph.
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import * as esbuild from 'esbuild';
+import { root, esbuildOptions, renderProdShell, TAILWIND_ARGS } from './shell.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, '..');
-
-// Load order for the concatenated frontend bundle. 01-mock-backend.ts is
-// deliberately excluded — it's dev-only and must never ship.
-const FRONTEND_TS_ORDER = [
-    '00-config.ts',
-    '02-api.ts',
-    '03-state.ts',
-    '04-render-shared.ts',
-    '11-workflows.ts',
-    '05-render-home.ts',
-    '06-render-roster.ts',
-    '07-render-inventory.ts',
-    '13-render-programs.ts',
-    '08-render-tickets.ts',
-    '09-render-profile.ts',
-    '10-render-settings.ts',
-    '12-main.ts',
-];
-
-function run(cmd) {
-    execSync(cmd, { cwd: root, stdio: 'inherit' });
-}
-
-console.log('Compiling frontend TypeScript...');
-run('npx tsc -p frontend-src/tsconfig.json');
+console.log('Bundling frontend TypeScript...');
+const result = await esbuild.build(esbuildOptions('prod'));
+const js = result.outputFiles[0].text;
 
 console.log('Compiling Tailwind CSS...');
-run('npx @tailwindcss/cli -i frontend-src/input.css -o frontend-src/output.css --minify');
+const scratch = mkdtempSync(path.join(tmpdir(), 'setu-css-'));
+const cssFile = path.join(scratch, 'app.css');
+let css;
+try {
+    execFileSync('npx', TAILWIND_ARGS(cssFile, ['--minify']), { cwd: root, stdio: 'inherit' });
+    css = readFileSync(cssFile, 'utf8');
+} finally {
+    rmSync(scratch, { recursive: true, force: true });
+}
 
-const css = readFileSync(path.join(root, 'frontend-src/output.css'), 'utf8');
-writeFileSync(path.join(root, 'src/Stylesheet.html'), `<style>\n${css}\n</style>\n`);
+// Both files are inlined into an HTML document, where the first literal
+// `</script`/`</style` ends the block no matter what the surrounding JS or
+// CSS syntax says — so a source file containing the string '</script>' would
+// silently truncate the page. `<\/` is an equivalent escape in every context
+// the sequence can legitimately appear in (JS strings and regexes, CSS
+// strings), so this is safe to apply blindly.
+const inlineSafe = (text, tag) => text.replaceAll(`</${tag}`, `<\\/${tag}`);
 
-const jsChunks = FRONTEND_TS_ORDER.map((tsFile) => {
-    const jsFile = tsFile.replace(/\.ts$/, '.js');
-    return readFileSync(path.join(root, 'frontend-src/ts', jsFile), 'utf8');
-});
+writeFileSync(
+    path.join(root, 'src/Stylesheet.html'),
+    `<style>\n${inlineSafe(css, 'style')}\n</style>\n`,
+);
 writeFileSync(
     path.join(root, 'src/JavaScript.html'),
-    `<script>\n${jsChunks.join('\n')}\n</script>\n`,
+    `<script>\n${inlineSafe(js, 'script')}</script>\n`,
 );
-
-copyFileSync(
-    path.join(root, 'frontend-src/index.template.html'),
-    path.join(root, 'src/Index.html'),
-);
+writeFileSync(path.join(root, 'src/Index.html'), renderProdShell());
 
 console.log('Build complete: src/{Index.html,Stylesheet.html,JavaScript.html}');

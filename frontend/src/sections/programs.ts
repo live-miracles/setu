@@ -1,3 +1,22 @@
+import { api } from '../api';
+import { generateRequestId } from '../ids';
+import { refreshDashboard } from '../router';
+import {
+    namePill,
+    renderCommentLine,
+    renderEmptyState,
+    renderSectionHeader,
+} from '../ui/components';
+import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { escapeHtml, formatDateTime } from '../ui/format';
+import { icon } from '../ui/icons';
+import {
+    PROGRAM_REQUEST_ACTION_BTN,
+    PROGRAM_REQUEST_STATUS_ACCENT,
+    PROGRAM_REQUEST_STATUS_BADGE,
+} from '../ui/styles';
+import { canApprove, canTransitionProgramRequest } from '../workflows';
+
 const PROGRAM_REQUEST_ACTION_LABELS: Record<ProgramRequestAction, string> = {
     submit: 'Submit',
     approve: 'Approve',
@@ -6,7 +25,10 @@ const PROGRAM_REQUEST_ACTION_LABELS: Record<ProgramRequestAction, string> = {
     close: 'Close',
 };
 
-async function renderPrograms(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+export async function renderPrograms(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+): Promise<void> {
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('clapper', 'Programs', 'Book a place and schedule its sessions.')}
@@ -54,7 +76,6 @@ async function renderPrograms(container: HTMLElement, dashboard: DashboardPayloa
     </section>
   `;
 
-    wireInternalNavLinks(container);
     wireSessionRows();
     wireCreateProgramForm();
     renderProgramRequestList(dashboard);

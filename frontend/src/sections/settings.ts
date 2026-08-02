@@ -1,6 +1,23 @@
+import { api } from '../api';
+import { generateRequestId } from '../ids';
+import { refreshDashboard } from '../router';
+import { renderEmptyState, renderSectionHeader } from '../ui/components';
+import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { escapeHtml } from '../ui/format';
+import type { IconName } from '../ui/icons';
+import { icon } from '../ui/icons';
+import {
+    USER_ROLE_LABELS,
+    USER_ROLE_ORDER,
+    USER_ROLE_SUMMARIES,
+    roleBadgeClass,
+    roleLabel,
+} from '../ui/styles';
+import { canManageConfig } from '../workflows';
+
 // The Settings pages. What used to be one Admin section is now a page per
 // list, reached from the navbar's Settings dropdown: Users, open to
-// approvers read-only, plus the admin-only config pages. 12-main.ts hides
+// approvers read-only, plus the admin-only config pages. router.ts hides
 // the dropdown entries a role can't open, and every write below is
 // re-checked server-side (requireAdmin/requireApprover in Admin.ts).
 
@@ -8,7 +25,10 @@
 // Users
 // ---------------------------------------------------------------------------
 
-async function renderUsers(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+export async function renderUsers(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+): Promise<void> {
     const isAdmin = canManageConfig(dashboard.me);
     const users = await api.listUsers();
 
@@ -126,7 +146,7 @@ interface SettingsListPage extends SettingsList {
     rows: (dashboard: DashboardPayload) => Record<string, any>[];
 }
 
-const SETTINGS_LIST_PAGES: Record<string, SettingsListPage> = {
+export const SETTINGS_LIST_PAGES: Record<string, SettingsListPage> = {
     departments: {
         kind: 'department',
         title: 'Departments',
@@ -180,7 +200,7 @@ const SETTINGS_LINKS_LIST: SettingsList = {
     ],
 };
 
-function renderSettingsList(
+export function renderSettingsList(
     page: SettingsListPage,
     container: HTMLElement,
     dashboard: DashboardPayload,
@@ -300,7 +320,7 @@ function wireSettingsForm(): void {
 // everything on this page is something the Home screen renders.
 // ---------------------------------------------------------------------------
 
-function renderHomeContent(container: HTMLElement, dashboard: DashboardPayload): void {
+export function renderHomeContent(container: HTMLElement, dashboard: DashboardPayload): void {
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('home', 'Home content', 'The message, guidelines and links shown on Home.')}

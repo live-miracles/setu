@@ -1,3 +1,13 @@
+import { api } from '../api';
+import { generateRequestId } from '../ids';
+import { refreshDashboard } from '../router';
+import { renderSectionHeader } from '../ui/components';
+import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { escapeHtml } from '../ui/format';
+import { icon } from '../ui/icons';
+import { TICKET_ACTION_BTN } from '../ui/styles';
+import { canApprove, canTransitionTicket, canUseTickets } from '../workflows';
+
 const TICKET_ACTION_LABELS: Record<TicketAction, string> = {
     assign: 'Assign',
     close: 'Close',
@@ -10,7 +20,10 @@ const TICKET_BOARD_COLUMNS: { status: TicketStatus; title: string }[] = [
     { status: 'closed', title: 'Closed' },
 ];
 
-async function renderTickets(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+export async function renderTickets(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+): Promise<void> {
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('ticket', 'Tickets', 'Track operational issues through resolution.')}
@@ -34,7 +47,6 @@ async function renderTickets(container: HTMLElement, dashboard: DashboardPayload
     </section>
   `;
 
-    wireInternalNavLinks(container);
     wireCreateTicketForm();
     renderTicketBoard(dashboard);
 }

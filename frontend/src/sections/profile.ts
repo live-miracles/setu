@@ -1,4 +1,15 @@
-async function renderProfile(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+import { api } from '../api';
+import { refreshDashboard } from '../router';
+import { renderSectionHeader } from '../ui/components';
+import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { escapeHtml } from '../ui/format';
+import { icon } from '../ui/icons';
+import { USER_ROLE_SUMMARIES, roleBadgeClass, roleLabel } from '../ui/styles';
+
+export async function renderProfile(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+): Promise<void> {
     const me = dashboard.me;
     container.innerHTML = `
     <section class="space-y-6">
@@ -103,11 +114,11 @@ function renderDepartmentSelect(id: string, departments: Department[], selectedI
 }
 
 // Shown instead of the normal app shell while User.Phone is unset (see
-// Auth.ts/Admin.ts) — 12-main.ts's renderCurrentSection gates on that and
+// Auth.ts/Admin.ts) — router.ts's renderCurrentSection gates on that and
 // hides all nav until this form is submitted. Reuses updateOwnProfile
 // rather than a separate endpoint since completing this form and later
 // editing your profile are the same action server-side.
-async function renderRegistrationGate(
+export async function renderRegistrationGate(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {

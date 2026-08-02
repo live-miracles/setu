@@ -6,9 +6,8 @@
     "type": "module",
     "scripts": {
         "dev": "node build-tools/dev.mjs",
-        "css": "tailwindcss -i frontend-src/input.css -o frontend-src/output.css",
         "build": "node build-tools/build.mjs",
-        "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend-src/tsconfig.json",
+        "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "push": "npm run typecheck && npm run build && clasp push",
@@ -18,13 +17,13 @@
     },
     "devDependencies": {
         "@google/clasp": "^3.3.0",
-        "@types/google-apps-script": "^1.0.83",
-        "typescript": "^5.5.4",
         "@tailwindcss/cli": "^4.0.0",
-        "tailwindcss": "^4.0.0",
-        "daisyui": "^5.0.0",
+        "@types/google-apps-script": "^1.0.83",
         "browser-sync": "^3.0.4",
-        "concurrently": "^9.0.0",
-        "prettier": "^3.3.3"
+        "daisyui": "^5.0.0",
+        "esbuild": "^0.25.0",
+        "prettier": "^3.3.3",
+        "tailwindcss": "^4.0.0",
+        "typescript": "^5.5.4"
     }
 }

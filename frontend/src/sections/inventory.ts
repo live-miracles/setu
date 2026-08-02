@@ -1,3 +1,24 @@
+import { api } from '../api';
+import { generateRequestId } from '../ids';
+import { refreshDashboard } from '../router';
+import { getState } from '../state';
+import {
+    namePill,
+    renderCommentLine,
+    renderEmptyState,
+    renderSectionHeader,
+} from '../ui/components';
+import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { escapeHtml } from '../ui/format';
+import { icon } from '../ui/icons';
+import {
+    INVENTORY_REQUEST_ACTION_BTN,
+    INVENTORY_REQUEST_STATUS_ACCENT,
+    INVENTORY_REQUEST_STATUS_BADGE,
+    stockLevelClass,
+} from '../ui/styles';
+import { canApprove, canTransitionInventoryRequest, isRequestOverdue } from '../workflows';
+
 const INVENTORY_REQUEST_ACTION_LABELS: Record<InventoryRequestAction, string> = {
     submit: 'Submit',
     approve: 'Approve',
@@ -8,7 +29,10 @@ const INVENTORY_REQUEST_ACTION_LABELS: Record<InventoryRequestAction, string> = 
     close: 'Close',
 };
 
-async function renderInventory(container: HTMLElement, dashboard: DashboardPayload): Promise<void> {
+export async function renderInventory(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+): Promise<void> {
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('box', 'Inventory', 'Request, issue and return equipment.')}
@@ -88,7 +112,6 @@ async function renderInventory(container: HTMLElement, dashboard: DashboardPaylo
     </section>
   `;
 
-    wireInternalNavLinks(container);
     wireInventoryTypePicker(dashboard);
     wireCreateRequestForm();
     renderInventoryRequestList(dashboard);

@@ -352,7 +352,8 @@ interface UpdateHomeContentInput {
 
 // ---------------------------------------------------------------------------
 // The full google.script.run contract. Backend functions must match these
-// signatures; 02-api.ts's typed wrapper is authored directly against this type.
+// signatures; the frontend's api.ts typed wrapper is authored directly against
+// this type.
 // ---------------------------------------------------------------------------
 
 interface Api {

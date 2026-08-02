@@ -1,5 +1,4 @@
-frontend-src/output.css
-frontend-src/ts/*.js
+frontend/dist
 package-lock.json
 node_modules
 src/Index.html

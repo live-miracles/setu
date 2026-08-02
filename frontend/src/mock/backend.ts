@@ -1,6 +1,16 @@
+import { refreshDashboard } from '../router';
+import {
+    canApprove,
+    canTransitionInventoryRequest,
+    canTransitionProgramRequest,
+    canTransitionTicket,
+    canUseTickets,
+} from '../workflows';
+
 // Local-dev-only stand-in for the Apps Script backend. Excluded from the
-// production build (see build-tools/build.mjs). Rather than hand-writing one
-// stub per backend function, this uses a generic Proxy so 02-api.ts's call
+// production build: main.ts, the entry point build.mjs bundles, has no
+// import path that reaches this file. Rather than hand-writing one
+// stub per backend function, this uses a generic Proxy so api.ts's call
 // sites are identical whether they end up talking to `google.script.run` or
 // to this mock.
 

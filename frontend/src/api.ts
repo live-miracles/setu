@@ -1,8 +1,8 @@
 // The only file that talks to the backend. `google.script.run` is injected
 // automatically by the Apps Script HTML service runtime when this page is
 // served from script.google.com — outside that runtime (local dev via
-// browser-sync) `google` is undefined, so we fall back to `googleMock`
-// (01-mock-backend.ts), which replicates the exact same
+// `npm run dev`) `google` is undefined, so we fall back to `googleMock`
+// (mock/backend.ts), which replicates the exact same
 // `.withSuccessHandler().withFailureHandler().<fnName>()` chain against
 // in-memory data. Every call site in the render modules is identical either
 // way.
@@ -27,7 +27,7 @@ function callBackend<K extends keyof Api>(
     });
 }
 
-const api: AsyncApi = {
+export const api: AsyncApi = {
     whoAmI: (...args) => callBackend('whoAmI', ...args),
     getDashboard: (...args) => callBackend('getDashboard', ...args),
 

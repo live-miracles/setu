@@ -8,10 +8,10 @@ const appState: AppState = {
     dashboard: null,
 };
 
-function getState(): AppState {
+export function getState(): AppState {
     return appState;
 }
 
-function setState(patch: Partial<AppState>): void {
+export function setState(patch: Partial<AppState>): void {
     Object.assign(appState, patch);
 }

@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Livestream Operations (dev)</title>
-    <link rel="stylesheet" href="output.css" />
+    <base target="_top" />
+    <title><!--#TITLE#--></title>
+    <!--#HEAD#-->
   </head>
   <body class="min-h-screen bg-base-200 font-sans antialiased">
     <div class="toast toast-top toast-center z-50 gap-2 sm:toast-end">
@@ -38,7 +39,7 @@
             <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 motion-reduce:animate-none"></span>
             <span class="relative inline-flex size-2.5 rounded-full bg-primary"></span>
           </span>
-          <span class="min-w-0 truncate text-base font-bold tracking-tight text-base-content">Livestream Operations (dev)</span>
+          <span class="min-w-0 truncate text-base font-bold tracking-tight text-base-content"><!--#TITLE#--></span>
         </button>
       </div>
 
@@ -316,19 +317,6 @@
       </button>
     </div>
 
-    <script src="ts/00-config.js"></script>
-    <script src="ts/01-mock-backend.js"></script>
-    <script src="ts/02-api.js"></script>
-    <script src="ts/03-state.js"></script>
-    <script src="ts/04-render-shared.js"></script>
-    <script src="ts/11-workflows.js"></script>
-    <script src="ts/05-render-home.js"></script>
-    <script src="ts/06-render-roster.js"></script>
-    <script src="ts/07-render-inventory.js"></script>
-    <script src="ts/13-render-programs.js"></script>
-    <script src="ts/08-render-tickets.js"></script>
-    <script src="ts/09-render-profile.js"></script>
-    <script src="ts/10-render-settings.js"></script>
-    <script src="ts/12-main.js"></script>
+    <!--#BODY#-->
   </body>
 </html>
