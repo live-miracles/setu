@@ -1,5 +1,9 @@
 import { api } from './api';
-import { APP_SECTION_QUERY_PARAM, INVENTORY_REQUEST_QUERY_PARAM } from './config';
+import {
+    APP_SECTION_QUERY_PARAM,
+    INVENTORY_REQUEST_QUERY_PARAM,
+    TICKET_QUERY_PARAM,
+} from './config';
 import { getState, setState } from './state';
 import { canApprove, canManageConfig, canUseTickets } from './workflows';
 
@@ -148,16 +152,17 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
     if (settingsMenu) settingsMenu.classList.toggle('hidden', !canApprove(dashboard.me));
 }
 
-function navigateTo(section: SectionKey, inventoryRequestId?: string): void {
+function navigateTo(section: SectionKey, selectedId?: string): void {
     (document.activeElement as HTMLElement | null)?.blur();
     setState({ section });
     const url = new URL(window.location.href);
     url.searchParams.set(APP_SECTION_QUERY_PARAM, section);
-    if (section === 'inventory' && inventoryRequestId) {
-        url.searchParams.set(INVENTORY_REQUEST_QUERY_PARAM, inventoryRequestId);
-    } else {
-        url.searchParams.delete(INVENTORY_REQUEST_QUERY_PARAM);
+    url.searchParams.delete(INVENTORY_REQUEST_QUERY_PARAM);
+    url.searchParams.delete(TICKET_QUERY_PARAM);
+    if (section === 'inventory' && selectedId) {
+        url.searchParams.set(INVENTORY_REQUEST_QUERY_PARAM, selectedId);
     }
+    if (section === 'tickets' && selectedId) url.searchParams.set(TICKET_QUERY_PARAM, selectedId);
     window.history.replaceState({}, '', url.toString());
     renderCurrentSection();
 }
@@ -168,6 +173,14 @@ export function navigateToInventoryRequest(requestId: string): void {
 
 export function navigateToInventoryRequests(): void {
     navigateTo('inventory');
+}
+
+export function navigateToTicket(ticketId: string): void {
+    navigateTo('tickets', ticketId);
+}
+
+export function navigateToTickets(): void {
+    navigateTo('tickets');
 }
 
 // One delegated listener covers both the nav chrome in the page shell and
