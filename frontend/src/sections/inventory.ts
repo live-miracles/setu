@@ -1,6 +1,11 @@
 import { api } from '../api';
+import { INVENTORY_REQUEST_QUERY_PARAM } from '../config';
 import { generateRequestId } from '../ids';
-import { refreshDashboard } from '../router';
+import {
+    navigateToInventoryRequest,
+    navigateToInventoryRequests,
+    refreshDashboard,
+} from '../router';
 import { getState } from '../state';
 import {
     namePill,
@@ -9,7 +14,7 @@ import {
     renderSectionHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { escapeHtml } from '../ui/format';
+import { escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
 import {
     INVENTORY_REQUEST_ACTION_BTN,
@@ -29,10 +34,31 @@ const INVENTORY_REQUEST_ACTION_LABELS: Record<InventoryRequestAction, string> = 
     close: 'Close',
 };
 
+const ALL_INVENTORY_REQUEST_ACTIONS: InventoryRequestAction[] = [
+    'submit',
+    'approve',
+    'reject',
+    'issue',
+    'return',
+    'cancel',
+    'close',
+];
+
 export async function renderInventory(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {
+    const requestId = new URLSearchParams(window.location.search).get(
+        INVENTORY_REQUEST_QUERY_PARAM,
+    );
+    const selectedRequest = requestId
+        ? dashboard.inventoryRequests.find((request) => request.Id === requestId)
+        : undefined;
+    if (selectedRequest) {
+        renderInventoryRequestDetail(container, dashboard, selectedRequest);
+        return;
+    }
+
     container.innerHTML = `
     <section class="space-y-6">
       ${renderSectionHeader('box', 'Inventory', 'Request, issue and return equipment.')}
@@ -115,6 +141,150 @@ export async function renderInventory(
     wireInventoryTypePicker(dashboard);
     wireCreateRequestForm();
     renderInventoryRequestList(dashboard);
+}
+
+function renderInventoryRequestDetail(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    request: InventoryRequestDTO,
+): void {
+    const actions = availableInventoryRequestActions(request, dashboard);
+    const overdue = isRequestOverdue(request);
+    container.innerHTML = `
+    <section class="space-y-6">
+      <div class="flex items-center gap-3">
+        <button type="button" id="back-to-inventory-requests" class="btn btn-ghost btn-sm">← Back to requests</button>
+        <div>
+          <p class="text-sm text-base-content/60">Equipment request</p>
+          <h1 class="text-2xl font-semibold">${escapeHtml(request.Name)}</h1>
+        </div>
+      </div>
+
+      <div id="inventory-request-detail" data-request-id="${request.Id}" class="space-y-4">
+        <div class="card border border-base-300 bg-base-100 shadow">
+          <div class="card-body gap-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="font-mono text-sm text-base-content/60">REQ-${request.DisplayId}</p>
+                <h2 class="card-title text-xl">${escapeHtml(request.Name)}</h2>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                ${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}
+                <span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
+              </div>
+            </div>
+            <dl class="grid gap-4 text-sm sm:grid-cols-2">
+              <div>
+                <dt class="text-base-content/60">Requested by</dt>
+                <dd class="mt-1 font-medium">${escapeHtml(request.userName)}</dd>
+              </div>
+              <div>
+                <dt class="text-base-content/60">Equipment period</dt>
+                <dd class="mt-1 font-medium">${escapeHtml(request.StartDate)} to ${escapeHtml(request.EndDate)}</dd>
+              </div>
+              <div class="sm:col-span-2">
+                <dt class="text-base-content/60">Participants</dt>
+                <dd class="mt-1 flex flex-wrap gap-1">${request.participants.length > 0 ? request.participants.map((participant) => namePill(participant)).join('') : '<span class="text-base-content/60">No additional participants</span>'}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card border border-base-300 bg-base-100 shadow">
+          <div class="card-body gap-3">
+            <h2 class="card-title text-base">Equipment</h2>
+            <div class="overflow-x-auto">
+              <table class="table table-sm">
+                <thead><tr><th>Item</th><th class="text-right">Quantity</th><th>Return condition</th></tr></thead>
+                <tbody>${request.items
+                    .map(
+                        (item) =>
+                            `<tr><td class="font-medium">${escapeHtml(item.itemName)}</td><td class="text-right">${item.Quantity}</td><td>${item.Condition ? escapeHtml(item.Condition) : '<span class="text-base-content/50">Not returned</span>'}</td></tr>`,
+                    )
+                    .join('')}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        ${renderDetailRequestImages(request)}
+
+        <div class="card border border-base-300 bg-base-100 shadow">
+          <div class="card-body gap-3">
+            <h2 class="card-title text-base">Actions</h2>
+            <div class="request-actions flex flex-wrap gap-2">
+              ${actions.length > 0 ? actions.map((action) => `<button type="button" class="btn btn-sm ${INVENTORY_REQUEST_ACTION_BTN[action]}" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button>`).join('') : '<p class="text-sm text-base-content/60">No actions are available for this request.</p>'}
+            </div>
+          </div>
+        </div>
+
+        <div class="card border border-base-300 bg-base-100 shadow">
+          <div class="card-body gap-3">
+            <div class="flex items-baseline justify-between gap-3"><h2 class="card-title text-base">Updates</h2><span class="text-sm text-base-content/60">${request.comments.length}</span></div>
+            <div class="space-y-3">
+              ${request.comments.length > 0 ? request.comments.map((comment) => `<article class="border-l-2 border-base-300 pl-3"><div class="flex flex-wrap items-baseline gap-x-2"><span class="font-medium">${escapeHtml(comment.userName)}</span><time class="text-xs text-base-content/50">${escapeHtml(formatDateTime(comment.Timestamp))}</time></div><p class="mt-1 text-sm text-base-content/75">${escapeHtml(comment.Message)}</p></article>`).join('') : '<p class="text-sm text-base-content/60">No updates yet.</p>'}
+            </div>
+            <form class="comment-form flex gap-2 border-t border-base-200 pt-3">
+              <input class="input input-sm flex-1" placeholder="Add a comment" name="message" />
+              <button type="submit" class="btn btn-sm">Send</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+    document
+        .getElementById('back-to-inventory-requests')!
+        .addEventListener('click', navigateToInventoryRequests);
+    wireInventoryRequestDetail(request.Id);
+}
+
+function renderDetailRequestImages(request: InventoryRequestDTO): string {
+    const ids = [request.Image1Id, request.Image2Id, request.Image3Id].filter(Boolean);
+    if (ids.length === 0) return '';
+    return `<div class="card border border-base-300 bg-base-100 shadow"><div class="card-body gap-3"><h2 class="card-title text-base">Photos</h2><div class="grid grid-cols-2 gap-3 sm:grid-cols-3">${ids.map((id) => `<img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}" class="aspect-square w-full rounded-box border border-base-300 object-cover" alt="Request photo" />`).join('')}</div></div></div>`;
+}
+
+function availableInventoryRequestActions(
+    request: InventoryRequestDTO,
+    dashboard: DashboardPayload,
+): InventoryRequestAction[] {
+    const isOwner =
+        request.UserId === dashboard.me.Email ||
+        request.participants.indexOf(dashboard.me.Email) !== -1;
+    const isApprover = canApprove(dashboard.me);
+    return ALL_INVENTORY_REQUEST_ACTIONS.filter((action) => {
+        if (!canTransitionInventoryRequest(request.Status, action)) return false;
+        return action === 'submit' ? isOwner : isApprover;
+    });
+}
+
+function wireInventoryRequestDetail(requestId: string): void {
+    const detail = document.getElementById('inventory-request-detail')!;
+    detail.querySelectorAll<HTMLButtonElement>('button[data-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            await handleInventoryRequestAction(
+                requestId,
+                button.dataset.action as InventoryRequestAction,
+            );
+        });
+    });
+    const commentForm = detail.querySelector('.comment-form') as HTMLFormElement;
+    commentForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = commentForm.querySelector('input[name="message"]') as HTMLInputElement;
+        const message = input.value.trim();
+        if (!message) return;
+        try {
+            showSavingBadge(true);
+            await api.addComment(requestId, message, generateRequestId());
+            await refreshDashboard();
+        } catch (err) {
+            showErrorAlert(err);
+        } finally {
+            showSavingBadge(false);
+        }
+    });
 }
 
 function wireInventoryTypePicker(dashboard: DashboardPayload): void {
@@ -210,35 +380,21 @@ function renderRequestImages(request: InventoryRequestDTO): string {
         .join('')}</div>`;
 }
 
-function renderInventoryRequestList(dashboard: DashboardPayload): void {
+function renderInventoryRequestList(
+    dashboard: DashboardPayload,
+    requests: InventoryRequestDTO[] = dashboard.inventoryRequests,
+): void {
     const list = document.getElementById('inventory-request-list');
     if (!list) return;
-    const isApprover = canApprove(dashboard.me);
-    const allActions: InventoryRequestAction[] = [
-        'submit',
-        'approve',
-        'reject',
-        'issue',
-        'return',
-        'cancel',
-        'close',
-    ];
-
     list.innerHTML =
-        dashboard.inventoryRequests.length === 0
+        requests.length === 0
             ? `<li>${renderEmptyState('box', 'No requests yet.')}</li>`
-            : dashboard.inventoryRequests
+            : requests
                   .map((request) => {
-                      const isOwner =
-                          request.UserId === dashboard.me.Email ||
-                          request.participants.indexOf(dashboard.me.Email) !== -1;
-                      const actions = allActions.filter((action) => {
-                          if (!canTransitionInventoryRequest(request.Status, action)) return false;
-                          return action === 'submit' ? isOwner : isApprover;
-                      });
+                      const actions = availableInventoryRequestActions(request, dashboard);
                       const overdue = isRequestOverdue(request);
                       return `
-              <li class="rounded-box border-l-4 ${INVENTORY_REQUEST_STATUS_ACCENT[request.Status]} bg-base-200/40 p-3" data-request-id="${request.Id}">
+              <li class="cursor-pointer rounded-box border-l-4 ${INVENTORY_REQUEST_STATUS_ACCENT[request.Status]} bg-base-200/40 p-3" data-request-id="${request.Id}" data-request-card>
                 <div class="flex flex-wrap items-start justify-between gap-2">
                   <div class="min-w-0">
                     <div class="font-medium">
@@ -295,6 +451,12 @@ function renderInventoryRequestList(dashboard: DashboardPayload): void {
 
     list.querySelectorAll<HTMLElement>('li[data-request-id]').forEach((li) => {
         const requestId = li.dataset.requestId!;
+        li.addEventListener('click', (event) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('button, input, select, textarea, label, summary, details, a'))
+                return;
+            navigateToInventoryRequest(requestId);
+        });
         const commentForm = li.querySelector('.comment-form') as HTMLFormElement;
         commentForm.addEventListener('submit', async (e) => {
             e.preventDefault();

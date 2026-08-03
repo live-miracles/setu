@@ -1,5 +1,5 @@
 import { api } from './api';
-import { APP_SECTION_QUERY_PARAM } from './config';
+import { APP_SECTION_QUERY_PARAM, INVENTORY_REQUEST_QUERY_PARAM } from './config';
 import { getState, setState } from './state';
 import { canApprove, canManageConfig, canUseTickets } from './workflows';
 
@@ -148,13 +148,26 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
     if (settingsMenu) settingsMenu.classList.toggle('hidden', !canApprove(dashboard.me));
 }
 
-function navigateTo(section: SectionKey): void {
+function navigateTo(section: SectionKey, inventoryRequestId?: string): void {
     (document.activeElement as HTMLElement | null)?.blur();
     setState({ section });
     const url = new URL(window.location.href);
     url.searchParams.set(APP_SECTION_QUERY_PARAM, section);
+    if (section === 'inventory' && inventoryRequestId) {
+        url.searchParams.set(INVENTORY_REQUEST_QUERY_PARAM, inventoryRequestId);
+    } else {
+        url.searchParams.delete(INVENTORY_REQUEST_QUERY_PARAM);
+    }
     window.history.replaceState({}, '', url.toString());
     renderCurrentSection();
+}
+
+export function navigateToInventoryRequest(requestId: string): void {
+    navigateTo('inventory', requestId);
+}
+
+export function navigateToInventoryRequests(): void {
+    navigateTo('inventory');
 }
 
 // One delegated listener covers both the nav chrome in the page shell and
