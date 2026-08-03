@@ -60,6 +60,8 @@ export const api: AsyncApi = {
 
     listRosters: (...args) => callBackend('listRosters', ...args),
     createRoster: (...args) => callBackend('createRoster', ...args),
+    updateRoster: (...args) => callBackend('updateRoster', ...args),
+    deleteRoster: (...args) => callBackend('deleteRoster', ...args),
 
     listInventoryTypes: (...args) => callBackend('listInventoryTypes', ...args),
     createInventoryType: (...args) => callBackend('createInventoryType', ...args),

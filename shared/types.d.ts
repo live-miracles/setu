@@ -407,6 +407,8 @@ interface Api {
 
     listRosters(page: number): Paginated<RosterDTO>;
     createRoster(input: CreateRosterInput, requestId: string): RosterDTO;
+    updateRoster(id: string, input: CreateRosterInput, requestId: string): RosterDTO;
+    deleteRoster(id: string, requestId: string): void;
 
     listInventoryTypes(): InventoryTypeDTO[];
     createInventoryType(input: CreateInventoryTypeInput, requestId: string): InventoryTypeDTO;

@@ -530,6 +530,20 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.rosters.push(created);
         return mockBuildRosterDTO(created);
     },
+    updateRoster: (id: string, input: CreateRosterInput) => {
+        const roster = mockData.rosters.find((r) => r.Id === id);
+        if (!roster) throw new Error('not_found');
+        roster.StartDate = input.startDate;
+        roster.EndDate = input.endDate;
+        roster.StartTime = input.startTime || '';
+        roster.EndTime = input.endTime || '';
+        roster.Name = input.name;
+        roster.UserId = input.userId;
+        return mockBuildRosterDTO(roster);
+    },
+    deleteRoster: (id: string) => {
+        mockData.rosters = mockData.rosters.filter((r) => r.Id !== id);
+    },
 
     listInventoryTypes: () => mockBuildInventoryTypeDTOs(),
     createInventoryType: (input: CreateInventoryTypeInput) => {
