@@ -1,15 +1,7 @@
-import { namePill, renderEmptyState, renderSectionHeader } from '../ui/components';
+import { namePill, renderEmptyState } from '../ui/components';
 import { escapeHtml, formatRosterSchedule } from '../ui/format';
-import { icon } from '../ui/icons';
-import { INVENTORY_REQUEST_STATUS_ACCENT, INVENTORY_REQUEST_STATUS_BADGE } from '../ui/styles';
+import { INVENTORY_REQUEST_STATUS_BADGE } from '../ui/styles';
 import { canApprove, canManageConfig, canUseTickets, isRequestOverdue } from '../workflows';
-
-function greetingForNow(): string {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-}
 
 function todayDateOnly(): string {
     const d = new Date();
@@ -18,240 +10,250 @@ function todayDateOnly(): string {
     return `${d.getFullYear()}-${month}-${day}`;
 }
 
+function todayDisplayParts(): { day: string; weekday: string; monthYear: string } {
+    const now = new Date();
+    return {
+        day: String(now.getDate()).padStart(2, '0'),
+        weekday: now.toLocaleDateString(undefined, { weekday: 'long' }),
+        monthYear: now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+    };
+}
+
+function rosterTimeLabel(roster: RosterDTO): string {
+    const start = roster.StartTime || 'All day';
+    const end = roster.EndTime ? `–${roster.EndTime}` : '';
+    return `${start}${end}`;
+}
+
 export async function renderHome(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {
-    // Home summarises every section, so it drops the cards, stats and jump
-    // links for the two sections a role may not open at all — otherwise it
-    // would advertise a roster or ticket board that isn't there. The
-    // payload is empty for those anyway (see getDashboard).
     const showRoster = canApprove(dashboard.me);
     const showTickets = canUseTickets(dashboard.me);
-
+    const date = todayDisplayParts();
     const today = todayDateOnly();
-    const todayRosters = dashboard.upcomingRosters.filter(
-        (r) => r.StartDate <= today && r.EndDate >= today,
-    );
-    const todayAssignments = todayRosters.filter((r) => r.UserId).length;
 
-    const activeRequests = dashboard.inventoryRequests.filter(
-        (r) => ['submitted', 'approved', 'issued'].indexOf(r.Status) !== -1,
+    const todayRosters = dashboard.upcomingRosters.filter(
+        (roster) => roster.StartDate <= today && roster.EndDate >= today,
     );
-    const awaitingApproval = activeRequests.filter((r) => r.Status === 'submitted').length;
+    const activeRequests = dashboard.inventoryRequests.filter(
+        (request) => ['submitted', 'approved', 'issued'].indexOf(request.Status) !== -1,
+    );
+    const awaitingApproval = activeRequests.filter(
+        (request) => request.Status === 'submitted',
+    ).length;
+    const overdueRequests = activeRequests.filter(isRequestOverdue).length;
 
     const activePrograms = dashboard.programRequests.filter(
-        (r) => ['submitted', 'approved'].indexOf(r.Status) !== -1,
+        (request) => ['submitted', 'approved'].indexOf(request.Status) !== -1,
     );
-    const programsAwaitingApproval = activePrograms.filter((r) => r.Status === 'submitted').length;
-
-    const openTickets = dashboard.tickets.filter((t) => t.Status !== 'closed');
-
+    const programsAwaitingApproval = activePrograms.filter(
+        (request) => request.Status === 'submitted',
+    ).length;
+    const openTickets = dashboard.tickets.filter((ticket) => ticket.Status !== 'closed');
     const lowStockItems = dashboard.inventoryTypes.filter(
-        (t) => t.TotalQuantity > 0 && t.availableQuantity / t.TotalQuantity <= 0.3,
+        (type) => type.TotalQuantity > 0 && type.availableQuantity / type.TotalQuantity <= 0.3,
     );
 
     const nextRoster = [...dashboard.upcomingRosters].sort((a, b) =>
         (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime),
     )[0];
 
+    const attentionCount =
+        awaitingApproval +
+        programsAwaitingApproval +
+        overdueRequests +
+        lowStockItems.length +
+        (showTickets ? openTickets.length : 0);
+    const headline =
+        attentionCount > 0
+            ? `${attentionCount} item${attentionCount === 1 ? '' : 's'} need attention.`
+            : 'Today’s operations are clear.';
+    const operationalSummary = [
+        showRoster
+            ? `${todayRosters.length} shift${todayRosters.length === 1 ? '' : 's'} today`
+            : '',
+        `${activeRequests.length} active equipment request${activeRequests.length === 1 ? '' : 's'}`,
+        `${activePrograms.length} active program request${activePrograms.length === 1 ? '' : 's'}`,
+    ]
+        .filter(Boolean)
+        .join(' · ');
+
     container.innerHTML = `
-    <section class="space-y-6">
-      ${renderSectionHeader('home', greetingForNow(), "Here's today's operations pulse.")}
+    <section class="home-page space-y-10">
+      <header class="home-signature">
+        <div class="home-signature-day" aria-hidden="true">${date.day}</div>
+        <div class="home-signature-copy">
+          <div class="home-date-kicker">${escapeHtml(date.weekday)} · ${escapeHtml(date.monthYear)}</div>
+          <h1>${escapeHtml(headline)}</h1>
+          <p class="home-summary">${escapeHtml(operationalSummary)}</p>
+        </div>
+      </header>
 
       ${
           canManageConfig(dashboard.me) && dashboard.failedEmailCount > 0
               ? `<div class="alert alert-warning">
-              ${icon('alert', 'size-5')}
+              <span class="font-mono text-xs">NOTICE</span>
               <span>${dashboard.failedEmailCount} notification email(s) failed to send in the last 7 days.</span>
             </div>`
               : ''
       }
 
-      <div class="grid gap-4 ${showRoster ? 'lg:grid-cols-[1.3fr_1fr]' : ''}">
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-3">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Welcome back</span>
+      <div class="home-command-grid">
+        <section class="home-actions">
+          <div class="ops-kicker">In service today</div>
+          <h2 class="mt-3">Support today’s livestreams</h2>
+          <p class="mt-3 max-w-xl text-sm text-base-content/60">
             ${
                 dashboard.homeContent.SupportMessage
-                    ? `<p class="text-sm text-base-content/70">${escapeHtml(dashboard.homeContent.SupportMessage)}</p>`
-                    : `<p class="text-sm text-base-content/50">Everything ready for the next broadcast.</p>`
+                    ? escapeHtml(dashboard.homeContent.SupportMessage)
+                    : 'Create a request, reserve a place or review the working roster.'
             }
-            <div class="mt-1 flex flex-wrap gap-2">
-              <button class="btn btn-sm btn-primary" data-nav-section="inventory">
-                ${icon('box', 'size-4')}
-                Request equipment
-              </button>
-              <button class="btn btn-sm btn-primary" data-nav-section="programs">
-                ${icon('clapper', 'size-4')}
-                Book a program
-              </button>
-              ${
-                  showRoster
-                      ? `<button class="btn btn-outline btn-sm" data-nav-section="roster">
-                ${icon('calendar', 'size-4')}
-                View roster
-              </button>`
-                      : ''
-              }
-            </div>
+          </p>
+          <div class="mt-6 flex flex-wrap gap-2">
+            <button class="btn btn-primary btn-sm" data-nav-section="inventory">Request equipment</button>
+            <button class="btn btn-outline btn-sm" data-nav-section="programs">Book a program</button>
+            ${showRoster ? '<button class="btn btn-ghost btn-sm" data-nav-section="roster">Open roster →</button>' : ''}
           </div>
-        </div>
+        </section>
 
         ${
             showRoster
-                ? `<div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-1.5">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Next shift</span>
-            ${
-                nextRoster
-                    ? `
-              <h3 class="text-lg font-bold">${escapeHtml(nextRoster.Name)}</h3>
-              <p class="text-sm text-base-content/60">${formatRosterSchedule(nextRoster)}</p>
-              <div class="mt-1.5 flex flex-wrap gap-1">
-                ${nextRoster.UserId ? namePill(nextRoster.userName) : '<span class="text-sm text-base-content/50">Unassigned</span>'}
-              </div>`
-                    : `<p class="text-sm text-base-content/50">No shifts scheduled yet.</p>`
-            }
-          </div>
-        </div>`
+                ? `<aside class="home-next-shift">
+          <div class="ops-kicker">Next shift</div>
+          ${
+              nextRoster
+                  ? `<h3>${escapeHtml(nextRoster.Name)}</h3>
+              <p class="mt-3 text-sm text-base-content/60">${formatRosterSchedule(nextRoster)}</p>
+              <div class="mt-4">${nextRoster.UserId ? namePill(nextRoster.userName) : '<span class="badge badge-warning badge-sm">Unassigned</span>'}</div>`
+                  : '<p class="mt-4 text-sm text-base-content/50">No shifts scheduled yet.</p>'
+          }
+        </aside>`
                 : ''
         }
       </div>
 
-      <div class="stats stats-vertical w-full border border-base-300 bg-base-100 shadow sm:stats-horizontal">
+      <section>
+        <div class="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <div class="ops-kicker">Work queue</div>
+            <h2 class="home-panel-title mt-2">Needs a decision</h2>
+          </div>
+          <span class="text-xs text-base-content/50">Live from the current workspace</span>
+        </div>
+        <div class="work-queue">
+          <div class="work-queue-item" data-priority="${awaitingApproval > 0 ? 'high' : 'normal'}">
+            <span class="ops-kicker">Equipment</span>
+            <strong class="work-queue-value">${awaitingApproval}</strong>
+            <span class="work-queue-label">awaiting approval</span>
+          </div>
+          <div class="work-queue-item" data-priority="${programsAwaitingApproval > 0 ? 'high' : 'normal'}">
+            <span class="ops-kicker">Programs</span>
+            <strong class="work-queue-value">${programsAwaitingApproval}</strong>
+            <span class="work-queue-label">awaiting approval</span>
+          </div>
+          <div class="work-queue-item" data-priority="${overdueRequests > 0 ? 'high' : 'normal'}">
+            <span class="ops-kicker">Returns</span>
+            <strong class="work-queue-value">${overdueRequests}</strong>
+            <span class="work-queue-label">overdue requests</span>
+          </div>
+          <div class="work-queue-item" data-priority="${showTickets && openTickets.length > 0 ? 'high' : 'normal'}">
+            <span class="ops-kicker">${showTickets ? 'Tickets' : 'Inventory'}</span>
+            <strong class="work-queue-value">${showTickets ? openTickets.length : lowStockItems.length}</strong>
+            <span class="work-queue-label">${showTickets ? 'open tickets' : 'low-stock items'}</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="home-ledger-grid">
         ${
             showRoster
-                ? `<div class="stat">
-          <div class="stat-figure text-primary">${icon('calendar', 'size-6')}</div>
-          <div class="stat-title">Today's shifts</div>
-          <div class="stat-value text-2xl">${todayRosters.length}</div>
-          <div class="stat-desc">${todayAssignments} crew assignment${todayAssignments === 1 ? '' : 's'}</div>
-        </div>`
+                ? `<section class="home-ledger-section">
+          <div class="home-panel-header">
+            <h2 class="home-panel-title">Upcoming roster</h2>
+            <button class="btn btn-ghost btn-xs" data-nav-section="roster">View all →</button>
+          </div>
+          ${
+              dashboard.upcomingRosters.length === 0
+                  ? renderEmptyState('calendar', 'No upcoming shifts.')
+                  : `<div>${dashboard.upcomingRosters
+                        .slice(0, 5)
+                        .map(
+                            (roster) => `<article class="ledger-row">
+                  <time class="ledger-time">${escapeHtml(rosterTimeLabel(roster))}</time>
+                  <div>
+                    <div class="ledger-title">${escapeHtml(roster.Name)}</div>
+                    <div class="ledger-meta">${formatRosterSchedule(roster)}</div>
+                  </div>
+                  <div class="text-right text-xs text-base-content/60">${roster.userName ? escapeHtml(roster.userName) : 'Unassigned'}</div>
+                </article>`,
+                        )
+                        .join('')}</div>`
+          }
+        </section>`
                 : ''
         }
-        <div class="stat">
-          <div class="stat-figure text-warning">${icon('box', 'size-6')}</div>
-          <div class="stat-title">Active requests</div>
-          <div class="stat-value text-2xl">${activeRequests.length}</div>
-          <div class="stat-desc">${awaitingApproval} awaiting approval</div>
-        </div>
-        <div class="stat">
-          <div class="stat-figure text-secondary">${icon('clapper', 'size-6')}</div>
-          <div class="stat-title">Program requests</div>
-          <div class="stat-value text-2xl">${activePrograms.length}</div>
-          <div class="stat-desc">${programsAwaitingApproval} awaiting approval</div>
-        </div>
-        ${
-            showTickets
-                ? `<div class="stat">
-          <div class="stat-figure text-info">${icon('ticket', 'size-6')}</div>
-          <div class="stat-title">Open tickets</div>
-          <div class="stat-value text-2xl">${openTickets.length}</div>
-        </div>`
-                : ''
-        }
-        <div class="stat">
-          <div class="stat-figure text-error">${icon('alert', 'size-6')}</div>
-          <div class="stat-title">Low stock</div>
-          <div class="stat-value text-2xl">${lowStockItems.length}</div>
-          <div class="stat-desc">Below 30% availability</div>
-        </div>
+
+        <section class="home-ledger-section">
+          <div class="home-panel-header">
+            <h2 class="home-panel-title">Equipment requests</h2>
+            <button class="btn btn-ghost btn-xs" data-nav-section="inventory">View all →</button>
+          </div>
+          ${
+              activeRequests.length === 0
+                  ? renderEmptyState('box', 'No active requests.')
+                  : `<div>${activeRequests
+                        .slice(0, 5)
+                        .map(
+                            (request) => `<article class="ledger-row">
+                  <span class="ledger-time">REQ-${request.DisplayId}</span>
+                  <div>
+                    <div class="ledger-title">${escapeHtml(request.Name)}</div>
+                    <div class="ledger-meta">${escapeHtml(request.userName)} · ${request.items.map((item) => `${item.Quantity}× ${escapeHtml(item.itemName)}`).join(', ')}</div>
+                  </div>
+                  <div class="flex flex-col items-end gap-1">
+                    ${isRequestOverdue(request) ? '<span class="badge badge-error badge-sm">Overdue</span>' : ''}
+                    <span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
+                  </div>
+                </article>`,
+                        )
+                        .join('')}</div>`
+          }
+        </section>
       </div>
 
-      <div class="grid gap-4 ${showRoster ? 'md:grid-cols-2' : ''}">
-        ${
-            showRoster
-                ? `<div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-2">
-            <div class="flex items-center justify-between">
-              <h2 class="card-title text-base">${icon('calendar', 'size-5 text-primary')} Upcoming roster</h2>
-              <button class="btn btn-ghost btn-xs" data-nav-section="roster">View all</button>
-            </div>
-            ${
-                dashboard.upcomingRosters.length === 0
-                    ? renderEmptyState('calendar', 'No upcoming shifts.')
-                    : `<ul class="divide-y divide-base-200">${dashboard.upcomingRosters
-                          .slice(0, 4)
-                          .map(
-                              (roster) => `
-                      <li class="flex items-start justify-between gap-3 py-2.5">
-                        <div class="min-w-0">
-                          <div class="truncate font-medium">${escapeHtml(roster.Name)}</div>
-                          <div class="text-sm text-base-content/60">${formatRosterSchedule(roster)}</div>
-                          <div class="mt-1 text-sm text-base-content/70">${roster.userName ? escapeHtml(roster.userName) : 'Unassigned'}</div>
-                        </div>
-                      </li>`,
-                          )
-                          .join('')}</ul>`
-            }
+      <div class="home-notes">
+        <section>
+          <div class="ops-kicker">Shortcuts</div>
+          <h2 class="home-panel-title mt-3">Quick links</h2>
+          ${
+              dashboard.links.length === 0
+                  ? '<p class="mt-5 text-sm">No links added yet.</p>'
+                  : `<div class="mt-5 space-y-3">${dashboard.links
+                        .map(
+                            (
+                                link,
+                            ) => `<a class="flex items-center justify-between gap-4 border-b border-white/15 pb-2 text-sm" href="${escapeHtml(link.Url)}" target="_blank" rel="noopener">
+                    <span>${escapeHtml(link.Name)}</span><span aria-hidden="true">↗</span>
+                  </a>`,
+                        )
+                        .join('')}</div>`
+          }
+        </section>
+        <section>
+          <div class="ops-kicker">Working note</div>
+          <h2 class="home-panel-title mt-3">Support & guidelines</h2>
+          <p class="mt-5 whitespace-pre-wrap text-sm leading-relaxed">${
+              dashboard.homeContent.Guidelines
+                  ? escapeHtml(dashboard.homeContent.Guidelines)
+                  : 'No guidelines published yet.'
+          }</p>
+          <div class="mt-5 flex flex-wrap gap-2">
+            ${dashboard.homeContent.WhatsappUrl ? `<a class="btn btn-sm border-white/25 bg-transparent text-white hover:bg-white/10" href="${escapeHtml(dashboard.homeContent.WhatsappUrl)}" target="_blank" rel="noopener">WhatsApp support</a>` : ''}
+            ${dashboard.homeContent.TutorialUrl ? `<a class="btn btn-ghost btn-sm text-white" href="${escapeHtml(dashboard.homeContent.TutorialUrl)}" target="_blank" rel="noopener">Booking tutorial</a>` : ''}
           </div>
-        </div>`
-                : ''
-        }
-
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-2">
-            <div class="flex items-center justify-between">
-              <h2 class="card-title text-base">${icon('box', 'size-5 text-primary')} Equipment requests</h2>
-              <button class="btn btn-ghost btn-xs" data-nav-section="inventory">View all</button>
-            </div>
-            ${
-                activeRequests.length === 0
-                    ? renderEmptyState('box', 'No active requests.')
-                    : `<ul class="divide-y divide-base-200">${activeRequests
-                          .slice(0, 4)
-                          .map(
-                              (r) => `
-                      <li class="border-l-2 ${INVENTORY_REQUEST_STATUS_ACCENT[r.Status]} py-2.5 pl-3">
-                        <div class="flex items-start justify-between gap-2">
-                          <div class="min-w-0">
-                            <div class="truncate font-medium">${escapeHtml(r.Name)}</div>
-                            <div class="text-sm text-base-content/60">${escapeHtml(r.userName)} · ${r.items.map((i) => `${i.Quantity}× ${escapeHtml(i.itemName)}`).join(', ')}</div>
-                          </div>
-                          <div class="flex shrink-0 flex-col items-end gap-1">
-                            ${isRequestOverdue(r) ? '<span class="badge badge-error badge-sm">Overdue</span>' : ''}
-                            <span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[r.Status]}">${escapeHtml(r.Status)}</span>
-                          </div>
-                        </div>
-                      </li>`,
-                          )
-                          .join('')}</ul>`
-            }
-          </div>
-        </div>
-      </div>
-
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-2">
-            <h2 class="card-title text-base">${icon('external', 'size-5 text-primary')} Quick links</h2>
-            ${
-                dashboard.links.length === 0
-                    ? '<p class="text-sm text-base-content/50">No links added yet.</p>'
-                    : `<div class="space-y-1">${dashboard.links
-                          .map(
-                              (l) => `
-                      <a class="flex items-center gap-2 rounded-box px-2 py-1.5 text-sm hover:bg-base-200" href="${escapeHtml(l.Url)}" target="_blank" rel="noopener">
-                        ${icon('external', 'size-4 text-base-content/50')}
-                        ${escapeHtml(l.Name)}
-                      </a>`,
-                          )
-                          .join('')}</div>`
-            }
-          </div>
-        </div>
-
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-2">
-            <h2 class="card-title text-base">${icon('shield', 'size-5 text-primary')} Support & guidelines</h2>
-            ${dashboard.homeContent.Guidelines ? `<p class="whitespace-pre-wrap text-sm text-base-content/70">${escapeHtml(dashboard.homeContent.Guidelines)}</p>` : '<p class="text-sm text-base-content/50">No guidelines published yet.</p>'}
-            <div class="mt-1 flex flex-wrap gap-2">
-              ${dashboard.homeContent.WhatsappUrl ? `<a class="btn btn-sm" href="${escapeHtml(dashboard.homeContent.WhatsappUrl)}" target="_blank" rel="noopener">WhatsApp support</a>` : ''}
-              ${dashboard.homeContent.TutorialUrl ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(dashboard.homeContent.TutorialUrl)}" target="_blank" rel="noopener">Booking tutorial</a>` : ''}
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
     </section>
   `;

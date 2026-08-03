@@ -10,22 +10,31 @@ export function namePill(name: string): string {
     return `<span class="badge badge-ghost badge-sm font-normal">${escapeHtml(name)}</span>`;
 }
 
+const SECTION_INDEX: Partial<Record<IconName, string>> = {
+    home: '00',
+    calendar: '01',
+    box: '02',
+    clapper: '03',
+    ticket: '04',
+    user: '05',
+    shield: '06',
+    external: '07',
+};
+
 export function renderSectionHeader(iconName: IconName, title: string, subtitle: string): string {
     return `
-    <div class="flex items-start gap-3">
-      <div class="flex size-11 shrink-0 items-center justify-center rounded-box bg-primary/10 text-primary">
-        ${icon(iconName, 'size-6')}
-      </div>
+    <div class="section-heading">
+      <span class="section-index" aria-hidden="true">${SECTION_INDEX[iconName] || '—'}</span>
       <div class="min-w-0">
-        <h1 class="text-xl font-bold tracking-tight">${escapeHtml(title)}</h1>
-        <p class="text-sm text-base-content/60">${escapeHtml(subtitle)}</p>
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(subtitle)}</p>
       </div>
     </div>`;
 }
 
 export function renderEmptyState(iconName: IconName, message: string): string {
     return `
-    <div class="flex flex-col items-center justify-center gap-2 rounded-box border border-dashed border-base-300 py-10 text-center text-base-content/50">
+    <div class="setu-empty-state flex flex-col items-center justify-center gap-2 border-y border-dashed border-base-300 py-10 text-center text-base-content/50">
       ${icon(iconName, 'size-7 opacity-60')}
       <p class="text-sm">${escapeHtml(message)}</p>
     </div>`;
