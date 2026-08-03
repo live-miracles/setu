@@ -34,6 +34,48 @@ const INVENTORY_REQUEST_ACTION_LABELS: Record<InventoryRequestAction, string> = 
     close: 'Close',
 };
 
+type InventoryRequestView = 'list' | 'board';
+
+const INVENTORY_REQUEST_VIEW_STORAGE_KEY = 'setu.inventory.requestView';
+
+const INVENTORY_REQUEST_BOARD_COLUMNS: {
+    id: string;
+    title: string;
+    description: string;
+    statuses: InventoryRequestStatus[];
+}[] = [
+    {
+        id: 'needs-review',
+        title: 'Needs review',
+        description: 'New requests waiting for a decision',
+        statuses: ['draft', 'submitted'],
+    },
+    {
+        id: 'approved',
+        title: 'Approved',
+        description: 'Ready to issue',
+        statuses: ['approved'],
+    },
+    {
+        id: 'issued',
+        title: 'Issued',
+        description: 'Equipment currently out',
+        statuses: ['issued'],
+    },
+    {
+        id: 'ready-to-close',
+        title: 'Ready to close',
+        description: 'Returned, rejected or cancelled',
+        statuses: ['returned', 'rejected', 'cancelled'],
+    },
+    {
+        id: 'closed',
+        title: 'Closed',
+        description: 'Completed request history',
+        statuses: ['closed'],
+    },
+];
+
 const ALL_INVENTORY_REQUEST_ACTIONS: InventoryRequestAction[] = [
     'submit',
     'approve',
@@ -58,6 +100,8 @@ export async function renderInventory(
         renderInventoryRequestDetail(container, dashboard, selectedRequest);
         return;
     }
+
+    const requestView = readInventoryRequestView();
 
     container.innerHTML = `
     <section class="space-y-6">
@@ -131,8 +175,21 @@ export async function renderInventory(
 
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-2">
-          <h2 class="card-title text-base">Requests</h2>
-          <ul id="inventory-request-list" class="space-y-2"></ul>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="card-title text-base">Requests</h2>
+              <p class="text-sm text-base-content/55">Switch between the detailed list and workflow board.</p>
+            </div>
+            <div class="join" role="group" aria-label="Request view">
+              <button type="button" class="btn btn-sm join-item ${requestView === 'list' ? 'btn-active' : ''}" data-inventory-request-view="list" aria-pressed="${requestView === 'list'}">
+                ${icon('list', 'size-4')} List
+              </button>
+              <button type="button" class="btn btn-sm join-item ${requestView === 'board' ? 'btn-active' : ''}" data-inventory-request-view="board" aria-pressed="${requestView === 'board'}">
+                ${icon('columns', 'size-4')} Board
+              </button>
+            </div>
+          </div>
+          <div id="inventory-request-content" class="mt-2"></div>
         </div>
       </div>
     </section>
@@ -140,6 +197,63 @@ export async function renderInventory(
 
     wireInventoryTypePicker(dashboard);
     wireCreateRequestForm();
+    wireInventoryRequestViewToggle(dashboard);
+    renderInventoryRequestContent(dashboard, requestView);
+}
+
+function readInventoryRequestView(): InventoryRequestView {
+    try {
+        return window.localStorage.getItem(INVENTORY_REQUEST_VIEW_STORAGE_KEY) === 'board'
+            ? 'board'
+            : 'list';
+    } catch (_err) {
+        return 'list';
+    }
+}
+
+function storeInventoryRequestView(view: InventoryRequestView): void {
+    try {
+        window.localStorage.setItem(INVENTORY_REQUEST_VIEW_STORAGE_KEY, view);
+    } catch (_err) {
+        // Storage can be unavailable in a restricted iframe. The current
+        // render still switches views; only the preference is not retained.
+    }
+}
+
+function wireInventoryRequestViewToggle(dashboard: DashboardPayload): void {
+    document
+        .querySelectorAll<HTMLButtonElement>('[data-inventory-request-view]')
+        .forEach((button) => {
+            button.addEventListener('click', () => {
+                const view = button.dataset.inventoryRequestView as InventoryRequestView;
+                storeInventoryRequestView(view);
+                renderInventoryRequestContent(dashboard, view);
+            });
+        });
+}
+
+function renderInventoryRequestContent(
+    dashboard: DashboardPayload,
+    view: InventoryRequestView,
+): void {
+    const content = document.getElementById('inventory-request-content');
+    if (!content) return;
+
+    document
+        .querySelectorAll<HTMLButtonElement>('[data-inventory-request-view]')
+        .forEach((button) => {
+            const selected = button.dataset.inventoryRequestView === view;
+            button.classList.toggle('btn-active', selected);
+            button.setAttribute('aria-pressed', String(selected));
+        });
+
+    if (view === 'board') {
+        content.innerHTML = '<div id="inventory-request-board"></div>';
+        renderInventoryRequestBoard(dashboard);
+        return;
+    }
+
+    content.innerHTML = '<ul id="inventory-request-list" class="space-y-2"></ul>';
     renderInventoryRequestList(dashboard);
 }
 
@@ -378,6 +492,65 @@ function renderRequestImages(request: InventoryRequestDTO): string {
                 `<img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}" class="size-14 rounded-box border border-base-300 object-cover" alt="" />`,
         )
         .join('')}</div>`;
+}
+
+function renderInventoryRequestBoard(dashboard: DashboardPayload): void {
+    const board = document.getElementById('inventory-request-board');
+    if (!board) return;
+
+    board.innerHTML = `
+      <div class="-mx-1 overflow-x-auto px-1 pb-3">
+        <div class="flex min-w-max snap-x snap-mandatory gap-4">
+          ${INVENTORY_REQUEST_BOARD_COLUMNS.map((column) => {
+              const requests = dashboard.inventoryRequests
+                  .filter((request) => column.statuses.indexOf(request.Status) !== -1)
+                  .sort(
+                      (left, right) =>
+                          Number(isRequestOverdue(right)) - Number(isRequestOverdue(left)),
+                  );
+              return `
+                <section class="w-72 shrink-0 snap-start" aria-labelledby="inventory-column-${column.id}">
+                  <header class="mb-3 min-h-14 px-0.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <h3 id="inventory-column-${column.id}" class="text-xs font-semibold uppercase tracking-wide text-base-content/65">${escapeHtml(column.title)}</h3>
+                      <span class="badge badge-ghost badge-sm">${requests.length}</span>
+                    </div>
+                    <p class="mt-1 text-xs text-base-content/45">${escapeHtml(column.description)}</p>
+                  </header>
+                  <div class="space-y-3">
+                    ${
+                        requests.length === 0
+                            ? '<div class="rounded-box border border-dashed border-base-300 px-3 py-7 text-center text-sm text-base-content/40">No requests</div>'
+                            : requests.map(renderInventoryRequestBoardCard).join('')
+                    }
+                  </div>
+                </section>`;
+          }).join('')}
+        </div>
+      </div>`;
+
+    board.querySelectorAll<HTMLButtonElement>('button[data-request-id]').forEach((card) => {
+        card.addEventListener('click', () => navigateToInventoryRequest(card.dataset.requestId!));
+    });
+}
+
+function renderInventoryRequestBoardCard(request: InventoryRequestDTO): string {
+    const overdue = isRequestOverdue(request);
+    const items = request.items
+        .map((item) => `${escapeHtml(item.itemName)} × ${item.Quantity}`)
+        .join(' · ');
+    return `
+      <button type="button" class="block w-full rounded-box border border-base-300 border-l-4 ${INVENTORY_REQUEST_STATUS_ACCENT[request.Status]} bg-base-100 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-request-id="${request.Id}" aria-label="Open REQ-${request.DisplayId} ${escapeHtml(request.Name)}">
+        <div class="flex items-start justify-between gap-2">
+          <span class="font-mono text-xs text-base-content/50">REQ-${request.DisplayId}</span>
+          <span class="badge badge-xs ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
+        </div>
+        <h4 class="mt-1.5 line-clamp-2 font-medium leading-snug">${escapeHtml(request.Name)}</h4>
+        <p class="mt-1 text-xs text-base-content/55">${escapeHtml(request.userName)}</p>
+        <p class="mt-2 text-xs text-base-content/65">${escapeHtml(request.StartDate)} → ${escapeHtml(request.EndDate)}</p>
+        ${items ? `<p class="mt-2 line-clamp-2 text-sm text-base-content/75">${items}</p>` : ''}
+        ${overdue ? '<div class="mt-3"><span class="badge badge-error badge-sm">Overdue</span></div>' : ''}
+      </button>`;
 }
 
 function renderInventoryRequestList(

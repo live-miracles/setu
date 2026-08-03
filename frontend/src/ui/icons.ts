@@ -14,6 +14,8 @@ export type IconName =
     | 'external'
     | 'inbox'
     | 'alert'
+    | 'list'
+    | 'columns'
     | 'chevronDown'
     | 'chevronLeft'
     | 'chevronRight'
@@ -36,6 +38,9 @@ const ICON_PATHS: Record<IconName, string> = {
         '<path d="M14 4h6v6" /><line x1="20" y1="4" x2="10" y2="14" /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />',
     inbox: '<path d="M4 12h4l2 3h4l2-3h4" /><path d="M4 12 6 5h12l2 7" /><path d="M4 12v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6" />',
     alert: '<path d="M12 4 3 20h18L12 4Z" /><line x1="12" y1="10" x2="12" y2="13.5" /><circle cx="12" cy="16.5" r="0.75" fill="currentColor" stroke="none" />',
+    list: '<line x1="9" y1="6" x2="20" y2="6" /><line x1="9" y1="12" x2="20" y2="12" /><line x1="9" y1="18" x2="20" y2="18" /><circle cx="5" cy="6" r="1" fill="currentColor" stroke="none" /><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="5" cy="18" r="1" fill="currentColor" stroke="none" />',
+    columns:
+        '<rect x="3.5" y="4" width="7" height="16" rx="1.5" /><rect x="13.5" y="4" width="7" height="16" rx="1.5" /><line x1="6" y1="8" x2="8" y2="8" /><line x1="16" y1="8" x2="18" y2="8" />',
     chevronDown: '<polyline points="6 9 12 15 18 9" />',
     chevronLeft: '<polyline points="15 6 9 12 15 18" />',
     chevronRight: '<polyline points="9 6 15 12 9 18" />',
