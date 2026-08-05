@@ -7,7 +7,12 @@ import {
     navigateToInventoryRequests,
     refreshDashboard,
 } from '../router';
-import { namePill, renderEmptyState, renderSectionHeader } from '../ui/components';
+import {
+    namePill,
+    renderDetailCommandHeader,
+    renderEmptyState,
+    renderSectionHeader,
+} from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
@@ -87,6 +92,17 @@ const ALL_INVENTORY_REQUEST_ACTIONS: InventoryRequestAction[] = [
     'cancel',
     'close',
 ];
+
+const INVENTORY_NEXT_STATUS_LABELS: Record<InventoryRequestStatus, string[]> = {
+    draft: ['Submitted', 'Cancelled'],
+    submitted: ['Approved', 'Rejected', 'Cancelled'],
+    approved: ['Issued', 'Cancelled'],
+    rejected: ['Closed'],
+    issued: ['Returned'],
+    returned: ['Closed'],
+    cancelled: ['Closed'],
+    closed: [],
+};
 
 export async function renderInventory(
     container: HTMLElement,
@@ -325,29 +341,23 @@ function renderInventoryRequestDetail(
 ): void {
     const actions = availableInventoryRequestActions(request, dashboard);
     const overdue = isRequestOverdue(request);
+    const actionControls = renderInventoryDetailActions(request.Status, actions);
     container.innerHTML = `
-    <section class="space-y-6">
-      <div class="flex items-center gap-3">
-        <button type="button" id="back-to-inventory-requests" class="btn btn-ghost btn-sm">← Back to requests</button>
-        <div>
-          <p class="text-sm text-base-content/60">Equipment request</p>
-          <h1 class="text-2xl font-semibold">${escapeHtml(request.Name)}</h1>
-        </div>
-      </div>
+    <section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-6">
+      ${renderDetailCommandHeader({
+          backButtonId: 'back-to-inventory-requests',
+          backLabel: 'Back to requests',
+          eyebrow: 'Equipment request',
+          reference: `REQ-${request.DisplayId}`,
+          title: request.Name,
+          statusHtml: `${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}<span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
+          nextStatuses: INVENTORY_NEXT_STATUS_LABELS[request.Status],
+          actionsHtml: actionControls,
+      })}
 
       <div id="inventory-request-detail" data-request-id="${request.Id}" class="space-y-4">
         <div class="card border border-base-300 bg-base-100 shadow">
           <div class="card-body gap-5">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="font-mono text-sm text-base-content/60">REQ-${request.DisplayId}</p>
-                <h2 class="card-title text-xl">${escapeHtml(request.Name)}</h2>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                ${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}
-                <span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
-              </div>
-            </div>
             <dl class="grid gap-4 text-sm sm:grid-cols-2">
               <div>
                 <dt class="text-base-content/60">Requested by</dt>
@@ -386,15 +396,6 @@ function renderInventoryRequestDetail(
 
         <div class="card border border-base-300 bg-base-100 shadow">
           <div class="card-body gap-3">
-            <h2 class="card-title text-base">Actions</h2>
-            <div class="request-actions flex flex-wrap gap-2">
-              ${actions.length > 0 ? actions.map((action) => `<button type="button" class="btn btn-sm ${INVENTORY_REQUEST_ACTION_BTN[action]}" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button>`).join('') : '<p class="text-sm text-base-content/60">No actions are available for this request.</p>'}
-            </div>
-          </div>
-        </div>
-
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-3">
             <div class="flex items-baseline justify-between gap-3"><h2 class="card-title text-base">Updates</h2><span class="text-sm text-base-content/60">${request.comments.length}</span></div>
             <div class="space-y-3">
               ${request.comments.length > 0 ? request.comments.map((comment) => `<article class="border-l-2 border-base-300 pl-3"><div class="flex flex-wrap items-baseline gap-x-2"><span class="font-medium">${escapeHtml(comment.userName)}</span><time class="text-xs text-base-content/50">${escapeHtml(formatDateTime(comment.Timestamp))}</time></div><p class="mt-1 text-sm text-base-content/75">${escapeHtml(comment.Message)}</p></article>`).join('') : '<p class="text-sm text-base-content/60">No updates yet.</p>'}
@@ -412,6 +413,35 @@ function renderInventoryRequestDetail(
         .getElementById('back-to-inventory-requests')!
         .addEventListener('click', navigateToInventoryRequests);
     wireInventoryRequestDetail(request);
+}
+
+function renderInventoryDetailActions(
+    status: InventoryRequestStatus,
+    actions: InventoryRequestAction[],
+): string {
+    if (actions.length === 0) return '';
+    const primaryByStatus: Partial<Record<InventoryRequestStatus, InventoryRequestAction>> = {
+        draft: 'submit',
+        submitted: 'approve',
+        approved: 'issue',
+        rejected: 'close',
+        issued: 'return',
+        returned: 'close',
+        cancelled: 'close',
+    };
+    const overflow = actions.filter((action) => action === 'cancel');
+    const visible = actions.filter((action) => action !== 'cancel');
+    return `${visible
+        .map(
+            (action) =>
+                `<button type="button" class="btn btn-sm ${action === primaryByStatus[status] ? 'btn-primary' : INVENTORY_REQUEST_ACTION_BTN[action]}" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button>`,
+        )
+        .join('')}${renderInventoryActionMenu(overflow)}`;
+}
+
+function renderInventoryActionMenu(actions: InventoryRequestAction[]): string {
+    if (actions.length === 0) return '';
+    return `<details class="dropdown dropdown-end"><summary class="btn btn-ghost btn-sm">More</summary><ul class="menu dropdown-content w-40 rounded-box p-2">${actions.map((action) => `<li><button type="button" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button></li>`).join('')}</ul></details>`;
 }
 
 function renderDetailRequestImages(request: InventoryRequestDTO): string {

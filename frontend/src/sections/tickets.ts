@@ -7,7 +7,7 @@ import {
     navigateToTickets,
     refreshDashboard,
 } from '../router';
-import { renderEmptyState, renderSectionHeader } from '../ui/components';
+import { renderDetailCommandHeader, renderEmptyState, renderSectionHeader } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml } from '../ui/format';
 import { icon } from '../ui/icons';
@@ -47,6 +47,12 @@ const TICKET_STATUS_BADGES: Record<TicketStatus, string> = {
     unassigned: 'badge-warning',
     pending: 'badge-info',
     closed: 'badge-success',
+};
+
+const TICKET_NEXT_STATUS_LABELS: Record<TicketStatus, string[]> = {
+    unassigned: ['Assigned / Pending', 'Closed'],
+    pending: ['Reassigned / Pending', 'Closed'],
+    closed: ['Reopened / Pending'],
 };
 
 function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
@@ -287,7 +293,20 @@ function renderTicketDetail(
     ticket: TicketDTO,
 ): void {
     const actions = availableTicketActions(ticket, dashboard);
-    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-tickets" class="btn btn-ghost btn-sm">← Back to tickets</button><div><p>Ticket</p><h1>${escapeHtml(ticket.Title)}</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body gap-5"><div class="flex flex-wrap items-start justify-between gap-3"><div><p class="font-mono text-sm text-base-content/60">TKT-${ticket.DisplayId}</p><h2 class="card-title text-xl">${escapeHtml(ticket.Title)}</h2></div><span class="badge ${TICKET_STATUS_BADGES[ticket.Status]}">${TICKET_STATUS_LABELS[ticket.Status]}</span></div><dl class="detail-grid"><div><dt>Assigned to</dt><dd>${ticket.assigneeName ? escapeHtml(ticket.assigneeName) : 'Not assigned'}</dd></div><div class="sm:col-span-2"><dt>Description</dt><dd class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</dd></div></dl></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body gap-3"><h2 class="card-title">Actions</h2><div class="flex flex-wrap gap-2">${actions.length ? actions.map((action) => `<button type="button" class="btn btn-sm ${TICKET_ACTION_BTN[action]}" data-ticket-action="${action}">${TICKET_ACTION_LABELS[action]}</button>`).join('') : '<p class="text-sm text-base-content/60">No actions are available.</p>'}</div></div></div></section>`;
+    const actionControls = renderTicketDetailActions(ticket.Status, actions);
+    container.innerHTML = `<section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-5">
+      ${renderDetailCommandHeader({
+          backButtonId: 'back-to-tickets',
+          backLabel: 'Back to tickets',
+          eyebrow: 'Ticket',
+          reference: `TKT-${ticket.DisplayId}`,
+          title: ticket.Title,
+          statusHtml: `<span class="badge ${TICKET_STATUS_BADGES[ticket.Status]}">${TICKET_STATUS_LABELS[ticket.Status]}</span>`,
+          nextStatuses: TICKET_NEXT_STATUS_LABELS[ticket.Status],
+          actionsHtml: actionControls,
+      })}
+      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-5"><dl class="detail-grid"><div><dt>Assigned to</dt><dd>${ticket.assigneeName ? escapeHtml(ticket.assigneeName) : 'Not assigned'}</dd></div><div class="sm:col-span-2"><dt>Description</dt><dd class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</dd></div></dl></div></div>
+    </section>`;
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
     document
         .querySelectorAll<HTMLButtonElement>('[data-ticket-action]')
@@ -298,6 +317,27 @@ function renderTicketDetail(
                     void handleTicketAction(ticket.Id, button.dataset.ticketAction as TicketAction),
             ),
         );
+}
+
+function renderTicketDetailActions(status: TicketStatus, actions: TicketAction[]): string {
+    if (actions.length === 0) return '';
+    const primaryAction: TicketAction = status === 'closed' ? 'reopen' : 'assign';
+    const overflow: TicketAction[] =
+        actions.length > 1 ? actions.filter((action) => action === 'close') : [];
+    const visible = actions
+        .filter((action) => !overflow.includes(action))
+        .sort((a, b) => Number(b === primaryAction) - Number(a === primaryAction));
+    return `${visible
+        .map(
+            (action) =>
+                `<button type="button" class="btn btn-sm ${action === primaryAction ? 'btn-primary' : TICKET_ACTION_BTN[action]}" data-ticket-action="${action}">${TICKET_ACTION_LABELS[action]}</button>`,
+        )
+        .join('')}${renderTicketActionMenu(overflow)}`;
+}
+
+function renderTicketActionMenu(actions: TicketAction[]): string {
+    if (actions.length === 0) return '';
+    return `<details class="dropdown dropdown-end"><summary class="btn btn-ghost btn-sm">More</summary><ul class="menu dropdown-content w-40 rounded-box p-2">${actions.map((action) => `<li><button type="button" data-ticket-action="${action}">${TICKET_ACTION_LABELS[action]}</button></li>`).join('')}</ul></details>`;
 }
 
 async function handleTicketAction(ticketId: string, action: TicketAction): Promise<void> {

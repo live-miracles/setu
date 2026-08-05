@@ -10,6 +10,7 @@ import {
 import {
     namePill,
     renderCommentLine,
+    renderDetailCommandHeader,
     renderEmptyState,
     renderSectionHeader,
 } from '../ui/components';
@@ -36,6 +37,15 @@ const PROGRAM_REQUEST_ACTION_LABELS: Record<ProgramRequestAction, string> = {
     reject: 'Reject',
     cancel: 'Cancel',
     close: 'Close',
+};
+
+const PROGRAM_NEXT_STATUS_LABELS: Record<ProgramRequestStatus, string[]> = {
+    draft: ['Submitted', 'Cancelled'],
+    submitted: ['Approved', 'Rejected', 'Cancelled'],
+    approved: ['Closed', 'Cancelled'],
+    rejected: ['Closed'],
+    cancelled: ['Closed'],
+    closed: [],
 };
 
 const PROGRAM_BOARD_COLUMNS: {
@@ -385,14 +395,22 @@ function renderProgramDetail(
     request: ProgramRequestDTO,
 ): void {
     const actions = availableProgramActions(request, dashboard);
-    container.innerHTML = `<section class="space-y-5">
-      <div class="detail-heading"><button type="button" id="back-to-programs" class="btn btn-ghost btn-sm">← Back to programs</button><div><p>Program request</p><h1>${escapeHtml(request.Name)}</h1></div></div>
+    const actionControls = renderProgramDetailActions(request.Status, actions);
+    container.innerHTML = `<section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-5">
+      ${renderDetailCommandHeader({
+          backButtonId: 'back-to-programs',
+          backLabel: 'Back to programs',
+          eyebrow: 'Program request',
+          reference: `PRG-${request.DisplayId}`,
+          title: request.Name,
+          statusHtml: `<span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
+          nextStatuses: PROGRAM_NEXT_STATUS_LABELS[request.Status],
+          actionsHtml: actionControls,
+      })}
       <div class="card border border-base-300 bg-base-100"><div class="card-body gap-5">
-        <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="font-mono text-sm text-base-content/60">PRG-${request.DisplayId}</p><h2 class="card-title text-xl">${escapeHtml(request.Name)}</h2></div><span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></div>
         <dl class="detail-grid"><div><dt>Requested by</dt><dd>${escapeHtml(request.userName)}</dd></div><div><dt>Type</dt><dd>${escapeHtml(request.Type)}</dd></div><div><dt>Place</dt><dd>${escapeHtml(request.placeName)}</dd></div><div><dt>Participants</dt><dd class="flex flex-wrap gap-1">${request.participants.length ? request.participants.map(namePill).join('') : 'None'}</dd></div></dl>
       </div></div>
       <div class="card border border-base-300 bg-base-100"><div class="card-body"><h2 class="card-title">Sessions</h2><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Name</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>${request.sessions.map((session) => `<tr><td>${escapeHtml(session.Name)}</td><td>${escapeHtml(session.Type)}</td><td>${formatDateTime(session.StartDateTime)}</td><td>${formatDateTime(session.EndDateTime)}</td></tr>`).join('')}</tbody></table></div></div></div>
-      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3"><h2 class="card-title">Actions</h2><div class="flex flex-wrap gap-2">${actions.length ? actions.map((action) => `<button type="button" class="btn btn-sm ${PROGRAM_REQUEST_ACTION_BTN[action]}" data-program-action="${action}">${PROGRAM_REQUEST_ACTION_LABELS[action]}</button>`).join('') : '<p class="text-sm text-base-content/60">No actions are available.</p>'}</div></div></div>
       <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3"><h2 class="card-title">Updates</h2><div class="space-y-2">${request.comments.map(renderCommentLine).join('') || '<p class="text-sm text-base-content/50">No updates yet.</p>'}</div><form id="program-comment-form" class="flex gap-2 border-t border-base-200 pt-3"><input name="message" class="input input-sm flex-1" placeholder="Add a comment" /><button class="btn btn-sm" type="submit">Send</button></form></div></div>
     </section>`;
     document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
@@ -411,6 +429,33 @@ function renderProgramDetail(
     document
         .getElementById('program-comment-form')!
         .addEventListener('submit', (event) => void submitProgramComment(event, request.Id));
+}
+
+function renderProgramDetailActions(
+    status: ProgramRequestStatus,
+    actions: ProgramRequestAction[],
+): string {
+    if (actions.length === 0) return '';
+    const primaryByStatus: Partial<Record<ProgramRequestStatus, ProgramRequestAction>> = {
+        draft: 'submit',
+        submitted: 'approve',
+        approved: 'close',
+        rejected: 'close',
+        cancelled: 'close',
+    };
+    const overflow = actions.filter((action) => action === 'cancel');
+    const visible = actions.filter((action) => action !== 'cancel');
+    return `${visible
+        .map(
+            (action) =>
+                `<button type="button" class="btn btn-sm ${action === primaryByStatus[status] ? 'btn-primary' : PROGRAM_REQUEST_ACTION_BTN[action]}" data-program-action="${action}">${PROGRAM_REQUEST_ACTION_LABELS[action]}</button>`,
+        )
+        .join('')}${renderProgramActionMenu(overflow)}`;
+}
+
+function renderProgramActionMenu(actions: ProgramRequestAction[]): string {
+    if (actions.length === 0) return '';
+    return `<details class="dropdown dropdown-end"><summary class="btn btn-ghost btn-sm">More</summary><ul class="menu dropdown-content w-40 rounded-box p-2">${actions.map((action) => `<li><button type="button" data-program-action="${action}">${PROGRAM_REQUEST_ACTION_LABELS[action]}</button></li>`).join('')}</ul></details>`;
 }
 
 async function submitProgramComment(event: Event, requestId: string): Promise<void> {

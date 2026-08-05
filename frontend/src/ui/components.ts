@@ -49,3 +49,38 @@ export function renderEmptyState(iconName: IconName, message: string): string {
 export function renderCommentLine(comment: CommentDTO): string {
     return `<div><span class="font-medium">${escapeHtml(comment.userName)}</span> <span class="text-base-content/70">${escapeHtml(comment.Message)}</span></div>`;
 }
+
+interface DetailCommandHeaderOptions {
+    backButtonId: string;
+    backLabel: string;
+    eyebrow: string;
+    reference: string;
+    title: string;
+    statusHtml: string;
+    nextStatuses?: string[];
+    actionsHtml?: string;
+}
+
+export function renderDetailCommandHeader(options: DetailCommandHeaderOptions): string {
+    const nextState = options.nextStatuses?.length
+        ? `<span><span class="detail-state-label">Possible next</span><strong>${options.nextStatuses.map(escapeHtml).join(' / ')}</strong></span>`
+        : '<span><span class="detail-state-label">Lifecycle</span><strong>Final state</strong></span>';
+
+    return `<header class="detail-command-header">
+      <button type="button" id="${escapeHtml(options.backButtonId)}" class="detail-command-back btn btn-ghost btn-sm">← ${escapeHtml(options.backLabel)}</button>
+      <div class="detail-command-main">
+        <div class="detail-command-title min-w-0">
+          <p>${escapeHtml(options.eyebrow)} · <span class="font-mono">${escapeHtml(options.reference)}</span></p>
+          <h1>${escapeHtml(options.title)}</h1>
+        </div>
+        <div class="detail-command-controls">
+          <div class="detail-command-status">${options.statusHtml}</div>
+          ${options.actionsHtml ? `<div class="detail-command-actions" aria-label="Available actions">${options.actionsHtml}</div>` : ''}
+        </div>
+      </div>
+      <div class="detail-state-summary" aria-label="Lifecycle status">
+        <span><span class="detail-state-label">Current status</span><strong>${options.statusHtml}</strong></span>
+        ${nextState}
+      </div>
+    </header>`;
+}
