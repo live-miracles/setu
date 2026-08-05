@@ -75,6 +75,27 @@ function paginate<T>(
     };
 }
 
+function normalizedSearch(value: unknown): string {
+    return String(value == null ? '' : value)
+        .trim()
+        .toLocaleLowerCase();
+}
+
+function matchesSearch(query: string | undefined, values: unknown[]): boolean {
+    const needle = normalizedSearch(query);
+    if (!needle) return true;
+    return values.some((value) => normalizedSearch(value).indexOf(needle) !== -1);
+}
+
+function compareQueryValues(left: unknown, right: unknown, direction: SortDirection): number {
+    const result = String(left == null ? '' : left).localeCompare(
+        String(right == null ? '' : right),
+        undefined,
+        { numeric: true, sensitivity: 'base' },
+    );
+    return direction === 'asc' ? result : -result;
+}
+
 function requireNonEmpty(value: string, message: string): string {
     const trimmed = String(value || '').trim();
     if (!trimmed) throw new ValidationError(message);

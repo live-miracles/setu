@@ -1,3 +1,10 @@
 export const APP_SECTION_QUERY_PARAM = 'section';
 export const INVENTORY_REQUEST_QUERY_PARAM = 'request';
+export const PROGRAM_REQUEST_QUERY_PARAM = 'program';
 export const TICKET_QUERY_PARAM = 'ticket';
+export const WORKBENCH_MODE_QUERY_PARAM = 'mode';
+export const WORKBENCH_VIEW_QUERY_PARAM = 'view';
+export const WORKBENCH_SEARCH_QUERY_PARAM = 'q';
+export const WORKBENCH_STATUS_QUERY_PARAM = 'status';
+export const WORKBENCH_SORT_QUERY_PARAM = 'sort';
+export const WORKBENCH_DIRECTION_QUERY_PARAM = 'dir';

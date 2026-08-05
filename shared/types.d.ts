@@ -254,6 +254,32 @@ interface Paginated<T> {
     totalCount: number;
 }
 
+type SortDirection = 'asc' | 'desc';
+
+interface InventoryRequestQuery {
+    q?: string;
+    statuses?: InventoryRequestStatus[];
+    inventoryTypeId?: string;
+    sortBy?: 'id' | 'name' | 'status' | 'startDate' | 'endDate' | 'requester';
+    sortDirection?: SortDirection;
+}
+
+interface ProgramRequestQuery {
+    q?: string;
+    statuses?: ProgramRequestStatus[];
+    placeId?: string;
+    sortBy?: 'id' | 'name' | 'status' | 'place' | 'sessionStart' | 'requester';
+    sortDirection?: SortDirection;
+}
+
+interface TicketQuery {
+    q?: string;
+    statuses?: TicketStatus[];
+    assigneeId?: string;
+    sortBy?: 'id' | 'title' | 'status' | 'assignee';
+    sortDirection?: SortDirection;
+}
+
 interface DashboardPayload {
     me: UserDTO;
     departments: Department[];
@@ -419,7 +445,11 @@ interface Api {
     ): InventoryTypeDTO;
     deleteInventoryType(id: string, requestId: string): void;
 
-    listInventoryRequests(page: number): Paginated<InventoryRequestDTO>;
+    listInventoryRequests(
+        page: number,
+        query?: InventoryRequestQuery,
+    ): Paginated<InventoryRequestDTO>;
+    getInventoryRequest(id: string): InventoryRequestDTO;
     createInventoryRequest(
         input: CreateInventoryRequestInput,
         requestId: string,
@@ -432,7 +462,8 @@ interface Api {
         dedupeRequestId: string,
     ): InventoryRequestStatus;
 
-    listProgramRequests(page: number): Paginated<ProgramRequestDTO>;
+    listProgramRequests(page: number, query?: ProgramRequestQuery): Paginated<ProgramRequestDTO>;
+    getProgramRequest(id: string): ProgramRequestDTO;
     createProgramRequest(input: CreateProgramRequestInput, requestId: string): ProgramRequestDTO;
     performProgramRequestAction(
         requestId: string,
@@ -441,7 +472,8 @@ interface Api {
         dedupeRequestId: string,
     ): ProgramRequestStatus;
 
-    listTickets(page: number): Paginated<TicketDTO>;
+    listTickets(page: number, query?: TicketQuery): Paginated<TicketDTO>;
+    getTicket(id: string): TicketDTO;
     createTicket(input: CreateTicketInput, requestId: string): TicketDTO;
     performTicketAction(
         ticketId: string,

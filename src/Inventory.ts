@@ -106,12 +106,28 @@ function deleteInventoryType(id: string, requestId: string): void {
     });
 }
 
-function listInventoryRequests(page: number): Paginated<InventoryRequestDTO> {
+function inventoryRequestSortValue(
+    request: InventoryRequestDTO,
+    sortBy: InventoryRequestQuery['sortBy'],
+): string | number {
+    if (sortBy === 'name') return request.Name;
+    if (sortBy === 'status') return request.Status;
+    if (sortBy === 'startDate') return request.StartDate;
+    if (sortBy === 'endDate') return request.EndDate;
+    if (sortBy === 'requester') return request.userName;
+    return request.DisplayId;
+}
+
+function listInventoryRequests(
+    page: number,
+    query: InventoryRequestQuery = {},
+): Paginated<InventoryRequestDTO> {
     const actor = requireUser();
     const itemsByRequest = groupBy(Tables.InventoryItems.readAll(), (i) => i.RequestId);
     const inventoryTypesById = indexBy(Tables.InventoryTypes.readAll(), (t) => t.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
+    const statuses = query.statuses || [];
     const dtos = Tables.InventoryRequests.readAll()
         .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
         .map((r) =>
@@ -123,12 +139,57 @@ function listInventoryRequests(page: number): Paginated<InventoryRequestDTO> {
                 commentsByRequestId,
             ),
         )
-        .sort((a, b) =>
+        .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
+        .filter(
+            (request) =>
+                !query.inventoryTypeId ||
+                request.items.some((item) => item.InventoryTypeId === query.inventoryTypeId),
+        )
+        .filter((request) =>
+            matchesSearch(query.q, [
+                'REQ-' + request.DisplayId,
+                request.Name,
+                request.userName,
+                request.participants.join(' '),
+                request.items.map((item) => item.itemName).join(' '),
+            ]),
+        );
+    const sortBy = query.sortBy;
+    if (sortBy) {
+        const direction = query.sortDirection || 'asc';
+        dtos.sort((a, b) =>
+            compareQueryValues(
+                inventoryRequestSortValue(a, sortBy),
+                inventoryRequestSortValue(b, sortBy),
+                direction,
+            ),
+        );
+    } else {
+        dtos.sort((a, b) =>
             latestActivityAt(b.comments, b.DisplayId).localeCompare(
                 latestActivityAt(a.comments, a.DisplayId),
             ),
         );
+    }
     return paginate(dtos, page, INVENTORY_REQUESTS_PAGE_SIZE);
+}
+
+function getInventoryRequest(id: string): InventoryRequestDTO {
+    const actor = requireUser();
+    const request = Tables.InventoryRequests.findById(id);
+    if (
+        !request ||
+        !canViewRequest(actor, request.UserId, parseParticipants(request.Participants))
+    ) {
+        throw new ValidationError('request_not_found');
+    }
+    return buildInventoryRequestDTO(
+        request,
+        groupBy(Tables.InventoryItems.readAll(), (item) => item.RequestId),
+        indexBy(Tables.InventoryTypes.readAll(), (type) => type.Id),
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
+        groupCommentsByRequestId(Tables.Comments.readAll()),
+    );
 }
 
 function createInventoryRequest(

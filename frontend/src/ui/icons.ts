@@ -21,7 +21,8 @@ export type IconName =
     | 'chevronRight'
     | 'pin'
     | 'edit'
-    | 'trash';
+    | 'trash'
+    | 'search';
 
 const ICON_PATHS: Record<IconName, string> = {
     home: '<path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />',
@@ -47,6 +48,7 @@ const ICON_PATHS: Record<IconName, string> = {
     pin: '<path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.3" />',
     edit: '<path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z" /><line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />',
     trash: '<path d="M5 7h14" /><path d="M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />',
+    search: '<circle cx="11" cy="11" r="6.5" /><line x1="16" y1="16" x2="21" y2="21" />',
 };
 
 export function icon(name: IconName, className = 'size-5'): string {

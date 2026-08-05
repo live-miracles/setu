@@ -21,7 +21,12 @@ const SECTION_INDEX: Partial<Record<IconName, string>> = {
     external: '07',
 };
 
-export function renderSectionHeader(iconName: IconName, title: string, subtitle: string): string {
+export function renderSectionHeader(
+    iconName: IconName,
+    title: string,
+    subtitle: string,
+    actions = '',
+): string {
     return `
     <div class="section-heading">
       <span class="section-index" aria-hidden="true">${SECTION_INDEX[iconName] || '—'}</span>
@@ -29,6 +34,7 @@ export function renderSectionHeader(iconName: IconName, title: string, subtitle:
         <h1>${escapeHtml(title)}</h1>
         <p>${escapeHtml(subtitle)}</p>
       </div>
+      ${actions ? `<div class="section-heading-actions">${actions}</div>` : ''}
     </div>`;
 }
 

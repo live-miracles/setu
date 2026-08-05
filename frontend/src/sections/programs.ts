@@ -1,6 +1,12 @@
 import { api } from '../api';
+import { PROGRAM_REQUEST_QUERY_PARAM, WORKBENCH_MODE_QUERY_PARAM } from '../config';
 import { generateRequestId } from '../ids';
-import { refreshDashboard } from '../router';
+import {
+    navigateToProgram,
+    navigateToProgramCreate,
+    navigateToPrograms,
+    refreshDashboard,
+} from '../router';
 import {
     namePill,
     renderCommentLine,
@@ -10,12 +16,19 @@ import {
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
-import {
-    PROGRAM_REQUEST_ACTION_BTN,
-    PROGRAM_REQUEST_STATUS_ACCENT,
-    PROGRAM_REQUEST_STATUS_BADGE,
-} from '../ui/styles';
+import { PROGRAM_REQUEST_ACTION_BTN, PROGRAM_REQUEST_STATUS_BADGE } from '../ui/styles';
 import { canApprove, canTransitionProgramRequest } from '../workflows';
+import {
+    type WorkbenchState,
+    type WorkbenchToolbarConfig,
+    readWorkbenchState,
+    renderWorkbenchToolbar,
+    wireSortableHeaders,
+    wireWorkbenchToolbar,
+    workItemHref,
+} from '../workbench';
+
+const PROGRAM_REQUEST_VIEW_STORAGE_KEY = 'setu.programs.requestView';
 
 const PROGRAM_REQUEST_ACTION_LABELS: Record<ProgramRequestAction, string> = {
     submit: 'Submit',
@@ -25,118 +38,315 @@ const PROGRAM_REQUEST_ACTION_LABELS: Record<ProgramRequestAction, string> = {
     close: 'Close',
 };
 
+const PROGRAM_BOARD_COLUMNS: {
+    id: string;
+    title: string;
+    description: string;
+    statuses: ProgramRequestStatus[];
+}[] = [
+    { id: 'draft', title: 'Draft', description: 'Not yet submitted', statuses: ['draft'] },
+    {
+        id: 'needs-approval',
+        title: 'Needs approval',
+        description: 'Waiting for a decision',
+        statuses: ['submitted'],
+    },
+    { id: 'approved', title: 'Approved', description: 'Ready to deliver', statuses: ['approved'] },
+    {
+        id: 'not-proceeding',
+        title: 'Not proceeding',
+        description: 'Rejected or cancelled',
+        statuses: ['rejected', 'cancelled'],
+    },
+    { id: 'closed', title: 'Closed', description: 'Completed history', statuses: ['closed'] },
+];
+
+function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
+    return {
+        storageKey: PROGRAM_REQUEST_VIEW_STORAGE_KEY,
+        searchPlaceholder: 'Search programs, people, places or sessions',
+        statuses: [
+            { value: 'draft', label: 'Draft' },
+            { value: 'submitted', label: 'Needs approval' },
+            { value: 'approved', label: 'Approved' },
+            { value: 'rejected', label: 'Rejected' },
+            { value: 'cancelled', label: 'Cancelled' },
+            { value: 'closed', label: 'Closed' },
+        ],
+        filterParam: 'place',
+        filterLabel: 'Places',
+        filterOptions: dashboard.places.map((place) => ({ value: place.Id, label: place.Name })),
+        defaultSort: 'id',
+    };
+}
+
 export async function renderPrograms(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {
+    const params = new URLSearchParams(window.location.search);
+    const programId = params.get(PROGRAM_REQUEST_QUERY_PARAM);
+    if (programId) {
+        try {
+            renderProgramDetail(container, dashboard, await api.getProgramRequest(programId));
+        } catch (err) {
+            showErrorAlert(err);
+            container.innerHTML = renderEmptyState('clapper', 'This program could not be opened.');
+        }
+        return;
+    }
+    if (params.get(WORKBENCH_MODE_QUERY_PARAM) === 'create') {
+        renderProgramCreate(container, dashboard);
+        return;
+    }
+    renderProgramWorkbench(container, dashboard);
+}
+
+function renderProgramWorkbench(container: HTMLElement, dashboard: DashboardPayload): void {
+    const config = toolbarConfig(dashboard);
+    const state = readWorkbenchState(config);
     container.innerHTML = `
-    <section class="space-y-6">
-      ${renderSectionHeader('clapper', 'Programs', 'Book a place and schedule its sessions.')}
+      <section class="space-y-5">
+        ${renderSectionHeader(
+            'clapper',
+            'Programs',
+            'Book a place and follow every request through delivery.',
+            `<button type="button" id="new-program" class="btn btn-primary btn-sm">${icon('plus', 'size-4')} New program</button>`,
+        )}
+        ${renderWorkbenchToolbar(config, state)}
+        <div id="program-results" aria-live="polite"></div>
+      </section>`;
+    document.getElementById('new-program')!.addEventListener('click', navigateToProgramCreate);
+    wireWorkbenchToolbar(config, state, (next) => void loadProgramResults(dashboard, next));
+    void loadProgramResults(dashboard, state);
+}
 
-      <div class="card border border-base-300 bg-base-100 shadow">
-        <div class="card-body gap-3">
-          <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} Request a program</h2>
-          <form id="create-program-form" class="space-y-3">
-            <fieldset class="fieldset">
-              <label class="label" for="program-name">Name</label>
-              <input id="program-name" name="name" class="input w-full" placeholder="e.g. Sunday livestream" required />
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label class="label" for="program-type">Type</label>
-                  <input id="program-type" name="type" class="input w-full" placeholder="e.g. Livestream" required />
-                </div>
-                <div>
-                  <label class="label" for="program-place">Place</label>
-                  <select id="program-place" name="placeId" class="select w-full" required>
-                    ${dashboard.places.map((p) => `<option value="${p.Id}">${escapeHtml(p.Name)}</option>`).join('')}
-                  </select>
-                </div>
-              </div>
-              <label class="label" for="program-participants">Participants</label>
-              <input id="program-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" />
-              <label class="label">Sessions</label>
-              <div id="program-sessions" class="space-y-2"></div>
-              <div>
-                <button type="button" id="add-program-session" class="btn btn-ghost btn-sm">
-                  ${icon('plus', 'size-4')} Add session
-                </button>
-              </div>
-            </fieldset>
-            <button type="submit" class="btn btn-primary">Submit request</button>
-          </form>
-        </div>
-      </div>
+function programQuery(
+    state: WorkbenchState,
+    statuses?: ProgramRequestStatus[],
+): ProgramRequestQuery {
+    return {
+        q: state.q,
+        statuses: state.status ? [state.status as ProgramRequestStatus] : statuses,
+        placeId: state.filter || undefined,
+        sortBy: state.sort as ProgramRequestQuery['sortBy'],
+        sortDirection: state.direction,
+    };
+}
 
-      <div class="card border border-base-300 bg-base-100 shadow">
-        <div class="card-body gap-2">
-          <h2 class="card-title text-base">Requests</h2>
-          <ul id="program-request-list" class="space-y-2"></ul>
-        </div>
-      </div>
-    </section>
-  `;
+async function loadProgramResults(
+    dashboard: DashboardPayload,
+    state: WorkbenchState,
+): Promise<void> {
+    const generation = ++programResultsGeneration;
+    const host = document.getElementById('program-results');
+    if (!host) return;
+    host.innerHTML =
+        '<div class="workbench-loading"><span class="loading loading-spinner loading-sm"></span> Loading programs…</div>';
+    try {
+        if (state.view === 'board') await renderProgramBoard(host, dashboard, state, generation);
+        else await renderProgramList(host, dashboard, state, generation);
+    } catch (err) {
+        if (generation !== programResultsGeneration) return;
+        host.innerHTML = '<div class="alert alert-error">Programs could not be loaded.</div>';
+        showErrorAlert(err);
+    }
+}
 
+let programResultsGeneration = 0;
+
+async function renderProgramBoard(
+    host: HTMLElement,
+    dashboard: DashboardPayload,
+    state: WorkbenchState,
+    generation: number,
+): Promise<void> {
+    const columns = PROGRAM_BOARD_COLUMNS.filter(
+        (column) => !state.status || column.statuses.includes(state.status as ProgramRequestStatus),
+    );
+    const results = await Promise.all(
+        columns.map((column) => api.listProgramRequests(1, programQuery(state, column.statuses))),
+    );
+    if (generation !== programResultsGeneration || !host.isConnected) return;
+    host.innerHTML = `<div class="workbench-board">${columns
+        .map((column, index) => renderProgramColumn(column, results[index], index))
+        .join('')}</div>`;
+    wireProgramLinks(host);
+    host.querySelectorAll<HTMLButtonElement>('[data-load-program-column]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const columnIndex = Number(button.dataset.loadProgramColumn);
+            const nextPage = Number(button.dataset.nextPage);
+            const result = await api.listProgramRequests(
+                nextPage,
+                programQuery(state, columns[columnIndex].statuses),
+            );
+            button.insertAdjacentHTML(
+                'beforebegin',
+                result.items.map(renderProgramBoardCard).join(''),
+            );
+            wireProgramLinks(button.closest('.workbench-column')!);
+            const loaded = nextPage * result.pageSize;
+            if (loaded >= result.totalCount) button.remove();
+            else button.dataset.nextPage = String(nextPage + 1);
+        });
+    });
+}
+
+function renderProgramColumn(
+    column: (typeof PROGRAM_BOARD_COLUMNS)[number],
+    result: Paginated<ProgramRequestDTO>,
+    index: number,
+): string {
+    const content = result.items.length
+        ? result.items.map(renderProgramBoardCard).join('')
+        : '<div class="workbench-empty-column">No programs</div>';
+    return `<section class="workbench-column" aria-labelledby="program-column-${column.id}">
+      <header class="workbench-column-heading">
+        <div><h2 id="program-column-${column.id}">${escapeHtml(column.title)}</h2><p>${escapeHtml(column.description)}</p></div>
+        <span class="badge badge-ghost badge-sm">${result.totalCount}</span>
+      </header>
+      <div class="workbench-column-items">${content}</div>
+      ${result.items.length < result.totalCount ? `<button type="button" class="btn btn-ghost btn-sm w-full" data-load-program-column="${index}" data-next-page="2">Load more</button>` : ''}
+    </section>`;
+}
+
+function renderProgramBoardCard(request: ProgramRequestDTO): string {
+    const first = request.sessions[0];
+    const last = request.sessions[request.sessions.length - 1];
+    return `<a class="workbench-card" href="${workItemHref(PROGRAM_REQUEST_QUERY_PARAM, request.Id)}" data-program-id="${request.Id}">
+      <div class="workbench-card-top"><span class="font-mono">PRG-${request.DisplayId}</span><span class="badge badge-xs ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></div>
+      <h3>${escapeHtml(request.Name)}</h3>
+      <p>${escapeHtml(request.Type)} · ${escapeHtml(request.placeName)}</p>
+      ${first ? `<p>${formatDateTime(first.StartDateTime)}${last && last !== first ? ` → ${formatDateTime(last.EndDateTime)}` : ''}</p>` : ''}
+      <p>${escapeHtml(request.userName)}</p>
+    </a>`;
+}
+
+async function renderProgramList(
+    host: HTMLElement,
+    dashboard: DashboardPayload,
+    state: WorkbenchState,
+    generation: number,
+): Promise<void> {
+    const result = await api.listProgramRequests(1, programQuery(state));
+    if (generation !== programResultsGeneration || !host.isConnected) return;
+    host.innerHTML = `<div class="workbench-table-wrap">
+      <table class="workbench-table">
+        <thead><tr>
+          ${sortHeader('Program', 'name', state)}
+          ${sortHeader('Place & type', 'place', state)}
+          ${sortHeader('Sessions', 'sessionStart', state)}
+          ${sortHeader('Requested by', 'requester', state)}
+          ${sortHeader('Status', 'status', state)}
+        </tr></thead>
+        <tbody id="program-list-body">${result.items.map(renderProgramListRow).join('')}</tbody>
+      </table>
+      ${result.items.length === 0 ? renderEmptyState('clapper', 'No programs match these filters.') : ''}
+      ${result.items.length < result.totalCount ? `<button type="button" id="load-more-programs" class="btn btn-ghost btn-sm mt-3">Load more (${result.totalCount - result.items.length})</button>` : ''}
+    </div>`;
+    wireProgramLinks(host);
+    wireSortableHeaders(state, (next) => void loadProgramResults(dashboard, next));
+    document.getElementById('load-more-programs')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        const nextPage = Number(button.dataset.page || '2');
+        const next = await api.listProgramRequests(nextPage, programQuery(state));
+        document
+            .getElementById('program-list-body')!
+            .insertAdjacentHTML('beforeend', next.items.map(renderProgramListRow).join(''));
+        wireProgramLinks(host);
+        if (nextPage * next.pageSize >= next.totalCount) button.remove();
+        else button.dataset.page = String(nextPage + 1);
+    });
+}
+
+function sortHeader(label: string, sort: string, state: WorkbenchState): string {
+    const marker = state.sort === sort ? (state.direction === 'asc' ? ' ↑' : ' ↓') : '';
+    return `<th><button type="button" data-workbench-sort="${sort}">${escapeHtml(label)}${marker}</button></th>`;
+}
+
+function renderProgramListRow(request: ProgramRequestDTO): string {
+    const first = request.sessions[0];
+    const last = request.sessions[request.sessions.length - 1];
+    return `<tr>
+      <td data-label="Program"><a href="${workItemHref(PROGRAM_REQUEST_QUERY_PARAM, request.Id)}" data-program-id="${request.Id}"><span class="font-mono text-xs">PRG-${request.DisplayId}</span><strong>${escapeHtml(request.Name)}</strong></a></td>
+      <td data-label="Place & type">${escapeHtml(request.placeName)}<small>${escapeHtml(request.Type)}</small></td>
+      <td data-label="Sessions">${request.sessions.length} session${request.sessions.length === 1 ? '' : 's'}${first ? `<small>${formatDateTime(first.StartDateTime)}${last && last !== first ? ` → ${formatDateTime(last.EndDateTime)}` : ''}</small>` : ''}</td>
+      <td data-label="Requested by">${escapeHtml(request.userName)}</td>
+      <td data-label="Status"><span class="badge badge-sm ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></td>
+    </tr>`;
+}
+
+function wireProgramLinks(root: ParentNode): void {
+    root.querySelectorAll<HTMLAnchorElement>('a[data-program-id]').forEach((link) => {
+        if (link.dataset.wired) return;
+        link.dataset.wired = 'true';
+        link.addEventListener('click', (event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            navigateToProgram(link.dataset.programId!);
+        });
+    });
+}
+
+function renderProgramCreate(container: HTMLElement, dashboard: DashboardPayload): void {
+    container.innerHTML = `<section class="space-y-5">
+      <div class="detail-heading"><button type="button" id="back-to-programs" class="btn btn-ghost btn-sm">← Back to programs</button><div><p>New program</p><h1>Request a program</h1></div></div>
+      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3">
+        <form id="create-program-form" class="space-y-3">
+          <fieldset class="fieldset">
+            <label class="label" for="program-name">Name</label><input id="program-name" name="name" class="input w-full" placeholder="e.g. Sunday livestream" required />
+            <div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="program-type">Type</label><input id="program-type" name="type" class="input w-full" placeholder="e.g. Livestream" required /></div><div><label class="label" for="program-place">Place</label><select id="program-place" name="placeId" class="select w-full" required>${dashboard.places.map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`).join('')}</select></div></div>
+            <label class="label" for="program-participants">Participants</label><input id="program-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" />
+            <label class="label">Sessions</label><div id="program-sessions" class="space-y-2"></div>
+            <div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button></div>
+          </fieldset>
+          <div class="flex gap-2"><button type="submit" class="btn btn-primary">Submit request</button><button type="button" id="cancel-program" class="btn btn-ghost">Cancel</button></div>
+        </form>
+      </div></div>
+    </section>`;
+    document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
+    document.getElementById('cancel-program')!.addEventListener('click', navigateToPrograms);
     wireSessionRows();
     wireCreateProgramForm();
-    renderProgramRequestList(dashboard);
 }
 
 function wireSessionRows(): void {
     const list = document.getElementById('program-sessions')!;
     const addButton = document.getElementById('add-program-session')!;
-
-    function addRow(): void {
+    const addRow = () => {
         const row = document.createElement('div');
         row.className =
-            'grid gap-2 rounded-box border border-base-200 p-2 sm:grid-cols-2 program-session-row';
-        row.innerHTML = `
-      <input class="input input-sm" name="sessionName" placeholder="Session name" />
-      <div class="flex gap-2">
-        <input class="input input-sm flex-1" name="sessionType" placeholder="Session type" />
-        <button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button>
-      </div>
-      <label class="label text-xs" for="">Start</label>
-      <label class="label text-xs" for="">End</label>
-      <input type="datetime-local" class="input input-sm" name="startDateTime" />
-      <input type="datetime-local" class="input input-sm" name="endDateTime" />
-    `;
+            'grid gap-2 rounded-box border border-base-200 p-3 sm:grid-cols-2 program-session-row';
+        row.innerHTML = `<input class="input input-sm" name="sessionName" placeholder="Session name" required /><div class="flex gap-2"><input class="input input-sm flex-1" name="sessionType" placeholder="Session type" required /><button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button></div><label class="label text-xs">Start</label><label class="label text-xs">End</label><input type="datetime-local" class="input input-sm" name="startDateTime" required /><input type="datetime-local" class="input input-sm" name="endDateTime" required />`;
         row.querySelector('.remove-row')!.addEventListener('click', () => row.remove());
         list.appendChild(row);
-    }
-
+    };
     addButton.addEventListener('click', addRow);
     addRow();
 }
 
 function wireCreateProgramForm(): void {
     const form = document.getElementById('create-program-form') as HTMLFormElement;
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
         const data = new FormData(form);
         const sessions = Array.from(form.querySelectorAll('.program-session-row')).map((row) => {
-            const startDateTime = (
-                row.querySelector('input[name="startDateTime"]') as HTMLInputElement
-            ).value;
-            const endDateTime = (row.querySelector('input[name="endDateTime"]') as HTMLInputElement)
-                .value;
+            const value = (name: string) =>
+                (row.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
             return {
-                name: String(
-                    (row.querySelector('input[name="sessionName"]') as HTMLInputElement).value,
-                ),
-                type: String(
-                    (row.querySelector('input[name="sessionType"]') as HTMLInputElement).value,
-                ),
-                startDateTime: startDateTime ? new Date(startDateTime).toISOString() : '',
-                endDateTime: endDateTime ? new Date(endDateTime).toISOString() : '',
+                name: value('sessionName'),
+                type: value('sessionType'),
+                startDateTime: value('startDateTime')
+                    ? new Date(value('startDateTime')).toISOString()
+                    : '',
+                endDateTime: value('endDateTime')
+                    ? new Date(value('endDateTime')).toISOString()
+                    : '',
             };
         });
-        if (sessions.length === 0) {
-            showErrorAlert(new Error('Add at least one session.'));
-            return;
-        }
         try {
             showSavingBadge(true);
-            await api.createProgramRequest(
+            const created = await api.createProgramRequest(
                 {
                     name: String(data.get('name')),
                     type: String(data.get('type')),
@@ -146,7 +356,7 @@ function wireCreateProgramForm(): void {
                 },
                 generateRequestId(),
             );
-            await refreshDashboard();
+            navigateToProgram(created.Id);
         } catch (err) {
             showErrorAlert(err);
         } finally {
@@ -155,97 +365,68 @@ function wireCreateProgramForm(): void {
     });
 }
 
-function renderProgramRequestList(dashboard: DashboardPayload): void {
-    const list = document.getElementById('program-request-list');
-    if (!list) return;
-    const isApprover = canApprove(dashboard.me);
-    const allActions: ProgramRequestAction[] = ['submit', 'approve', 'reject', 'cancel', 'close'];
+function availableProgramActions(
+    request: ProgramRequestDTO,
+    dashboard: DashboardPayload,
+): ProgramRequestAction[] {
+    const owner =
+        request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
+    const approver = canApprove(dashboard.me);
+    return (['submit', 'approve', 'reject', 'cancel', 'close'] as ProgramRequestAction[]).filter(
+        (action) =>
+            canTransitionProgramRequest(request.Status, action) &&
+            (action === 'submit' ? owner : approver),
+    );
+}
 
-    list.innerHTML =
-        dashboard.programRequests.length === 0
-            ? `<li>${renderEmptyState('clapper', 'No program requests yet.')}</li>`
-            : dashboard.programRequests
-                  .map((request) => {
-                      const isOwner =
-                          request.UserId === dashboard.me.Email ||
-                          request.participants.indexOf(dashboard.me.Email) !== -1;
-                      const actions = allActions.filter((action) => {
-                          if (!canTransitionProgramRequest(request.Status, action)) return false;
-                          return action === 'submit' ? isOwner : isApprover;
-                      });
-                      return `
-              <li class="rounded-box border-l-4 ${PROGRAM_REQUEST_STATUS_ACCENT[request.Status]} bg-base-200/40 p-3" data-request-id="${request.Id}">
-                <div class="flex flex-wrap items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <div class="font-medium">
-                      <span class="font-mono text-xs text-base-content/50">PRG-${request.DisplayId}</span>
-                      ${escapeHtml(request.Name)}
-                    </div>
-                    <div class="text-sm text-base-content/60">${escapeHtml(request.userName)} · ${escapeHtml(request.Type)} · ${escapeHtml(request.placeName)}</div>
-                    ${request.participants.length > 0 ? `<div class="mt-1 flex flex-wrap gap-1">${request.participants.map((p) => namePill(p)).join('')}</div>` : ''}
-                    <ul class="mt-1 list-inside list-disc text-sm text-base-content/70">
-                      ${request.sessions
-                          .map(
-                              (s) =>
-                                  `<li>${escapeHtml(s.Name)} (${escapeHtml(s.Type)}) · ${formatDateTime(s.StartDateTime)} – ${formatDateTime(s.EndDateTime)}</li>`,
-                          )
-                          .join('')}
-                    </ul>
-                  </div>
-                  <div class="flex shrink-0 flex-col items-end gap-1">
-                    <span class="badge badge-sm ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
-                  </div>
-                </div>
-                <div class="request-actions mt-2 flex flex-wrap gap-2">
-                  ${actions.map((action) => `<button type="button" class="btn btn-xs ${PROGRAM_REQUEST_ACTION_BTN[action]}" data-action="${action}">${PROGRAM_REQUEST_ACTION_LABELS[action]}</button>`).join('')}
-                </div>
+function renderProgramDetail(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    request: ProgramRequestDTO,
+): void {
+    const actions = availableProgramActions(request, dashboard);
+    container.innerHTML = `<section class="space-y-5">
+      <div class="detail-heading"><button type="button" id="back-to-programs" class="btn btn-ghost btn-sm">← Back to programs</button><div><p>Program request</p><h1>${escapeHtml(request.Name)}</h1></div></div>
+      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-5">
+        <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="font-mono text-sm text-base-content/60">PRG-${request.DisplayId}</p><h2 class="card-title text-xl">${escapeHtml(request.Name)}</h2></div><span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></div>
+        <dl class="detail-grid"><div><dt>Requested by</dt><dd>${escapeHtml(request.userName)}</dd></div><div><dt>Type</dt><dd>${escapeHtml(request.Type)}</dd></div><div><dt>Place</dt><dd>${escapeHtml(request.placeName)}</dd></div><div><dt>Participants</dt><dd class="flex flex-wrap gap-1">${request.participants.length ? request.participants.map(namePill).join('') : 'None'}</dd></div></dl>
+      </div></div>
+      <div class="card border border-base-300 bg-base-100"><div class="card-body"><h2 class="card-title">Sessions</h2><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Name</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>${request.sessions.map((session) => `<tr><td>${escapeHtml(session.Name)}</td><td>${escapeHtml(session.Type)}</td><td>${formatDateTime(session.StartDateTime)}</td><td>${formatDateTime(session.EndDateTime)}</td></tr>`).join('')}</tbody></table></div></div></div>
+      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3"><h2 class="card-title">Actions</h2><div class="flex flex-wrap gap-2">${actions.length ? actions.map((action) => `<button type="button" class="btn btn-sm ${PROGRAM_REQUEST_ACTION_BTN[action]}" data-program-action="${action}">${PROGRAM_REQUEST_ACTION_LABELS[action]}</button>`).join('') : '<p class="text-sm text-base-content/60">No actions are available.</p>'}</div></div></div>
+      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3"><h2 class="card-title">Updates</h2><div class="space-y-2">${request.comments.map(renderCommentLine).join('') || '<p class="text-sm text-base-content/50">No updates yet.</p>'}</div><form id="program-comment-form" class="flex gap-2 border-t border-base-200 pt-3"><input name="message" class="input input-sm flex-1" placeholder="Add a comment" /><button class="btn btn-sm" type="submit">Send</button></form></div></div>
+    </section>`;
+    document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
+    document
+        .querySelectorAll<HTMLButtonElement>('[data-program-action]')
+        .forEach((button) =>
+            button.addEventListener(
+                'click',
+                () =>
+                    void handleProgramRequestAction(
+                        request.Id,
+                        button.dataset.programAction as ProgramRequestAction,
+                    ),
+            ),
+        );
+    document
+        .getElementById('program-comment-form')!
+        .addEventListener('submit', (event) => void submitProgramComment(event, request.Id));
+}
 
-                <details class="collapse-arrow collapse mt-2 rounded-box border border-base-200 bg-base-100">
-                  <summary class="collapse-title min-h-0 px-3 py-2 text-sm font-medium after:!size-3">
-                    ${request.comments.length} update${request.comments.length === 1 ? '' : 's'}
-                  </summary>
-                  <div class="collapse-content space-y-2 px-3 text-sm">
-                    <div class="comment-list space-y-1.5">
-                      ${request.comments.map((c) => renderCommentLine(c)).join('') || '<p class="text-base-content/40">No updates yet.</p>'}
-                    </div>
-                    <form class="comment-form flex gap-2 pt-1">
-                      <input class="input input-sm flex-1" placeholder="Add a comment" name="message" />
-                      <button type="submit" class="btn btn-sm">Send</button>
-                    </form>
-                  </div>
-                </details>
-              </li>`;
-                  })
-                  .join('');
-
-    list.querySelectorAll('button[data-action]').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const li = button.closest('li[data-request-id]') as HTMLElement;
-            const requestId = li.dataset.requestId!;
-            const action = button.getAttribute('data-action') as ProgramRequestAction;
-            await handleProgramRequestAction(requestId, action);
-        });
-    });
-
-    list.querySelectorAll<HTMLElement>('li[data-request-id]').forEach((li) => {
-        const requestId = li.dataset.requestId!;
-        const commentForm = li.querySelector('.comment-form') as HTMLFormElement;
-        commentForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const input = commentForm.querySelector('input[name="message"]') as HTMLInputElement;
-            const message = input.value.trim();
-            if (!message) return;
-            try {
-                showSavingBadge(true);
-                await api.addComment(requestId, message, generateRequestId());
-                await refreshDashboard();
-            } catch (err) {
-                showErrorAlert(err);
-            } finally {
-                showSavingBadge(false);
-            }
-        });
-    });
+async function submitProgramComment(event: Event, requestId: string): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const message = (form.elements.namedItem('message') as HTMLInputElement).value.trim();
+    if (!message) return;
+    try {
+        showSavingBadge(true);
+        await api.addComment(requestId, message, generateRequestId());
+        await refreshDashboard();
+    } catch (err) {
+        showErrorAlert(err);
+    } finally {
+        showSavingBadge(false);
+    }
 }
 
 async function handleProgramRequestAction(
@@ -257,7 +438,6 @@ async function handleProgramRequestAction(
         note = window.prompt('Add a note (required, at least 3 characters):') || '';
         if (note.trim().length < 3) return;
     }
-
     try {
         showSavingBadge(true);
         await api.performProgramRequestAction(requestId, action, note, generateRequestId());

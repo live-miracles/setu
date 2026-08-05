@@ -214,8 +214,108 @@ const mockData = {
             Condition: 'good' as ReturnCondition,
         },
     ] as InventoryItem[],
-    programRequests: [] as ProgramRequest[],
-    sessions: [] as ProgramSession[],
+    programRequests: [
+        {
+            Id: 'program-1',
+            DisplayId: 21,
+            Name: 'Sunday Satsang',
+            Type: 'Livestream',
+            UserId: 'sam@example.com',
+            Status: 'submitted' as ProgramRequestStatus,
+            PlaceId: 'place-1',
+            Participants: 'ana@example.com',
+        },
+        {
+            Id: 'program-2',
+            DisplayId: 22,
+            Name: 'Podcast recording',
+            Type: 'Recording',
+            UserId: 'ana@example.com',
+            Status: 'approved' as ProgramRequestStatus,
+            PlaceId: 'place-5',
+            Participants: '',
+        },
+        {
+            Id: 'program-3',
+            DisplayId: 23,
+            Name: 'Volunteer orientation',
+            Type: 'Webinar',
+            UserId: 'vic@example.com',
+            Status: 'draft' as ProgramRequestStatus,
+            PlaceId: 'place-2',
+            Participants: '',
+        },
+        {
+            Id: 'program-4',
+            DisplayId: 24,
+            Name: 'Festival rehearsal',
+            Type: 'Dry run',
+            UserId: 'admin@example.com',
+            Status: 'cancelled' as ProgramRequestStatus,
+            PlaceId: 'place-3',
+            Participants: '',
+        },
+        {
+            Id: 'program-5',
+            DisplayId: 25,
+            Name: 'Monthly review',
+            Type: 'Meeting',
+            UserId: 'admin@example.com',
+            Status: 'closed' as ProgramRequestStatus,
+            PlaceId: 'place-4',
+            Participants: '',
+        },
+    ] as ProgramRequest[],
+    sessions: [
+        {
+            Id: 'session-1',
+            Name: 'Main session',
+            Type: 'Live',
+            RequestId: 'program-1',
+            StartDateTime: mockAddDays(2) + 'T07:00:00.000Z',
+            EndDateTime: mockAddDays(2) + 'T10:00:00.000Z',
+        },
+        {
+            Id: 'session-2',
+            Name: 'Sound check',
+            Type: 'Setup',
+            RequestId: 'program-1',
+            StartDateTime: mockAddDays(2) + 'T05:30:00.000Z',
+            EndDateTime: mockAddDays(2) + 'T06:30:00.000Z',
+        },
+        {
+            Id: 'session-3',
+            Name: 'Interview',
+            Type: 'Recording',
+            RequestId: 'program-2',
+            StartDateTime: mockAddDays(4) + 'T09:00:00.000Z',
+            EndDateTime: mockAddDays(4) + 'T11:00:00.000Z',
+        },
+        {
+            Id: 'session-4',
+            Name: 'Orientation',
+            Type: 'Webinar',
+            RequestId: 'program-3',
+            StartDateTime: mockAddDays(6) + 'T12:00:00.000Z',
+            EndDateTime: mockAddDays(6) + 'T13:30:00.000Z',
+        },
+        {
+            Id: 'session-5',
+            Name: 'Rehearsal',
+            Type: 'Dry run',
+            RequestId: 'program-4',
+            StartDateTime: mockAddDays(1) + 'T14:00:00.000Z',
+            EndDateTime: mockAddDays(1) + 'T16:00:00.000Z',
+        },
+        {
+            Id: 'session-6',
+            Name: 'Review',
+            Type: 'Meeting',
+            RequestId: 'program-5',
+            StartDateTime: mockAddDays(-2) + 'T10:00:00.000Z',
+            EndDateTime: mockAddDays(-2) + 'T11:00:00.000Z',
+        },
+    ] as ProgramSession[],
     rosters: [
         {
             // Same day/name/time as roster-2 below - the calendar merges the
@@ -291,6 +391,22 @@ const mockData = {
             Description: 'Studio A projector flickers after 30 minutes.',
             Status: 'unassigned' as TicketStatus,
             AssigneeId: '',
+        },
+        {
+            Id: 'ticket-2',
+            DisplayId: 2,
+            Title: 'Audio delay in Studio B',
+            Description: 'Audio is approximately two seconds behind video.',
+            Status: 'pending' as TicketStatus,
+            AssigneeId: 'ana@example.com',
+        },
+        {
+            Id: 'ticket-3',
+            DisplayId: 3,
+            Title: 'Intercom battery replaced',
+            Description: 'Replacement completed and tested.',
+            Status: 'closed' as TicketStatus,
+            AssigneeId: 'admin@example.com',
         },
     ] as Ticket[],
     comments: [
@@ -479,6 +595,39 @@ function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
     });
+}
+
+function mockIncludes(query: string | undefined, values: unknown[]): boolean {
+    const needle = String(query || '')
+        .trim()
+        .toLocaleLowerCase();
+    return (
+        !needle ||
+        values.some((value) =>
+            String(value || '')
+                .toLocaleLowerCase()
+                .includes(needle),
+        )
+    );
+}
+
+function mockPaginate<T>(items: T[], page: number): Paginated<T> {
+    const safePage = Math.max(1, Math.floor(page) || 1);
+    const pageSize = 20;
+    return {
+        items: items.slice((safePage - 1) * pageSize, safePage * pageSize),
+        page: safePage,
+        pageSize,
+        totalCount: items.length,
+    };
+}
+
+function mockCompare(left: unknown, right: unknown, direction: SortDirection): number {
+    const result = String(left || '').localeCompare(String(right || ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+    });
+    return direction === 'asc' ? result : -result;
 }
 
 function mockBuildDashboard(): DashboardPayload {
@@ -683,11 +832,40 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.inventoryTypes = mockData.inventoryTypes.filter((t) => t.Id !== id);
     },
 
-    listInventoryRequests: (page: number) => {
+    listInventoryRequests: (page: number, query: InventoryRequestQuery = {}) => {
         const items = mockData.inventoryRequests
             .filter(mockCanViewRequest)
-            .map(mockBuildInventoryRequestDTO);
-        return { items, page: page || 1, pageSize: 20, totalCount: items.length };
+            .map(mockBuildInventoryRequestDTO)
+            .filter((request) => !query.statuses?.length || query.statuses.includes(request.Status))
+            .filter(
+                (request) =>
+                    !query.inventoryTypeId ||
+                    request.items.some((item) => item.InventoryTypeId === query.inventoryTypeId),
+            )
+            .filter((request) =>
+                mockIncludes(query.q, [
+                    `REQ-${request.DisplayId}`,
+                    request.Name,
+                    request.userName,
+                    request.participants.join(' '),
+                    request.items.map((item) => item.itemName).join(' '),
+                ]),
+            );
+        const value = (request: InventoryRequestDTO): unknown => {
+            if (query.sortBy === 'name') return request.Name;
+            if (query.sortBy === 'status') return request.Status;
+            if (query.sortBy === 'startDate') return request.StartDate;
+            if (query.sortBy === 'endDate') return request.EndDate;
+            if (query.sortBy === 'requester') return request.userName;
+            return request.DisplayId;
+        };
+        items.sort((a, b) => mockCompare(value(a), value(b), query.sortDirection || 'desc'));
+        return mockPaginate(items, page);
+    },
+    getInventoryRequest: (id: string) => {
+        const request = mockData.inventoryRequests.find((item) => item.Id === id);
+        if (!request || !mockCanViewRequest(request)) throw new Error('request_not_found');
+        return mockBuildInventoryRequestDTO(request);
     },
     createInventoryRequest: (input: CreateInventoryRequestInput) => {
         const participants = mockParseParticipants(input.participants);
@@ -804,11 +982,38 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return request.Status;
     },
 
-    listProgramRequests: (page: number) => {
+    listProgramRequests: (page: number, query: ProgramRequestQuery = {}) => {
         const items = mockData.programRequests
             .filter(mockCanViewRequest)
-            .map(mockBuildProgramRequestDTO);
-        return { items, page: page || 1, pageSize: 20, totalCount: items.length };
+            .map(mockBuildProgramRequestDTO)
+            .filter((request) => !query.statuses?.length || query.statuses.includes(request.Status))
+            .filter((request) => !query.placeId || request.PlaceId === query.placeId)
+            .filter((request) =>
+                mockIncludes(query.q, [
+                    `PRG-${request.DisplayId}`,
+                    request.Name,
+                    request.Type,
+                    request.userName,
+                    request.participants.join(' '),
+                    request.placeName,
+                    request.sessions.map((session) => `${session.Name} ${session.Type}`).join(' '),
+                ]),
+            );
+        const value = (request: ProgramRequestDTO): unknown => {
+            if (query.sortBy === 'name') return request.Name;
+            if (query.sortBy === 'status') return request.Status;
+            if (query.sortBy === 'place') return request.placeName;
+            if (query.sortBy === 'sessionStart') return request.sessions[0]?.StartDateTime || '';
+            if (query.sortBy === 'requester') return request.userName;
+            return request.DisplayId;
+        };
+        items.sort((a, b) => mockCompare(value(a), value(b), query.sortDirection || 'desc'));
+        return mockPaginate(items, page);
+    },
+    getProgramRequest: (id: string) => {
+        const request = mockData.programRequests.find((item) => item.Id === id);
+        if (!request || !mockCanViewRequest(request)) throw new Error('request_not_found');
+        return mockBuildProgramRequestDTO(request);
     },
     createProgramRequest: (input: CreateProgramRequestInput) => {
         const participants = mockParseParticipants(input.participants);
@@ -896,12 +1101,43 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return request.Status;
     },
 
-    listTickets: (page: number) => {
+    listTickets: (page: number, query: TicketQuery = {}) => {
         if (!canUseTickets(mockToUserDTO(mockCurrentUser()))) {
             throw new Error('Tickets are not available for your role.');
         }
-        const items = mockData.tickets.map(mockBuildTicketDTO);
-        return { items, page: page || 1, pageSize: 20, totalCount: items.length };
+        const items = mockData.tickets
+            .map(mockBuildTicketDTO)
+            .filter((ticket) => !query.statuses?.length || query.statuses.includes(ticket.Status))
+            .filter((ticket) => {
+                if (!query.assigneeId) return true;
+                return query.assigneeId === '__unassigned__'
+                    ? !ticket.AssigneeId
+                    : ticket.AssigneeId === query.assigneeId;
+            })
+            .filter((ticket) =>
+                mockIncludes(query.q, [
+                    `TKT-${ticket.DisplayId}`,
+                    ticket.Title,
+                    ticket.Description,
+                    ticket.assigneeName,
+                ]),
+            );
+        const value = (ticket: TicketDTO): unknown => {
+            if (query.sortBy === 'title') return ticket.Title;
+            if (query.sortBy === 'status') return ticket.Status;
+            if (query.sortBy === 'assignee') return ticket.assigneeName;
+            return ticket.DisplayId;
+        };
+        items.sort((a, b) => mockCompare(value(a), value(b), query.sortDirection || 'desc'));
+        return mockPaginate(items, page);
+    },
+    getTicket: (id: string) => {
+        if (!canUseTickets(mockToUserDTO(mockCurrentUser()))) {
+            throw new Error('Tickets are not available for your role.');
+        }
+        const ticket = mockData.tickets.find((item) => item.Id === id);
+        if (!ticket) throw new Error('ticket_not_found');
+        return mockBuildTicketDTO(ticket);
     },
     createTicket: (input: CreateTicketInput) => {
         const created: Ticket = {

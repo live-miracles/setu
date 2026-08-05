@@ -26,12 +26,28 @@ function buildProgramRequestDTO(
     });
 }
 
-function listProgramRequests(page: number): Paginated<ProgramRequestDTO> {
+function programRequestSortValue(
+    request: ProgramRequestDTO,
+    sortBy: ProgramRequestQuery['sortBy'],
+): string | number {
+    if (sortBy === 'name') return request.Name;
+    if (sortBy === 'status') return request.Status;
+    if (sortBy === 'place') return request.placeName;
+    if (sortBy === 'sessionStart') return request.sessions[0]?.StartDateTime || '';
+    if (sortBy === 'requester') return request.userName;
+    return request.DisplayId;
+}
+
+function listProgramRequests(
+    page: number,
+    query: ProgramRequestQuery = {},
+): Paginated<ProgramRequestDTO> {
     const actor = requireUser();
     const sessionsByRequest = groupBy(Tables.Sessions.readAll(), (s) => s.RequestId);
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
+    const statuses = query.statuses || [];
     const dtos = Tables.ProgramRequests.readAll()
         .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
         .map((r) =>
@@ -43,12 +59,55 @@ function listProgramRequests(page: number): Paginated<ProgramRequestDTO> {
                 commentsByRequestId,
             ),
         )
-        .sort((a, b) =>
+        .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
+        .filter((request) => !query.placeId || request.PlaceId === query.placeId)
+        .filter((request) =>
+            matchesSearch(query.q, [
+                'PRG-' + request.DisplayId,
+                request.Name,
+                request.Type,
+                request.userName,
+                request.participants.join(' '),
+                request.placeName,
+                request.sessions.map((session) => session.Name + ' ' + session.Type).join(' '),
+            ]),
+        );
+    const sortBy = query.sortBy;
+    if (sortBy) {
+        const direction = query.sortDirection || 'asc';
+        dtos.sort((a, b) =>
+            compareQueryValues(
+                programRequestSortValue(a, sortBy),
+                programRequestSortValue(b, sortBy),
+                direction,
+            ),
+        );
+    } else {
+        dtos.sort((a, b) =>
             latestActivityAt(b.comments, b.DisplayId).localeCompare(
                 latestActivityAt(a.comments, a.DisplayId),
             ),
         );
+    }
     return paginate(dtos, page, PROGRAM_REQUESTS_PAGE_SIZE);
+}
+
+function getProgramRequest(id: string): ProgramRequestDTO {
+    const actor = requireUser();
+    const request = Tables.ProgramRequests.findById(id);
+    if (
+        !request ||
+        !canViewRequest(actor, request.UserId, parseParticipants(request.Participants))
+    ) {
+        throw new ValidationError('request_not_found');
+    }
+    return buildProgramRequestDTO(
+        request,
+        groupBy(Tables.Sessions.readAll(), (session) => session.RequestId),
+        indexBy(Tables.Places.readAll(), (place) => place.Id),
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
+        groupCommentsByRequestId(Tables.Comments.readAll()),
+    );
 }
 
 function createProgramRequest(

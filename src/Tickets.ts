@@ -19,13 +19,54 @@ function requireTicketAccess(): User {
     return actor;
 }
 
-function listTickets(page: number): Paginated<TicketDTO> {
+function ticketSortValue(ticket: TicketDTO, sortBy: TicketQuery['sortBy']): string | number {
+    if (sortBy === 'title') return ticket.Title;
+    if (sortBy === 'status') return ticket.Status;
+    if (sortBy === 'assignee') return ticket.assigneeName;
+    return ticket.DisplayId;
+}
+
+function listTickets(page: number, query: TicketQuery = {}): Paginated<TicketDTO> {
     requireTicketAccess();
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
+    const statuses = query.statuses || [];
     const dtos = Tables.Tickets.readAll()
-        .sort((a, b) => b.DisplayId - a.DisplayId)
-        .map((t) => buildTicketDTO(t, usersByEmail));
+        .map((t) => buildTicketDTO(t, usersByEmail))
+        .filter((ticket) => statuses.length === 0 || statuses.indexOf(ticket.Status) !== -1)
+        .filter((ticket) => {
+            if (!query.assigneeId) return true;
+            return query.assigneeId === '__unassigned__'
+                ? !ticket.AssigneeId
+                : ticket.AssigneeId === query.assigneeId;
+        })
+        .filter((ticket) =>
+            matchesSearch(query.q, [
+                'TKT-' + ticket.DisplayId,
+                ticket.Title,
+                ticket.Description,
+                ticket.assigneeName,
+            ]),
+        );
+    const sortBy = query.sortBy;
+    if (sortBy) {
+        const direction = query.sortDirection || 'asc';
+        dtos.sort((a, b) =>
+            compareQueryValues(ticketSortValue(a, sortBy), ticketSortValue(b, sortBy), direction),
+        );
+    } else {
+        dtos.sort((a, b) => b.DisplayId - a.DisplayId);
+    }
     return paginate(dtos, page, TICKETS_PAGE_SIZE);
+}
+
+function getTicket(id: string): TicketDTO {
+    requireTicketAccess();
+    const ticket = Tables.Tickets.findById(id);
+    if (!ticket) throw new ValidationError('ticket_not_found');
+    return buildTicketDTO(
+        ticket,
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
+    );
 }
 
 function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {

@@ -2,7 +2,14 @@ import { api } from './api';
 import {
     APP_SECTION_QUERY_PARAM,
     INVENTORY_REQUEST_QUERY_PARAM,
+    PROGRAM_REQUEST_QUERY_PARAM,
     TICKET_QUERY_PARAM,
+    WORKBENCH_DIRECTION_QUERY_PARAM,
+    WORKBENCH_MODE_QUERY_PARAM,
+    WORKBENCH_SEARCH_QUERY_PARAM,
+    WORKBENCH_SORT_QUERY_PARAM,
+    WORKBENCH_STATUS_QUERY_PARAM,
+    WORKBENCH_VIEW_QUERY_PARAM,
 } from './config';
 import { getState, setState } from './state';
 import { canApprove, canManageConfig, canUseTickets } from './workflows';
@@ -61,7 +68,7 @@ export async function refreshDashboard(): Promise<void> {
     await renderCurrentSection();
 }
 
-async function renderCurrentSection(): Promise<void> {
+export async function renderCurrentSection(): Promise<void> {
     const { dashboard, section } = getState();
     if (!dashboard) return;
     const container = document.getElementById('app-content');
@@ -78,10 +85,16 @@ async function renderCurrentSection(): Promise<void> {
     }
 
     const sectionKey = resolveSection(section, dashboard);
-    // The roster's shift calendar needs far more width than the shared
-    // max-w-3xl reading column gives every other section.
-    container.classList.toggle('max-w-3xl', sectionKey !== 'roster');
-    container.classList.toggle('max-w-[100rem]', sectionKey === 'roster');
+    const params = new URLSearchParams(window.location.search);
+    const isWorkbenchBrowse =
+        ['inventory', 'programs', 'tickets'].indexOf(sectionKey) !== -1 &&
+        !params.get(WORKBENCH_MODE_QUERY_PARAM) &&
+        !params.get(INVENTORY_REQUEST_QUERY_PARAM) &&
+        !params.get(PROGRAM_REQUEST_QUERY_PARAM) &&
+        !params.get(TICKET_QUERY_PARAM);
+    const wide = sectionKey === 'roster' || isWorkbenchBrowse;
+    container.classList.toggle('max-w-3xl', !wide);
+    container.classList.toggle('max-w-[100rem]', wide);
     await sections[sectionKey](container, dashboard);
     renderNavActive(sectionKey);
     toggleRoleNavVisibility(dashboard);
@@ -94,8 +107,10 @@ async function renderCurrentSection(): Promise<void> {
 function toggleNavVisibility(show: boolean): void {
     const desktopNav = document.getElementById('desktop-nav');
     const mobileDock = document.getElementById('mobile-dock');
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
     if (desktopNav) desktopNav.style.display = show ? '' : 'none';
     if (mobileDock) mobileDock.style.display = show ? '' : 'none';
+    if (mobileMenuToggle) mobileMenuToggle.style.display = show ? '' : 'none';
 }
 
 // One of tab-active/dock-active/menu-active applies per element depending
@@ -152,35 +167,116 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
     if (settingsMenu) settingsMenu.classList.toggle('hidden', !canApprove(dashboard.me));
 }
 
-function navigateTo(section: SectionKey, selectedId?: string): void {
+const WORKBENCH_QUERY_PARAMS = [
+    INVENTORY_REQUEST_QUERY_PARAM,
+    PROGRAM_REQUEST_QUERY_PARAM,
+    TICKET_QUERY_PARAM,
+    WORKBENCH_MODE_QUERY_PARAM,
+    WORKBENCH_VIEW_QUERY_PARAM,
+    WORKBENCH_SEARCH_QUERY_PARAM,
+    WORKBENCH_STATUS_QUERY_PARAM,
+    WORKBENCH_SORT_QUERY_PARAM,
+    WORKBENCH_DIRECTION_QUERY_PARAM,
+    'equipment',
+    'place',
+    'assignee',
+];
+
+interface NavigationOptions {
+    selectedParam?: string;
+    selectedId?: string;
+    mode?: string;
+    preserveWorkbench?: boolean;
+    replace?: boolean;
+}
+
+function navigateTo(section: SectionKey, options: NavigationOptions = {}): void {
     (document.activeElement as HTMLElement | null)?.blur();
+    const previousSection = getState().section;
     setState({ section });
     const url = new URL(window.location.href);
     url.searchParams.set(APP_SECTION_QUERY_PARAM, section);
-    url.searchParams.delete(INVENTORY_REQUEST_QUERY_PARAM);
-    url.searchParams.delete(TICKET_QUERY_PARAM);
-    if (section === 'inventory' && selectedId) {
-        url.searchParams.set(INVENTORY_REQUEST_QUERY_PARAM, selectedId);
+    if (!options.preserveWorkbench || previousSection !== section) {
+        WORKBENCH_QUERY_PARAMS.forEach((param) => url.searchParams.delete(param));
+    } else {
+        url.searchParams.delete(INVENTORY_REQUEST_QUERY_PARAM);
+        url.searchParams.delete(PROGRAM_REQUEST_QUERY_PARAM);
+        url.searchParams.delete(TICKET_QUERY_PARAM);
+        url.searchParams.delete(WORKBENCH_MODE_QUERY_PARAM);
     }
-    if (section === 'tickets' && selectedId) url.searchParams.set(TICKET_QUERY_PARAM, selectedId);
-    window.history.replaceState({}, '', url.toString());
+    if (options.selectedParam && options.selectedId) {
+        url.searchParams.set(options.selectedParam, options.selectedId);
+    }
+    if (options.mode) url.searchParams.set(WORKBENCH_MODE_QUERY_PARAM, options.mode);
+    const state = {
+        setu: true,
+        section,
+        parentSection: options.selectedId || options.mode ? section : undefined,
+    };
+    if (options.replace) window.history.replaceState(state, '', url.toString());
+    else window.history.pushState(state, '', url.toString());
     renderCurrentSection();
 }
 
 export function navigateToInventoryRequest(requestId: string): void {
-    navigateTo('inventory', requestId);
+    navigateTo('inventory', {
+        selectedParam: INVENTORY_REQUEST_QUERY_PARAM,
+        selectedId: requestId,
+        preserveWorkbench: true,
+    });
 }
 
 export function navigateToInventoryRequests(): void {
-    navigateTo('inventory');
+    navigateBackToWorkbench('inventory');
+}
+
+export function navigateToInventoryCreate(): void {
+    navigateTo('inventory', { mode: 'create', preserveWorkbench: true });
+}
+
+export function navigateToProgram(programId: string): void {
+    navigateTo('programs', {
+        selectedParam: PROGRAM_REQUEST_QUERY_PARAM,
+        selectedId: programId,
+        preserveWorkbench: true,
+    });
+}
+
+export function navigateToPrograms(): void {
+    navigateBackToWorkbench('programs');
+}
+
+export function navigateToProgramCreate(): void {
+    navigateTo('programs', { mode: 'create', preserveWorkbench: true });
 }
 
 export function navigateToTicket(ticketId: string): void {
-    navigateTo('tickets', ticketId);
+    navigateTo('tickets', {
+        selectedParam: TICKET_QUERY_PARAM,
+        selectedId: ticketId,
+        preserveWorkbench: true,
+    });
 }
 
 export function navigateToTickets(): void {
-    navigateTo('tickets');
+    navigateBackToWorkbench('tickets');
+}
+
+export function navigateToTicketCreate(): void {
+    navigateTo('tickets', { mode: 'create', preserveWorkbench: true });
+}
+
+function navigateBackToWorkbench(section: SectionKey): void {
+    if (window.history.state?.parentSection === section) {
+        window.history.back();
+        return;
+    }
+    navigateTo(section, { preserveWorkbench: true, replace: true });
+}
+
+export function replaceWorkbenchUrl(url: URL): void {
+    const section = url.searchParams.get(APP_SECTION_QUERY_PARAM) || getState().section;
+    window.history.replaceState({ setu: true, section }, '', url.toString());
 }
 
 // One delegated listener covers both the nav chrome in the page shell and
@@ -188,9 +284,21 @@ export function navigateToTickets(): void {
 // "View roster" on Home) — those are replaced on every render, so binding
 // them individually would mean re-wiring after each one.
 export function wireNav(): void {
+    if (!window.history.state?.setu) {
+        window.history.replaceState(
+            { setu: true, section: getState().section },
+            '',
+            window.location.href,
+        );
+    }
     document.addEventListener('click', (event) => {
         const target = event.target as HTMLElement | null;
         const el = target?.closest<HTMLElement>('[data-nav-section]');
         if (el) navigateTo(el.dataset.navSection as SectionKey);
+    });
+    window.addEventListener('popstate', () => {
+        const params = new URLSearchParams(window.location.search);
+        setState({ section: params.get(APP_SECTION_QUERY_PARAM) || 'home' });
+        renderCurrentSection();
     });
 }
