@@ -5,11 +5,67 @@
 function setupSheets(): void {
     const ss = SpreadsheetApp.openById(getSpreadsheetId());
 
+    migrateInventoryRequestImageColumns(ss);
+
     Object.values(Tables).forEach((table) => {
         ensureTabWithHeaders(ss, table.tabName, table.headers as string[]);
     });
 
     removeDefaultSheetIfEmpty(ss);
+}
+
+function migrateInventoryRequestImageColumns(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): void {
+    const sheet = ss.getSheetByName('InventoryRequests');
+    if (!sheet) return;
+
+    const desiredHeaders = Tables.InventoryRequests.headers as string[];
+    const lastColumn = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+    const existingHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String);
+    const hasOldImageColumns = ['Image1Id', 'Image2Id', 'Image3Id'].some(
+        (header) => existingHeaders.indexOf(header) !== -1,
+    );
+    if (!hasOldImageColumns && existingHeaders.indexOf('ImageId') !== -1) return;
+
+    const headerIndex = (header: string) => existingHeaders.indexOf(header);
+    const lastRow = sheet.getLastRow();
+    const rowCount = Math.max(lastRow - 1, 0);
+    const oldRows = rowCount > 0 ? sheet.getRange(2, 1, rowCount, lastColumn).getValues() : [];
+    const migratedRows = oldRows.map((row) =>
+        desiredHeaders.map((header) => {
+            if (header === 'ImageId') {
+                return (
+                    valueAt(row, headerIndex('ImageId')) ||
+                    valueAt(row, headerIndex('Image1Id')) ||
+                    valueAt(row, headerIndex('Image2Id')) ||
+                    valueAt(row, headerIndex('Image3Id'))
+                );
+            }
+            if (header === 'Participants') {
+                return valueAt(row, lastHeaderIndex(existingHeaders, header));
+            }
+            return valueAt(row, headerIndex(header));
+        }),
+    );
+
+    sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
+    if (migratedRows.length > 0) {
+        sheet.getRange(2, 1, migratedRows.length, desiredHeaders.length).setValues(migratedRows);
+    }
+    const surplusColumns = sheet.getMaxColumns() - desiredHeaders.length;
+    if (surplusColumns > 0) {
+        sheet.deleteColumns(desiredHeaders.length + 1, surplusColumns);
+    }
+}
+
+function valueAt(row: any[], index: number): any {
+    return index >= 0 ? row[index] : '';
+}
+
+function lastHeaderIndex(headers: string[], header: string): number {
+    for (let i = headers.length - 1; i >= 0; i--) {
+        if (headers[i] === header) return i;
+    }
+    return -1;
 }
 
 function ensureTabWithHeaders(

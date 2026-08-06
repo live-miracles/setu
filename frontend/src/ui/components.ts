@@ -38,6 +38,10 @@ export function renderSectionHeader(
     </div>`;
 }
 
+export function renderWorkbenchHeader(title: string, actions = ''): string {
+    return `<div class="workbench-header">${actions}<h1>${escapeHtml(title)}</h1></div>`;
+}
+
 export function renderEmptyState(iconName: IconName, message: string): string {
     return `
     <div class="setu-empty-state flex flex-col items-center justify-center gap-2 border-y border-dashed border-base-300 py-10 text-center text-base-content/50">

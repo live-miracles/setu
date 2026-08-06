@@ -26,13 +26,12 @@ type InventoryRequestStatus =
     | 'returned'
     | 'cancelled'
     | 'closed';
-type ProgramRequestStatus =
-    'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled' | 'closed';
+type ProgramRequestStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled';
 type ReturnCondition = 'good' | 'damaged' | 'missing';
 type TicketStatus = 'unassigned' | 'pending' | 'closed';
 type InventoryRequestAction =
     'submit' | 'approve' | 'reject' | 'issue' | 'return' | 'cancel' | 'close';
-type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel' | 'close';
+type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel';
 type TicketAction = 'assign' | 'close' | 'reopen';
 
 // ---------------------------------------------------------------------------
@@ -97,9 +96,7 @@ interface InventoryRequest {
     StartDate: string;
     EndDate: string;
     Status: InventoryRequestStatus;
-    Image1Id: string;
-    Image2Id: string;
-    Image3Id: string;
+    ImageId: string;
     // Comma-separated emails. Co-own the request (see the submit-permission
     // check in Inventory.ts) and are notified alongside UserId.
     Participants: string;
@@ -343,7 +340,7 @@ interface CreateInventoryRequestInput {
     startDate: string;
     endDate: string;
     items: { inventoryTypeId: string; quantity: number }[];
-    images: string[];
+    imageId: string;
     participants: string;
 }
 

@@ -66,10 +66,18 @@ html {
 }
 
 body {
+    display: flex;
     min-height: 100vh;
+    height: 100dvh;
+    flex-direction: column;
+    overflow: hidden;
     background: var(--setu-paper);
     color: var(--setu-ink);
     font-family: var(--font-sans);
+}
+
+body > header.navbar {
+    flex: 0 0 auto;
 }
 
 ::selection {
@@ -81,22 +89,17 @@ body {
 
 #app-content {
     width: 100%;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+    padding: 0 !important;
+    margin: 0 !important;
     max-width: none !important;
 }
 
-@media (min-width: 768px) {
-    #app-content {
-        padding: 3.5rem clamp(2rem, 5vw, 5.5rem) 4rem;
-    }
-
-    #app-content > section {
-        max-width: 68rem;
-        margin-inline: auto;
-    }
-
-    #app-content.max-w-\[100rem\] > section {
-        max-width: 100rem;
-    }
+#app-content > section {
+    min-height: 100%;
+    max-width: none !important;
 }
 
 /* Shared editorial component language ------------------------------------ */
@@ -164,17 +167,54 @@ body {
 
 /* Request workbenches ----------------------------------------------------- */
 
+.workbench-page {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: stretch;
+    overflow: hidden;
+}
+
+.workbench-page > [aria-live],
+.workbench-page > dialog {
+    grid-column: 1 / -1;
+}
+
+.workbench-page > [aria-live] {
+    min-height: 0;
+    overflow: auto;
+}
+
+.workbench-header,
+.workbench-toolbar {
+    align-self: start;
+}
+
+.workbench-header {
+    display: flex;
+    min-height: 2.25rem;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.workbench-header h1 {
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
 .workbench-toolbar {
     position: sticky;
     top: 0;
     z-index: 20;
     display: grid;
-    grid-template-columns: minmax(15rem, 1fr) minmax(9rem, auto) minmax(9rem, auto) auto;
+    grid-template-columns: minmax(15rem, 1fr) minmax(9rem, auto) auto;
     gap: 0.6rem;
     align-items: center;
-    padding: 0.75rem;
+    padding: 0.45rem;
     border: 1px solid var(--setu-line);
-    border-radius: 0.45rem;
+    border-radius: 0.25rem;
     background: color-mix(in srgb, var(--setu-paper) 94%, transparent);
     backdrop-filter: blur(12px);
 }
@@ -230,21 +270,28 @@ body {
 
 .workbench-board {
     display: flex;
+    height: 100%;
+    min-height: 0;
     min-width: 100%;
     gap: 1rem;
     overflow-x: auto;
+    overflow-y: hidden;
     padding: 0.15rem 0.15rem 1rem;
     scroll-snap-type: x proximity;
 }
 
 .workbench-column {
+    display: flex;
+    min-height: 0;
     width: 18rem;
     flex: 1 0 18rem;
+    flex-direction: column;
     scroll-snap-align: start;
 }
 
 .workbench-column-heading {
     display: flex;
+    flex: 0 0 auto;
     min-height: 4.3rem;
     align-items: flex-start;
     justify-content: space-between;
@@ -267,8 +314,11 @@ body {
 
 .workbench-column-items {
     display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
     flex-direction: column;
     gap: 0.7rem;
+    overflow-y: auto;
 }
 
 .workbench-card {
@@ -326,7 +376,8 @@ body {
 }
 
 .workbench-table-wrap {
-    overflow-x: auto;
+    max-height: 100%;
+    overflow: auto;
     border: 1px solid var(--setu-line);
     border-radius: 0.45rem;
     background: var(--setu-surface);
@@ -809,7 +860,7 @@ body {
 
 @media (max-width: 767px) {
     #app-content {
-        padding: 2rem 1.15rem 2.5rem;
+        padding: 0 !important;
     }
 
     .section-heading {
@@ -824,6 +875,16 @@ body {
 
     .section-heading-actions .btn {
         flex: 1;
+    }
+
+    .workbench-page {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto minmax(0, 1fr);
+    }
+
+    .workbench-page > [aria-live],
+    .workbench-page > dialog {
+        grid-column: auto;
     }
 
     .workbench-toolbar {

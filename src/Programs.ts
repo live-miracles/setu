@@ -1,9 +1,9 @@
 const PROGRAM_REQUESTS_PAGE_SIZE = 20;
 
 // Status-change history (who/when) lives in Comments, same as
-// InventoryRequests — see Comments.ts. No issue/return step here: a program
-// request only ever moves draft -> submitted -> approved/rejected ->
-// cancelled -> closed.
+// InventoryRequests — see Comments.ts. No issue/return/close step here: a
+// program request only ever moves draft -> submitted -> approved/rejected,
+// with cancellation available before a final decision.
 function buildProgramRequestDTO(
     request: ProgramRequest,
     sessionsByRequest: Record<string, ProgramSession[]>,
@@ -268,17 +268,6 @@ function performProgramRequestAction(
                         requestId,
                         actor.Email,
                         actor.Name + ' cancelled this request. ' + note,
-                    );
-                } else if (action === 'close') {
-                    if (['approved', 'rejected', 'cancelled'].indexOf(request.Status) === -1)
-                        throw new ValidationError('invalid_transition');
-                    computedStatus = 'closed';
-                    Tables.ProgramRequests.updateById(requestId, { Status: computedStatus });
-                    insertActionComment(
-                        'program',
-                        requestId,
-                        actor.Email,
-                        actor.Name + ' closed this request.' + (note ? ' ' + note : ''),
                     );
                 } else {
                     throw new ValidationError('unsupported_action');

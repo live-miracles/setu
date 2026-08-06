@@ -22,15 +22,15 @@ export function canTransitionInventoryRequest(
     return (INVENTORY_REQUEST_TRANSITIONS[status] || []).indexOf(action) !== -1;
 }
 
-// No issue/return step — a program request only ever moves draft ->
-// submitted -> approved/rejected -> cancelled -> closed.
+// No issue/return/close step — a program request only ever moves draft ->
+// submitted -> approved/rejected, with cancellation available before a final
+// decision.
 const PROGRAM_REQUEST_TRANSITIONS: Record<ProgramRequestStatus, ProgramRequestAction[]> = {
     draft: ['submit', 'cancel'],
     submitted: ['approve', 'reject', 'cancel'],
-    approved: ['cancel', 'close'],
-    rejected: ['close'],
-    cancelled: ['close'],
-    closed: [],
+    approved: [],
+    rejected: [],
+    cancelled: [],
 };
 
 export function canTransitionProgramRequest(

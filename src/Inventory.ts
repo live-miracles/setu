@@ -209,7 +209,7 @@ function createInventoryRequest(
         if (!inventoryType) throw new ValidationError('inventory_type_not_found');
         return { inventoryType, quantity: line.quantity };
     });
-    const images = (input.images || []).filter(Boolean).slice(0, 3);
+    const imageId = input.imageId || '';
     const participants = parseParticipants(input.participants);
 
     const { result } = withLockedDedupe('inventory_request:create', requestId, () => {
@@ -220,9 +220,7 @@ function createInventoryRequest(
             StartDate: input.startDate,
             EndDate: input.endDate,
             Status: 'submitted',
-            Image1Id: images[0] || '',
-            Image2Id: images[1] || '',
-            Image3Id: images[2] || '',
+            ImageId: imageId,
             Participants: formatParticipants(participants),
         });
         lines.forEach((line) => {

@@ -7,6 +7,7 @@ import { escapeHtml } from '../ui/format';
 import type { IconName } from '../ui/icons';
 import { icon } from '../ui/icons';
 import {
+    stockLevelClass,
     USER_ROLE_LABELS,
     USER_ROLE_ORDER,
     USER_ROLE_SUMMARIES,
@@ -137,6 +138,7 @@ interface SettingsList {
     addLabel: string;
     emptyMessage: string;
     fields: { field: string; label: string; type?: string }[];
+    rowAccessory?: (row: Record<string, any>) => string;
 }
 
 // A list that also gets a page to itself, so it needs a header subtitle and
@@ -182,6 +184,7 @@ export const SETTINGS_LIST_PAGES: Record<string, SettingsListPage> = {
             { field: 'Description', label: 'Description' },
             { field: 'TotalQuantity', label: 'Total qty' },
         ],
+        rowAccessory: renderInventoryTypeAvailability,
         rows: (dashboard) => dashboard.inventoryTypes,
     },
 };
@@ -294,6 +297,7 @@ function renderSettingsRowViewInner(page: SettingsList, row: Record<string, any>
                     `<span class="text-base-content/60">${escapeHtml(row[f.field] ?? '')}</span>`,
             )
             .join('')}
+        ${page.rowAccessory ? page.rowAccessory(row) : ''}
       </div>
       <div class="flex shrink-0 items-center gap-1">
         <button type="button" class="btn btn-ghost btn-xs settings-row-edit" aria-label="Edit ${escapeHtml(row[page.fields[0].field] ?? '')}">${icon('edit', 'size-4')}</button>
@@ -311,6 +315,13 @@ function renderSettingsRowHtml(page: SettingsList, row: Record<string, any>): st
         .join(' ');
     return `
     <li class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm" data-id="${escapeHtml(row.Id ?? '')}" data-kind="${page.kind}" ${rawAttrs}>${renderSettingsRowViewInner(page, row)}</li>`;
+}
+
+function renderInventoryTypeAvailability(row: Record<string, any>): string {
+    const total = Number(row.TotalQuantity || 0);
+    const available = Number(row.availableQuantity || 0);
+    const stock = stockLevelClass(available, total);
+    return `<span class="flex min-w-32 items-center gap-2 text-xs ${stock.text}"><span>Available</span><strong>${available}/${total}</strong><progress class="progress ${stock.bar} h-1.5 w-20" value="${Math.max(0, available)}" max="${Math.max(1, total)}"></progress></span>`;
 }
 
 // The inline edit form for a row, reusing the same field list as the add

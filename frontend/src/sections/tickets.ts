@@ -7,10 +7,13 @@ import {
     navigateToTickets,
     refreshDashboard,
 } from '../router';
-import { renderDetailCommandHeader, renderEmptyState, renderSectionHeader } from '../ui/components';
+import {
+    renderDetailCommandHeader,
+    renderEmptyState,
+    renderWorkbenchHeader,
+} from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml } from '../ui/format';
-import { icon } from '../ui/icons';
 import { TICKET_ACTION_BTN } from '../ui/styles';
 import { canApprove, canTransitionTicket, canUseTickets } from '../workflows';
 import {
@@ -64,21 +67,8 @@ function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
             value: column.status,
             label: column.title,
         })),
-        filterParam: 'assignee',
-        filterLabel: 'Assignees',
-        filterOptions: [{ value: '__unassigned__', label: 'Not assigned' }],
         defaultSort: 'id',
     };
-}
-
-async function ticketToolbarConfig(dashboard: DashboardPayload): Promise<WorkbenchToolbarConfig> {
-    const users = (await api.listUsers()).filter(canUseTickets);
-    const config = toolbarConfig(dashboard);
-    config.filterOptions = [
-        { value: '__unassigned__', label: 'Not assigned' },
-        ...users.map((user) => ({ value: user.Email, label: user.Name })),
-    ];
-    return config;
 }
 
 export async function renderTickets(
@@ -107,12 +97,12 @@ async function renderTicketWorkbench(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {
-    const config = await ticketToolbarConfig(dashboard);
+    const config = toolbarConfig(dashboard);
     const state = readWorkbenchState(config);
-    container.innerHTML = `<section class="space-y-5">
-      ${renderSectionHeader('ticket', 'Tickets', 'Track operational issues through resolution.', `<button type="button" id="new-ticket" class="btn btn-primary btn-sm">${icon('plus', 'size-4')} New ticket</button>`)}
+    container.innerHTML = `<section class="workbench-page m-3 h-[calc(100%-1.5rem)]">
+      ${renderWorkbenchHeader('Tickets', `<button type="button" id="new-ticket" class="btn btn-primary btn-sm">New</button>`)}
       ${renderWorkbenchToolbar(config, state)}
-      <div id="ticket-results" aria-live="polite"></div>
+      <div id="ticket-results" class="min-h-0" aria-live="polite"></div>
     </section>`;
     document.getElementById('new-ticket')!.addEventListener('click', navigateToTicketCreate);
     wireWorkbenchToolbar(config, state, (next) => void loadTicketResults(dashboard, next));
@@ -123,7 +113,6 @@ function ticketQuery(state: WorkbenchState, statuses?: TicketStatus[]): TicketQu
     return {
         q: state.q,
         statuses: state.status ? [state.status as TicketStatus] : statuses,
-        assigneeId: state.filter || undefined,
         sortBy: state.sort as TicketQuery['sortBy'],
         sortDirection: state.direction,
     };

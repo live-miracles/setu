@@ -158,9 +158,7 @@ const Tables = {
         'StartDate',
         'EndDate',
         'Status',
-        'Image1Id',
-        'Image2Id',
-        'Image3Id',
+        'ImageId',
         'Participants',
     ]),
     InventoryItems: SheetTable<InventoryItem>('InventoryItems', [

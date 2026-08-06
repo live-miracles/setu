@@ -63,7 +63,6 @@ export const PROGRAM_REQUEST_STATUS_BADGE: Record<ProgramRequestStatus, string> 
     draft: 'badge-ghost',
     submitted: 'badge-soft badge-warning',
     approved: 'badge-soft badge-success',
-    closed: 'badge-ghost',
     rejected: 'badge-soft badge-error',
     cancelled: 'badge-ghost',
 };
@@ -72,7 +71,6 @@ export const PROGRAM_REQUEST_STATUS_ACCENT: Record<ProgramRequestStatus, string>
     draft: 'border-base-300',
     submitted: 'border-warning',
     approved: 'border-success',
-    closed: 'border-base-300',
     rejected: 'border-error',
     cancelled: 'border-base-300',
 };
@@ -92,7 +90,6 @@ export const PROGRAM_REQUEST_ACTION_BTN: Record<ProgramRequestAction, string> = 
     approve: 'btn-success btn-soft',
     reject: 'btn-error btn-soft',
     cancel: 'btn-ghost',
-    close: 'btn-ghost',
 };
 
 export const TICKET_ACTION_BTN: Record<TicketAction, string> = {

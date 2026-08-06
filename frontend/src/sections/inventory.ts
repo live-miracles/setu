@@ -11,7 +11,7 @@ import {
     namePill,
     renderDetailCommandHeader,
     renderEmptyState,
-    renderSectionHeader,
+    renderWorkbenchHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml, formatDateTime } from '../ui/format';
@@ -20,7 +20,6 @@ import {
     INVENTORY_REQUEST_ACTION_BTN,
     INVENTORY_REQUEST_STATUS_ACCENT,
     INVENTORY_REQUEST_STATUS_BADGE,
-    stockLevelClass,
 } from '../ui/styles';
 import { canApprove, canTransitionInventoryRequest, isRequestOverdue } from '../workflows';
 import {
@@ -144,12 +143,6 @@ function inventoryToolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarCo
             { value: 'cancelled', label: 'Cancelled' },
             { value: 'closed', label: 'Closed' },
         ],
-        filterParam: 'equipment',
-        filterLabel: 'Equipment',
-        filterOptions: dashboard.inventoryTypes.map((type) => ({
-            value: type.Id,
-            label: type.Name,
-        })),
         defaultSort: 'id',
     };
 }
@@ -157,42 +150,16 @@ function inventoryToolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarCo
 function renderInventoryWorkbench(container: HTMLElement, dashboard: DashboardPayload): void {
     const config = inventoryToolbarConfig(dashboard);
     const state = readWorkbenchState(config);
-    container.innerHTML = `<section class="space-y-5">
-      ${renderSectionHeader(
-          'box',
-          'Inventory',
-          'Request, issue and return equipment.',
-          `<button type="button" id="inventory-availability" class="btn btn-ghost btn-sm">Availability</button><button type="button" id="new-inventory-request" class="btn btn-primary btn-sm">${icon('plus', 'size-4')} New request</button>`,
-      )}
+    container.innerHTML = `<section class="workbench-page m-3 h-[calc(100%-1.5rem)]">
+      ${renderWorkbenchHeader('Inventory', `<button type="button" id="new-inventory-request" class="btn btn-primary btn-sm">New</button>`)}
       ${renderWorkbenchToolbar(config, state)}
-      <div id="inventory-results" aria-live="polite"></div>
-      ${renderAvailabilityDialog(dashboard)}
+      <div id="inventory-results" class="min-h-0" aria-live="polite"></div>
     </section>`;
     document
         .getElementById('new-inventory-request')!
         .addEventListener('click', navigateToInventoryCreate);
-    const dialog = document.getElementById('availability-dialog') as HTMLDialogElement;
-    document
-        .getElementById('inventory-availability')!
-        .addEventListener('click', () => dialog.showModal());
-    dialog.querySelector('[data-close-dialog]')!.addEventListener('click', () => dialog.close());
-    dialog.addEventListener('click', (event) => {
-        if (event.target === dialog) dialog.close();
-    });
     wireWorkbenchToolbar(config, state, (next) => void loadInventoryResults(dashboard, next));
     void loadInventoryResults(dashboard, state);
-}
-
-function renderAvailabilityDialog(dashboard: DashboardPayload): string {
-    return `<dialog id="availability-dialog" class="modal"><div class="modal-box max-w-2xl"><div class="flex items-start justify-between gap-3"><div><h2 class="font-serif text-2xl">Equipment availability</h2><p class="mt-1 text-sm text-base-content/60">Current quantities available to request.</p></div><button type="button" class="btn btn-ghost btn-sm" data-close-dialog aria-label="Close availability">✕</button></div><ul class="mt-5 divide-y divide-base-200">${
-        dashboard.inventoryTypes
-            .map((type) => {
-                const stock = stockLevelClass(type.availableQuantity, type.TotalQuantity);
-                return `<li class="flex items-center gap-4 py-3"><div class="min-w-0 flex-1"><div class="font-medium">${escapeHtml(type.Name)}</div>${type.Description ? `<div class="text-sm text-base-content/60">${escapeHtml(type.Description)}</div>` : ''}</div><div class="w-36 shrink-0"><div class="flex justify-between text-xs ${stock.text}"><span>Available</span><strong>${type.availableQuantity}/${type.TotalQuantity}</strong></div><progress class="progress ${stock.bar} w-full" value="${Math.max(0, type.availableQuantity)}" max="${Math.max(1, type.TotalQuantity)}"></progress></div></li>`;
-            })
-            .join('') ||
-        '<li class="py-8 text-center text-sm text-base-content/50">No equipment catalogued.</li>'
-    }</ul></div><form method="dialog" class="modal-backdrop"><button>Close</button></form></dialog>`;
 }
 
 function inventoryQuery(
@@ -202,7 +169,6 @@ function inventoryQuery(
     return {
         q: state.q,
         statuses: state.status ? [state.status as InventoryRequestStatus] : statuses,
-        inventoryTypeId: state.filter || undefined,
         sortBy: state.sort as InventoryRequestQuery['sortBy'],
         sortDirection: state.direction,
     };
@@ -323,7 +289,7 @@ function wireInventoryLinks(root: ParentNode): void {
 }
 
 function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPayload): void {
-    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-inventory" class="btn btn-ghost btn-sm">← Back to requests</button><div><p>New equipment request</p><h1>Request equipment</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-request-form" class="space-y-3"><fieldset class="fieldset"><label class="label" for="request-name">Name</label><input id="request-name" name="name" class="input w-full" placeholder="e.g. Studio 2 camera setup" required /><div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="request-start">From</label><input id="request-start" name="startDate" type="date" class="input w-full" required /></div><div><label class="label" for="request-end">To</label><input id="request-end" name="endDate" type="date" class="input w-full" required /></div></div><label class="label" for="request-participants">Participants</label><input id="request-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" /><label class="label" for="request-images">Photos</label><input id="request-images" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple class="file-input w-full" /><label class="label">Items</label><div id="request-items" class="space-y-2"></div><div><button type="button" id="add-request-item" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add item</button></div></fieldset><div class="flex gap-2"><button type="submit" class="btn btn-primary">Submit request</button><button type="button" id="cancel-inventory" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
+    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-inventory" class="btn btn-ghost btn-sm">← Back to requests</button><div><p>New equipment request</p><h1>Request equipment</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-request-form" class="space-y-3"><fieldset class="fieldset"><label class="label" for="request-name">Name</label><input id="request-name" name="name" class="input w-full" placeholder="e.g. Studio 2 camera setup" required /><div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="request-start">From</label><input id="request-start" name="startDate" type="date" class="input w-full" required /></div><div><label class="label" for="request-end">To</label><input id="request-end" name="endDate" type="date" class="input w-full" required /></div></div><label class="label" for="request-participants">Participants</label><input id="request-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" /><label class="label" for="request-image">Photo</label><input id="request-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" class="file-input w-full" /><label class="label">Items</label><div id="request-items" class="space-y-2"></div><div><button type="button" id="add-request-item" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add item</button></div></fieldset><div class="flex gap-2"><button type="submit" class="btn btn-primary">Submit request</button><button type="button" id="cancel-inventory" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
     document
         .getElementById('back-to-inventory')!
         .addEventListener('click', navigateToInventoryRequests);
@@ -445,9 +411,8 @@ function renderInventoryActionMenu(actions: InventoryRequestAction[]): string {
 }
 
 function renderDetailRequestImages(request: InventoryRequestDTO): string {
-    const ids = [request.Image1Id, request.Image2Id, request.Image3Id].filter(Boolean);
-    if (ids.length === 0) return '';
-    return `<div class="card border border-base-300 bg-base-100 shadow"><div class="card-body gap-3"><h2 class="card-title text-base">Photos</h2><div class="grid grid-cols-2 gap-3 sm:grid-cols-3">${ids.map((id) => `<img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}" class="aspect-square w-full rounded-box border border-base-300 object-cover" alt="Request photo" />`).join('')}</div></div></div>`;
+    if (!request.ImageId) return '';
+    return `<div class="card border border-base-300 bg-base-100 shadow"><div class="card-body gap-3"><h2 class="card-title text-base">Photo</h2><img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(request.ImageId)}" class="aspect-square w-full max-w-64 rounded-box border border-base-300 object-cover" alt="Request photo" /></div></div>`;
 }
 
 function availableInventoryRequestActions(
@@ -547,12 +512,12 @@ function wireCreateRequestForm(): void {
         }
         try {
             showSavingBadge(true);
-            const fileInput = document.getElementById('request-images') as HTMLInputElement;
-            const files = fileInput.files ? Array.from(fileInput.files).slice(0, 3) : [];
-            const images: string[] = [];
-            for (const file of files) {
+            const fileInput = document.getElementById('request-image') as HTMLInputElement;
+            let imageId = '';
+            const file = fileInput.files?.[0];
+            if (file) {
                 const base64 = await readFileAsBase64(file);
-                images.push(await api.uploadImage(base64, file.name, file.type));
+                imageId = await api.uploadImage(base64, file.name, file.type);
             }
             const created = await api.createInventoryRequest(
                 {
@@ -560,7 +525,7 @@ function wireCreateRequestForm(): void {
                     startDate: String(data.get('startDate')),
                     endDate: String(data.get('endDate')),
                     items,
-                    images,
+                    imageId,
                     participants: String(data.get('participants') || ''),
                 },
                 generateRequestId(),

@@ -12,7 +12,7 @@ import {
     renderCommentLine,
     renderDetailCommandHeader,
     renderEmptyState,
-    renderSectionHeader,
+    renderWorkbenchHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml, formatDateTime } from '../ui/format';
@@ -36,16 +36,14 @@ const PROGRAM_REQUEST_ACTION_LABELS: Record<ProgramRequestAction, string> = {
     approve: 'Approve',
     reject: 'Reject',
     cancel: 'Cancel',
-    close: 'Close',
 };
 
 const PROGRAM_NEXT_STATUS_LABELS: Record<ProgramRequestStatus, string[]> = {
     draft: ['Submitted', 'Cancelled'],
     submitted: ['Approved', 'Rejected', 'Cancelled'],
-    approved: ['Closed', 'Cancelled'],
-    rejected: ['Closed'],
-    cancelled: ['Closed'],
-    closed: [],
+    approved: [],
+    rejected: [],
+    cancelled: [],
 };
 
 const PROGRAM_BOARD_COLUMNS: {
@@ -68,10 +66,10 @@ const PROGRAM_BOARD_COLUMNS: {
         description: 'Rejected or cancelled',
         statuses: ['rejected', 'cancelled'],
     },
-    { id: 'closed', title: 'Closed', description: 'Completed history', statuses: ['closed'] },
 ];
 
 function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
+    void dashboard;
     return {
         storageKey: PROGRAM_REQUEST_VIEW_STORAGE_KEY,
         searchPlaceholder: 'Search programs, people, places or sessions',
@@ -81,11 +79,7 @@ function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
             { value: 'approved', label: 'Approved' },
             { value: 'rejected', label: 'Rejected' },
             { value: 'cancelled', label: 'Cancelled' },
-            { value: 'closed', label: 'Closed' },
         ],
-        filterParam: 'place',
-        filterLabel: 'Places',
-        filterOptions: dashboard.places.map((place) => ({ value: place.Id, label: place.Name })),
         defaultSort: 'id',
     };
 }
@@ -116,15 +110,13 @@ function renderProgramWorkbench(container: HTMLElement, dashboard: DashboardPayl
     const config = toolbarConfig(dashboard);
     const state = readWorkbenchState(config);
     container.innerHTML = `
-      <section class="space-y-5">
-        ${renderSectionHeader(
-            'clapper',
+      <section class="workbench-page m-3 h-[calc(100%-1.5rem)]">
+        ${renderWorkbenchHeader(
             'Programs',
-            'Book a place and follow every request through delivery.',
-            `<button type="button" id="new-program" class="btn btn-primary btn-sm">${icon('plus', 'size-4')} New program</button>`,
+            `<button type="button" id="new-program" class="btn btn-primary btn-sm">New</button>`,
         )}
         ${renderWorkbenchToolbar(config, state)}
-        <div id="program-results" aria-live="polite"></div>
+        <div id="program-results" class="min-h-0" aria-live="polite"></div>
       </section>`;
     document.getElementById('new-program')!.addEventListener('click', navigateToProgramCreate);
     wireWorkbenchToolbar(config, state, (next) => void loadProgramResults(dashboard, next));
@@ -138,7 +130,6 @@ function programQuery(
     return {
         q: state.q,
         statuses: state.status ? [state.status as ProgramRequestStatus] : statuses,
-        placeId: state.filter || undefined,
         sortBy: state.sort as ProgramRequestQuery['sortBy'],
         sortDirection: state.direction,
     };
@@ -382,7 +373,7 @@ function availableProgramActions(
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const approver = canApprove(dashboard.me);
-    return (['submit', 'approve', 'reject', 'cancel', 'close'] as ProgramRequestAction[]).filter(
+    return (['submit', 'approve', 'reject', 'cancel'] as ProgramRequestAction[]).filter(
         (action) =>
             canTransitionProgramRequest(request.Status, action) &&
             (action === 'submit' ? owner : approver),
@@ -439,9 +430,6 @@ function renderProgramDetailActions(
     const primaryByStatus: Partial<Record<ProgramRequestStatus, ProgramRequestAction>> = {
         draft: 'submit',
         submitted: 'approve',
-        approved: 'close',
-        rejected: 'close',
-        cancelled: 'close',
     };
     const overflow = actions.filter((action) => action === 'cancel');
     const visible = actions.filter((action) => action !== 'cancel');

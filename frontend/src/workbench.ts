@@ -33,9 +33,9 @@ export interface WorkbenchToolbarConfig {
     storageKey: string;
     searchPlaceholder: string;
     statuses: WorkbenchFilterOption[];
-    filterParam: string;
-    filterLabel: string;
-    filterOptions: WorkbenchFilterOption[];
+    filterParam?: string;
+    filterLabel?: string;
+    filterOptions?: WorkbenchFilterOption[];
     defaultSort: string;
 }
 
@@ -63,7 +63,7 @@ export function readWorkbenchState(config: WorkbenchToolbarConfig): WorkbenchSta
             urlView === 'list' || urlView === 'board' ? urlView : readStoredView(config.storageKey),
         q: params.get(WORKBENCH_SEARCH_QUERY_PARAM) || '',
         status: params.get(WORKBENCH_STATUS_QUERY_PARAM) || '',
-        filter: params.get(config.filterParam) || '',
+        filter: config.filterParam ? params.get(config.filterParam) || '' : '',
         sort: params.get(WORKBENCH_SORT_QUERY_PARAM) || config.defaultSort,
         direction: params.get(WORKBENCH_DIRECTION_QUERY_PARAM) === 'asc' ? 'asc' : 'desc',
     };
@@ -82,6 +82,15 @@ export function renderWorkbenchToolbar(
     config: WorkbenchToolbarConfig,
     state: WorkbenchState,
 ): string {
+    const specificFilter =
+        config.filterParam && config.filterLabel && config.filterOptions
+            ? `
+        <label class="sr-only">${escapeHtml(config.filterLabel)}</label>
+        <select data-workbench-filter class="select select-sm" aria-label="Filter by ${escapeHtml(config.filterLabel)}">
+          <option value="">All ${escapeHtml(config.filterLabel.toLocaleLowerCase())}</option>
+          ${optionMarkup(config.filterOptions, state.filter)}
+        </select>`
+            : '';
     return `
       <div class="workbench-toolbar" aria-label="Search and view controls">
         <label class="workbench-search input input-sm">
@@ -93,11 +102,7 @@ export function renderWorkbenchToolbar(
           <option value="">All statuses</option>
           ${optionMarkup(config.statuses, state.status)}
         </select>
-        <label class="sr-only" for="workbench-filter">${escapeHtml(config.filterLabel)}</label>
-        <select id="workbench-filter" class="select select-sm" aria-label="Filter by ${escapeHtml(config.filterLabel)}">
-          <option value="">All ${escapeHtml(config.filterLabel.toLocaleLowerCase())}</option>
-          ${optionMarkup(config.filterOptions, state.filter)}
-        </select>
+        ${specificFilter}
         <div class="join workbench-view-toggle" role="group" aria-label="View">
           <button type="button" class="btn btn-sm join-item ${state.view === 'board' ? 'btn-active' : ''}" data-workbench-view="board" aria-pressed="${state.view === 'board'}">
             ${icon('columns', 'size-4')} <span>Board</span>
@@ -129,7 +134,7 @@ function renderChips(config: WorkbenchToolbarConfig, state: WorkbenchState): voi
     }
     if (state.filter) {
         chips.push(
-            `<button type="button" class="filter-chip" data-clear-filter="specific">${escapeHtml(labelFor(config.filterOptions, state.filter))} ×</button>`,
+            `<button type="button" class="filter-chip" data-clear-filter="specific">${escapeHtml(labelFor(config.filterOptions || [], state.filter))} ×</button>`,
         );
     }
     if (chips.length > 1) {
@@ -149,7 +154,7 @@ function updateUrl(config: WorkbenchToolbarConfig, state: WorkbenchState): void 
     setOrDelete(WORKBENCH_VIEW_QUERY_PARAM, state.view);
     setOrDelete(WORKBENCH_SEARCH_QUERY_PARAM, state.q);
     setOrDelete(WORKBENCH_STATUS_QUERY_PARAM, state.status);
-    setOrDelete(config.filterParam, state.filter);
+    if (config.filterParam) setOrDelete(config.filterParam, state.filter);
     setOrDelete(WORKBENCH_SORT_QUERY_PARAM, state.sort === config.defaultSort ? '' : state.sort);
     setOrDelete(WORKBENCH_DIRECTION_QUERY_PARAM, state.direction === 'desc' ? '' : state.direction);
     replaceWorkbenchUrl(url);
@@ -181,13 +186,11 @@ export function wireWorkbenchToolbar(
             emit();
         },
     );
-    (document.getElementById('workbench-filter') as HTMLSelectElement).addEventListener(
-        'change',
-        (event) => {
-            state.filter = (event.target as HTMLSelectElement).value;
-            emit();
-        },
-    );
+    const filter = document.querySelector<HTMLSelectElement>('[data-workbench-filter]');
+    filter?.addEventListener('change', (event) => {
+        state.filter = (event.target as HTMLSelectElement).value;
+        emit();
+    });
     document.querySelectorAll<HTMLButtonElement>('[data-workbench-view]').forEach((button) => {
         button.addEventListener('click', () => {
             state.view = button.dataset.workbenchView as WorkbenchView;
@@ -218,7 +221,7 @@ export function wireWorkbenchToolbar(
         }
         if (target === 'specific' || target === 'all') {
             state.filter = '';
-            (document.getElementById('workbench-filter') as HTMLSelectElement).value = '';
+            if (filter) filter.value = '';
         }
         emit();
     });

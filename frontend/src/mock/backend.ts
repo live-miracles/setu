@@ -36,6 +36,31 @@ function mockParseParticipants(raw: string): string[] {
     return Array.from(seen);
 }
 
+const EXTRA_APPROVED_PROGRAM_REQUESTS: ProgramRequest[] = Array.from({ length: 10 }, (_, index) => {
+    const displayId = 29 + index;
+    return {
+        Id: 'program-' + displayId,
+        DisplayId: displayId,
+        Name: 'Approved studio program ' + (index + 1),
+        Type: index % 2 === 0 ? 'Recording' : 'Live',
+        UserId: ['sam@example.com', 'ana@example.com', 'vic@example.com'][index % 3],
+        Status: 'approved' as ProgramRequestStatus,
+        PlaceId: 'place-' + ((index % 6) + 1),
+        Participants: index % 2 === 0 ? 'ana@example.com' : '',
+    };
+});
+
+const EXTRA_APPROVED_PROGRAM_SESSIONS: ProgramSession[] = EXTRA_APPROVED_PROGRAM_REQUESTS.map(
+    (request, index) => ({
+        Id: 'session-' + request.DisplayId,
+        Name: 'Main session',
+        Type: request.Type,
+        RequestId: request.Id,
+        StartDateTime: mockAddDays(8 + index) + 'T09:00:00.000Z',
+        EndDateTime: mockAddDays(8 + index) + 'T11:00:00.000Z',
+    }),
+);
+
 const mockData = {
     currentUserId: 'admin@example.com',
     users: [
@@ -119,9 +144,7 @@ const mockData = {
             StartDate: mockAddDays(0),
             EndDate: mockAddDays(3),
             Status: 'submitted' as InventoryRequestStatus,
-            Image1Id: '',
-            Image2Id: '',
-            Image3Id: '',
+            ImageId: '',
             Participants: '',
         },
         {
@@ -132,9 +155,7 @@ const mockData = {
             StartDate: mockAddDays(1),
             EndDate: mockAddDays(2),
             Status: 'approved' as InventoryRequestStatus,
-            Image1Id: '',
-            Image2Id: '',
-            Image3Id: '',
+            ImageId: '',
             Participants: 'sam@example.com',
         },
         {
@@ -145,9 +166,7 @@ const mockData = {
             StartDate: mockAddDays(-5),
             EndDate: mockAddDays(-2),
             Status: 'issued' as InventoryRequestStatus,
-            Image1Id: '',
-            Image2Id: '',
-            Image3Id: '',
+            ImageId: '',
             Participants: '',
         },
         {
@@ -158,9 +177,7 @@ const mockData = {
             StartDate: mockAddDays(-7),
             EndDate: mockAddDays(-6),
             Status: 'returned' as InventoryRequestStatus,
-            Image1Id: '',
-            Image2Id: '',
-            Image3Id: '',
+            ImageId: '',
             Participants: '',
         },
         {
@@ -171,9 +188,7 @@ const mockData = {
             StartDate: mockAddDays(-12),
             EndDate: mockAddDays(-11),
             Status: 'closed' as InventoryRequestStatus,
-            Image1Id: '',
-            Image2Id: '',
-            Image3Id: '',
+            ImageId: '',
             Participants: '',
         },
     ] as InventoryRequest[],
@@ -261,10 +276,41 @@ const mockData = {
             Name: 'Monthly review',
             Type: 'Meeting',
             UserId: 'admin@example.com',
-            Status: 'closed' as ProgramRequestStatus,
+            Status: 'cancelled' as ProgramRequestStatus,
             PlaceId: 'place-4',
             Participants: '',
         },
+        {
+            Id: 'program-6',
+            DisplayId: 26,
+            Name: 'Studio tour request',
+            Type: 'Visit',
+            UserId: 'sam@example.com',
+            Status: 'rejected' as ProgramRequestStatus,
+            PlaceId: 'place-1',
+            Participants: '',
+        },
+        {
+            Id: 'program-7',
+            DisplayId: 27,
+            Name: 'Training archive recording',
+            Type: 'Recording',
+            UserId: 'ana@example.com',
+            Status: 'approved' as ProgramRequestStatus,
+            PlaceId: 'place-4',
+            Participants: 'sam@example.com',
+        },
+        {
+            Id: 'program-8',
+            DisplayId: 28,
+            Name: 'Evening music session',
+            Type: 'Live',
+            UserId: 'vic@example.com',
+            Status: 'approved' as ProgramRequestStatus,
+            PlaceId: 'place-3',
+            Participants: '',
+        },
+        ...EXTRA_APPROVED_PROGRAM_REQUESTS,
     ] as ProgramRequest[],
     sessions: [
         {
@@ -315,6 +361,31 @@ const mockData = {
             StartDateTime: mockAddDays(-2) + 'T10:00:00.000Z',
             EndDateTime: mockAddDays(-2) + 'T11:00:00.000Z',
         },
+        {
+            Id: 'session-7',
+            Name: 'Walkthrough',
+            Type: 'Visit',
+            RequestId: 'program-6',
+            StartDateTime: mockAddDays(3) + 'T11:00:00.000Z',
+            EndDateTime: mockAddDays(3) + 'T12:00:00.000Z',
+        },
+        {
+            Id: 'session-8',
+            Name: 'Archive capture',
+            Type: 'Recording',
+            RequestId: 'program-7',
+            StartDateTime: mockAddDays(5) + 'T08:00:00.000Z',
+            EndDateTime: mockAddDays(5) + 'T10:30:00.000Z',
+        },
+        {
+            Id: 'session-9',
+            Name: 'Main session',
+            Type: 'Live',
+            RequestId: 'program-8',
+            StartDateTime: mockAddDays(7) + 'T13:30:00.000Z',
+            EndDateTime: mockAddDays(7) + 'T15:00:00.000Z',
+        },
+        ...EXTRA_APPROVED_PROGRAM_SESSIONS,
     ] as ProgramSession[],
     rosters: [
         {
@@ -484,7 +555,7 @@ const mockData = {
         { Id: 'shift-preset-4', Name: 'Day', DefaultStartTime: '', DefaultEndTime: '' },
         { Id: 'shift-preset-5', Name: 'Vacation', DefaultStartTime: '', DefaultEndTime: '' },
     ] as ShiftPreset[],
-    nextDisplayId: { inventory_request: 6, program_request: 1, ticket: 2 },
+    nextDisplayId: { inventory_request: 6, program_request: 39, ticket: 2 },
 };
 
 function mockCurrentUser(): User {
@@ -869,7 +940,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
     createInventoryRequest: (input: CreateInventoryRequestInput) => {
         const participants = mockParseParticipants(input.participants);
-        const images = (input.images || []).slice(0, 3);
         const created: InventoryRequest = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.inventory_request++,
@@ -878,9 +948,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             StartDate: input.startDate,
             EndDate: input.endDate,
             Status: 'submitted',
-            Image1Id: images[0] || '',
-            Image2Id: images[1] || '',
-            Image3Id: images[2] || '',
+            ImageId: input.imageId || '',
             Participants: participants.join(', '),
         };
         mockData.inventoryRequests.push(created);
@@ -1088,14 +1156,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 requestId,
                 actorId,
                 actorName + ' cancelled this request. ' + note,
-            );
-        } else if (action === 'close') {
-            request.Status = 'closed';
-            mockInsertActionComment(
-                'program',
-                requestId,
-                actorId,
-                actorName + ' closed this request.',
             );
         }
         return request.Status;
