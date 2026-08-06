@@ -13,7 +13,6 @@ import {
     renderEmptyState,
     renderRequestActivityPanel,
     renderRequestDetailPage,
-    renderRequestDisplayTitle,
     renderRequestEditableField,
     renderRequestFieldGrid,
     renderRequestLineSection,
@@ -25,7 +24,7 @@ import {
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
-import { PROGRAM_REQUEST_ACTION_BTN, PROGRAM_REQUEST_STATUS_BADGE } from '../ui/styles';
+import { PROGRAM_REQUEST_STATUS_BADGE } from '../ui/styles';
 import { canApprove, canTransitionProgramRequest } from '../workflows';
 import {
     type WorkbenchState,
@@ -62,10 +61,20 @@ const PROGRAM_STATUS_STEPS: { status: ProgramRequestStatus; label: string }[] = 
     { status: 'cancelled', label: 'Cancelled' },
 ];
 
-function programStatusSteps(status: ProgramRequestStatus): { label: string; active: boolean }[] {
+function programStatusSteps(
+    status: ProgramRequestStatus,
+    actions: ProgramRequestAction[] = [],
+): { label: string; active: boolean; action?: ProgramRequestAction }[] {
+    const targetActions: Partial<Record<ProgramRequestStatus, ProgramRequestAction>> = {
+        submitted: 'submit',
+        approved: 'approve',
+        rejected: 'reject',
+        cancelled: 'cancel',
+    };
     return PROGRAM_STATUS_STEPS.map((step) => ({
         label: step.label,
         active: step.status === status,
+        action: actions.includes(targetActions[step.status]!) ? targetActions[step.status] : undefined,
     }));
 }
 
@@ -319,7 +328,6 @@ function renderProgramCreate(container: HTMLElement, dashboard: DashboardPayload
         eyebrow: 'Program request',
         reference: 'New',
         title: 'New program request',
-        statusHtml: '<span class="badge badge-ghost">draft</span>',
         nextStatuses: PROGRAM_NEXT_STATUS_LABELS.draft,
         statusSteps: programStatusSteps('draft'),
         actionsHtml:
@@ -452,17 +460,14 @@ function renderProgramDetail(
     request: ProgramRequestDTO,
 ): void {
     const actions = availableProgramActions(request, dashboard);
-    const actionControls = renderProgramDetailActions(request.Status, actions);
     const header = renderDetailCommandHeader({
         backButtonId: 'back-to-programs',
         backLabel: 'Back to programs',
         eyebrow: 'Program request',
         reference: `PRG-${request.DisplayId}`,
         title: request.Name,
-        statusHtml: `<span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
         nextStatuses: PROGRAM_NEXT_STATUS_LABELS[request.Status],
-        statusSteps: programStatusSteps(request.Status),
-        actionsHtml: actionControls,
+        statusSteps: programStatusSteps(request.Status, actions),
     });
     const fields = renderRequestFieldGrid([
         {
@@ -485,7 +490,6 @@ function renderProgramDetail(
             rows: [
                 renderRequestReadonlyFields([
                     { label: 'Requested by', valueHtml: escapeHtml(request.userName) },
-                    { label: 'Status', valueHtml: escapeHtml(request.Status) },
                 ]),
             ],
         },
@@ -496,53 +500,29 @@ function renderProgramDetail(
     );
     container.innerHTML = renderRequestDetailPage(
         header,
-        renderRequestRecordPanel(`${renderRequestDisplayTitle(request.Name)}${fields}${sessions}`),
+        renderRequestRecordPanel(`${fields}${sessions}`),
         renderRequestActivityPanel({
             comments: request.comments,
             commentFormId: 'request-comment-form',
         }),
-        actions.length > 0,
+        false,
     );
     document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
     document
-        .querySelectorAll<HTMLButtonElement>('[data-program-action]')
+        .querySelectorAll<HTMLButtonElement>('[data-detail-action]')
         .forEach((button) =>
             button.addEventListener(
                 'click',
                 () =>
                     void handleProgramRequestAction(
                         request.Id,
-                        button.dataset.programAction as ProgramRequestAction,
+                        button.dataset.detailAction as ProgramRequestAction,
                     ),
             ),
         );
     document
         .getElementById('request-comment-form')!
         .addEventListener('submit', (event) => void submitProgramComment(event, request.Id));
-}
-
-function renderProgramDetailActions(
-    status: ProgramRequestStatus,
-    actions: ProgramRequestAction[],
-): string {
-    if (actions.length === 0) return '';
-    const primaryByStatus: Partial<Record<ProgramRequestStatus, ProgramRequestAction>> = {
-        draft: 'submit',
-        submitted: 'approve',
-    };
-    const overflow = actions.filter((action) => action === 'cancel');
-    const visible = actions.filter((action) => action !== 'cancel');
-    return `${visible
-        .map(
-            (action) =>
-                `<button type="button" class="btn btn-sm ${action === primaryByStatus[status] ? 'btn-primary' : PROGRAM_REQUEST_ACTION_BTN[action]}" data-program-action="${action}">${PROGRAM_REQUEST_ACTION_LABELS[action]}</button>`,
-        )
-        .join('')}${renderProgramActionMenu(overflow)}`;
-}
-
-function renderProgramActionMenu(actions: ProgramRequestAction[]): string {
-    if (actions.length === 0) return '';
-    return `<details class="dropdown dropdown-end"><summary class="btn btn-ghost btn-sm">More</summary><ul class="menu dropdown-content w-40 rounded-box p-2">${actions.map((action) => `<li><button type="button" data-program-action="${action}">${PROGRAM_REQUEST_ACTION_LABELS[action]}</button></li>`).join('')}</ul></details>`;
 }
 
 async function submitProgramComment(event: Event, requestId: string): Promise<void> {
@@ -565,6 +545,9 @@ async function handleProgramRequestAction(
     requestId: string,
     action: ProgramRequestAction,
 ): Promise<void> {
+    if (!window.confirm(`Change this program request status: ${PROGRAM_REQUEST_ACTION_LABELS[action]}?`)) {
+        return;
+    }
     let note = '';
     if (action === 'reject' || action === 'cancel') {
         note = window.prompt('Add a note (required, at least 3 characters):') || '';

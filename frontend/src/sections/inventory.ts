@@ -13,7 +13,6 @@ import {
     renderEmptyState,
     renderRequestActivityPanel,
     renderRequestDetailPage,
-    renderRequestDisplayTitle,
     renderRequestEditableField,
     renderRequestFieldGrid,
     renderRequestLineSection,
@@ -26,7 +25,6 @@ import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml } from '../ui/format';
 import { icon } from '../ui/icons';
 import {
-    INVENTORY_REQUEST_ACTION_BTN,
     INVENTORY_REQUEST_STATUS_ACCENT,
     INVENTORY_REQUEST_STATUS_BADGE,
 } from '../ui/styles';
@@ -105,10 +103,10 @@ const INVENTORY_NEXT_STATUS_LABELS: Record<InventoryRequestStatus, string[]> = {
     draft: ['Submitted', 'Cancelled'],
     submitted: ['Approved', 'Rejected', 'Cancelled'],
     approved: ['Issued', 'Cancelled'],
-    rejected: ['Closed'],
-    issued: ['Returned'],
-    returned: ['Closed'],
-    cancelled: ['Closed'],
+    rejected: [],
+    issued: [],
+    returned: [],
+    cancelled: [],
     closed: [],
 };
 
@@ -117,18 +115,25 @@ const INVENTORY_STATUS_STEPS: { status: InventoryRequestStatus; label: string }[
     { status: 'submitted', label: 'Submit for Approval' },
     { status: 'approved', label: 'Approved' },
     { status: 'issued', label: 'Issued' },
-    { status: 'returned', label: 'Returned' },
-    { status: 'closed', label: 'Closed' },
     { status: 'rejected', label: 'Rejected' },
     { status: 'cancelled', label: 'Cancelled' },
 ];
 
 function inventoryStatusSteps(
     status: InventoryRequestStatus,
-): { label: string; active: boolean }[] {
+    actions: InventoryRequestAction[] = [],
+): { label: string; active: boolean; action?: InventoryRequestAction }[] {
+    const targetActions: Partial<Record<InventoryRequestStatus, InventoryRequestAction>> = {
+        submitted: 'submit',
+        approved: 'approve',
+        rejected: 'reject',
+        issued: 'issue',
+        cancelled: 'cancel',
+    };
     return INVENTORY_STATUS_STEPS.map((step) => ({
         label: step.label,
         active: step.status === status,
+        action: actions.includes(targetActions[step.status]!) ? targetActions[step.status] : undefined,
     }));
 }
 
@@ -324,7 +329,6 @@ function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPaylo
         eyebrow: 'Equipment request',
         reference: 'New',
         title: 'New equipment request',
-        statusHtml: '<span class="badge badge-ghost">draft</span>',
         nextStatuses: INVENTORY_NEXT_STATUS_LABELS.draft,
         statusSteps: inventoryStatusSteps('draft'),
         actionsHtml:
@@ -398,17 +402,14 @@ function renderInventoryRequestDetail(
 ): void {
     const actions = availableInventoryRequestActions(request, dashboard);
     const overdue = isRequestOverdue(request);
-    const actionControls = renderInventoryDetailActions(request.Status, actions);
     const header = renderDetailCommandHeader({
         backButtonId: 'back-to-inventory-requests',
         backLabel: 'Back to requests',
         eyebrow: 'Equipment request',
         reference: `REQ-${request.DisplayId}`,
         title: request.Name,
-        statusHtml: `${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}<span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
         nextStatuses: INVENTORY_NEXT_STATUS_LABELS[request.Status],
-        statusSteps: inventoryStatusSteps(request.Status),
-        actionsHtml: actionControls,
+        statusSteps: inventoryStatusSteps(request.Status, actions),
     });
     const fields = renderRequestFieldGrid([
         {
@@ -434,7 +435,6 @@ function renderInventoryRequestDetail(
             title: 'Request state',
             rows: [
                 renderRequestReadonlyFields([
-                    { label: 'Status', valueHtml: escapeHtml(request.Status) },
                     { label: 'Overdue', valueHtml: overdue ? 'Yes' : 'No' },
                 ]),
             ],
@@ -452,7 +452,7 @@ function renderInventoryRequestDetail(
     container.innerHTML = renderRequestDetailPage(
         header,
         renderRequestRecordPanel(
-            `${renderRequestDisplayTitle(request.Name)}${fields}${equipment}${renderDetailRequestImages(request)}`,
+            `${fields}${equipment}${renderDetailRequestImages(request)}`,
             'main',
             `id="inventory-request-detail" data-request-id="${escapeHtml(request.Id)}"`,
         ),
@@ -460,41 +460,12 @@ function renderInventoryRequestDetail(
             comments: request.comments,
             commentFormId: 'request-comment-form',
         }),
-        actions.length > 0,
+        false,
     );
     document
         .getElementById('back-to-inventory-requests')!
         .addEventListener('click', navigateToInventoryRequests);
     wireInventoryRequestDetail(request);
-}
-
-function renderInventoryDetailActions(
-    status: InventoryRequestStatus,
-    actions: InventoryRequestAction[],
-): string {
-    if (actions.length === 0) return '';
-    const primaryByStatus: Partial<Record<InventoryRequestStatus, InventoryRequestAction>> = {
-        draft: 'submit',
-        submitted: 'approve',
-        approved: 'issue',
-        rejected: 'close',
-        issued: 'return',
-        returned: 'close',
-        cancelled: 'close',
-    };
-    const overflow = actions.filter((action) => action === 'cancel');
-    const visible = actions.filter((action) => action !== 'cancel');
-    return `${visible
-        .map(
-            (action) =>
-                `<button type="button" class="btn btn-sm ${action === primaryByStatus[status] ? 'btn-primary' : INVENTORY_REQUEST_ACTION_BTN[action]}" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button>`,
-        )
-        .join('')}${renderInventoryActionMenu(overflow)}`;
-}
-
-function renderInventoryActionMenu(actions: InventoryRequestAction[]): string {
-    if (actions.length === 0) return '';
-    return `<details class="dropdown dropdown-end"><summary class="btn btn-ghost btn-sm">More</summary><ul class="menu dropdown-content w-40 rounded-box p-2">${actions.map((action) => `<li><button type="button" data-action="${action}">${INVENTORY_REQUEST_ACTION_LABELS[action]}</button></li>`).join('')}</ul></details>`;
 }
 
 function renderDetailRequestImages(request: InventoryRequestDTO): string {
@@ -517,11 +488,11 @@ function availableInventoryRequestActions(
 }
 
 function wireInventoryRequestDetail(request: InventoryRequestDTO): void {
-    document.querySelectorAll<HTMLButtonElement>('button[data-action]').forEach((button) => {
+    document.querySelectorAll<HTMLButtonElement>('button[data-detail-action]').forEach((button) => {
         button.addEventListener('click', async () => {
             await handleInventoryRequestAction(
                 request,
-                button.dataset.action as InventoryRequestAction,
+                button.dataset.detailAction as InventoryRequestAction,
             );
         });
     });
@@ -648,6 +619,9 @@ async function handleInventoryRequestAction(
     request: InventoryRequestDTO,
     action: InventoryRequestAction,
 ): Promise<void> {
+    if (!window.confirm(`Change this equipment request status: ${INVENTORY_REQUEST_ACTION_LABELS[action]}?`)) {
+        return;
+    }
     let note = '';
     if (action === 'reject' || action === 'cancel') {
         note = window.prompt('Add a note (required, at least 3 characters):') || '';

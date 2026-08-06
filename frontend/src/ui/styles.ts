@@ -75,29 +75,6 @@ export const PROGRAM_REQUEST_STATUS_ACCENT: Record<ProgramRequestStatus, string>
     cancelled: 'border-base-300',
 };
 
-export const INVENTORY_REQUEST_ACTION_BTN: Record<InventoryRequestAction, string> = {
-    submit: 'btn-primary btn-soft',
-    approve: 'btn-success btn-soft',
-    reject: 'btn-error btn-soft',
-    issue: 'btn-info btn-soft',
-    return: 'btn-success btn-soft',
-    cancel: 'btn-ghost',
-    close: 'btn-ghost',
-};
-
-export const PROGRAM_REQUEST_ACTION_BTN: Record<ProgramRequestAction, string> = {
-    submit: 'btn-primary btn-soft',
-    approve: 'btn-success btn-soft',
-    reject: 'btn-error btn-soft',
-    cancel: 'btn-ghost',
-};
-
-export const TICKET_ACTION_BTN: Record<TicketAction, string> = {
-    assign: 'btn-primary btn-soft',
-    close: 'btn-success btn-soft',
-    reopen: 'btn-ghost',
-};
-
 export function stockLevelClass(available: number, total: number): { bar: string; text: string } {
     if (total <= 0) return { bar: 'progress-neutral', text: 'text-base-content/50' };
     const ratio = available / total;

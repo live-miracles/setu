@@ -130,9 +130,6 @@ export function renderRequestActivityPanel(options: {
         : (options.comments || []).map(renderCommentLine).join('') ||
           `<p class="text-sm text-base-content/50">${escapeHtml(options.emptyMessage || 'No updates yet.')}</p>`;
     return `<aside class="request-activity-panel">
-      <div class="request-activity-actions">
-        <button type="button" class="btn btn-primary btn-sm" ${canComment ? '' : 'disabled'}>${icon('mail', 'size-4')} Add comment</button>
-      </div>
       <div class="request-activity-timeline">${content}</div>
       ${
           !canComment
@@ -148,41 +145,36 @@ interface DetailCommandHeaderOptions {
     eyebrow: string;
     reference: string;
     title: string;
-    statusHtml: string;
     nextStatuses?: string[];
-    statusSteps?: { label: string; active: boolean }[];
+    statusSteps?: { label: string; active: boolean; action?: string }[];
     actionsHtml?: string;
 }
 
 export function renderDetailCommandHeader(options: DetailCommandHeaderOptions): string {
-    const nextState = options.nextStatuses?.length
-        ? `<span><span class="detail-state-label">Possible next</span><strong>${options.nextStatuses.map(escapeHtml).join(' / ')}</strong></span>`
-        : '<span><span class="detail-state-label">Lifecycle</span><strong>Final state</strong></span>';
     const statusSteps = options.statusSteps?.length
         ? `<div class="detail-status-track" aria-label="Status progress">${options.statusSteps
               .map(
                   (step) =>
-                      `<span class="${step.active ? 'active' : ''}">${escapeHtml(step.label)}</span>`,
+                      step.action
+                          ? `<button type="button" class="${step.active ? 'active' : ''}" data-detail-action="${escapeHtml(step.action)}">${escapeHtml(step.label)}</button>`
+                          : `<span class="${step.active ? 'active' : ''}">${escapeHtml(step.label)}</span>`,
               )
               .join('')}</div>`
         : '';
 
     return `<header class="detail-command-header">
-      <button type="button" id="${escapeHtml(options.backButtonId)}" class="detail-command-back btn btn-ghost btn-sm">← ${escapeHtml(options.backLabel)}</button>
+      <div class="detail-command-meta">
+        <button type="button" id="${escapeHtml(options.backButtonId)}" class="detail-command-back btn btn-ghost btn-sm">${icon('chevronLeft', 'size-4')} ${escapeHtml(options.backLabel)}</button>
+        <span>${escapeHtml(options.eyebrow)} · <span class="font-mono">${escapeHtml(options.reference)}</span></span>
+      </div>
       <div class="detail-command-main">
         <div class="detail-command-title min-w-0">
-          <p>${escapeHtml(options.eyebrow)} · <span class="font-mono">${escapeHtml(options.reference)}</span></p>
           <h1>${escapeHtml(options.title)}</h1>
         </div>
         <div class="detail-command-controls">
-          <div class="detail-command-status">${options.statusHtml}</div>
+          ${statusSteps}
           ${options.actionsHtml ? `<div class="detail-command-actions" aria-label="Available actions">${options.actionsHtml}</div>` : ''}
         </div>
-      </div>
-      ${statusSteps}
-      <div class="detail-state-summary" aria-label="Lifecycle status">
-        <span><span class="detail-state-label">Current status</span><strong>${options.statusHtml}</strong></span>
-        ${nextState}
       </div>
     </header>`;
 }

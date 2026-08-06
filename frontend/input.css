@@ -457,8 +457,20 @@ body > header.navbar {
     backdrop-filter: blur(12px);
 }
 
-.detail-command-back {
+.detail-command-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.65rem;
     margin: -0.35rem 0 0.65rem -0.7rem;
+    color: var(--setu-muted);
+    font-size: 0.76rem;
+}
+
+.detail-command-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
 }
 
 .detail-command-main {
@@ -466,11 +478,6 @@ body > header.navbar {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     gap: 1rem;
-}
-
-.detail-command-title p {
-    color: var(--setu-muted);
-    font-size: 0.76rem;
 }
 
 .detail-command-title h1 {
@@ -483,23 +490,26 @@ body > header.navbar {
 
 .detail-command-controls {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-end;
     justify-content: flex-end;
     gap: 0.65rem;
 }
 
 .detail-status-track {
     display: flex;
+    max-width: min(46vw, 38rem);
     justify-content: flex-end;
-    margin-top: 0.85rem;
     overflow-x: auto;
 }
 
-.detail-status-track span {
+.detail-status-track span,
+.detail-status-track button {
     position: relative;
     display: flex;
     min-height: 2rem;
     align-items: center;
+    border: 0;
     padding: 0.35rem 1.25rem 0.35rem 1rem;
     background: var(--color-base-200);
     color: var(--setu-muted);
@@ -515,21 +525,35 @@ body > header.navbar {
     );
 }
 
-.detail-status-track span:first-child {
+.detail-status-track span:first-child,
+.detail-status-track button:first-child {
     clip-path: polygon(0 0, calc(100% - 0.75rem) 0, 100% 50%, calc(100% - 0.75rem) 100%, 0 100%);
 }
 
-.detail-status-track span + span {
+.detail-status-track span + span,
+.detail-status-track span + button,
+.detail-status-track button + span,
+.detail-status-track button + button {
     margin-left: -0.5rem;
 }
 
-.detail-status-track span.active {
+.detail-status-track span.active,
+.detail-status-track button.active {
     background: color-mix(in srgb, var(--setu-gold) 55%, white);
     color: var(--setu-ink);
     font-weight: 700;
 }
 
-.detail-command-status,
+.detail-status-track button {
+    cursor: pointer;
+    font: inherit;
+}
+
+.detail-status-track button:hover {
+    background: color-mix(in srgb, var(--setu-gold) 34%, var(--color-base-200));
+    color: var(--setu-ink);
+}
+
 .detail-command-actions {
     display: flex;
     flex-wrap: wrap;
@@ -544,41 +568,6 @@ body > header.navbar {
     border: 1px solid var(--setu-line);
     background: var(--setu-surface);
     box-shadow: 0 0.75rem 1.75rem rgb(41 37 31 / 12%);
-}
-
-.detail-state-summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem 1.75rem;
-    margin-top: 0.9rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid color-mix(in srgb, var(--setu-line) 75%, transparent);
-    color: var(--setu-muted);
-    font-size: 0.73rem;
-}
-
-.detail-state-summary > span {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-}
-
-.detail-state-summary strong {
-    color: var(--setu-ink);
-    font-size: 0.76rem;
-    font-weight: 650;
-}
-
-.detail-state-summary .badge {
-    min-height: 1.25rem;
-    height: 1.25rem;
-    padding-inline: 0.45rem;
-    font-size: 0.64rem;
-}
-
-.detail-state-label {
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
 }
 
 .detail-grid {
@@ -744,14 +733,6 @@ body > header.navbar {
     display: flex;
     flex-direction: column;
     background: color-mix(in srgb, var(--setu-paper) 55%, white);
-}
-
-.request-activity-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    padding: 0.6rem;
-    border-bottom: 1px solid var(--setu-line);
 }
 
 .request-activity-timeline {
@@ -1235,10 +1216,12 @@ body > header.navbar {
     }
 
     .detail-command-controls {
+        align-items: flex-start;
         justify-content: flex-start;
     }
 
-    .detail-command-status {
+    .detail-status-track {
+        max-width: 100%;
         justify-content: flex-start;
     }
 

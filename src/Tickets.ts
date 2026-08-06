@@ -120,8 +120,9 @@ function performTicketAction(
             let computedStatus: TicketStatus;
 
             if (action === 'assign') {
-                if (!canApprove(actor)) throw new AuthorizationError('approver_required');
                 if (!assigneeId) throw new ValidationError('assignee_required');
+                if (!canApprove(actor) && assigneeId !== actor.Email)
+                    throw new AuthorizationError('approver_required');
                 const assignee = Tables.Users.findById(assigneeId);
                 if (!assignee) throw new ValidationError('assignee_not_found');
                 // Assigning to someone who can't see the board would be a

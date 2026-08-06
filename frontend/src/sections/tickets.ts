@@ -12,7 +12,6 @@ import {
     renderEmptyState,
     renderRequestActivityPanel,
     renderRequestDetailPage,
-    renderRequestDisplayTitle,
     renderRequestEditableField,
     renderRequestFieldGrid,
     renderRequestReadonlyFields,
@@ -22,7 +21,6 @@ import {
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml } from '../ui/format';
-import { TICKET_ACTION_BTN } from '../ui/styles';
 import { canApprove, canTransitionTicket, canUseTickets } from '../workflows';
 import {
     type WorkbenchState,
@@ -36,21 +34,15 @@ import {
 
 const TICKET_VIEW_STORAGE_KEY = 'setu.tickets.requestView';
 
-const TICKET_ACTION_LABELS: Record<TicketAction, string> = {
-    assign: 'Assign',
-    close: 'Close',
-    reopen: 'Reopen',
-};
-
 const TICKET_BOARD_COLUMNS: { status: TicketStatus; title: string; description: string }[] = [
-    { status: 'unassigned', title: 'Not assigned', description: 'Waiting for an owner' },
-    { status: 'pending', title: 'Pending', description: 'Being investigated' },
+    { status: 'unassigned', title: 'Raised', description: 'Waiting to be picked up' },
+    { status: 'pending', title: 'In Progress', description: 'Being worked on' },
     { status: 'closed', title: 'Closed', description: 'Resolved history' },
 ];
 
 const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
-    unassigned: 'Not assigned',
-    pending: 'Pending',
+    unassigned: 'Raised',
+    pending: 'In Progress',
     closed: 'Closed',
 };
 
@@ -61,22 +53,40 @@ const TICKET_STATUS_BADGES: Record<TicketStatus, string> = {
 };
 
 const TICKET_NEXT_STATUS_LABELS: Record<TicketStatus, string[]> = {
-    unassigned: ['Assigned / Pending', 'Closed'],
-    pending: ['Reassigned / Pending', 'Closed'],
-    closed: ['Reopened / Pending'],
+    unassigned: ['In Progress', 'Closed'],
+    pending: ['Closed'],
+    closed: ['In Progress'],
 };
 
 const TICKET_STATUS_STEPS: { status: TicketStatus; label: string }[] = [
-    { status: 'unassigned', label: 'Unassigned' },
-    { status: 'pending', label: 'Pending' },
+    { status: 'unassigned', label: 'Raised' },
+    { status: 'pending', label: 'In Progress' },
     { status: 'closed', label: 'Closed' },
 ];
 
-function ticketStatusSteps(status: TicketStatus): { label: string; active: boolean }[] {
+function ticketStatusSteps(
+    status: TicketStatus,
+    actions: TicketAction[] = [],
+): { label: string; active: boolean; action?: TicketAction }[] {
     return TICKET_STATUS_STEPS.map((step) => ({
         label: step.label,
         active: step.status === status,
+        action: ticketActionForStatus(status, step.status, actions),
     }));
+}
+
+function ticketActionForStatus(
+    currentStatus: TicketStatus,
+    targetStatus: TicketStatus,
+    actions: TicketAction[],
+): TicketAction | undefined {
+    if (targetStatus === currentStatus) return undefined;
+    if (targetStatus === 'closed' && actions.includes('close')) return 'close';
+    if (targetStatus === 'pending' && currentStatus === 'closed' && actions.includes('reopen')) {
+        return 'reopen';
+    }
+    if (targetStatus === 'pending' && actions.includes('assign')) return 'assign';
+    return undefined;
 }
 
 function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
@@ -265,7 +275,6 @@ function renderTicketCreate(container: HTMLElement): void {
         eyebrow: 'Ticket',
         reference: 'New',
         title: 'New ticket',
-        statusHtml: '<span class="badge badge-ghost">unassigned</span>',
         nextStatuses: TICKET_NEXT_STATUS_LABELS.unassigned,
         statusSteps: ticketStatusSteps('unassigned'),
         actionsHtml:
@@ -331,6 +340,7 @@ function availableTicketActions(ticket: TicketDTO, dashboard: DashboardPayload):
     const assignee = ticket.AssigneeId === dashboard.me.Email;
     return (['assign', 'close', 'reopen'] as TicketAction[]).filter((action) => {
         if (!canTransitionTicket(ticket.Status, action)) return false;
+        if (action === 'assign') return canUseTickets(dashboard.me);
         return action === 'close' ? approver || assignee : approver;
     });
 }
@@ -341,17 +351,14 @@ function renderTicketDetail(
     ticket: TicketDTO,
 ): void {
     const actions = availableTicketActions(ticket, dashboard);
-    const actionControls = renderTicketDetailActions(ticket.Status, actions);
     const header = renderDetailCommandHeader({
         backButtonId: 'back-to-tickets',
         backLabel: 'Back to tickets',
         eyebrow: 'Ticket',
         reference: `TKT-${ticket.DisplayId}`,
         title: ticket.Title,
-        statusHtml: `<span class="badge ${TICKET_STATUS_BADGES[ticket.Status]}">${TICKET_STATUS_LABELS[ticket.Status]}</span>`,
         nextStatuses: TICKET_NEXT_STATUS_LABELS[ticket.Status],
-        statusSteps: ticketStatusSteps(ticket.Status),
-        actionsHtml: actionControls,
+        statusSteps: ticketStatusSteps(ticket.Status, actions),
     });
     const fields = renderRequestFieldGrid([
         {
@@ -375,63 +382,46 @@ function renderTicketDetail(
                             ? escapeHtml(ticket.assigneeName)
                             : 'Not assigned',
                     },
-                    { label: 'Status', valueHtml: TICKET_STATUS_LABELS[ticket.Status] },
                 ]),
             ],
         },
     ]);
     container.innerHTML = renderRequestDetailPage(
         header,
-        renderRequestRecordPanel(`${renderRequestDisplayTitle(ticket.Title)}${fields}`),
+        renderRequestRecordPanel(fields),
         renderRequestActivityPanel({
             emptyMessage: 'Ticket activity is captured through status changes.',
         }),
-        actions.length > 0,
+        false,
     );
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
     document
-        .querySelectorAll<HTMLButtonElement>('[data-ticket-action]')
+        .querySelectorAll<HTMLButtonElement>('[data-detail-action]')
         .forEach((button) =>
             button.addEventListener(
                 'click',
                 () =>
-                    void handleTicketAction(ticket.Id, button.dataset.ticketAction as TicketAction),
+                    void handleTicketAction(
+                        ticket.Id,
+                        button.dataset.detailAction as TicketAction,
+                        dashboard.me,
+                    ),
             ),
         );
 }
 
-function renderTicketDetailActions(status: TicketStatus, actions: TicketAction[]): string {
-    if (actions.length === 0) return '';
-    const primaryAction: TicketAction = status === 'closed' ? 'reopen' : 'assign';
-    const overflow: TicketAction[] =
-        actions.length > 1 ? actions.filter((action) => action === 'close') : [];
-    const visible = actions
-        .filter((action) => !overflow.includes(action))
-        .sort((a, b) => Number(b === primaryAction) - Number(a === primaryAction));
-    return `${visible
-        .map(
-            (action) =>
-                `<button type="button" class="btn btn-sm ${action === primaryAction ? 'btn-primary' : TICKET_ACTION_BTN[action]}" data-ticket-action="${action}">${TICKET_ACTION_LABELS[action]}</button>`,
-        )
-        .join('')}${renderTicketActionMenu(overflow)}`;
-}
-
-function renderTicketActionMenu(actions: TicketAction[]): string {
-    if (actions.length === 0) return '';
-    return `<details class="dropdown dropdown-end"><summary class="btn btn-ghost btn-sm">More</summary><ul class="menu dropdown-content w-40 rounded-box p-2">${actions.map((action) => `<li><button type="button" data-ticket-action="${action}">${TICKET_ACTION_LABELS[action]}</button></li>`).join('')}</ul></details>`;
-}
-
-async function handleTicketAction(ticketId: string, action: TicketAction): Promise<void> {
+async function handleTicketAction(
+    ticketId: string,
+    action: TicketAction,
+    me: UserDTO,
+): Promise<void> {
+    const targetStatus = action === 'close' ? 'Closed' : 'In Progress';
+    if (!window.confirm(`Change this ticket status to ${targetStatus}?`)) {
+        return;
+    }
     let assigneeId: string | null = null;
     if (action === 'assign') {
-        const users = (await api.listUsers()).filter(canUseTickets);
-        const choice = window.prompt(
-            'Assign to (enter number):\n' +
-                users.map((user, index) => `${index + 1}. ${user.Name} (${user.Email})`).join('\n'),
-        );
-        const selected = users[Number(choice) - 1];
-        if (!selected) return;
-        assigneeId = selected.Email;
+        assigneeId = me.Email;
     }
     try {
         showSavingBadge(true);
