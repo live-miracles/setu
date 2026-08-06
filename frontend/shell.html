@@ -31,6 +31,10 @@
         </svg>
         <span data-error-text></span>
       </div>
+      <div id="success-toast" class="alert hidden max-w-xs alert-success shadow-lg sm:max-w-sm" role="status" aria-live="polite">
+        <span aria-hidden="true">✓</span>
+        <span data-success-text></span>
+      </div>
     </div>
 
     <header class="app-shell-header navbar sticky top-0 z-40 gap-2 border-b px-3 sm:px-6">
@@ -65,8 +69,8 @@
         </button>
       </div>
 
-      <div id="desktop-nav" role="tablist" class="tabs tabs-box tabs-sm hidden sm:flex">
-        <button role="tab" class="tab gap-1.5" data-nav-section="home" aria-label="Home" title="Home">
+      <nav id="desktop-nav" aria-label="Primary navigation" class="tabs tabs-box tabs-sm hidden sm:flex">
+        <button type="button" class="tab gap-1.5" data-nav-section="home" aria-label="Home" title="Home">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -82,7 +86,7 @@
           </svg>
           <span class="nav-label">Home</span>
         </button>
-        <button role="tab" class="tab gap-1.5" data-nav-section="roster" aria-label="Roster" title="Roster">
+        <button type="button" class="tab gap-1.5" data-nav-section="roster" aria-label="Roster" title="Roster">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -100,7 +104,7 @@
           </svg>
           <span class="nav-label">Roster</span>
         </button>
-        <button role="tab" class="tab gap-1.5" data-nav-section="inventory" aria-label="Inventory" title="Inventory">
+        <button type="button" class="tab gap-1.5" data-nav-section="inventory" aria-label="Inventory" title="Inventory">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -117,7 +121,7 @@
           </svg>
           <span class="nav-label">Inventory</span>
         </button>
-        <button role="tab" class="tab gap-1.5" data-nav-section="programs" aria-label="Programs" title="Programs">
+        <button type="button" class="tab gap-1.5" data-nav-section="programs" aria-label="Programs" title="Programs">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -135,7 +139,7 @@
           </svg>
           <span class="nav-label">Programs</span>
         </button>
-        <button role="tab" class="tab gap-1.5" data-nav-section="tickets" aria-label="Tickets" title="Tickets">
+        <button type="button" class="tab gap-1.5" data-nav-section="tickets" aria-label="Tickets" title="Tickets">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -151,7 +155,7 @@
           </svg>
           <span class="nav-label">Tickets</span>
         </button>
-      </div>
+      </nav>
 
       <div class="app-shell-utilities flex flex-none items-center gap-1">
         <div id="settings-menu" class="dropdown dropdown-end hidden">
@@ -189,7 +193,8 @@
             <li><a data-nav-section="departments">Departments</a></li>
             <li><a data-nav-section="places">Places</a></li>
             <li><a data-nav-section="inventory-types">Inventory types</a></li>
-            <li><a data-nav-section="home-content">Others</a></li>
+            <li><a data-nav-section="home-settings">Home settings</a></li>
+            <li><a data-nav-section="roster-presets">Roster presets</a></li>
           </ul>
         </div>
 
@@ -273,7 +278,7 @@
     <main id="app-content" class="mx-auto max-w-3xl px-4 pb-24 pt-5 sm:pb-10"></main>
 
     <div id="mobile-nav-backdrop" class="mobile-nav-backdrop md:hidden"></div>
-    <aside id="mobile-dock" class="mobile-nav-drawer md:hidden" aria-label="Primary navigation" aria-hidden="true">
+    <aside id="mobile-dock" class="mobile-nav-drawer md:hidden" aria-label="Primary navigation" aria-hidden="true" inert>
       <div class="mobile-nav-heading">
         <div>
           <div class="setu-brand-name">Setu</div>

@@ -30,6 +30,7 @@ function setMobileDrawer(open: boolean): void {
     const drawer = document.getElementById('mobile-dock');
     const trigger = document.getElementById('mobile-menu-toggle');
     drawer?.setAttribute('aria-hidden', String(!open));
+    drawer?.toggleAttribute('inert', !open);
     trigger?.setAttribute('aria-expanded', String(open));
     if (open) {
         (document.getElementById('mobile-menu-close') as HTMLButtonElement | null)?.focus();

@@ -8,8 +8,14 @@ import {
     refreshDashboard,
 } from '../router';
 import { renderDetailCommandHeader, renderEmptyState, renderSectionHeader } from '../ui/components';
-import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { escapeHtml } from '../ui/format';
+import { openFormDialog } from '../ui/dialog';
+import {
+    setButtonPending,
+    showErrorAlert,
+    showSavingBadge,
+    showSuccessToast,
+} from '../ui/feedback';
+import { escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
 import { TICKET_ACTION_BTN } from '../ui/styles';
 import { canApprove, canTransitionTicket, canUseTickets } from '../workflows';
@@ -47,6 +53,13 @@ const TICKET_STATUS_BADGES: Record<TicketStatus, string> = {
     unassigned: 'badge-warning',
     pending: 'badge-info',
     closed: 'badge-success',
+};
+
+const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
+    low: 'Low',
+    normal: 'Normal',
+    high: 'High',
+    urgent: 'Urgent',
 };
 
 const TICKET_NEXT_STATUS_LABELS: Record<TicketStatus, string[]> = {
@@ -97,7 +110,7 @@ export async function renderTickets(
         return;
     }
     if (params.get(WORKBENCH_MODE_QUERY_PARAM) === 'create') {
-        renderTicketCreate(container);
+        renderTicketCreate(container, dashboard);
         return;
     }
     await renderTicketWorkbench(container, dashboard);
@@ -122,7 +135,7 @@ async function renderTicketWorkbench(
 function ticketQuery(state: WorkbenchState, statuses?: TicketStatus[]): TicketQuery {
     return {
         q: state.q,
-        statuses: state.status ? [state.status as TicketStatus] : statuses,
+        statuses: state.status ? (state.status.split(',') as TicketStatus[]) : statuses,
         assigneeId: state.filter || undefined,
         sortBy: state.sort as TicketQuery['sortBy'],
         sortDirection: state.direction,
@@ -156,8 +169,9 @@ async function renderTicketBoard(
     state: WorkbenchState,
     generation: number,
 ): Promise<void> {
+    const selectedStatuses = state.status ? state.status.split(',') : [];
     const columns = TICKET_BOARD_COLUMNS.filter(
-        (column) => !state.status || column.status === state.status,
+        (column) => selectedStatuses.length === 0 || selectedStatuses.includes(column.status),
     );
     const results = await Promise.all(
         columns.map((column) => api.listTickets(1, ticketQuery(state, [column.status]))),
@@ -197,7 +211,7 @@ function renderTicketCard(ticket: TicketDTO): string {
       <div class="workbench-card-top"><span class="font-mono">TKT-${ticket.DisplayId}</span><span class="badge badge-xs ${TICKET_STATUS_BADGES[ticket.Status]}">${TICKET_STATUS_LABELS[ticket.Status]}</span></div>
       <h3>${escapeHtml(ticket.Title)}</h3>
       ${ticket.Description ? `<p class="line-clamp-2">${escapeHtml(ticket.Description)}</p>` : ''}
-      <p>${ticket.assigneeName ? `Assigned to ${escapeHtml(ticket.assigneeName)}` : 'Not assigned'}</p>
+      <p>${ticket.Priority ? `${TICKET_PRIORITY_LABELS[ticket.Priority]} · ` : ''}${ticket.placeName ? `${escapeHtml(ticket.placeName)} · ` : ''}${ticket.assigneeName ? `Assigned to ${escapeHtml(ticket.assigneeName)}` : 'Not assigned'}</p>
     </a>`;
 }
 
@@ -248,8 +262,8 @@ function wireTicketLinks(root: ParentNode): void {
     });
 }
 
-function renderTicketCreate(container: HTMLElement): void {
-    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-tickets" class="btn btn-ghost btn-sm">← Back to tickets</button><div><p>New ticket</p><h1>Report an issue</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-ticket-form" class="space-y-3"><fieldset class="fieldset"><label class="label" for="ticket-title">Title</label><input id="ticket-title" name="title" class="input w-full" placeholder="Short, searchable title" required /><label class="label" for="ticket-description">Description</label><textarea id="ticket-description" name="description" class="textarea min-h-32 w-full" placeholder="What happened, when, and what have you already tried?"></textarea></fieldset><div class="flex gap-2"><button type="submit" class="btn btn-primary">Create ticket</button><button type="button" id="cancel-ticket" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
+function renderTicketCreate(container: HTMLElement, dashboard: DashboardPayload): void {
+    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-tickets" class="btn btn-ghost btn-sm">← Back to tickets</button><div><p>New ticket</p><h1>Report an issue</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-ticket-form" class="space-y-4"><fieldset class="fieldset"><label class="label" for="ticket-title">Title</label><input id="ticket-title" name="title" class="input w-full" placeholder="Short, searchable title" required /><div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="ticket-priority">Priority</label><select id="ticket-priority" name="priority" class="select w-full"><option value="low">Low</option><option value="normal" selected>Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div><div><label class="label" for="ticket-place">Place</label><select id="ticket-place" name="placeId" class="select w-full"><option value="">No specific place</option>${dashboard.places.map((place) => `<option value="${escapeHtml(place.Id)}">${escapeHtml(place.Name)}</option>`).join('')}</select></div></div><label class="label" for="ticket-description">Description</label><textarea id="ticket-description" name="description" class="textarea min-h-32 w-full" placeholder="What happened, when, and what have you already tried?"></textarea></fieldset><div class="flex gap-2"><button type="submit" class="btn btn-primary">Create ticket</button><button type="button" id="cancel-ticket" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
     document.getElementById('cancel-ticket')!.addEventListener('click', navigateToTickets);
     document
@@ -261,20 +275,26 @@ async function createTicket(event: Event): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
+    const submit = form.querySelector<HTMLButtonElement>('[type="submit"]')!;
     try {
         showSavingBadge(true);
+        setButtonPending(submit, true);
         const created = await api.createTicket(
             {
                 title: String(data.get('title')),
                 description: String(data.get('description') || ''),
+                priority: String(data.get('priority') || 'normal') as TicketPriority,
+                placeId: String(data.get('placeId') || ''),
             },
             generateRequestId(),
         );
+        showSuccessToast('Ticket created.');
         navigateToTicket(created.Id);
     } catch (err) {
         showErrorAlert(err);
     } finally {
         showSavingBadge(false);
+        if (submit.isConnected) setButtonPending(submit, false);
     }
 }
 
@@ -305,18 +325,38 @@ function renderTicketDetail(
           nextStatuses: TICKET_NEXT_STATUS_LABELS[ticket.Status],
           actionsHtml: actionControls,
       })}
-      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-5"><dl class="detail-grid"><div><dt>Assigned to</dt><dd>${ticket.assigneeName ? escapeHtml(ticket.assigneeName) : 'Not assigned'}</dd></div><div class="sm:col-span-2"><dt>Description</dt><dd class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</dd></div></dl></div></div>
+      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-5"><dl class="detail-grid"><div><dt>Reported by</dt><dd>${ticket.reporterName ? escapeHtml(ticket.reporterName) : 'Legacy ticket · reporter not recorded'}</dd></div><div><dt>Assigned to</dt><dd>${ticket.assigneeName ? escapeHtml(ticket.assigneeName) : 'Not assigned'}</dd></div><div><dt>Priority</dt><dd>${ticket.Priority ? TICKET_PRIORITY_LABELS[ticket.Priority] : 'Legacy ticket · not recorded'}</dd></div><div><dt>Place</dt><dd>${ticket.placeName ? escapeHtml(ticket.placeName) : 'No place recorded'}</dd></div><div><dt>Created</dt><dd>${ticket.CreatedAt ? formatDateTime(ticket.CreatedAt) : 'Legacy ticket · not recorded'}</dd></div><div><dt>Last updated</dt><dd>${ticket.UpdatedAt ? formatDateTime(ticket.UpdatedAt) : 'Legacy ticket · not recorded'}</dd></div><div class="sm:col-span-2"><dt>Description</dt><dd class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</dd></div></dl></div></div>
+      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3"><div class="flex items-baseline justify-between gap-3"><h2 class="card-title">Activity</h2><span class="text-sm text-base-content/55">${ticket.comments.length}</span></div><div class="space-y-3">${ticket.comments.length ? ticket.comments.map((comment) => `<article class="border-l-2 border-base-300 pl-3"><div class="flex flex-wrap items-baseline gap-2"><strong>${escapeHtml(comment.userName)}</strong><time class="text-xs text-base-content/50">${formatDateTime(comment.Timestamp)}</time></div><p class="mt-1 text-sm text-base-content/75">${escapeHtml(comment.Message)}</p></article>`).join('') : '<p class="text-sm text-base-content/55">No activity recorded.</p>'}</div><form id="ticket-comment-form" class="flex gap-2 border-t border-base-200 pt-3"><label class="sr-only" for="ticket-comment">Add a comment</label><input id="ticket-comment" name="message" class="input input-sm min-w-0 flex-1" placeholder="Add a comment" required /><button type="submit" class="btn btn-sm">Send</button></form></div></div>
     </section>`;
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
-    document
-        .querySelectorAll<HTMLButtonElement>('[data-ticket-action]')
-        .forEach((button) =>
-            button.addEventListener(
-                'click',
-                () =>
-                    void handleTicketAction(ticket.Id, button.dataset.ticketAction as TicketAction),
-            ),
-        );
+    document.querySelectorAll<HTMLButtonElement>('[data-ticket-action]').forEach((button) =>
+        button.addEventListener('click', async () => {
+            setButtonPending(button, true);
+            try {
+                await handleTicketAction(ticket, button.dataset.ticketAction as TicketAction);
+            } finally {
+                if (button.isConnected) setButtonPending(button, false);
+            }
+        }),
+    );
+    document.getElementById('ticket-comment-form')!.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget as HTMLFormElement;
+        const input = form.elements.namedItem('message') as HTMLInputElement;
+        const message = input.value.trim();
+        if (!message) return;
+        const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+        try {
+            setButtonPending(button, true);
+            await api.addTicketComment(ticket.Id, message, generateRequestId());
+            showSuccessToast('Comment added.');
+            await refreshDashboard();
+        } catch (err) {
+            showErrorAlert(err);
+        } finally {
+            if (button.isConnected) setButtonPending(button, false);
+        }
+    });
 }
 
 function renderTicketDetailActions(status: TicketStatus, actions: TicketAction[]): string {
@@ -340,21 +380,43 @@ function renderTicketActionMenu(actions: TicketAction[]): string {
     return `<details class="dropdown dropdown-end"><summary class="btn btn-ghost btn-sm">More</summary><ul class="menu dropdown-content w-40 rounded-box p-2">${actions.map((action) => `<li><button type="button" data-ticket-action="${action}">${TICKET_ACTION_LABELS[action]}</button></li>`).join('')}</ul></details>`;
 }
 
-async function handleTicketAction(ticketId: string, action: TicketAction): Promise<void> {
+async function handleTicketAction(ticket: TicketDTO, action: TicketAction): Promise<void> {
     let assigneeId: string | null = null;
     if (action === 'assign') {
         const users = (await api.listUsers()).filter(canUseTickets);
-        const choice = window.prompt(
-            'Assign to (enter number):\n' +
-                users.map((user, index) => `${index + 1}. ${user.Name} (${user.Email})`).join('\n'),
-        );
-        const selected = users[Number(choice) - 1];
-        if (!selected) return;
-        assigneeId = selected.Email;
+        const values = await openFormDialog({
+            title: `Assign TKT-${ticket.DisplayId}`,
+            description: 'Choose a team member who can access the ticket board.',
+            confirmLabel: 'Assign ticket',
+            fields: [
+                {
+                    name: 'assigneeId',
+                    label: 'Assignee',
+                    type: 'select',
+                    value: ticket.AssigneeId,
+                    required: true,
+                    options: users.map((user) => ({ value: user.Email, label: user.Name })),
+                },
+            ],
+        });
+        if (!values) return;
+        assigneeId = values.assigneeId;
+    } else {
+        const values = await openFormDialog({
+            title: `${TICKET_ACTION_LABELS[action]} TKT-${ticket.DisplayId}?`,
+            description:
+                action === 'close'
+                    ? 'Close this issue after the resolution has been verified.'
+                    : 'Reopen this ticket and return it to active work.',
+            confirmLabel: TICKET_ACTION_LABELS[action],
+            tone: action === 'close' ? 'danger' : 'primary',
+        });
+        if (!values) return;
     }
     try {
         showSavingBadge(true);
-        await api.performTicketAction(ticketId, action, assigneeId, generateRequestId());
+        await api.performTicketAction(ticket.Id, action, assigneeId, generateRequestId());
+        showSuccessToast(`TKT-${ticket.DisplayId} updated.`);
         await refreshDashboard();
     } catch (err) {
         showErrorAlert(err);

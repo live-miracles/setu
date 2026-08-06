@@ -391,6 +391,11 @@ const mockData = {
             Description: 'Studio A projector flickers after 30 minutes.',
             Status: 'unassigned' as TicketStatus,
             AssigneeId: '',
+            ReporterId: 'vic@example.com',
+            CreatedAt: mockNowIso(),
+            UpdatedAt: mockNowIso(),
+            Priority: 'high',
+            PlaceId: 'place-1',
         },
         {
             Id: 'ticket-2',
@@ -399,6 +404,11 @@ const mockData = {
             Description: 'Audio is approximately two seconds behind video.',
             Status: 'pending' as TicketStatus,
             AssigneeId: 'ana@example.com',
+            ReporterId: 'vic@example.com',
+            CreatedAt: mockNowIso(),
+            UpdatedAt: mockNowIso(),
+            Priority: 'urgent',
+            PlaceId: 'place-2',
         },
         {
             Id: 'ticket-3',
@@ -407,6 +417,11 @@ const mockData = {
             Description: 'Replacement completed and tested.',
             Status: 'closed' as TicketStatus,
             AssigneeId: 'admin@example.com',
+            ReporterId: 'ana@example.com',
+            CreatedAt: mockNowIso(),
+            UpdatedAt: mockNowIso(),
+            Priority: 'normal',
+            PlaceId: 'place-1',
         },
     ] as Ticket[],
     comments: [
@@ -417,6 +432,7 @@ const mockData = {
             InventoryRequestId: 'req-1',
             UserId: 'sam@example.com',
             Message: 'Sam User submitted this request.',
+            TicketId: '',
         },
         {
             Id: 'comment-2',
@@ -425,6 +441,7 @@ const mockData = {
             InventoryRequestId: 'req-2',
             UserId: 'admin@example.com',
             Message: 'Alex Admin approved this request.',
+            TicketId: '',
         },
         {
             Id: 'comment-3',
@@ -433,6 +450,7 @@ const mockData = {
             InventoryRequestId: 'req-3',
             UserId: 'admin@example.com',
             Message: 'Alex Admin issued this equipment.',
+            TicketId: '',
         },
         {
             Id: 'comment-4',
@@ -441,6 +459,7 @@ const mockData = {
             InventoryRequestId: 'req-4',
             UserId: 'admin@example.com',
             Message: 'Alex Admin recorded the returned equipment.',
+            TicketId: '',
         },
         {
             Id: 'comment-5',
@@ -449,6 +468,25 @@ const mockData = {
             InventoryRequestId: 'req-5',
             UserId: 'admin@example.com',
             Message: 'Alex Admin closed this request.',
+            TicketId: '',
+        },
+        {
+            Id: 'comment-ticket-1',
+            Timestamp: mockNowIso(),
+            ProgramRequestId: '',
+            InventoryRequestId: '',
+            UserId: 'vic@example.com',
+            Message: 'Vic Viewer reported this ticket.',
+            TicketId: 'ticket-1',
+        },
+        {
+            Id: 'comment-ticket-2',
+            Timestamp: mockNowIso(),
+            ProgramRequestId: '',
+            InventoryRequestId: '',
+            UserId: 'admin@example.com',
+            Message: 'Alex Admin assigned this ticket to Ana Approver.',
+            TicketId: 'ticket-2',
         },
     ] as CommentRecord[],
     links: [
@@ -484,8 +522,16 @@ const mockData = {
         { Id: 'shift-preset-4', Name: 'Day', DefaultStartTime: '', DefaultEndTime: '' },
         { Id: 'shift-preset-5', Name: 'Vacation', DefaultStartTime: '', DefaultEndTime: '' },
     ] as ShiftPreset[],
-    nextDisplayId: { inventory_request: 6, program_request: 1, ticket: 2 },
+    nextDisplayId: { inventory_request: 6, program_request: 26, ticket: 4 },
 };
+
+const mockQuery = new URLSearchParams(window.location.search);
+const mockUserFromQuery = mockQuery.get('mockUser');
+let mockDashboardFailuresRemaining = mockQuery.get('mockFailure') === 'dashboard' ? 1 : 0;
+const mockResponseDelay = mockQuery.get('mockFast') === '1' ? 5 : 300;
+if (mockUserFromQuery && mockData.users.some((user) => user.Email === mockUserFromQuery)) {
+    mockData.currentUserId = mockUserFromQuery;
+}
 
 function mockCurrentUser(): User {
     return mockData.users.find((u) => u.Email === mockData.currentUserId)!;
@@ -554,6 +600,7 @@ function mockInsertActionComment(
         ProgramRequestId: kind === 'program' ? requestId : '',
         UserId: actorId,
         Message: message,
+        TicketId: '',
     };
     mockData.comments.push(created);
     return created;
@@ -592,8 +639,16 @@ function mockBuildProgramRequestDTO(request: ProgramRequest): ProgramRequestDTO 
 
 function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
     const assignee = mockData.users.find((u) => u.Email === ticket.AssigneeId);
+    const reporter = mockData.users.find((u) => u.Email === ticket.ReporterId);
+    const place = mockData.places.find((item) => item.Id === ticket.PlaceId);
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
+        reporterName: reporter ? reporter.Name : '',
+        placeName: place ? place.Name : '',
+        comments: mockData.comments
+            .filter((comment) => comment.TicketId === ticket.Id)
+            .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp))
+            .map(mockBuildCommentDTO),
     });
 }
 
@@ -631,8 +686,42 @@ function mockCompare(left: unknown, right: unknown, direction: SortDirection): n
 }
 
 function mockBuildDashboard(): DashboardPayload {
+    const me = mockToUserDTO(mockCurrentUser());
+    const visibleInventory = mockData.inventoryRequests.filter(mockCanViewRequest);
+    const visiblePrograms = mockData.programRequests.filter(mockCanViewRequest);
+    const visibleTickets = canUseTickets(me) ? mockData.tickets : [];
+    const today = new Date().toISOString().slice(0, 10);
+    const attentionSummary: AttentionSummary = {
+        inventoryAwaitingApproval: canApprove(me)
+            ? visibleInventory.filter((request) => request.Status === 'submitted').length
+            : 0,
+        inventoryReadyToIssue: canApprove(me)
+            ? visibleInventory.filter((request) => request.Status === 'approved').length
+            : 0,
+        inventoryOverdue: canApprove(me)
+            ? visibleInventory.filter(
+                  (request) => request.Status === 'issued' && request.EndDate < today,
+              ).length
+            : 0,
+        programAwaitingApproval: canApprove(me)
+            ? visiblePrograms.filter((request) => request.Status === 'submitted').length
+            : 0,
+        openTickets: canApprove(me)
+            ? visibleTickets.filter((ticket) => ticket.Status !== 'closed').length
+            : 0,
+        assignedTickets: visibleTickets.filter(
+            (ticket) => ticket.AssigneeId === me.Email && ticket.Status !== 'closed',
+        ).length,
+        total: 0,
+    };
+    attentionSummary.total =
+        attentionSummary.inventoryAwaitingApproval +
+        attentionSummary.inventoryReadyToIssue +
+        attentionSummary.inventoryOverdue +
+        attentionSummary.programAwaitingApproval +
+        (canApprove(me) ? attentionSummary.openTickets : attentionSummary.assignedTickets);
     return {
-        me: mockToUserDTO(mockCurrentUser()),
+        me,
         departments: mockData.departments,
         places: mockData.places,
         inventoryTypes: mockBuildInventoryTypeDTOs(),
@@ -652,12 +741,114 @@ function mockBuildDashboard(): DashboardPayload {
         homeContent: mockData.homeContent,
         shiftPresets: [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
         failedEmailCount: 0,
+        attentionSummary,
     };
+}
+
+function mockInventoryAvailability(
+    startDate: string,
+    endDate: string,
+    items: { inventoryTypeId: string; quantity: number }[],
+    excludeRequestId = '',
+): InventoryAvailabilityItem[] {
+    const relevantIds = new Set(
+        mockData.inventoryRequests
+            .filter(
+                (request) =>
+                    request.Id !== excludeRequestId &&
+                    ['approved', 'issued'].includes(request.Status) &&
+                    request.StartDate <= endDate &&
+                    request.EndDate >= startDate,
+            )
+            .map((request) => request.Id),
+    );
+    const reservedByType: Record<string, number> = {};
+    mockData.inventoryItems.forEach((item) => {
+        if (!relevantIds.has(item.RequestId)) return;
+        reservedByType[item.InventoryTypeId] =
+            (reservedByType[item.InventoryTypeId] || 0) + item.Quantity;
+    });
+    const requestedByType: Record<string, number> = {};
+    items.forEach((item) => {
+        requestedByType[item.inventoryTypeId] =
+            (requestedByType[item.inventoryTypeId] || 0) + item.quantity;
+    });
+    return Object.entries(requestedByType).map(([inventoryTypeId, requestedQuantity]) => {
+        const type = mockData.inventoryTypes.find((item) => item.Id === inventoryTypeId)!;
+        const reservedQuantity = reservedByType[inventoryTypeId] || 0;
+        const availableQuantity = Math.max(0, type.TotalQuantity - reservedQuantity);
+        return {
+            inventoryTypeId,
+            requestedQuantity,
+            totalQuantity: type.TotalQuantity,
+            reservedQuantity,
+            availableQuantity,
+            available: availableQuantity >= requestedQuantity,
+        };
+    });
+}
+
+function mockProgramConflicts(
+    placeId: string,
+    sessions: ProgramSessionInput[],
+    excludeRequestId = '',
+): ProgramConflict[] {
+    const requestIds = new Set(
+        mockData.programRequests
+            .filter(
+                (request) =>
+                    request.Id !== excludeRequestId &&
+                    request.PlaceId === placeId &&
+                    request.Status === 'approved',
+            )
+            .map((request) => request.Id),
+    );
+    const conflicts: ProgramConflict[] = [];
+    mockData.sessions.forEach((existing) => {
+        if (!requestIds.has(existing.RequestId)) return;
+        const request = mockData.programRequests.find((item) => item.Id === existing.RequestId)!;
+        sessions.forEach((candidate) => {
+            if (
+                candidate.startDateTime < existing.EndDateTime &&
+                candidate.endDateTime > existing.StartDateTime
+            ) {
+                conflicts.push({
+                    requestId: request.Id,
+                    displayId: request.DisplayId,
+                    requestName: request.Name,
+                    sessionName: existing.Name,
+                    startDateTime: existing.StartDateTime,
+                    endDateTime: existing.EndDateTime,
+                });
+            }
+        });
+    });
+    return conflicts;
+}
+
+function mockRosterInterval(input: CreateRosterInput | Roster): { start: number; end: number } {
+    const startDate = 'startDate' in input ? input.startDate : input.StartDate;
+    const endDate = 'endDate' in input ? input.endDate : input.EndDate;
+    const startTime = ('startTime' in input ? input.startTime : input.StartTime) || '00:00';
+    const rawEndTime = 'endTime' in input ? input.endTime : input.EndTime;
+    const start = Date.parse(startDate + 'T' + startTime + ':00.000Z');
+    if (!('startTime' in input ? input.startTime : input.StartTime) && !rawEndTime) {
+        return { start, end: Date.parse(endDate + 'T00:00:00.000Z') + 86400000 };
+    }
+    let end = Date.parse(endDate + 'T' + (rawEndTime || '23:59') + ':00.000Z');
+    if (end <= start) end += 86400000;
+    return { start, end };
 }
 
 const mockHandlers: Record<string, (...args: any[]) => any> = {
     whoAmI: () => mockToUserDTO(mockCurrentUser()),
-    getDashboard: () => mockBuildDashboard(),
+    getDashboard: () => {
+        if (mockDashboardFailuresRemaining > 0) {
+            mockDashboardFailuresRemaining--;
+            throw new Error('Temporary workspace connection failure.');
+        }
+        return mockBuildDashboard();
+    },
 
     listUsers: () => mockData.users.map(mockToUserDTO),
     updateUser: (userId: string, patch: UpdateUserInput) => {
@@ -805,6 +996,25 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     deleteRoster: (id: string) => {
         mockData.rosters = mockData.rosters.filter((r) => r.Id !== id);
     },
+    getRosterConflicts: (input: CreateRosterInput, excludeRosterId = '') => {
+        const candidate = mockRosterInterval(input);
+        return mockData.rosters
+            .filter((roster) => {
+                if (roster.Id === excludeRosterId || roster.UserId !== input.userId) return false;
+                const existing = mockRosterInterval(roster);
+                return candidate.start < existing.end && candidate.end > existing.start;
+            })
+            .map((roster) => ({
+                rosterId: roster.Id,
+                rosterName: roster.Name,
+                userId: roster.UserId,
+                userName: mockData.users.find((user) => user.Email === roster.UserId)?.Name || '',
+                startDate: roster.StartDate,
+                endDate: roster.EndDate,
+                startTime: roster.StartTime,
+                endTime: roster.EndTime,
+            }));
+    },
 
     listInventoryTypes: () => mockBuildInventoryTypeDTOs(),
     createInventoryType: (input: CreateInventoryTypeInput) => {
@@ -867,6 +1077,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (!request || !mockCanViewRequest(request)) throw new Error('request_not_found');
         return mockBuildInventoryRequestDTO(request);
     },
+    getInventoryAvailability: mockInventoryAvailability,
     createInventoryRequest: (input: CreateInventoryRequestInput) => {
         const participants = mockParseParticipants(input.participants);
         const images = (input.images || []).slice(0, 3);
@@ -877,7 +1088,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             UserId: mockData.currentUserId,
             StartDate: input.startDate,
             EndDate: input.endDate,
-            Status: 'submitted',
+            Status: input.initialStatus === 'draft' ? 'draft' : 'submitted',
             Image1Id: images[0] || '',
             Image2Id: images[1] || '',
             Image3Id: images[2] || '',
@@ -897,9 +1108,39 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             'inventory',
             created.Id,
             mockData.currentUserId,
-            mockCurrentUser().Name + ' submitted this request.',
+            input.initialStatus === 'draft'
+                ? mockCurrentUser().Name + ' saved this request as a draft.'
+                : mockCurrentUser().Name + ' submitted this request.',
         );
         return mockBuildInventoryRequestDTO(created);
+    },
+    updateInventoryRequestDraft: (id: string, input: CreateInventoryRequestInput) => {
+        const request = mockData.inventoryRequests.find((item) => item.Id === id);
+        if (!request || request.Status !== 'draft') throw new Error('draft_required');
+        request.Name = input.name;
+        request.StartDate = input.startDate;
+        request.EndDate = input.endDate;
+        request.Participants = mockParseParticipants(input.participants).join(', ');
+        request.Status = input.initialStatus === 'draft' ? 'draft' : 'submitted';
+        mockData.inventoryItems = mockData.inventoryItems.filter((item) => item.RequestId !== id);
+        input.items.forEach((line) =>
+            mockData.inventoryItems.push({
+                Id: mockUuid(),
+                RequestId: id,
+                InventoryTypeId: line.inventoryTypeId,
+                Quantity: line.quantity,
+                Condition: '',
+            }),
+        );
+        mockInsertActionComment(
+            'inventory',
+            id,
+            mockData.currentUserId,
+            request.Status === 'draft'
+                ? mockCurrentUser().Name + ' updated this draft.'
+                : mockCurrentUser().Name + ' submitted this request.',
+        );
+        return mockBuildInventoryRequestDTO(request);
     },
     performInventoryRequestAction: (
         requestId: string,
@@ -922,6 +1163,20 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 actorName + ' submitted this request.',
             );
         } else if (action === 'approve') {
+            const availability = mockInventoryAvailability(
+                request.StartDate,
+                request.EndDate,
+                mockData.inventoryItems
+                    .filter((item) => item.RequestId === requestId)
+                    .map((item) => ({
+                        inventoryTypeId: item.InventoryTypeId,
+                        quantity: item.Quantity,
+                    })),
+                requestId,
+            );
+            if (availability.some((item) => !item.available)) {
+                throw new Error('insufficient_inventory_for_dates');
+            }
             request.Status = 'approved';
             mockInsertActionComment(
                 'inventory',
@@ -1015,6 +1270,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (!request || !mockCanViewRequest(request)) throw new Error('request_not_found');
         return mockBuildProgramRequestDTO(request);
     },
+    checkProgramConflicts: mockProgramConflicts,
     createProgramRequest: (input: CreateProgramRequestInput) => {
         const participants = mockParseParticipants(input.participants);
         const created: ProgramRequest = {
@@ -1023,7 +1279,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Name: input.name,
             Type: input.type,
             UserId: mockData.currentUserId,
-            Status: 'submitted',
+            Status: input.initialStatus === 'draft' ? 'draft' : 'submitted',
             PlaceId: input.placeId,
             Participants: participants.join(', '),
         };
@@ -1042,9 +1298,40 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             'program',
             created.Id,
             mockData.currentUserId,
-            mockCurrentUser().Name + ' submitted this request.',
+            input.initialStatus === 'draft'
+                ? mockCurrentUser().Name + ' saved this request as a draft.'
+                : mockCurrentUser().Name + ' submitted this request.',
         );
         return mockBuildProgramRequestDTO(created);
+    },
+    updateProgramRequestDraft: (id: string, input: CreateProgramRequestInput) => {
+        const request = mockData.programRequests.find((item) => item.Id === id);
+        if (!request || request.Status !== 'draft') throw new Error('draft_required');
+        request.Name = input.name;
+        request.Type = input.type;
+        request.PlaceId = input.placeId;
+        request.Participants = mockParseParticipants(input.participants).join(', ');
+        request.Status = input.initialStatus === 'draft' ? 'draft' : 'submitted';
+        mockData.sessions = mockData.sessions.filter((session) => session.RequestId !== id);
+        input.sessions.forEach((session) =>
+            mockData.sessions.push({
+                Id: mockUuid(),
+                Name: session.name,
+                Type: session.type,
+                RequestId: id,
+                StartDateTime: session.startDateTime,
+                EndDateTime: session.endDateTime,
+            }),
+        );
+        mockInsertActionComment(
+            'program',
+            id,
+            mockData.currentUserId,
+            request.Status === 'draft'
+                ? mockCurrentUser().Name + ' updated this draft.'
+                : mockCurrentUser().Name + ' submitted this request.',
+        );
+        return mockBuildProgramRequestDTO(request);
     },
     performProgramRequestAction: (
         requestId: string,
@@ -1066,6 +1353,19 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 actorName + ' submitted this request.',
             );
         } else if (action === 'approve') {
+            const conflicts = mockProgramConflicts(
+                request.PlaceId,
+                mockData.sessions
+                    .filter((session) => session.RequestId === requestId)
+                    .map((session) => ({
+                        name: session.Name,
+                        type: session.Type,
+                        startDateTime: session.StartDateTime,
+                        endDateTime: session.EndDateTime,
+                    })),
+                requestId,
+            );
+            if (conflicts.length > 0) throw new Error('program_place_conflict');
             request.Status = 'approved';
             mockInsertActionComment(
                 'program',
@@ -1120,6 +1420,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                     ticket.Title,
                     ticket.Description,
                     ticket.assigneeName,
+                    ticket.reporterName,
+                    ticket.placeName,
+                    ticket.Priority,
                 ]),
             );
         const value = (ticket: TicketDTO): unknown => {
@@ -1140,6 +1443,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return mockBuildTicketDTO(ticket);
     },
     createTicket: (input: CreateTicketInput) => {
+        const timestamp = mockNowIso();
         const created: Ticket = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.ticket++,
@@ -1147,8 +1451,22 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Description: input.description || '',
             Status: 'unassigned',
             AssigneeId: '',
+            ReporterId: mockData.currentUserId,
+            CreatedAt: timestamp,
+            UpdatedAt: timestamp,
+            Priority: input.priority || 'normal',
+            PlaceId: input.placeId || '',
         };
         mockData.tickets.push(created);
+        mockData.comments.push({
+            Id: mockUuid(),
+            Timestamp: timestamp,
+            ProgramRequestId: '',
+            InventoryRequestId: '',
+            UserId: mockData.currentUserId,
+            Message: mockCurrentUser().Name + ' reported this ticket.',
+            TicketId: created.Id,
+        });
         return mockBuildTicketDTO(created);
     },
     performTicketAction: (ticketId: string, action: TicketAction, assigneeId: string | null) => {
@@ -1157,11 +1475,44 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (action === 'assign') {
             ticket.Status = 'pending';
             ticket.AssigneeId = assigneeId || '';
+            const assignee = mockData.users.find((user) => user.Email === ticket.AssigneeId);
+            mockData.comments.push({
+                Id: mockUuid(),
+                Timestamp: mockNowIso(),
+                ProgramRequestId: '',
+                InventoryRequestId: '',
+                UserId: mockData.currentUserId,
+                Message:
+                    mockCurrentUser().Name +
+                    ' assigned this ticket to ' +
+                    (assignee?.Name || 'Unassigned') +
+                    '.',
+                TicketId: ticket.Id,
+            });
         } else if (action === 'close') {
             ticket.Status = 'closed';
+            mockData.comments.push({
+                Id: mockUuid(),
+                Timestamp: mockNowIso(),
+                ProgramRequestId: '',
+                InventoryRequestId: '',
+                UserId: mockData.currentUserId,
+                Message: mockCurrentUser().Name + ' closed this ticket.',
+                TicketId: ticket.Id,
+            });
         } else if (action === 'reopen') {
             ticket.Status = 'pending';
+            mockData.comments.push({
+                Id: mockUuid(),
+                Timestamp: mockNowIso(),
+                ProgramRequestId: '',
+                InventoryRequestId: '',
+                UserId: mockData.currentUserId,
+                Message: mockCurrentUser().Name + ' reopened this ticket.',
+                TicketId: ticket.Id,
+            });
         }
+        ticket.UpdatedAt = mockNowIso();
         return ticket.Status;
     },
     addComment: (requestId: string, message: string) => {
@@ -1172,6 +1523,21 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             mockData.currentUserId,
             message,
         );
+        return mockBuildCommentDTO(created);
+    },
+    addTicketComment: (ticketId: string, message: string) => {
+        const created: CommentRecord = {
+            Id: mockUuid(),
+            Timestamp: mockNowIso(),
+            ProgramRequestId: '',
+            InventoryRequestId: '',
+            UserId: mockData.currentUserId,
+            Message: message,
+            TicketId: ticketId,
+        };
+        mockData.comments.push(created);
+        const ticket = mockData.tickets.find((item) => item.Id === ticketId);
+        if (ticket) ticket.UpdatedAt = created.Timestamp;
         return mockBuildCommentDTO(created);
     },
 
@@ -1200,7 +1566,7 @@ function mockRunner(
                                 else console.error(err);
                             }
                         },
-                        300 + Math.random() * 500,
+                        mockResponseDelay + (mockResponseDelay > 5 ? Math.random() * 500 : 0),
                     );
             },
         },

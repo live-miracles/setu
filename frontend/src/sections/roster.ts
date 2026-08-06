@@ -2,6 +2,8 @@ import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { showSuccessToast } from '../ui/feedback';
+import { openFormDialog } from '../ui/dialog';
 import { escapeHtml, formatRosterSchedule, formatTimeOfDay } from '../ui/format';
 import { icon } from '../ui/icons';
 import { canApprove } from '../workflows';
@@ -79,12 +81,12 @@ interface ShiftBlock {
 // Cycled by a hash of the shift name so the same name always lands on the
 // same color across the calendar, without maintaining an explicit map.
 const SHIFT_BLOCK_PALETTE = [
-    'bg-primary/15 text-primary',
-    'bg-secondary/15 text-secondary',
-    'bg-accent/15 text-accent',
-    'bg-info/15 text-info',
-    'bg-success/15 text-success',
-    'bg-warning/15 text-warning',
+    'bg-primary/15 text-base-content',
+    'bg-secondary/15 text-base-content',
+    'bg-accent/15 text-base-content',
+    'bg-info/15 text-base-content',
+    'bg-success/15 text-base-content',
+    'bg-warning/15 text-base-content',
 ];
 
 // Same order/length as SHIFT_BLOCK_PALETTE so a shift's popup dot always
@@ -251,7 +253,7 @@ function renderDayCell(
     const isToday = dateKey === todayKey;
     const blocks = shiftsByDate.get(dateKey) || [];
     return `
-      <div class="h-full overflow-y-auto rounded-box border border-base-200 p-1.5 ${dim ? 'bg-base-200/40' : 'bg-base-100'}">
+      <div class="h-full overflow-y-auto rounded-box border border-base-200 p-1.5 ${dim ? 'bg-base-200/40' : 'bg-base-100'}" tabindex="0" aria-label="${escapeHtml(cursor.toLocaleDateString())} schedule">
         <div class="text-xs font-medium ${
             isToday
                 ? 'flex size-5 items-center justify-center rounded-full bg-primary text-primary-content'
@@ -263,10 +265,10 @@ function renderDayCell(
           ${blocks
               .map(
                   (b) => `
-            <div class="cursor-pointer rounded px-1.5 py-1 text-[11px] leading-tight transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}">
+            <button type="button" class="block w-full cursor-pointer rounded px-1.5 py-1 text-left text-[11px] leading-tight transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}">
               <div class="truncate"><span class="font-semibold">${escapeHtml(b.name)}</span> <span class="opacity-80">${formatTimeOfDay(b.startTime)}–${formatTimeOfDay(b.endTime)}</span></div>
               <div class="truncate">${escapeHtml(b.userNames.join(', '))}</div>
-            </div>`,
+            </button>`,
               )
               .join('')}
         </div>
@@ -401,7 +403,7 @@ function renderWeekGrid(shiftsByDate: Map<string, ShiftBlock[]>, weekStart: Date
             ${blocks
                 .map(
                     (b) => `
-              <div class="cursor-pointer truncate rounded px-1.5 py-0.5 text-[11px] font-medium transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}">${escapeHtml(b.name)}${b.userNames.length ? ' · ' + escapeHtml(b.userNames.join(', ')) : ''}</div>`,
+              <button type="button" class="block w-full cursor-pointer truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}">${escapeHtml(b.name)}${b.userNames.length ? ' · ' + escapeHtml(b.userNames.join(', ')) : ''}</button>`,
                 )
                 .join('')}
           </div>`,
@@ -429,11 +431,11 @@ function renderWeekGrid(shiftsByDate: Map<string, ShiftBlock[]>, weekStart: Date
                     const leftPct = (col / cols) * 100;
                     const widthPct = 100 / cols;
                     return `
-              <div class="absolute cursor-pointer overflow-hidden rounded px-1.5 py-1 text-[11px] leading-tight transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}" style="top:${topPct}%; height:max(${heightPct}%, ${MIN_WEEK_BLOCK_HEIGHT_PX}px); left:calc(${leftPct}% + 2px); width:calc(${widthPct}% - 4px);">
+              <button type="button" class="absolute cursor-pointer overflow-hidden rounded px-1.5 py-1 text-left text-[11px] leading-tight transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}" style="top:${topPct}%; height:max(${heightPct}%, ${MIN_WEEK_BLOCK_HEIGHT_PX}px); left:calc(${leftPct}% + 2px); width:calc(${widthPct}% - 4px);">
                 <div class="truncate font-semibold">${escapeHtml(b.name)}</div>
                 <div class="truncate opacity-80">${formatTimeOfDay(b.startTime)}–${formatTimeOfDay(b.endTime)}</div>
                 <div class="truncate">${escapeHtml(b.userNames.join(', '))}</div>
-              </div>`;
+              </button>`;
                 })
                 .join('');
             // The current-time line, Google Calendar-style: a dot at the
@@ -642,13 +644,18 @@ function openShiftPopup(
             const entry = block.entries.find((e) => e.Id === btn.dataset.shiftDelete);
             if (!entry) return;
             const who = entry.UserId ? entry.userName : 'this assignee';
-            if (!confirm(`Delete the "${entry.Name}" shift for ${who}? This can't be undone.`)) {
-                return;
-            }
+            const confirmed = await openFormDialog({
+                title: 'Delete shift?',
+                description: `Delete the "${entry.Name}" shift for ${who}? This cannot be undone.`,
+                confirmLabel: 'Delete shift',
+                tone: 'danger',
+            });
+            if (!confirmed) return;
             try {
                 showSavingBadge(true);
                 await api.deleteRoster(entry.Id, generateRequestId());
                 closeShiftPopup();
+                showSuccessToast('Shift deleted.');
                 await refreshDashboard();
             } catch (err) {
                 showErrorAlert(err);
@@ -772,13 +779,43 @@ export async function renderRoster(
 
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderCalendarCard(shiftsByDate, today, mode, canSchedule)}
+      <div class="roster-desktop-calendar">${renderCalendarCard(shiftsByDate, today, mode, canSchedule)}</div>
+      <div class="roster-mobile-agenda">${renderMobileAgenda(dashboard.upcomingRosters, canSchedule)}</div>
     </section>
     ${canSchedule ? renderCreateShiftModal(users, dashboard.shiftPresets) : ''}
   `;
 
     const openEditShiftModal = canSchedule ? wireCreateShiftForm() : null;
     wireCalendar(shiftsByDate, openEditShiftModal, mode);
+    if (openEditShiftModal) {
+        container.querySelectorAll<HTMLButtonElement>('[data-agenda-edit]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const roster = dashboard.upcomingRosters.find(
+                    (entry) => entry.Id === button.dataset.agendaEdit,
+                );
+                if (roster) openEditShiftModal(roster);
+            });
+        });
+    }
+}
+
+function renderMobileAgenda(rosters: RosterDTO[], canSchedule: boolean): string {
+    const sorted = [...rosters].sort((a, b) =>
+        (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime),
+    );
+    return `<section aria-labelledby="roster-agenda-title">
+      <div class="section-heading"><span class="section-index" aria-hidden="true">01</span><div><h1 id="roster-agenda-title">Roster agenda</h1><p>Upcoming assignments in a mobile-friendly list.</p></div>${canSchedule ? `<div class="section-heading-actions"><button type="button" id="${OPEN_SHIFT_MODAL_BTN_ID}-agenda" class="btn btn-primary">Schedule shift</button></div>` : ''}</div>
+      <div class="mt-5 space-y-3">${
+          sorted.length
+              ? sorted
+                    .map(
+                        (roster) =>
+                            `<article class="agenda-shift"><div class="agenda-date"><strong>${escapeHtml(roster.StartDate)}</strong><span>${roster.StartDate === roster.EndDate ? '' : `to ${escapeHtml(roster.EndDate)}`}</span></div><div class="min-w-0"><h2>${escapeHtml(roster.Name)}</h2><p>${escapeHtml(roster.userName || 'Unassigned')}</p><p>${escapeHtml(roster.StartTime ? `${formatTimeOfDay(roster.StartTime)} – ${formatTimeOfDay(roster.EndTime)}` : 'All day')}</p></div>${canSchedule ? `<button type="button" class="btn btn-ghost btn-sm" data-agenda-edit="${escapeHtml(roster.Id)}">Edit</button>` : ''}</article>`,
+                    )
+                    .join('')
+              : '<p class="attention-clear">No upcoming shifts.</p>'
+      }</div>
+    </section>`;
 }
 
 function renderCreateShiftModal(users: UserDTO[], shiftPresets: ShiftPreset[]): string {
@@ -845,6 +882,7 @@ function renderCreateShiftModal(users: UserDTO[], shiftPresets: ShiftPreset[]): 
 function wireCreateShiftForm(): (roster: RosterDTO) => void {
     const modal = document.getElementById(CREATE_SHIFT_MODAL_ID) as HTMLDialogElement;
     const openBtn = document.getElementById(OPEN_SHIFT_MODAL_BTN_ID);
+    const agendaOpenBtn = document.getElementById(OPEN_SHIFT_MODAL_BTN_ID + '-agenda');
     const cancelBtn = document.getElementById(CANCEL_SHIFT_MODAL_BTN_ID);
     const form = document.getElementById(CREATE_SHIFT_FORM_ID) as HTMLFormElement;
     const modalTitle = document.getElementById(CREATE_SHIFT_MODAL_TITLE_ID) as HTMLElement;
@@ -903,14 +941,16 @@ function wireCreateShiftForm(): (roster: RosterDTO) => void {
         prefillDefaultTimes();
     });
 
-    openBtn?.addEventListener('click', () => {
+    const openCreateModal = (): void => {
         form.reset();
         setCreateMode();
         syncCustomNameVisibility();
         prefillDefaultTimes();
         syncEndDateMin();
         modal.showModal();
-    });
+    };
+    openBtn?.addEventListener('click', openCreateModal);
+    agendaOpenBtn?.addEventListener('click', openCreateModal);
     cancelBtn?.addEventListener('click', () => modal.close());
 
     form.addEventListener('submit', async (e) => {
@@ -930,12 +970,25 @@ function wireCreateShiftForm(): (roster: RosterDTO) => void {
 
         try {
             showSavingBadge(true);
+            const conflicts = await api.getRosterConflicts(input, editingId || undefined);
+            if (conflicts.length > 0) {
+                showSavingBadge(false);
+                const confirmed = await openFormDialog({
+                    title: 'Schedule overlapping shift?',
+                    description: `${conflicts.length} existing shift${conflicts.length === 1 ? '' : 's'} overlap for this assignee. This warning does not block scheduling.`,
+                    confirmLabel: editingId ? 'Save anyway' : 'Schedule anyway',
+                    tone: 'danger',
+                });
+                if (!confirmed) return;
+                showSavingBadge(true);
+            }
             if (editingId) {
                 await api.updateRoster(editingId, input, generateRequestId());
             } else {
                 await api.createRoster(input, generateRequestId());
             }
             modal.close();
+            showSuccessToast(editingId ? 'Shift updated.' : 'Shift scheduled.');
             await refreshDashboard();
         } catch (err) {
             showErrorAlert(err);

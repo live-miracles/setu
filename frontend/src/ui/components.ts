@@ -46,6 +46,18 @@ export function renderEmptyState(iconName: IconName, message: string): string {
     </div>`;
 }
 
+export function renderPageSkeleton(label = 'Loading workspace'): string {
+    return `<div class="setu-page-skeleton" role="status" aria-live="polite" aria-label="${escapeHtml(label)}">
+      <span class="sr-only">${escapeHtml(label)}…</span>
+      <div class="skeleton h-8 w-56"></div>
+      <div class="mt-3 skeleton h-4 w-80 max-w-full"></div>
+      <div class="mt-8 grid gap-4 md:grid-cols-3">
+        <div class="skeleton h-32"></div><div class="skeleton h-32"></div><div class="skeleton h-32"></div>
+      </div>
+      <div class="mt-6 skeleton h-64"></div>
+    </div>`;
+}
+
 export function renderCommentLine(comment: CommentDTO): string {
     return `<div><span class="font-medium">${escapeHtml(comment.userName)}</span> <span class="text-base-content/70">${escapeHtml(comment.Message)}</span></div>`;
 }
@@ -78,9 +90,6 @@ export function renderDetailCommandHeader(options: DetailCommandHeaderOptions): 
           ${options.actionsHtml ? `<div class="detail-command-actions" aria-label="Available actions">${options.actionsHtml}</div>` : ''}
         </div>
       </div>
-      <div class="detail-state-summary" aria-label="Lifecycle status">
-        <span><span class="detail-state-label">Current status</span><strong>${options.statusHtml}</strong></span>
-        ${nextState}
-      </div>
+      <div class="detail-state-summary" aria-label="Lifecycle status">${nextState}</div>
     </header>`;
 }

@@ -11,19 +11,26 @@
         "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
+        "test:unit": "vitest run",
+        "test:ui": "playwright test",
+        "test:evidence": "playwright test test/e2e/evidence.spec.ts",
+        "test": "npm run test:unit && npm run test:ui",
         "push": "npm run typecheck && npm run build && clasp push",
         "deploy": "npm run typecheck && npm run build && clasp push && clasp deploy --deploymentId \"$APPS_SCRIPT_DEPLOYMENT_ID\" --description \"$(date +%Y-%m-%dT%H:%M:%S)\"",
         "logs": "clasp logs --watch",
         "open": "clasp open-script"
     },
     "devDependencies": {
+        "@axe-core/playwright": "^4.12.1",
         "@google/clasp": "^3.3.0",
+        "@playwright/test": "^1.62.1",
         "@tailwindcss/cli": "^4.0.0",
         "@types/google-apps-script": "^1.0.83",
         "daisyui": "^5.0.0",
         "esbuild": "^0.25.0",
         "prettier": "^3.3.3",
         "tailwindcss": "^4.0.0",
-        "typescript": "^5.5.4"
+        "typescript": "^5.5.4",
+        "vitest": "^4.1.10"
     }
 }

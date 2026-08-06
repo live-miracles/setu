@@ -62,6 +62,7 @@ export const api: AsyncApi = {
     createRoster: (...args) => callBackend('createRoster', ...args),
     updateRoster: (...args) => callBackend('updateRoster', ...args),
     deleteRoster: (...args) => callBackend('deleteRoster', ...args),
+    getRosterConflicts: (...args) => callBackend('getRosterConflicts', ...args),
 
     listInventoryTypes: (...args) => callBackend('listInventoryTypes', ...args),
     createInventoryType: (...args) => callBackend('createInventoryType', ...args),
@@ -71,12 +72,16 @@ export const api: AsyncApi = {
     listInventoryRequests: (...args) => callBackend('listInventoryRequests', ...args),
     getInventoryRequest: (...args) => callBackend('getInventoryRequest', ...args),
     createInventoryRequest: (...args) => callBackend('createInventoryRequest', ...args),
+    updateInventoryRequestDraft: (...args) => callBackend('updateInventoryRequestDraft', ...args),
+    getInventoryAvailability: (...args) => callBackend('getInventoryAvailability', ...args),
     performInventoryRequestAction: (...args) =>
         callBackend('performInventoryRequestAction', ...args),
 
     listProgramRequests: (...args) => callBackend('listProgramRequests', ...args),
     getProgramRequest: (...args) => callBackend('getProgramRequest', ...args),
     createProgramRequest: (...args) => callBackend('createProgramRequest', ...args),
+    updateProgramRequestDraft: (...args) => callBackend('updateProgramRequestDraft', ...args),
+    checkProgramConflicts: (...args) => callBackend('checkProgramConflicts', ...args),
     performProgramRequestAction: (...args) => callBackend('performProgramRequestAction', ...args),
 
     listTickets: (...args) => callBackend('listTickets', ...args),
@@ -84,6 +89,7 @@ export const api: AsyncApi = {
     createTicket: (...args) => callBackend('createTicket', ...args),
     performTicketAction: (...args) => callBackend('performTicketAction', ...args),
     addComment: (...args) => callBackend('addComment', ...args),
+    addTicketComment: (...args) => callBackend('addTicketComment', ...args),
 
     uploadImage: (...args) => callBackend('uploadImage', ...args),
 };

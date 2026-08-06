@@ -4,6 +4,7 @@ import { generateRequestId } from '../ids';
 import {
     navigateToProgram,
     navigateToProgramCreate,
+    navigateToProgramEdit,
     navigateToPrograms,
     refreshDashboard,
 } from '../router';
@@ -14,10 +15,20 @@ import {
     renderEmptyState,
     renderSectionHeader,
 } from '../ui/components';
-import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import {
+    setButtonPending,
+    showErrorAlert,
+    showSavingBadge,
+    showSuccessToast,
+} from '../ui/feedback';
+import { openFormDialog } from '../ui/dialog';
 import { escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
-import { PROGRAM_REQUEST_ACTION_BTN, PROGRAM_REQUEST_STATUS_BADGE } from '../ui/styles';
+import {
+    PROGRAM_REQUEST_ACTION_BTN,
+    PROGRAM_REQUEST_STATUS_BADGE,
+    PROGRAM_REQUEST_STATUS_LABEL,
+} from '../ui/styles';
 import { canApprove, canTransitionProgramRequest } from '../workflows';
 import {
     type WorkbenchState,
@@ -96,6 +107,16 @@ export async function renderPrograms(
 ): Promise<void> {
     const params = new URLSearchParams(window.location.search);
     const programId = params.get(PROGRAM_REQUEST_QUERY_PARAM);
+    const mode = params.get(WORKBENCH_MODE_QUERY_PARAM);
+    if (mode === 'edit' && programId) {
+        try {
+            renderProgramCreate(container, dashboard, await api.getProgramRequest(programId));
+        } catch (err) {
+            showErrorAlert(err);
+            container.innerHTML = renderEmptyState('clapper', 'This draft could not be opened.');
+        }
+        return;
+    }
     if (programId) {
         try {
             renderProgramDetail(container, dashboard, await api.getProgramRequest(programId));
@@ -105,7 +126,7 @@ export async function renderPrograms(
         }
         return;
     }
-    if (params.get(WORKBENCH_MODE_QUERY_PARAM) === 'create') {
+    if (mode === 'create') {
         renderProgramCreate(container, dashboard);
         return;
     }
@@ -224,7 +245,7 @@ function renderProgramBoardCard(request: ProgramRequestDTO): string {
     const first = request.sessions[0];
     const last = request.sessions[request.sessions.length - 1];
     return `<a class="workbench-card" href="${workItemHref(PROGRAM_REQUEST_QUERY_PARAM, request.Id)}" data-program-id="${request.Id}">
-      <div class="workbench-card-top"><span class="font-mono">PRG-${request.DisplayId}</span><span class="badge badge-xs ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></div>
+      <div class="workbench-card-top"><span class="font-mono">PRG-${request.DisplayId}</span><span class="badge badge-xs ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${PROGRAM_REQUEST_STATUS_LABEL[request.Status]}</span></div>
       <h3>${escapeHtml(request.Name)}</h3>
       <p>${escapeHtml(request.Type)} · ${escapeHtml(request.placeName)}</p>
       ${first ? `<p>${formatDateTime(first.StartDateTime)}${last && last !== first ? ` → ${formatDateTime(last.EndDateTime)}` : ''}</p>` : ''}
@@ -282,7 +303,7 @@ function renderProgramListRow(request: ProgramRequestDTO): string {
       <td data-label="Place & type">${escapeHtml(request.placeName)}<small>${escapeHtml(request.Type)}</small></td>
       <td data-label="Sessions">${request.sessions.length} session${request.sessions.length === 1 ? '' : 's'}${first ? `<small>${formatDateTime(first.StartDateTime)}${last && last !== first ? ` → ${formatDateTime(last.EndDateTime)}` : ''}</small>` : ''}</td>
       <td data-label="Requested by">${escapeHtml(request.userName)}</td>
-      <td data-label="Status"><span class="badge badge-sm ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></td>
+      <td data-label="Status"><span class="badge badge-sm ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${PROGRAM_REQUEST_STATUS_LABEL[request.Status]}</span></td>
     </tr>`;
 }
 
@@ -298,79 +319,130 @@ function wireProgramLinks(root: ParentNode): void {
     });
 }
 
-function renderProgramCreate(container: HTMLElement, dashboard: DashboardPayload): void {
+function renderProgramCreate(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    draft?: ProgramRequestDTO,
+): void {
     container.innerHTML = `<section class="space-y-5">
-      <div class="detail-heading"><button type="button" id="back-to-programs" class="btn btn-ghost btn-sm">← Back to programs</button><div><p>New program</p><h1>Request a program</h1></div></div>
+      <div class="detail-heading"><button type="button" id="back-to-programs" class="btn btn-ghost btn-sm">← Back to programs</button><div><p>${draft ? `PRG-${draft.DisplayId} · Draft` : 'New program'}</p><h1>${draft ? 'Edit program request' : 'Request a program'}</h1></div></div>
       <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3">
-        <form id="create-program-form" class="space-y-3">
+        <form id="create-program-form" class="space-y-4" data-draft-id="${draft ? escapeHtml(draft.Id) : ''}">
           <fieldset class="fieldset">
-            <label class="label" for="program-name">Name</label><input id="program-name" name="name" class="input w-full" placeholder="e.g. Sunday livestream" required />
-            <div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="program-type">Type</label><input id="program-type" name="type" class="input w-full" placeholder="e.g. Livestream" required /></div><div><label class="label" for="program-place">Place</label><select id="program-place" name="placeId" class="select w-full" required>${dashboard.places.map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`).join('')}</select></div></div>
-            <label class="label" for="program-participants">Participants</label><input id="program-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" />
+            <label class="label" for="program-name">Name</label><input id="program-name" name="name" class="input w-full" value="${escapeHtml(draft?.Name || '')}" placeholder="e.g. Sunday livestream" required />
+            <div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="program-type">Type</label><input id="program-type" name="type" class="input w-full" value="${escapeHtml(draft?.Type || '')}" placeholder="e.g. Livestream" required /></div><div><label class="label" for="program-place">Place</label><select id="program-place" name="placeId" class="select w-full" required>${dashboard.places.map((place) => `<option value="${place.Id}" ${draft?.PlaceId === place.Id ? 'selected' : ''}>${escapeHtml(place.Name)}</option>`).join('')}</select></div></div>
+            <label class="label" for="program-participants">Participants</label><input id="program-participants" name="participants" class="input w-full" value="${escapeHtml(draft?.participants.join(', ') || '')}" placeholder="comma-separated emails (optional)" />
             <label class="label">Sessions</label><div id="program-sessions" class="space-y-2"></div>
             <div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button></div>
+            <div id="program-conflict-feedback" class="hidden alert" role="status" aria-live="polite"></div>
           </fieldset>
-          <div class="flex gap-2"><button type="submit" class="btn btn-primary">Submit request</button><button type="button" id="cancel-program" class="btn btn-ghost">Cancel</button></div>
+          <div class="flex flex-wrap gap-2"><button type="submit" name="intent" value="submitted" class="btn btn-primary">${draft ? 'Save and submit' : 'Submit request'}</button><button type="submit" name="intent" value="draft" class="btn btn-outline">Save draft</button><button type="button" id="cancel-program" class="btn btn-ghost">Cancel</button></div>
         </form>
       </div></div>
     </section>`;
     document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
     document.getElementById('cancel-program')!.addEventListener('click', navigateToPrograms);
-    wireSessionRows();
-    wireCreateProgramForm();
+    wireSessionRows(draft?.sessions || []);
+    wireCreateProgramForm(draft);
 }
 
-function wireSessionRows(): void {
+function toLocalDateTimeValue(value: string): string {
+    return value ? new Date(value).toISOString().slice(0, 16) : '';
+}
+
+function wireSessionRows(initialSessions: ProgramSession[] = []): void {
     const list = document.getElementById('program-sessions')!;
     const addButton = document.getElementById('add-program-session')!;
-    const addRow = () => {
+    const addRow = (initial?: ProgramSession) => {
         const row = document.createElement('div');
         row.className =
             'grid gap-2 rounded-box border border-base-200 p-3 sm:grid-cols-2 program-session-row';
-        row.innerHTML = `<input class="input input-sm" name="sessionName" placeholder="Session name" required /><div class="flex gap-2"><input class="input input-sm flex-1" name="sessionType" placeholder="Session type" required /><button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button></div><label class="label text-xs">Start</label><label class="label text-xs">End</label><input type="datetime-local" class="input input-sm" name="startDateTime" required /><input type="datetime-local" class="input input-sm" name="endDateTime" required />`;
+        row.innerHTML = `<div><label class="label" for="session-name-${list.children.length}">Session name</label><input id="session-name-${list.children.length}" class="input w-full" name="sessionName" value="${escapeHtml(initial?.Name || '')}" placeholder="Main session" required /></div><div><label class="label" for="session-type-${list.children.length}">Session type</label><div class="flex gap-2"><input id="session-type-${list.children.length}" class="input min-w-0 flex-1" name="sessionType" value="${escapeHtml(initial?.Type || '')}" placeholder="Live, setup, recording…" required /><button type="button" class="btn btn-ghost remove-row" aria-label="Remove session">✕</button></div></div><div><label class="label" for="session-start-${list.children.length}">Start</label><input id="session-start-${list.children.length}" type="datetime-local" class="input w-full" name="startDateTime" value="${toLocalDateTimeValue(initial?.StartDateTime || '')}" required /></div><div><label class="label" for="session-end-${list.children.length}">End</label><input id="session-end-${list.children.length}" type="datetime-local" class="input w-full" name="endDateTime" value="${toLocalDateTimeValue(initial?.EndDateTime || '')}" required /></div>`;
         row.querySelector('.remove-row')!.addEventListener('click', () => row.remove());
         list.appendChild(row);
     };
-    addButton.addEventListener('click', addRow);
-    addRow();
+    addButton.addEventListener('click', () => addRow());
+    if (initialSessions.length > 0) initialSessions.forEach(addRow);
+    else addRow();
 }
 
-function wireCreateProgramForm(): void {
+function readProgramSessions(form: HTMLFormElement): ProgramSessionInput[] {
+    return Array.from(form.querySelectorAll('.program-session-row')).map((row) => {
+        const value = (name: string) =>
+            (row.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
+        return {
+            name: value('sessionName'),
+            type: value('sessionType'),
+            startDateTime: value('startDateTime')
+                ? new Date(value('startDateTime')).toISOString()
+                : '',
+            endDateTime: value('endDateTime') ? new Date(value('endDateTime')).toISOString() : '',
+        };
+    });
+}
+
+function renderProgramConflictFeedback(conflicts: ProgramConflict[]): void {
+    const feedback = document.getElementById('program-conflict-feedback');
+    if (!feedback) return;
+    feedback.classList.remove('hidden', 'alert-success', 'alert-error');
+    if (conflicts.length > 0) {
+        feedback.classList.add('alert-error');
+        feedback.textContent = `${conflicts.length} approved booking conflict${conflicts.length === 1 ? '' : 's'} with this place and time. Resolve the conflict before approval.`;
+    } else {
+        feedback.classList.add('alert-success');
+        feedback.textContent = 'No approved booking conflicts found.';
+    }
+}
+
+function wireCreateProgramForm(draft?: ProgramRequestDTO): void {
     const form = document.getElementById('create-program-form') as HTMLFormElement;
+    let preflightGeneration = 0;
+    form.addEventListener('change', () => {
+        const generation = ++preflightGeneration;
+        const placeId = (form.elements.namedItem('placeId') as HTMLSelectElement).value;
+        const sessions = readProgramSessions(form);
+        if (
+            !placeId ||
+            sessions.some((session) => !session.startDateTime || !session.endDateTime)
+        ) {
+            return;
+        }
+        void api.checkProgramConflicts(placeId, sessions, draft?.Id).then((conflicts) => {
+            if (generation === preflightGeneration) renderProgramConflictFeedback(conflicts);
+        });
+    });
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null;
+        const initialStatus = submitter?.value === 'draft' ? 'draft' : 'submitted';
         const data = new FormData(form);
-        const sessions = Array.from(form.querySelectorAll('.program-session-row')).map((row) => {
-            const value = (name: string) =>
-                (row.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
-            return {
-                name: value('sessionName'),
-                type: value('sessionType'),
-                startDateTime: value('startDateTime')
-                    ? new Date(value('startDateTime')).toISOString()
-                    : '',
-                endDateTime: value('endDateTime')
-                    ? new Date(value('endDateTime')).toISOString()
-                    : '',
-            };
-        });
+        const sessions = readProgramSessions(form);
         try {
             showSavingBadge(true);
-            const created = await api.createProgramRequest(
-                {
-                    name: String(data.get('name')),
-                    type: String(data.get('type')),
-                    placeId: String(data.get('placeId')),
-                    sessions,
-                    participants: String(data.get('participants') || ''),
-                },
-                generateRequestId(),
+            if (submitter) setButtonPending(submitter, true);
+            const placeId = String(data.get('placeId'));
+            const conflicts = await api.checkProgramConflicts(placeId, sessions, draft?.Id);
+            renderProgramConflictFeedback(conflicts);
+            const input: CreateProgramRequestInput = {
+                name: String(data.get('name')),
+                type: String(data.get('type')),
+                placeId,
+                sessions,
+                participants: String(data.get('participants') || ''),
+                initialStatus,
+            };
+            const created = draft
+                ? await api.updateProgramRequestDraft(draft.Id, input, generateRequestId())
+                : await api.createProgramRequest(input, generateRequestId());
+            showSuccessToast(
+                initialStatus === 'draft' ? 'Program draft saved.' : 'Program request submitted.',
             );
             navigateToProgram(created.Id);
         } catch (err) {
             showErrorAlert(err);
         } finally {
             showSavingBadge(false);
+            if (submitter?.isConnected) setButtonPending(submitter, false);
         }
     });
 }
@@ -395,7 +467,11 @@ function renderProgramDetail(
     request: ProgramRequestDTO,
 ): void {
     const actions = availableProgramActions(request, dashboard);
-    const actionControls = renderProgramDetailActions(request.Status, actions);
+    const canEditDraft =
+        request.Status === 'draft' &&
+        (request.UserId === dashboard.me.Email ||
+            request.participants.includes(dashboard.me.Email));
+    const actionControls = `${canEditDraft ? '<button type="button" id="edit-program-draft" class="btn btn-outline btn-sm">Edit draft</button>' : ''}${renderProgramDetailActions(request.Status, actions)}`;
     container.innerHTML = `<section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-5">
       ${renderDetailCommandHeader({
           backButtonId: 'back-to-programs',
@@ -403,7 +479,7 @@ function renderProgramDetail(
           eyebrow: 'Program request',
           reference: `PRG-${request.DisplayId}`,
           title: request.Name,
-          statusHtml: `<span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
+          statusHtml: `<span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${PROGRAM_REQUEST_STATUS_LABEL[request.Status]}</span>`,
           nextStatuses: PROGRAM_NEXT_STATUS_LABELS[request.Status],
           actionsHtml: actionControls,
       })}
@@ -415,17 +491,21 @@ function renderProgramDetail(
     </section>`;
     document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
     document
-        .querySelectorAll<HTMLButtonElement>('[data-program-action]')
-        .forEach((button) =>
-            button.addEventListener(
-                'click',
-                () =>
-                    void handleProgramRequestAction(
-                        request.Id,
-                        button.dataset.programAction as ProgramRequestAction,
-                    ),
-            ),
-        );
+        .getElementById('edit-program-draft')
+        ?.addEventListener('click', () => navigateToProgramEdit(request.Id));
+    document.querySelectorAll<HTMLButtonElement>('[data-program-action]').forEach((button) =>
+        button.addEventListener('click', async () => {
+            setButtonPending(button, true);
+            try {
+                await handleProgramRequestAction(
+                    request,
+                    button.dataset.programAction as ProgramRequestAction,
+                );
+            } finally {
+                if (button.isConnected) setButtonPending(button, false);
+            }
+        }),
+    );
     document
         .getElementById('program-comment-form')!
         .addEventListener('submit', (event) => void submitProgramComment(event, request.Id));
@@ -466,6 +546,7 @@ async function submitProgramComment(event: Event, requestId: string): Promise<vo
     try {
         showSavingBadge(true);
         await api.addComment(requestId, message, generateRequestId());
+        showSuccessToast('Comment added.');
         await refreshDashboard();
     } catch (err) {
         showErrorAlert(err);
@@ -475,17 +556,38 @@ async function submitProgramComment(event: Event, requestId: string): Promise<vo
 }
 
 async function handleProgramRequestAction(
-    requestId: string,
+    request: ProgramRequestDTO,
     action: ProgramRequestAction,
 ): Promise<void> {
-    let note = '';
-    if (action === 'reject' || action === 'cancel') {
-        note = window.prompt('Add a note (required, at least 3 characters):') || '';
-        if (note.trim().length < 3) return;
-    }
+    const required = action === 'reject' || action === 'cancel';
+    const values = await openFormDialog({
+        title: `${PROGRAM_REQUEST_ACTION_LABELS[action]} PRG-${request.DisplayId}?`,
+        description: `This will move the request from ${PROGRAM_REQUEST_STATUS_LABEL[request.Status]} to its next lifecycle state. Approval re-checks place and time conflicts.`,
+        confirmLabel: PROGRAM_REQUEST_ACTION_LABELS[action],
+        tone: required ? 'danger' : 'primary',
+        fields:
+            required || ['approve', 'close'].includes(action)
+                ? [
+                      {
+                          name: 'note',
+                          label: required ? 'Reason' : 'Note (optional)',
+                          type: 'textarea',
+                          required,
+                          minLength: required ? 3 : undefined,
+                      },
+                  ]
+                : [],
+    });
+    if (!values) return;
     try {
         showSavingBadge(true);
-        await api.performProgramRequestAction(requestId, action, note, generateRequestId());
+        await api.performProgramRequestAction(
+            request.Id,
+            action,
+            values.note || '',
+            generateRequestId(),
+        );
+        showSuccessToast(`PRG-${request.DisplayId} updated.`);
         await refreshDashboard();
     } catch (err) {
         showErrorAlert(err);

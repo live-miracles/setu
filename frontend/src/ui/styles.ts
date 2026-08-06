@@ -48,6 +48,17 @@ export const INVENTORY_REQUEST_STATUS_BADGE: Record<InventoryRequestStatus, stri
     cancelled: 'badge-ghost',
 };
 
+export const INVENTORY_REQUEST_STATUS_LABEL: Record<InventoryRequestStatus, string> = {
+    draft: 'Draft',
+    submitted: 'Needs review',
+    approved: 'Approved',
+    issued: 'Issued',
+    returned: 'Returned',
+    closed: 'Closed',
+    rejected: 'Rejected',
+    cancelled: 'Cancelled',
+};
+
 export const INVENTORY_REQUEST_STATUS_ACCENT: Record<InventoryRequestStatus, string> = {
     draft: 'border-base-300',
     submitted: 'border-warning',
@@ -66,6 +77,15 @@ export const PROGRAM_REQUEST_STATUS_BADGE: Record<ProgramRequestStatus, string> 
     closed: 'badge-ghost',
     rejected: 'badge-soft badge-error',
     cancelled: 'badge-ghost',
+};
+
+export const PROGRAM_REQUEST_STATUS_LABEL: Record<ProgramRequestStatus, string> = {
+    draft: 'Draft',
+    submitted: 'Needs review',
+    approved: 'Approved',
+    closed: 'Closed',
+    rejected: 'Rejected',
+    cancelled: 'Cancelled',
 };
 
 export const PROGRAM_REQUEST_STATUS_ACCENT: Record<ProgramRequestStatus, string> = {

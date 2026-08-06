@@ -33,7 +33,9 @@ type SectionKey =
     | 'departments'
     | 'places'
     | 'inventory-types'
-    | 'home-content';
+    | 'home-content'
+    | 'home-settings'
+    | 'roster-presets';
 
 type SectionRenderer = (
     container: HTMLElement,
@@ -60,7 +62,14 @@ function requireConfig(): RouterConfig {
 
 // The admin-only Settings pages. Users sits alongside them in the dropdown
 // but is readable by approvers too, so it isn't in this list.
-const CONFIG_SECTIONS: SectionKey[] = ['departments', 'places', 'inventory-types', 'home-content'];
+const CONFIG_SECTIONS: SectionKey[] = [
+    'departments',
+    'places',
+    'inventory-types',
+    'home-content',
+    'home-settings',
+    'roster-presets',
+];
 
 export async function refreshDashboard(): Promise<void> {
     const dashboard = await api.getDashboard();
@@ -98,6 +107,11 @@ export async function renderCurrentSection(): Promise<void> {
     await sections[sectionKey](container, dashboard);
     renderNavActive(sectionKey);
     toggleRoleNavVisibility(dashboard);
+    const heading = container.querySelector<HTMLElement>('h1');
+    if (heading) {
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+    }
 }
 
 // New sign-ins land with an empty Phone (see Auth.ts) until they fill in
@@ -122,6 +136,9 @@ function renderNavActive(section: SectionKey): void {
         el.classList.toggle('tab-active', isActive);
         el.classList.toggle('dock-active', isActive);
         el.classList.toggle('menu-active', isActive);
+        if (isActive) el.setAttribute('aria-current', 'page');
+        else el.removeAttribute('aria-current');
+        if (el.getAttribute('role') === 'tab') el.setAttribute('aria-selected', String(isActive));
     });
 }
 
@@ -150,6 +167,7 @@ function canOpenSection(section: SectionKey, me: UserDTO): boolean {
 // failing mid-render. Unknown keys (including the retired `admin`) land on
 // Home the same way.
 function resolveSection(section: string, dashboard: DashboardPayload): SectionKey {
+    if (section === 'home-content') section = 'home-settings';
     const key = (requireConfig().sections[section as SectionKey] ? section : 'home') as SectionKey;
     return canOpenSection(key, dashboard.me) ? key : 'home';
 }
@@ -188,6 +206,7 @@ interface NavigationOptions {
     mode?: string;
     preserveWorkbench?: boolean;
     replace?: boolean;
+    filters?: Record<string, string>;
 }
 
 function navigateTo(section: SectionKey, options: NavigationOptions = {}): void {
@@ -208,6 +227,9 @@ function navigateTo(section: SectionKey, options: NavigationOptions = {}): void 
         url.searchParams.set(options.selectedParam, options.selectedId);
     }
     if (options.mode) url.searchParams.set(WORKBENCH_MODE_QUERY_PARAM, options.mode);
+    Object.entries(options.filters || {}).forEach(([key, value]) => {
+        if (value) url.searchParams.set(key, value);
+    });
     const state = {
         setu: true,
         section,
@@ -234,6 +256,15 @@ export function navigateToInventoryCreate(): void {
     navigateTo('inventory', { mode: 'create', preserveWorkbench: true });
 }
 
+export function navigateToInventoryEdit(requestId: string): void {
+    navigateTo('inventory', {
+        mode: 'edit',
+        selectedParam: INVENTORY_REQUEST_QUERY_PARAM,
+        selectedId: requestId,
+        preserveWorkbench: true,
+    });
+}
+
 export function navigateToProgram(programId: string): void {
     navigateTo('programs', {
         selectedParam: PROGRAM_REQUEST_QUERY_PARAM,
@@ -248,6 +279,15 @@ export function navigateToPrograms(): void {
 
 export function navigateToProgramCreate(): void {
     navigateTo('programs', { mode: 'create', preserveWorkbench: true });
+}
+
+export function navigateToProgramEdit(programId: string): void {
+    navigateTo('programs', {
+        mode: 'edit',
+        selectedParam: PROGRAM_REQUEST_QUERY_PARAM,
+        selectedId: programId,
+        preserveWorkbench: true,
+    });
 }
 
 export function navigateToTicket(ticketId: string): void {
@@ -294,7 +334,19 @@ export function wireNav(): void {
     document.addEventListener('click', (event) => {
         const target = event.target as HTMLElement | null;
         const el = target?.closest<HTMLElement>('[data-nav-section]');
-        if (el) navigateTo(el.dataset.navSection as SectionKey);
+        if (el) {
+            const section = el.dataset.navSection as SectionKey;
+            const selectedId = el.dataset.navRequest;
+            navigateTo(section, {
+                mode: el.dataset.navMode,
+                selectedId,
+                selectedParam: selectedId ? INVENTORY_REQUEST_QUERY_PARAM : undefined,
+                filters: {
+                    [WORKBENCH_STATUS_QUERY_PARAM]: el.dataset.navStatus || '',
+                    assignee: el.dataset.navAssignee || '',
+                },
+            });
+        }
     });
     window.addEventListener('popstate', () => {
         const params = new URLSearchParams(window.location.search);
