@@ -1,6 +1,5 @@
 import { APP_SECTION_QUERY_PARAM } from './config';
 import { initRouter, refreshDashboard, wireNav } from './router';
-import { wireSidebar } from './sidebar';
 import { ROUTER_CONFIG } from './sections';
 import { setState } from './state';
 import { escapeHtml } from './ui/format';
@@ -20,7 +19,6 @@ async function boot(): Promise<void> {
     setState({ section: params.get(APP_SECTION_QUERY_PARAM) || 'home' });
 
     wireNav();
-    wireSidebar();
 
     try {
         await refreshDashboard();

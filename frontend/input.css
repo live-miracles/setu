@@ -59,8 +59,6 @@
     --setu-leaf: #4d6855;
     --setu-rail: #3d3933;
     --setu-rail-muted: #bdb4a6;
-    --setu-sidebar-width: 15rem;
-    --setu-sidebar-collapsed-width: 4.75rem;
 }
 
 html {
@@ -81,167 +79,14 @@ body {
 
 /* App shell --------------------------------------------------------------- */
 
-.app-shell-header {
-    background: var(--setu-rail);
-    border-color: rgb(255 255 255 / 12%);
-    color: #fffaf0;
-}
-
-.setu-brand-name {
-    font-family: var(--font-serif);
-    font-size: 1.3rem;
-    font-weight: 400;
-    letter-spacing: -0.02em;
-}
-
-.setu-brand-monogram {
-    display: none;
-    width: 2.4rem;
-    height: 2.4rem;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgb(255 255 255 / 28%);
-    border-radius: 0.35rem;
-    color: var(--setu-gold);
-    font-family: var(--font-serif);
-    font-size: 1.4rem;
-}
-
-.setu-brand-kicker {
-    display: block;
-    margin-top: 0.1rem;
-    color: var(--setu-rail-muted);
-    font-size: 0.61rem;
-    font-weight: 650;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-}
-
-#desktop-nav .tab {
-    color: rgb(255 250 240 / 72%);
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-}
-
-#desktop-nav .tab-active {
-    background: var(--setu-gold);
-    color: var(--setu-ink);
-}
-
-.mobile-nav-drawer,
-.mobile-nav-backdrop {
-    display: none;
-}
-
-.app-shell-utilities > .dropdown > button {
-    color: rgb(255 250 240 / 78%);
-}
-
-.app-shell-utilities > .dropdown > button:hover {
-    background: rgb(255 255 255 / 8%);
-    color: #fff;
-}
-
-.app-shell-utilities .dropdown-content {
-    color: var(--setu-ink);
-}
-
 #app-content {
     width: 100%;
+    max-width: none !important;
 }
 
 @media (min-width: 768px) {
-    .app-shell-header {
-        position: fixed;
-        inset: 0 auto 0 0;
-        z-index: 40;
-        display: flex;
-        width: var(--setu-sidebar-width);
-        height: 100vh;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0;
-        border-right: 1px solid var(--setu-line);
-        border-bottom: 0;
-        padding: 1.75rem 1.25rem 1.25rem;
-        backdrop-filter: none;
-    }
-
-    .app-shell-brand {
-        flex: none;
-        padding: 0 0.25rem 2.25rem;
-    }
-
-    #desktop-nav {
-        display: flex !important;
-        width: 100%;
-        height: auto;
-        flex-direction: column;
-        gap: 0.25rem;
-        border-radius: 0;
-        background: transparent;
-        padding: 0;
-    }
-
-    #desktop-nav .tab {
-        width: 100%;
-        height: 2.65rem;
-        justify-content: flex-start;
-        border: 0;
-        border-radius: 0.25rem;
-        padding: 0 0.8rem;
-    }
-
-    .sidebar-toggle {
-        position: absolute;
-        top: 50%;
-        right: -0.8rem;
-        z-index: 2;
-        border: 1px solid var(--setu-line);
-        background: var(--setu-surface);
-        color: var(--setu-ink);
-        transform: translateY(-50%);
-    }
-
-    .sidebar-toggle:hover {
-        background: var(--setu-gold);
-    }
-
-    .app-shell-utilities {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.25rem;
-        margin-top: auto;
-        padding-top: 1.5rem;
-        border-top: 1px solid rgb(255 255 255 / 12%);
-    }
-
-    .app-shell-utilities > .dropdown,
-    .app-shell-utilities > .dropdown > button {
-        width: 100%;
-    }
-
-    .app-shell-utilities > .dropdown > button {
-        max-width: none;
-        justify-content: flex-start;
-    }
-
-    .app-shell-utilities .dropdown-content {
-        left: calc(100% + 0.6rem);
-        right: auto;
-        bottom: 0;
-        margin: 0;
-    }
-
     #app-content {
-        max-width: none !important;
-        margin: 0;
-        padding: 3.5rem clamp(2rem, 5vw, 5.5rem) 4rem
-            calc(var(--setu-sidebar-width) + clamp(2rem, 5vw, 5.5rem));
-        transition: padding-left 180ms ease;
+        padding: 3.5rem clamp(2rem, 5vw, 5.5rem) 4rem;
     }
 
     #app-content > section {
@@ -251,50 +96,6 @@ body {
 
     #app-content.max-w-\[100rem\] > section {
         max-width: 100rem;
-    }
-
-    body.sidebar-collapsed .app-shell-header {
-        width: var(--setu-sidebar-collapsed-width);
-        padding-inline: 0.8rem;
-    }
-
-    body.sidebar-collapsed .app-shell-brand {
-        padding-inline: 0;
-    }
-
-    body.sidebar-collapsed .app-shell-brand button,
-    body.sidebar-collapsed #desktop-nav .tab,
-    body.sidebar-collapsed .app-shell-utilities > .dropdown > button {
-        justify-content: center;
-    }
-
-    body.sidebar-collapsed .setu-brand-monogram {
-        display: flex;
-    }
-
-    body.sidebar-collapsed .setu-brand-copy,
-    body.sidebar-collapsed .nav-label,
-    body.sidebar-collapsed .utility-label,
-    body.sidebar-collapsed .app-shell-utilities > .dropdown > button > svg:last-child {
-        display: none;
-    }
-
-    body.sidebar-collapsed .sidebar-toggle svg {
-        transform: rotate(180deg);
-    }
-
-    body.sidebar-collapsed #app-content {
-        padding-left: calc(var(--setu-sidebar-collapsed-width) + clamp(2rem, 5vw, 5.5rem));
-    }
-}
-
-@media (min-width: 640px) and (max-width: 767px) {
-    #desktop-nav {
-        display: none !important;
-    }
-
-    #mobile-dock {
-        display: grid !important;
     }
 }
 
@@ -1007,19 +808,6 @@ body {
 }
 
 @media (max-width: 767px) {
-    .app-shell-header {
-        min-height: 3.75rem;
-        padding-inline: 1rem;
-    }
-
-    .setu-brand-name {
-        font-size: 1.05rem;
-    }
-
-    .setu-brand-kicker {
-        display: none;
-    }
-
     #app-content {
         padding: 2rem 1.15rem 2.5rem;
     }
@@ -1169,74 +957,6 @@ body {
         grid-template-columns: 1fr;
     }
 
-    .mobile-nav-backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 49;
-        display: block;
-        background: rgb(7 23 47 / 42%);
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 180ms ease;
-    }
-
-    .mobile-nav-drawer {
-        position: fixed;
-        inset: 0 auto 0 0;
-        z-index: 50;
-        display: flex;
-        width: min(19rem, 88vw);
-        flex-direction: column;
-        gap: 0.35rem;
-        padding: 1.25rem;
-        border-right: 1px solid rgb(255 255 255 / 12%);
-        background: var(--setu-rail);
-        color: #fffaf0;
-        transform: translateX(-102%);
-        transition: transform 180ms ease;
-    }
-
-    .mobile-nav-heading {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1.25rem;
-        padding: 0.25rem 0.25rem 1.25rem;
-        border-bottom: 1px solid rgb(255 255 255 / 12%);
-    }
-
-    .mobile-nav-drawer > button[data-nav-section] {
-        display: flex;
-        min-height: 2.9rem;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0 0.85rem;
-        border-radius: 0.25rem;
-        color: rgb(255 250 240 / 76%);
-        font-size: 0.84rem;
-        font-weight: 600;
-        text-align: left;
-    }
-
-    .mobile-nav-drawer > button[data-nav-section].dock-active {
-        background: var(--setu-gold);
-        color: var(--setu-ink);
-    }
-
-    body.mobile-nav-open {
-        overflow: hidden;
-    }
-
-    body.mobile-nav-open .mobile-nav-backdrop {
-        opacity: 1;
-        pointer-events: auto;
-    }
-
-    body.mobile-nav-open .mobile-nav-drawer {
-        transform: translateX(0);
-    }
-
     .home-signature {
         grid-template-columns: 1fr;
         align-items: start;
@@ -1324,16 +1044,6 @@ body {
     .home-notes > section + section {
         border-top: 1px solid rgb(246 240 229 / 24%);
         border-left: 0;
-    }
-}
-
-@media (max-width: 420px) {
-    .setu-brand-name {
-        display: none;
-    }
-
-    .app-shell-brand {
-        flex: 0 0 auto;
     }
 }
 

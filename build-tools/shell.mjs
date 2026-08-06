@@ -56,7 +56,7 @@ export function renderProdShell() {
 /** The page the local dev server serves out of frontend/dist. */
 export function renderDevShell() {
     return renderShell({
-        title: `${TITLE} (dev)`,
+        title: TITLE,
         favicon: devFaviconTag(),
         head: '<link rel="stylesheet" href="app.css" />',
         body: '<script src="app.js"></script>',

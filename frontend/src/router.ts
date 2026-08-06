@@ -96,7 +96,6 @@ export async function renderCurrentSection(): Promise<void> {
     container.classList.toggle('max-w-3xl', !wide);
     container.classList.toggle('max-w-[100rem]', wide);
     await sections[sectionKey](container, dashboard);
-    renderNavActive(sectionKey);
     toggleRoleNavVisibility(dashboard);
 }
 
@@ -107,29 +106,13 @@ export async function renderCurrentSection(): Promise<void> {
 function toggleNavVisibility(show: boolean): void {
     const desktopNav = document.getElementById('desktop-nav');
     const mobileDock = document.getElementById('mobile-dock');
-    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
     if (desktopNav) desktopNav.style.display = show ? '' : 'none';
     if (mobileDock) mobileDock.style.display = show ? '' : 'none';
-    if (mobileMenuToggle) mobileMenuToggle.style.display = show ? '' : 'none';
-}
-
-// One of tab-active/dock-active/menu-active applies per element depending
-// on where it lives (nav bar, mobile dock, Settings dropdown); the other two
-// are inert there.
-function renderNavActive(section: SectionKey): void {
-    document.querySelectorAll('[data-nav-section]').forEach((el) => {
-        const isActive = (el as HTMLElement).dataset.navSection === section;
-        el.classList.toggle('tab-active', isActive);
-        el.classList.toggle('dock-active', isActive);
-        el.classList.toggle('menu-active', isActive);
-    });
 }
 
 function renderNavIdentity(dashboard: DashboardPayload): void {
     const nameEl = document.getElementById('nav-user-name');
-    const emailEl = document.getElementById('nav-user-email');
     if (nameEl) nameEl.textContent = dashboard.me.Name;
-    if (emailEl) emailEl.textContent = dashboard.me.Email;
 }
 
 // Which sections the signed-in role may open at all. Home, Inventory,
@@ -159,12 +142,18 @@ function resolveSection(section: string, dashboard: DashboardPayload): SectionKe
 // their own copy. The dropdown trigger carries no data-nav-section of its
 // own, so it's hidden separately when nothing inside it is reachable.
 function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
+    const showSettings = canApprove(dashboard.me);
+    const showTickets = canUseTickets(dashboard.me);
     document.querySelectorAll<HTMLElement>('[data-nav-section]').forEach((el) => {
         const section = el.dataset.navSection as SectionKey;
         el.classList.toggle('hidden', !canOpenSection(section, dashboard.me));
     });
-    const settingsMenu = document.getElementById('settings-menu');
-    if (settingsMenu) settingsMenu.classList.toggle('hidden', !canApprove(dashboard.me));
+    document.querySelectorAll<HTMLElement>('[data-settings-menu]').forEach((el) => {
+        el.classList.toggle('hidden', !showSettings);
+    });
+    const mobileDock = document.getElementById('mobile-dock');
+    mobileDock?.classList.toggle('grid-cols-4', showTickets);
+    mobileDock?.classList.toggle('grid-cols-3', !showTickets);
 }
 
 const WORKBENCH_QUERY_PARAMS = [
