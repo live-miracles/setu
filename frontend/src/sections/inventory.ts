@@ -24,10 +24,7 @@ import {
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml } from '../ui/format';
 import { icon } from '../ui/icons';
-import {
-    INVENTORY_REQUEST_STATUS_ACCENT,
-    INVENTORY_REQUEST_STATUS_BADGE,
-} from '../ui/styles';
+import { INVENTORY_REQUEST_STATUS_ACCENT, INVENTORY_REQUEST_STATUS_BADGE } from '../ui/styles';
 import { canApprove, canTransitionInventoryRequest, isRequestOverdue } from '../workflows';
 import {
     type WorkbenchState,
@@ -133,7 +130,9 @@ function inventoryStatusSteps(
     return INVENTORY_STATUS_STEPS.map((step) => ({
         label: step.label,
         active: step.status === status,
-        action: actions.includes(targetActions[step.status]!) ? targetActions[step.status] : undefined,
+        action: actions.includes(targetActions[step.status]!)
+            ? targetActions[step.status]
+            : undefined,
     }));
 }
 
@@ -619,7 +618,11 @@ async function handleInventoryRequestAction(
     request: InventoryRequestDTO,
     action: InventoryRequestAction,
 ): Promise<void> {
-    if (!window.confirm(`Change this equipment request status: ${INVENTORY_REQUEST_ACTION_LABELS[action]}?`)) {
+    if (
+        !window.confirm(
+            `Change this equipment request status: ${INVENTORY_REQUEST_ACTION_LABELS[action]}?`,
+        )
+    ) {
         return;
     }
     let note = '';

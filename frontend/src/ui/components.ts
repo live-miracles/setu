@@ -153,11 +153,10 @@ interface DetailCommandHeaderOptions {
 export function renderDetailCommandHeader(options: DetailCommandHeaderOptions): string {
     const statusSteps = options.statusSteps?.length
         ? `<div class="detail-status-track" aria-label="Status progress">${options.statusSteps
-              .map(
-                  (step) =>
-                      step.action
-                          ? `<button type="button" class="${step.active ? 'active' : ''}" data-detail-action="${escapeHtml(step.action)}">${escapeHtml(step.label)}</button>`
-                          : `<span class="${step.active ? 'active' : ''}">${escapeHtml(step.label)}</span>`,
+              .map((step) =>
+                  step.action
+                      ? `<button type="button" class="${step.active ? 'active' : ''}" data-detail-action="${escapeHtml(step.action)}">${escapeHtml(step.label)}</button>`
+                      : `<span class="${step.active ? 'active' : ''}">${escapeHtml(step.label)}</span>`,
               )
               .join('')}</div>`
         : '';

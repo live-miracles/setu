@@ -74,7 +74,9 @@ function programStatusSteps(
     return PROGRAM_STATUS_STEPS.map((step) => ({
         label: step.label,
         active: step.status === status,
-        action: actions.includes(targetActions[step.status]!) ? targetActions[step.status] : undefined,
+        action: actions.includes(targetActions[step.status]!)
+            ? targetActions[step.status]
+            : undefined,
     }));
 }
 
@@ -545,7 +547,11 @@ async function handleProgramRequestAction(
     requestId: string,
     action: ProgramRequestAction,
 ): Promise<void> {
-    if (!window.confirm(`Change this program request status: ${PROGRAM_REQUEST_ACTION_LABELS[action]}?`)) {
+    if (
+        !window.confirm(
+            `Change this program request status: ${PROGRAM_REQUEST_ACTION_LABELS[action]}?`,
+        )
+    ) {
         return;
     }
     let note = '';
