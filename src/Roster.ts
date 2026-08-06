@@ -41,6 +41,51 @@ function requireValidRosterInput(input: CreateRosterInput): User {
     return user;
 }
 
+function rosterInterval(row: {
+    StartDate: string;
+    EndDate: string;
+    StartTime: string;
+    EndTime: string;
+}): { start: number; end: number } {
+    const startTime = row.StartTime || '00:00';
+    const start = Date.parse(row.StartDate + 'T' + startTime + ':00.000Z');
+    if (!row.StartTime && !row.EndTime) {
+        return {
+            start,
+            end: Date.parse(row.EndDate + 'T00:00:00.000Z') + 24 * 60 * 60 * 1000,
+        };
+    }
+    const endTime = row.EndTime || '23:59';
+    let end = Date.parse(row.EndDate + 'T' + endTime + ':00.000Z');
+    if (end <= start) end += 24 * 60 * 60 * 1000;
+    return { start, end };
+}
+
+function getRosterConflicts(input: CreateRosterInput, excludeRosterId = ''): RosterConflict[] {
+    requireApprover();
+    const user = requireValidRosterInput(input);
+    const candidate = rosterInterval({
+        StartDate: input.startDate,
+        EndDate: input.endDate,
+        StartTime: input.startTime,
+        EndTime: input.endTime,
+    });
+    return Tables.Rosters.findWhere((roster) => {
+        if (roster.Id === excludeRosterId || roster.UserId !== user.Email) return false;
+        const existing = rosterInterval(roster);
+        return candidate.start < existing.end && candidate.end > existing.start;
+    }).map((roster) => ({
+        rosterId: roster.Id,
+        rosterName: roster.Name,
+        userId: roster.UserId,
+        userName: user.Name,
+        startDate: roster.StartDate,
+        endDate: roster.EndDate,
+        startTime: roster.StartTime,
+        endTime: roster.EndTime,
+    }));
+}
+
 // Scheduling is an approver power, not an admin one. Anyone in the Users
 // tab can be the assignee, including roles that can't open the roster
 // themselves — the notification below is how they hear about the shift.

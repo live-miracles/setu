@@ -76,12 +76,53 @@ function getDashboard(): DashboardPayload {
 
     // The whole ticket board is invisible to `user` (canUseTickets), so the
     // payload carries nothing for them to render a section from.
+    const commentsByTicketId = groupBy(
+        Tables.Comments.readAll().filter((comment) => Boolean(comment.TicketId)),
+        (comment) => comment.TicketId,
+    );
     const tickets = canUseTickets(actor)
         ? Tables.Tickets.readAll()
               .sort((a, b) => b.DisplayId - a.DisplayId)
               .slice(0, 250)
-              .map((ticket) => buildTicketDTO(ticket, usersByEmail))
+              .map((ticket) => buildTicketDTO(ticket, usersByEmail, placesById, commentsByTicketId))
         : [];
+
+    const inventoryAwaitingApproval = canApprove(actor)
+        ? inventoryRequests.filter((request) => request.Status === 'submitted').length
+        : 0;
+    const inventoryReadyToIssue = canApprove(actor)
+        ? inventoryRequests.filter((request) => request.Status === 'approved').length
+        : 0;
+    const inventoryOverdue = canApprove(actor)
+        ? inventoryRequests.filter(
+              (request) => request.Status === 'issued' && request.EndDate < todayIso,
+          ).length
+        : 0;
+    const programAwaitingApproval = canApprove(actor)
+        ? programRequests.filter((request) => request.Status === 'submitted').length
+        : 0;
+    const assignedTickets = canUseTickets(actor)
+        ? tickets.filter(
+              (ticket) => ticket.AssigneeId === actor.Email && ticket.Status !== 'closed',
+          ).length
+        : 0;
+    const openTickets = canApprove(actor)
+        ? tickets.filter((ticket) => ticket.Status !== 'closed').length
+        : 0;
+    const attentionSummary: AttentionSummary = {
+        inventoryAwaitingApproval,
+        inventoryReadyToIssue,
+        inventoryOverdue,
+        programAwaitingApproval,
+        openTickets,
+        assignedTickets,
+        total:
+            inventoryAwaitingApproval +
+            inventoryReadyToIssue +
+            inventoryOverdue +
+            programAwaitingApproval +
+            (canApprove(actor) ? openTickets : assignedTickets),
+    };
 
     const links = readLinks()
         .filter((l) => toBool(l.Enabled))
@@ -110,5 +151,6 @@ function getDashboard(): DashboardPayload {
         homeContent,
         shiftPresets,
         failedEmailCount,
+        attentionSummary,
     };
 }

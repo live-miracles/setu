@@ -110,18 +110,66 @@ function getProgramRequest(id: string): ProgramRequestDTO {
     );
 }
 
-function createProgramRequest(
-    input: CreateProgramRequestInput,
-    requestId: string,
-): ProgramRequestDTO {
-    const actor = requireUser();
+function checkProgramConflicts(
+    placeId: string,
+    sessions: ProgramSessionInput[],
+    excludeRequestId = '',
+): ProgramConflict[] {
+    requireUser();
+    if (!Tables.Places.findById(placeId)) throw new ValidationError('place_not_found');
+    const candidateSessions = (sessions || []).filter(
+        (session) =>
+            Boolean(session.startDateTime) &&
+            Boolean(session.endDateTime) &&
+            session.endDateTime > session.startDateTime,
+    );
+    if (candidateSessions.length === 0) return [];
+
+    const reservingRequests = Tables.ProgramRequests.findWhere(
+        (request) =>
+            request.Id !== excludeRequestId &&
+            request.PlaceId === placeId &&
+            request.Status === 'approved',
+    );
+    const requestsById = indexBy(reservingRequests, (request) => request.Id);
+    const conflicts: ProgramConflict[] = [];
+    Tables.Sessions.readAll().forEach((existing) => {
+        const request = requestsById[existing.RequestId];
+        if (!request) return;
+        candidateSessions.forEach((candidate) => {
+            if (
+                candidate.startDateTime < existing.EndDateTime &&
+                candidate.endDateTime > existing.StartDateTime
+            ) {
+                conflicts.push({
+                    requestId: request.Id,
+                    displayId: request.DisplayId,
+                    requestName: request.Name,
+                    sessionName: existing.Name,
+                    startDateTime: existing.StartDateTime,
+                    endDateTime: existing.EndDateTime,
+                });
+            }
+        });
+    });
+    return conflicts;
+}
+
+function validateProgramRequestInput(input: CreateProgramRequestInput): {
+    name: string;
+    type: string;
+    place: Place;
+    sessions: { name: string; type: string; startDateTime: string; endDateTime: string }[];
+    participants: string[];
+    initialStatus: 'draft' | 'submitted';
+} {
     const name = requireNonEmpty(input.name, 'Name is required.');
     const type = requireNonEmpty(input.type, 'Type is required.');
     const place = Tables.Places.findById(input.placeId);
     if (!place) throw new ValidationError('place_not_found');
     if (!input.sessions || input.sessions.length === 0)
         throw new ValidationError('At least one session is required.');
-    const sessionLines = input.sessions.map((session) => {
+    const sessions = input.sessions.map((session) => {
         const sessionName = requireNonEmpty(session.name, 'Session name is required.');
         const sessionType = requireNonEmpty(session.type, 'Session type is required.');
         if (
@@ -138,7 +186,29 @@ function createProgramRequest(
             endDateTime: session.endDateTime,
         };
     });
-    const participants = parseParticipants(input.participants);
+    return {
+        name,
+        type,
+        place,
+        sessions,
+        participants: parseParticipants(input.participants),
+        initialStatus: input.initialStatus === 'draft' ? 'draft' : 'submitted',
+    };
+}
+
+function createProgramRequest(
+    input: CreateProgramRequestInput,
+    requestId: string,
+): ProgramRequestDTO {
+    const actor = requireUser();
+    const {
+        name,
+        type,
+        place,
+        sessions: sessionLines,
+        participants,
+        initialStatus,
+    } = validateProgramRequestInput(input);
 
     const { result } = withLockedDedupe('program_request:create', requestId, () => {
         const created = Tables.ProgramRequests.insert({
@@ -146,7 +216,7 @@ function createProgramRequest(
             Name: name,
             Type: type,
             UserId: actor.Email,
-            Status: 'submitted',
+            Status: initialStatus,
             PlaceId: place.Id,
             Participants: formatParticipants(participants),
         });
@@ -163,22 +233,26 @@ function createProgramRequest(
             'program',
             created.Id,
             actor.Email,
-            actor.Name + ' submitted this request.',
+            initialStatus === 'draft'
+                ? actor.Name + ' saved this request as a draft.'
+                : actor.Name + ' submitted this request.',
         );
         return { request: created, sessions: createdSessions, comment };
     });
     const { request, sessions: createdSessions, comment } = result;
 
-    const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
-    approvers.forEach((approver) => {
-        sendNotificationEmail(
-            approver.Email,
-            'program:' + request.Id + ':submitted',
-            'New program request: PRG-' + request.DisplayId,
-            actor.Name + ' requested a program: ' + request.Name + '.',
-            '?section=programs',
-        );
-    });
+    if (initialStatus === 'submitted') {
+        const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
+        approvers.forEach((approver) => {
+            sendNotificationEmail(
+                approver.Email,
+                'program:' + request.Id + ':submitted',
+                'New program request: PRG-' + request.DisplayId,
+                actor.Name + ' requested a program: ' + request.Name + '.',
+                '?section=programs',
+            );
+        });
+    }
 
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     return buildProgramRequestDTO(
@@ -187,6 +261,73 @@ function createProgramRequest(
         placesById,
         indexBy([actor], (u) => u.Email),
         { [request.Id]: [comment] },
+    );
+}
+
+function updateProgramRequestDraft(
+    id: string,
+    input: CreateProgramRequestInput,
+    requestId: string,
+): ProgramRequestDTO {
+    const actor = requireUser();
+    const { name, type, place, sessions, participants, initialStatus } =
+        validateProgramRequestInput(input);
+    const { result } = withLockedDedupe('program_request:update_draft:' + id, requestId, () => {
+        const existing = Tables.ProgramRequests.findById(id);
+        if (!existing) throw new ValidationError('request_not_found');
+        const owners = parseParticipants(existing.Participants);
+        if (existing.UserId !== actor.Email && owners.indexOf(actor.Email) === -1) {
+            throw new AuthorizationError('not_request_owner');
+        }
+        if (existing.Status !== 'draft') throw new ValidationError('draft_required');
+        const updated = Tables.ProgramRequests.updateById(id, {
+            Name: name,
+            Type: type,
+            PlaceId: place.Id,
+            Participants: formatParticipants(participants),
+            Status: initialStatus,
+        });
+        Tables.Sessions.findWhere((session) => session.RequestId === id).forEach((session) =>
+            Tables.Sessions.deleteById(session.Id),
+        );
+        const updatedSessions = sessions.map((session) =>
+            Tables.Sessions.insert({
+                Name: session.name,
+                Type: session.type,
+                RequestId: id,
+                StartDateTime: session.startDateTime,
+                EndDateTime: session.endDateTime,
+            }),
+        );
+        const comment = insertActionComment(
+            'program',
+            id,
+            actor.Email,
+            initialStatus === 'draft'
+                ? actor.Name + ' updated this draft.'
+                : actor.Name + ' submitted this request.',
+        );
+        return { request: updated, sessions: updatedSessions, comment };
+    });
+
+    if (initialStatus === 'submitted') {
+        Tables.Users.findWhere((user) => canApprove(user) && user.Email !== actor.Email).forEach(
+            (approver) =>
+                sendNotificationEmail(
+                    approver.Email,
+                    'program:' + id + ':submitted:' + requestId,
+                    'Program request submitted: PRG-' + result.request.DisplayId,
+                    actor.Name + ' submitted ' + result.request.Name + '.',
+                    '?section=programs&program=' + id,
+                ),
+        );
+    }
+    return buildProgramRequestDTO(
+        result.request,
+        { [id]: result.sessions },
+        indexBy(Tables.Places.readAll(), (item) => item.Id),
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
+        { [id]: Tables.Comments.findWhere((comment) => comment.ProgramRequestId === id) },
     );
 }
 
@@ -229,6 +370,20 @@ function performProgramRequestAction(
                 if (action === 'approve') {
                     if (request.Status !== 'submitted')
                         throw new ValidationError('invalid_transition');
+                    const requestSessions = Tables.Sessions.findWhere(
+                        (session) => session.RequestId === requestId,
+                    );
+                    const conflicts = checkProgramConflicts(
+                        request.PlaceId,
+                        requestSessions.map((session) => ({
+                            name: session.Name,
+                            type: session.Type,
+                            startDateTime: session.StartDateTime,
+                            endDateTime: session.EndDateTime,
+                        })),
+                        requestId,
+                    );
+                    if (conflicts.length > 0) throw new ValidationError('program_place_conflict');
                     computedStatus = 'approved';
                     Tables.ProgramRequests.updateById(requestId, { Status: computedStatus });
                     insertActionComment(

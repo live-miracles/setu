@@ -53,6 +53,7 @@ function insertActionComment(
         ProgramRequestId: kind === 'program' ? requestId : '',
         UserId: actorId,
         Message: message,
+        TicketId: '',
     });
 }
 
@@ -62,7 +63,10 @@ function buildCommentDTO(comment: CommentRecord, usersByEmail: Record<string, Us
 }
 
 function groupCommentsByRequestId(comments: CommentRecord[]): Record<string, CommentRecord[]> {
-    return groupBy(comments, (c) => c.InventoryRequestId || c.ProgramRequestId);
+    return groupBy(
+        comments.filter((comment) => !comment.TicketId),
+        (c) => c.InventoryRequestId || c.ProgramRequestId,
+    );
 }
 
 function commentsFor(

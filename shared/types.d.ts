@@ -30,6 +30,7 @@ type ProgramRequestStatus =
     'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled' | 'closed';
 type ReturnCondition = 'good' | 'damaged' | 'missing';
 type TicketStatus = 'unassigned' | 'pending' | 'closed';
+type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 type InventoryRequestAction =
     'submit' | 'approve' | 'reject' | 'issue' | 'return' | 'cancel' | 'close';
 type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel' | 'close';
@@ -143,6 +144,12 @@ interface Ticket {
     Description: string;
     Status: TicketStatus;
     AssigneeId: string;
+    // Appended in schema v2. Blank values are valid for legacy rows.
+    ReporterId: string;
+    CreatedAt: string;
+    UpdatedAt: string;
+    Priority: TicketPriority | '';
+    PlaceId: string;
 }
 
 // The audit trail for InventoryRequests and ProgramRequests: every status
@@ -159,6 +166,8 @@ interface CommentRecord {
     InventoryRequestId: string;
     UserId: string;
     Message: string;
+    // Appended in schema v2. Exactly one request/ticket id is populated.
+    TicketId: string;
 }
 
 interface Link {
@@ -245,6 +254,48 @@ interface CommentDTO extends CommentRecord {
 
 interface TicketDTO extends Ticket {
     assigneeName: string;
+    reporterName: string;
+    placeName: string;
+    comments: CommentDTO[];
+}
+
+interface AttentionSummary {
+    inventoryAwaitingApproval: number;
+    inventoryReadyToIssue: number;
+    inventoryOverdue: number;
+    programAwaitingApproval: number;
+    openTickets: number;
+    assignedTickets: number;
+    total: number;
+}
+
+interface InventoryAvailabilityItem {
+    inventoryTypeId: string;
+    requestedQuantity: number;
+    totalQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+    available: boolean;
+}
+
+interface ProgramConflict {
+    requestId: string;
+    displayId: number;
+    requestName: string;
+    sessionName: string;
+    startDateTime: string;
+    endDateTime: string;
+}
+
+interface RosterConflict {
+    rosterId: string;
+    rosterName: string;
+    userId: string;
+    userName: string;
+    startDate: string;
+    endDate: string;
+    startTime: string;
+    endTime: string;
 }
 
 interface Paginated<T> {
@@ -293,6 +344,7 @@ interface DashboardPayload {
     homeContent: HomeContent;
     shiftPresets: ShiftPreset[];
     failedEmailCount: number;
+    attentionSummary: AttentionSummary;
 }
 
 // ---------------------------------------------------------------------------
@@ -345,6 +397,7 @@ interface CreateInventoryRequestInput {
     items: { inventoryTypeId: string; quantity: number }[];
     images: string[];
     participants: string;
+    initialStatus?: 'draft' | 'submitted';
 }
 
 // A return always covers every item on the request in full — see
@@ -368,11 +421,14 @@ interface CreateProgramRequestInput {
     placeId: string;
     sessions: ProgramSessionInput[];
     participants: string;
+    initialStatus?: 'draft' | 'submitted';
 }
 
 interface CreateTicketInput {
     title: string;
     description: string;
+    priority: TicketPriority;
+    placeId: string;
 }
 
 interface CreateLinkInput {
@@ -435,6 +491,7 @@ interface Api {
     createRoster(input: CreateRosterInput, requestId: string): RosterDTO;
     updateRoster(id: string, input: CreateRosterInput, requestId: string): RosterDTO;
     deleteRoster(id: string, requestId: string): void;
+    getRosterConflicts(input: CreateRosterInput, excludeRosterId?: string): RosterConflict[];
 
     listInventoryTypes(): InventoryTypeDTO[];
     createInventoryType(input: CreateInventoryTypeInput, requestId: string): InventoryTypeDTO;
@@ -454,6 +511,17 @@ interface Api {
         input: CreateInventoryRequestInput,
         requestId: string,
     ): InventoryRequestDTO;
+    updateInventoryRequestDraft(
+        id: string,
+        input: CreateInventoryRequestInput,
+        requestId: string,
+    ): InventoryRequestDTO;
+    getInventoryAvailability(
+        startDate: string,
+        endDate: string,
+        items: { inventoryTypeId: string; quantity: number }[],
+        excludeRequestId?: string,
+    ): InventoryAvailabilityItem[];
     performInventoryRequestAction(
         requestId: string,
         action: InventoryRequestAction,
@@ -465,6 +533,16 @@ interface Api {
     listProgramRequests(page: number, query?: ProgramRequestQuery): Paginated<ProgramRequestDTO>;
     getProgramRequest(id: string): ProgramRequestDTO;
     createProgramRequest(input: CreateProgramRequestInput, requestId: string): ProgramRequestDTO;
+    updateProgramRequestDraft(
+        id: string,
+        input: CreateProgramRequestInput,
+        requestId: string,
+    ): ProgramRequestDTO;
+    checkProgramConflicts(
+        placeId: string,
+        sessions: ProgramSessionInput[],
+        excludeRequestId?: string,
+    ): ProgramConflict[];
     performProgramRequestAction(
         requestId: string,
         action: ProgramRequestAction,
@@ -482,6 +560,7 @@ interface Api {
         dedupeRequestId: string,
     ): TicketStatus;
     addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO;
+    addTicketComment(ticketId: string, message: string, dedupeRequestId: string): CommentDTO;
 
     uploadImage(base64Data: string, fileName: string, mimeType: string): string;
 }
