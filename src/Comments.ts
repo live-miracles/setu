@@ -1,13 +1,11 @@
-// Comments are the audit trail for InventoryRequests and ProgramRequests:
-// every status change is narrated here — authored by whichever user
+// Comments are the audit trail for InventoryRequests, ProgramRequests and
+// Tickets: every status change is narrated here — authored by whichever user
 // actually performed the action, no system/bot actor — alongside whatever
-// comments people type themselves. Exactly one of InventoryRequestId/
-// ProgramRequestId is set per row; requestId lookups below try
-// InventoryRequests then ProgramRequests since a raw id carries no type tag
-// of its own. Tickets have no comments.
+// comments people type themselves. RequestId lookups try each commentable
+// table since a raw id carries no type tag of its own.
 
 interface RequestOwner {
-    kind: 'inventory' | 'program';
+    kind: 'inventory' | 'program' | 'ticket';
     displayId: number;
     userId: string;
     participants: string[];
@@ -32,6 +30,15 @@ function findRequestOwner(requestId: string): RequestOwner | null {
             participants: parseParticipants(programRequest.Participants),
         };
     }
+    const ticket = Tables.Tickets.findById(requestId);
+    if (ticket) {
+        return {
+            kind: 'ticket',
+            displayId: ticket.DisplayId,
+            userId: ticket.AssigneeId,
+            participants: [],
+        };
+    }
     return null;
 }
 
@@ -42,15 +49,14 @@ function requestOwnerRecipients(owner: RequestOwner, excludingActorId: string): 
 }
 
 function insertActionComment(
-    kind: 'inventory' | 'program',
+    kind: 'inventory' | 'program' | 'ticket',
     requestId: string,
     actorId: string,
     message: string,
 ): CommentRecord {
     return Tables.Comments.insert({
         Timestamp: nowIso(),
-        InventoryRequestId: kind === 'inventory' ? requestId : '',
-        ProgramRequestId: kind === 'program' ? requestId : '',
+        RequestId: requestId,
         UserId: actorId,
         Message: message,
     });
@@ -62,7 +68,7 @@ function buildCommentDTO(comment: CommentRecord, usersByEmail: Record<string, Us
 }
 
 function groupCommentsByRequestId(comments: CommentRecord[]): Record<string, CommentRecord[]> {
-    return groupBy(comments, (c) => c.InventoryRequestId || c.ProgramRequestId);
+    return groupBy(comments, (c) => c.RequestId);
 }
 
 function commentsFor(
@@ -91,7 +97,12 @@ function addComment(requestId: string, message: string, dedupeRequestId: string)
     if (!owner) throw new ValidationError('request_not_found');
     // A `user` is scoped to requests they raised or are a participant on, so
     // knowing an id must not be enough to comment on someone else's request.
-    if (!canViewRequest(actor, owner.userId, owner.participants)) {
+    // Tickets use the ticket-board gate instead because they have no reporter.
+    if (
+        owner.kind === 'ticket'
+            ? !canUseTickets(actor)
+            : !canViewRequest(actor, owner.userId, owner.participants)
+    ) {
         throw new AuthorizationError('You do not have access to this request.');
     }
 
@@ -102,8 +113,14 @@ function addComment(requestId: string, message: string, dedupeRequestId: string)
     );
 
     if (!duplicate) {
-        const prefix = owner.kind === 'inventory' ? 'REQ-' : 'PRG-';
-        const section = owner.kind === 'inventory' ? 'inventory' : 'programs';
+        const prefix =
+            owner.kind === 'inventory' ? 'REQ-' : owner.kind === 'program' ? 'PRG-' : 'TKT-';
+        const section =
+            owner.kind === 'inventory'
+                ? 'inventory'
+                : owner.kind === 'program'
+                  ? 'programs'
+                  : 'tickets';
         requestOwnerRecipients(owner, actor.Email).forEach((email) => {
             sendNotificationEmail(
                 email,

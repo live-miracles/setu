@@ -80,7 +80,7 @@ function getDashboard(): DashboardPayload {
         ? Tables.Tickets.readAll()
               .sort((a, b) => b.DisplayId - a.DisplayId)
               .slice(0, 250)
-              .map((ticket) => buildTicketDTO(ticket, usersByEmail))
+              .map((ticket) => buildTicketDTO(ticket, usersByEmail, commentsByRequestId))
         : [];
 
     const links = readLinks()

@@ -105,7 +105,6 @@ function getCurrentActor(): User {
             Name: email.split('@')[0],
             Role: isBootstrapAdmin ? 'admin' : DEFAULT_USER_ROLE,
             DepartmentId: '',
-            Timezone: 'Asia/Kolkata',
             Phone: '',
             Whatsapp: '',
         });

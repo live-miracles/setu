@@ -130,7 +130,7 @@ const Tables = {
     Places: SheetTable<Place>('Places', ['Id', 'Name']),
     Users: SheetTable<User>(
         'Users',
-        ['Email', 'Name', 'Role', 'DepartmentId', 'Timezone', 'Phone', 'Whatsapp'],
+        ['Email', 'Name', 'Role', 'DepartmentId', 'Phone', 'Whatsapp'],
         'Email',
     ),
     Rosters: SheetTable<Roster>('Rosters', [
@@ -194,13 +194,10 @@ const Tables = {
         'Status',
         'AssigneeId',
     ]),
-    // Exactly one of ProgramRequestId/InventoryRequestId is set per row —
-    // see the CommentRecord comment in shared/types.d.ts.
     Comments: SheetTable<CommentRecord>('Comments', [
         'Id',
         'Timestamp',
-        'ProgramRequestId',
-        'InventoryRequestId',
+        'RequestId',
         'UserId',
         'Message',
     ]),

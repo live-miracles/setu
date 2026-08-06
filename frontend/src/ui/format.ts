@@ -29,9 +29,8 @@ export const MONTH_SHORT_NAMES = [
     'Dec',
 ];
 
-// Formats a plain 'YYYY-MM-DD' string without going through Date/timezone
-// conversion, which would risk shifting the displayed day for viewers west
-// of UTC.
+// Formats a plain 'YYYY-MM-DD' string without Date conversion, which would
+// risk shifting the displayed day for viewers west of UTC.
 function formatDateOnly(dateStr: string): string {
     const parts = (dateStr || '').split('-');
     if (parts.length !== 3) return dateStr || '';

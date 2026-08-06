@@ -69,7 +69,6 @@ const mockData = {
             Name: 'Alex Admin',
             Role: 'admin' as UserRole,
             DepartmentId: 'dep-1',
-            Timezone: 'Asia/Kolkata',
             Phone: '+91 90000 00001',
             Whatsapp: '',
         },
@@ -78,7 +77,6 @@ const mockData = {
             Name: 'Ana Approver',
             Role: 'approver' as UserRole,
             DepartmentId: 'dep-1',
-            Timezone: 'Asia/Kolkata',
             Phone: '+91 90000 00002',
             Whatsapp: '',
         },
@@ -87,7 +85,6 @@ const mockData = {
             Name: 'Vic Viewer',
             Role: 'viewer' as UserRole,
             DepartmentId: 'dep-1',
-            Timezone: 'Asia/Kolkata',
             Phone: '+91 90000 00003',
             Whatsapp: '',
         },
@@ -96,7 +93,6 @@ const mockData = {
             Name: 'Sam User',
             Role: 'user' as UserRole,
             DepartmentId: 'dep-1',
-            Timezone: 'Asia/Kolkata',
             Phone: '+91 90000 00004',
             Whatsapp: '',
         },
@@ -484,42 +480,44 @@ const mockData = {
         {
             Id: 'comment-1',
             Timestamp: mockNowIso(),
-            ProgramRequestId: '',
-            InventoryRequestId: 'req-1',
+            RequestId: 'req-1',
             UserId: 'sam@example.com',
             Message: 'Sam User submitted this request.',
         },
         {
             Id: 'comment-2',
             Timestamp: mockNowIso(),
-            ProgramRequestId: '',
-            InventoryRequestId: 'req-2',
+            RequestId: 'req-2',
             UserId: 'admin@example.com',
             Message: 'Alex Admin approved this request.',
         },
         {
             Id: 'comment-3',
             Timestamp: mockNowIso(),
-            ProgramRequestId: '',
-            InventoryRequestId: 'req-3',
+            RequestId: 'req-3',
             UserId: 'admin@example.com',
             Message: 'Alex Admin issued this equipment.',
         },
         {
             Id: 'comment-4',
             Timestamp: mockNowIso(),
-            ProgramRequestId: '',
-            InventoryRequestId: 'req-4',
+            RequestId: 'req-4',
             UserId: 'admin@example.com',
             Message: 'Alex Admin recorded the returned equipment.',
         },
         {
             Id: 'comment-5',
             Timestamp: mockNowIso(),
-            ProgramRequestId: '',
-            InventoryRequestId: 'req-5',
+            RequestId: 'req-5',
             UserId: 'admin@example.com',
             Message: 'Alex Admin closed this request.',
+        },
+        {
+            Id: 'comment-6',
+            Timestamp: mockNowIso(),
+            RequestId: 'ticket-2',
+            UserId: 'ana@example.com',
+            Message: 'Ana Approver assigned this ticket to Ana Approver.',
         },
     ] as CommentRecord[],
     links: [
@@ -607,13 +605,13 @@ function mockBuildCommentDTO(comment: CommentRecord): CommentDTO {
 
 function mockCommentsForRequest(requestId: string): CommentDTO[] {
     return mockData.comments
-        .filter((c) => c.InventoryRequestId === requestId || c.ProgramRequestId === requestId)
+        .filter((c) => c.RequestId === requestId)
         .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp))
         .map(mockBuildCommentDTO);
 }
 
 function mockInsertActionComment(
-    kind: 'inventory' | 'program',
+    _kind: 'inventory' | 'program' | 'ticket',
     requestId: string,
     actorId: string,
     message: string,
@@ -621,8 +619,7 @@ function mockInsertActionComment(
     const created: CommentRecord = {
         Id: mockUuid(),
         Timestamp: mockNowIso(),
-        InventoryRequestId: kind === 'inventory' ? requestId : '',
-        ProgramRequestId: kind === 'program' ? requestId : '',
+        RequestId: requestId,
         UserId: actorId,
         Message: message,
     };
@@ -665,6 +662,7 @@ function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
     const assignee = mockData.users.find((u) => u.Email === ticket.AssigneeId);
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
+        comments: mockCommentsForRequest(ticket.Id),
     });
 }
 
@@ -735,7 +733,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const user = mockData.users.find((u) => u.Email === userId)!;
         if (patch.role !== undefined) user.Role = patch.role;
         if (patch.departmentId !== undefined) user.DepartmentId = patch.departmentId;
-        if (patch.timezone !== undefined) user.Timezone = patch.timezone;
         return mockToUserDTO(user);
     },
     updateOwnProfile: (patch: UpdateOwnProfileInput) => {
@@ -744,7 +741,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (patch.departmentId !== undefined) user.DepartmentId = patch.departmentId;
         if (patch.phone !== undefined) user.Phone = patch.phone;
         if (patch.whatsapp !== undefined) user.Whatsapp = patch.whatsapp;
-        if (patch.timezone !== undefined) user.Timezone = patch.timezone;
         return mockToUserDTO(user);
     },
 
@@ -1209,25 +1205,55 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             AssigneeId: '',
         };
         mockData.tickets.push(created);
+        mockInsertActionComment(
+            'ticket',
+            created.Id,
+            mockData.currentUserId,
+            mockCurrentUser().Name + ' reported this ticket.',
+        );
         return mockBuildTicketDTO(created);
     },
     performTicketAction: (ticketId: string, action: TicketAction, assigneeId: string | null) => {
         const ticket = mockData.tickets.find((t) => t.Id === ticketId)!;
         if (!canTransitionTicket(ticket.Status, action)) throw new Error('invalid_transition');
+        const actorName = mockCurrentUser().Name;
         if (action === 'assign') {
             ticket.Status = 'pending';
             ticket.AssigneeId = assigneeId || '';
+            const assignee = mockData.users.find((u) => u.Email === ticket.AssigneeId);
+            mockInsertActionComment(
+                'ticket',
+                ticketId,
+                mockData.currentUserId,
+                actorName +
+                    ' assigned this ticket to ' +
+                    (assignee ? assignee.Name : 'the assignee') +
+                    '.',
+            );
         } else if (action === 'close') {
             ticket.Status = 'closed';
+            mockInsertActionComment(
+                'ticket',
+                ticketId,
+                mockData.currentUserId,
+                actorName + ' closed this ticket.',
+            );
         } else if (action === 'reopen') {
             ticket.Status = 'pending';
+            mockInsertActionComment(
+                'ticket',
+                ticketId,
+                mockData.currentUserId,
+                actorName + ' reopened this ticket.',
+            );
         }
         return ticket.Status;
     },
     addComment: (requestId: string, message: string) => {
         const isInventory = mockData.inventoryRequests.some((r) => r.Id === requestId);
+        const isTicket = mockData.tickets.some((t) => t.Id === requestId);
         const created = mockInsertActionComment(
-            isInventory ? 'inventory' : 'program',
+            isTicket ? 'ticket' : isInventory ? 'inventory' : 'program',
             requestId,
             mockData.currentUserId,
             message,

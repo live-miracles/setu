@@ -159,7 +159,7 @@ This rewrite deliberately trades a few things for staying free and simple, appro
 - **Idempotency:** a `CacheService`-backed dedupe check (`Dedupe.ts`) instead of a formal ledger table — good enough to survive double-taps and network retries, not a durable audit trail.
 - **Notifications:** email (`MailApp`) only. If `MailApp.sendEmail` throws, the failure is logged to the `FailedEmails` tab and execution continues rather than retrying.
 - **Images:** native `DriveApp` uploads (see `Images.ts`) with "anyone with the link" view access, rather than signed URLs — the closest equivalent without Storage-style signed links.
-- **Audit trail:** every status change on an inventory or program request is narrated as a plain comment authored by whoever performed it (see `Comments.ts`), rather than a separate immutable audit table.
+- **Audit trail:** every status change on an inventory request, program request or ticket is narrated as a plain comment authored by whoever performed it (see `Comments.ts`), rather than a separate immutable audit table.
 
 ## Known gaps in this build
 

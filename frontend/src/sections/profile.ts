@@ -33,10 +33,6 @@ export async function renderProfile(
               <div class="text-sm">${escapeHtml(me.departmentName || 'Not set')}</div>
             </div>
             <div>
-              <div class="text-xs uppercase tracking-wide text-base-content/50">Time zone</div>
-              <div class="text-sm">${escapeHtml(me.Timezone || 'Not set')}</div>
-            </div>
-            <div>
               <div class="text-xs uppercase tracking-wide text-base-content/50">Phone</div>
               <div class="text-sm">${escapeHtml(me.Phone || 'Not set')}</div>
             </div>
@@ -68,8 +64,6 @@ export async function renderProfile(
                   <input id="profile-whatsapp" name="whatsapp" class="input w-full" value="${escapeHtml(me.Whatsapp)}" />
                 </div>
               </div>
-              <label class="label" for="profile-timezone">Time zone</label>
-              <input id="profile-timezone" name="timezone" class="input w-full" value="${escapeHtml(me.Timezone)}" />
             </fieldset>
             <button type="submit" class="btn btn-primary">Save changes</button>
           </form>
@@ -89,7 +83,6 @@ export async function renderProfile(
                 departmentId: String(data.get('departmentId') || ''),
                 phone: String(data.get('phone') || ''),
                 whatsapp: String(data.get('whatsapp') || ''),
-                timezone: String(data.get('timezone') || ''),
             });
             await refreshDashboard();
         } catch (err) {
@@ -153,8 +146,6 @@ export async function renderRegistrationGate(
                   <input id="reg-whatsapp" name="whatsapp" class="input w-full" value="${escapeHtml(me.Whatsapp)}" />
                 </div>
               </div>
-              <label class="label" for="reg-timezone">Time zone</label>
-              <input id="reg-timezone" name="timezone" class="input w-full" value="${escapeHtml(me.Timezone)}" />
             </fieldset>
             <button type="submit" class="btn btn-primary w-full">Get started</button>
           </form>
@@ -174,7 +165,6 @@ export async function renderRegistrationGate(
                 departmentId: String(data.get('departmentId') || ''),
                 phone: String(data.get('phone') || ''),
                 whatsapp: String(data.get('whatsapp') || ''),
-                timezone: String(data.get('timezone') || ''),
             });
             await refreshDashboard();
         } catch (err) {

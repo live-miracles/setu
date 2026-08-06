@@ -20,8 +20,8 @@ const TITLE = 'Setu';
  * The dev tab icon, inlined as a data URI. Dev serves a top-level document,
  * so a <link rel="icon"> here is what the browser tab actually reads, and
  * inlining keeps the dev server free of a second asset route. 64px is the
- * largest source that stays cheap once base64'd (~8.5KB) while still covering
- * retina tabs; frontend/icons/icon-512.png is the master to regenerate from.
+ * largest source that stays cheap once base64'd while still covering retina
+ * tabs; frontend/logo.png is the master image for regenerating the icon set.
  *
  * Production deliberately gets nothing here: Apps Script serves the app in an
  * iframe, so the browser tab belongs to Google's outer page and an icon in

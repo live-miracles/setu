@@ -2,7 +2,7 @@
 // gone entirely (see Notifications.ts's FailedNotifications design); only
 // the daily overdue scan remains, as a native Apps Script time-driven trigger.
 function dailyOverdueScan(): { scanned: number } {
-    const todayIso = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+    const todayIso = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
     const overdue = Tables.InventoryRequests.findWhere(
         (r) => r.Status === 'issued' && r.EndDate < todayIso,
     );
@@ -27,11 +27,6 @@ function dailyOverdueScan(): { scanned: number } {
 function installTriggers(): void {
     const existing = ScriptApp.getProjectTriggers().map((t) => t.getHandlerFunction());
     if (existing.indexOf('dailyOverdueScan') === -1) {
-        ScriptApp.newTrigger('dailyOverdueScan')
-            .timeBased()
-            .everyDays(1)
-            .atHour(3)
-            .inTimezone('Asia/Kolkata')
-            .create();
+        ScriptApp.newTrigger('dailyOverdueScan').timeBased().everyDays(1).atHour(3).create();
     }
 }

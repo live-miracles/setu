@@ -390,11 +390,16 @@ function renderTicketDetail(
         header,
         renderRequestRecordPanel(fields),
         renderRequestActivityPanel({
-            emptyMessage: 'Ticket activity is captured through status changes.',
+            comments: ticket.comments,
+            commentFormId: 'ticket-comment-form',
+            emptyMessage: 'No ticket activity yet.',
         }),
         false,
     );
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
+    document
+        .getElementById('ticket-comment-form')!
+        .addEventListener('submit', (event) => void submitTicketComment(event, ticket.Id));
     document
         .querySelectorAll<HTMLButtonElement>('[data-detail-action]')
         .forEach((button) =>
@@ -408,6 +413,22 @@ function renderTicketDetail(
                     ),
             ),
         );
+}
+
+async function submitTicketComment(event: Event, ticketId: string): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const message = (form.elements.namedItem('message') as HTMLInputElement).value.trim();
+    if (!message) return;
+    try {
+        showSavingBadge(true);
+        await api.addComment(ticketId, message, generateRequestId());
+        await refreshDashboard();
+    } catch (err) {
+        showErrorAlert(err);
+    } finally {
+        showSavingBadge(false);
+    }
 }
 
 async function handleTicketAction(

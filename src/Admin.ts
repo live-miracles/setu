@@ -23,7 +23,6 @@ function updateUser(userId: string, patch: UpdateUserInput): UserDTO {
             Role: patch.role !== undefined ? patch.role : target.Role,
             DepartmentId:
                 patch.departmentId !== undefined ? patch.departmentId : target.DepartmentId,
-            Timezone: patch.timezone !== undefined ? patch.timezone : target.Timezone,
         }),
     );
     return toUserDTO(updated);
@@ -49,7 +48,6 @@ function updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO {
                     ? requireNonEmpty(patch.phone, 'Phone is required.')
                     : actor.Phone,
             Whatsapp: patch.whatsapp !== undefined ? patch.whatsapp : actor.Whatsapp,
-            Timezone: patch.timezone !== undefined ? patch.timezone : actor.Timezone,
         }),
     );
     return toUserDTO(updated);

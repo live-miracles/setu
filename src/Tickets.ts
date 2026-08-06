@@ -1,9 +1,15 @@
 const TICKETS_PAGE_SIZE = 20;
 
-function buildTicketDTO(ticket: Ticket, usersByEmail: Record<string, User>): TicketDTO {
+function buildTicketDTO(
+    ticket: Ticket,
+    usersByEmail: Record<string, User>,
+    commentsByRequestId: Record<string, CommentRecord[]> = {},
+): TicketDTO {
     const assignee = ticket.AssigneeId ? usersByEmail[ticket.AssigneeId] : undefined;
+    const comments = commentsFor(ticket.Id, commentsByRequestId, usersByEmail);
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
+        comments,
     });
 }
 
@@ -29,9 +35,10 @@ function ticketSortValue(ticket: TicketDTO, sortBy: TicketQuery['sortBy']): stri
 function listTickets(page: number, query: TicketQuery = {}): Paginated<TicketDTO> {
     requireTicketAccess();
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
+    const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const statuses = query.statuses || [];
     const dtos = Tables.Tickets.readAll()
-        .map((t) => buildTicketDTO(t, usersByEmail))
+        .map((t) => buildTicketDTO(t, usersByEmail, commentsByRequestId))
         .filter((ticket) => statuses.length === 0 || statuses.indexOf(ticket.Status) !== -1)
         .filter((ticket) => {
             if (!query.assigneeId) return true;
@@ -66,6 +73,7 @@ function getTicket(id: string): TicketDTO {
     return buildTicketDTO(
         ticket,
         indexBy(Tables.Users.readAll(), (user) => user.Email),
+        groupCommentsByRequestId(Tables.Comments.readAll()),
     );
 }
 
@@ -73,15 +81,23 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
     const actor = requireTicketAccess();
     const title = requireNonEmpty(input.title, 'Title is required.');
 
-    const { result: ticket } = withLockedDedupe('ticket:create', requestId, () => {
-        return Tables.Tickets.insert({
+    const { result } = withLockedDedupe('ticket:create', requestId, () => {
+        const created = Tables.Tickets.insert({
             DisplayId: getNextDisplayId('ticket'),
             Title: title,
             Description: input.description || '',
             Status: 'unassigned',
             AssigneeId: '',
         });
+        const comment = insertActionComment(
+            'ticket',
+            created.Id,
+            actor.Email,
+            actor.Name + ' reported this ticket.',
+        );
+        return { ticket: created, comment };
     });
+    const { ticket, comment } = result;
 
     const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
     approvers.forEach((approver) => {
@@ -97,6 +113,7 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
     return buildTicketDTO(
         ticket,
         indexBy([actor], (u) => u.Email),
+        { [ticket.Id]: [comment] },
     );
 }
 
@@ -134,6 +151,12 @@ function performTicketAction(
                     Status: computedStatus,
                     AssigneeId: assigneeId,
                 });
+                insertActionComment(
+                    'ticket',
+                    ticketId,
+                    actor.Email,
+                    actor.Name + ' assigned this ticket to ' + assignee.Name + '.',
+                );
             } else if (action === 'close') {
                 const isAssignee = ticket.AssigneeId === actor.Email;
                 if (!canApprove(actor) && !isAssignee)
@@ -142,11 +165,23 @@ function performTicketAction(
                     throw new ValidationError('invalid_transition');
                 computedStatus = 'closed';
                 Tables.Tickets.updateById(ticketId, { Status: computedStatus });
+                insertActionComment(
+                    'ticket',
+                    ticketId,
+                    actor.Email,
+                    actor.Name + ' closed this ticket.',
+                );
             } else if (action === 'reopen') {
                 if (!canApprove(actor)) throw new AuthorizationError('approver_required');
                 if (ticket.Status !== 'closed') throw new ValidationError('invalid_transition');
                 computedStatus = 'pending';
                 Tables.Tickets.updateById(ticketId, { Status: computedStatus });
+                insertActionComment(
+                    'ticket',
+                    ticketId,
+                    actor.Email,
+                    actor.Name + ' reopened this ticket.',
+                );
             } else {
                 throw new ValidationError('unsupported_action');
             }

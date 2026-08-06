@@ -5,13 +5,42 @@
 function setupSheets(): void {
     const ss = SpreadsheetApp.openById(getSpreadsheetId());
 
+    migrateUsersTimezoneColumn(ss);
     migrateInventoryRequestImageColumns(ss);
+    migrateCommentsRequestIdColumn(ss);
 
     Object.values(Tables).forEach((table) => {
         ensureTabWithHeaders(ss, table.tabName, table.headers as string[]);
     });
 
     removeDefaultSheetIfEmpty(ss);
+}
+
+function migrateUsersTimezoneColumn(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): void {
+    const sheet = ss.getSheetByName('Users');
+    if (!sheet) return;
+
+    const desiredHeaders = Tables.Users.headers as string[];
+    const lastColumn = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+    const existingHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String);
+    if (existingHeaders.indexOf('Timezone') === -1) return;
+
+    const headerIndex = (header: string) => existingHeaders.indexOf(header);
+    const lastRow = sheet.getLastRow();
+    const rowCount = Math.max(lastRow - 1, 0);
+    const oldRows = rowCount > 0 ? sheet.getRange(2, 1, rowCount, lastColumn).getValues() : [];
+    const migratedRows = oldRows.map((row) =>
+        desiredHeaders.map((header) => valueAt(row, headerIndex(header))),
+    );
+
+    sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
+    if (migratedRows.length > 0) {
+        sheet.getRange(2, 1, migratedRows.length, desiredHeaders.length).setValues(migratedRows);
+    }
+    const surplusColumns = sheet.getMaxColumns() - desiredHeaders.length;
+    if (surplusColumns > 0) {
+        sheet.deleteColumns(desiredHeaders.length + 1, surplusColumns);
+    }
 }
 
 function migrateInventoryRequestImageColumns(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): void {
@@ -42,6 +71,46 @@ function migrateInventoryRequestImageColumns(ss: GoogleAppsScript.Spreadsheet.Sp
             }
             if (header === 'Participants') {
                 return valueAt(row, lastHeaderIndex(existingHeaders, header));
+            }
+            return valueAt(row, headerIndex(header));
+        }),
+    );
+
+    sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
+    if (migratedRows.length > 0) {
+        sheet.getRange(2, 1, migratedRows.length, desiredHeaders.length).setValues(migratedRows);
+    }
+    const surplusColumns = sheet.getMaxColumns() - desiredHeaders.length;
+    if (surplusColumns > 0) {
+        sheet.deleteColumns(desiredHeaders.length + 1, surplusColumns);
+    }
+}
+
+function migrateCommentsRequestIdColumn(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): void {
+    const sheet = ss.getSheetByName('Comments');
+    if (!sheet) return;
+
+    const desiredHeaders = Tables.Comments.headers as string[];
+    const lastColumn = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+    const existingHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String);
+    const hasRequestId = existingHeaders.indexOf('RequestId') !== -1;
+    const hasOldRequestColumns =
+        existingHeaders.indexOf('ProgramRequestId') !== -1 ||
+        existingHeaders.indexOf('InventoryRequestId') !== -1;
+    if (hasRequestId && !hasOldRequestColumns) return;
+
+    const headerIndex = (header: string) => existingHeaders.indexOf(header);
+    const lastRow = sheet.getLastRow();
+    const rowCount = Math.max(lastRow - 1, 0);
+    const oldRows = rowCount > 0 ? sheet.getRange(2, 1, rowCount, lastColumn).getValues() : [];
+    const migratedRows = oldRows.map((row) =>
+        desiredHeaders.map((header) => {
+            if (header === 'RequestId') {
+                return (
+                    valueAt(row, headerIndex('RequestId')) ||
+                    valueAt(row, headerIndex('InventoryRequestId')) ||
+                    valueAt(row, headerIndex('ProgramRequestId'))
+                );
             }
             return valueAt(row, headerIndex(header));
         }),

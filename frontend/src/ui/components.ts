@@ -1,4 +1,4 @@
-import { escapeHtml } from './format';
+import { escapeHtml, formatDateTime } from './format';
 import type { IconName } from './icons';
 import { icon } from './icons';
 
@@ -51,7 +51,14 @@ export function renderEmptyState(iconName: IconName, message: string): string {
 }
 
 export function renderCommentLine(comment: CommentDTO): string {
-    return `<div><span class="font-medium">${escapeHtml(comment.userName)}</span> <span class="text-base-content/70">${escapeHtml(comment.Message)}</span></div>`;
+    const timestamp = formatDateTime(comment.Timestamp);
+    return `<div>
+      <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span class="font-medium">${escapeHtml(comment.userName)}</span>
+        ${timestamp ? `<time class="text-xs text-base-content/45" datetime="${escapeHtml(comment.Timestamp)}">${escapeHtml(timestamp)}</time>` : ''}
+      </div>
+      <div class="text-base-content/70">${escapeHtml(comment.Message)}</div>
+    </div>`;
 }
 
 export interface RequestFieldSection {

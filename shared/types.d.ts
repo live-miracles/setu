@@ -60,7 +60,6 @@ interface User {
     Name: string;
     Role: UserRole;
     DepartmentId: string;
-    Timezone: string;
     Phone: string;
     Whatsapp: string;
 }
@@ -142,18 +141,14 @@ interface Ticket {
     AssigneeId: string;
 }
 
-// The audit trail for InventoryRequests and ProgramRequests: every status
-// change is narrated here by the acting user, alongside whatever comments
-// people type themselves. Exactly one of ProgramRequestId/InventoryRequestId
-// is set per row (mirrors master's two-nullable-FK design); addComment
-// resolves which one to populate by looking the request id up in
-// InventoryRequests then ProgramRequests — see findRequestOwner in
-// Comments.ts. Tickets have no comments.
+// The audit trail for InventoryRequests, ProgramRequests and Tickets: every
+// status change is narrated here by the acting user, alongside whatever
+// comments people type themselves. RequestId points at the owning row; addComment
+// resolves the type by looking the id up in Comments.ts.
 interface CommentRecord {
     Id: string;
     Timestamp: string;
-    ProgramRequestId: string;
-    InventoryRequestId: string;
+    RequestId: string;
     UserId: string;
     Message: string;
 }
@@ -242,6 +237,7 @@ interface CommentDTO extends CommentRecord {
 
 interface TicketDTO extends Ticket {
     assigneeName: string;
+    comments: CommentDTO[];
 }
 
 interface Paginated<T> {
@@ -308,7 +304,6 @@ interface CreatePlaceInput {
 interface UpdateUserInput {
     role?: UserRole;
     departmentId?: string;
-    timezone?: string;
 }
 
 interface UpdateOwnProfileInput {
@@ -316,7 +311,6 @@ interface UpdateOwnProfileInput {
     departmentId?: string;
     phone?: string;
     whatsapp?: string;
-    timezone?: string;
 }
 
 interface CreateRosterInput {
