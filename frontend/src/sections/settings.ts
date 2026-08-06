@@ -2,7 +2,8 @@ import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
 import { renderEmptyState, renderSectionHeader } from '../ui/components';
-import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { openFormDialog } from '../ui/dialog';
+import { showErrorAlert, showSavingBadge, showSuccessToast } from '../ui/feedback';
 import { escapeHtml } from '../ui/format';
 import type { IconName } from '../ui/icons';
 import { icon } from '../ui/icons';
@@ -251,13 +252,14 @@ function renderSettingsListCards(page: SettingsList, rows: Record<string, any>[]
           <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} ${escapeHtml(page.addLabel)}</h2>
           <form class="settings-form flex flex-wrap items-end gap-2" data-kind="${page.kind}">
             ${page.fields
-                .map(
-                    (f, i) => `
+                .map((f, i) => {
+                    const id = `settings-${page.kind}-${f.field}`;
+                    return `
               <div class="flex-1" style="min-width: 10rem;">
-                <label class="label text-xs">${escapeHtml(f.label)}</label>
-                <input name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" ${i === 0 ? 'required' : ''} />
-              </div>`,
-                )
+                <label class="label text-xs" for="${escapeHtml(id)}">${escapeHtml(f.label)}</label>
+                <input id="${escapeHtml(id)}" name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" ${i === 0 ? 'required' : ''} />
+              </div>`;
+                })
                 .join('')}
             <button type="submit" class="btn btn-sm btn-primary">Add</button>
           </form>
@@ -319,13 +321,14 @@ function renderSettingsRowEditInner(page: SettingsList, row: Record<string, any>
     return `
       <form class="settings-row-edit-form flex flex-1 flex-wrap items-end gap-2">
         ${page.fields
-            .map(
-                (f, i) => `
+            .map((f, i) => {
+                const fieldId = `settings-${page.kind}-${row.Id}-${f.field}`;
+                return `
           <div class="flex-1" style="min-width: 8rem;">
-            <label class="label text-xs">${escapeHtml(f.label)}</label>
-            <input name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" value="${escapeHtml(String(row[f.field] ?? ''))}" ${i === 0 ? 'required' : ''} />
-          </div>`,
-            )
+            <label class="label text-xs" for="${escapeHtml(fieldId)}">${escapeHtml(f.label)}</label>
+            <input id="${escapeHtml(fieldId)}" name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" value="${escapeHtml(String(row[f.field] ?? ''))}" ${i === 0 ? 'required' : ''} />
+          </div>`;
+            })
             .join('')}
         <div class="flex shrink-0 items-center gap-1">
           <button type="submit" class="btn btn-primary btn-xs">Save</button>
@@ -421,6 +424,7 @@ function wireSettingsRow(li: HTMLElement): void {
             try {
                 showSavingBadge(true);
                 await updateSettingsRow(kind!, id, patch, generateRequestId());
+                showSuccessToast('Setting updated.');
                 await refreshDashboard();
             } catch (err) {
                 showErrorAlert(err);
@@ -432,10 +436,17 @@ function wireSettingsRow(li: HTMLElement): void {
 
     deleteBtn?.addEventListener('click', async () => {
         const label = li.getAttribute('data-raw-' + page.fields[0].field) || 'this item';
-        if (!confirm(`Delete "${label}"? This can't be undone.`)) return;
+        const confirmed = await openFormDialog({
+            title: 'Delete setting?',
+            description: `Delete "${label}"? This cannot be undone.`,
+            confirmLabel: 'Delete',
+            tone: 'danger',
+        });
+        if (!confirmed) return;
         try {
             showSavingBadge(true);
             await deleteSettingsRow(kind!, id, generateRequestId());
+            showSuccessToast('Setting deleted.');
             await refreshDashboard();
         } catch (err) {
             showErrorAlert(err);
@@ -518,10 +529,10 @@ function wireSettingsForm(): void {
 // presets: everything that didn't earn a Settings page of its own.
 // ---------------------------------------------------------------------------
 
-export function renderHomeContent(container: HTMLElement, dashboard: DashboardPayload): void {
+export function renderHomeSettings(container: HTMLElement, dashboard: DashboardPayload): void {
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderSectionHeader('home', 'Others', 'The message and guidelines shown on Home, quick links, and shift presets.')}
+      ${renderSectionHeader('home', 'Home settings', 'Manage the support message, operating guidance and quick links shown on Home.')}
 
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-3">
@@ -548,11 +559,23 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
       </div>
 
       ${renderSettingsListCards(SETTINGS_LINKS_LIST, dashboard.links)}
-      ${renderSettingsListCards(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets)}
     </section>
   `;
 
     wireHomeContentForm();
+    wireSettingsForm();
+    wireSettingsListRows();
+}
+
+// Kept for old deep links and bookmarks; router normalises the legacy
+// `home-content` section to the new Home settings page.
+export const renderHomeContent = renderHomeSettings;
+
+export function renderRosterPresets(container: HTMLElement, dashboard: DashboardPayload): void {
+    container.innerHTML = `<section class="space-y-6">
+      ${renderSectionHeader('calendar', 'Roster presets', 'Maintain reusable shift names and default start/end times for scheduling.')}
+      ${renderSettingsListCards(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets)}
+    </section>`;
     wireSettingsForm();
     wireSettingsListRows();
 }
@@ -570,6 +593,7 @@ function wireHomeContentForm(): void {
                 whatsappUrl: String(data.get('whatsappUrl') || ''),
                 tutorialUrl: String(data.get('tutorialUrl') || ''),
             });
+            showSuccessToast('Home settings saved.');
             await refreshDashboard();
         } catch (err) {
             showErrorAlert(err);

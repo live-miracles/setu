@@ -22,3 +22,18 @@ export function showErrorAlert(error: unknown): void {
     container.classList.remove('hidden');
     window.setTimeout(() => container.classList.add('hidden'), 5000);
 }
+
+export function showSuccessToast(message: string): void {
+    const container = document.getElementById('success-toast');
+    if (!container) return;
+    const textEl = container.querySelector('[data-success-text]');
+    if (textEl) textEl.textContent = message;
+    container.classList.remove('hidden');
+    window.setTimeout(() => container.classList.add('hidden'), 3500);
+}
+
+export function setButtonPending(button: HTMLButtonElement, pending: boolean): void {
+    button.disabled = pending;
+    button.setAttribute('aria-busy', String(pending));
+    button.classList.toggle('is-pending', pending);
+}

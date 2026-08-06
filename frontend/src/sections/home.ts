@@ -1,260 +1,172 @@
 import { namePill, renderEmptyState } from '../ui/components';
 import { escapeHtml, formatRosterSchedule } from '../ui/format';
-import { INVENTORY_REQUEST_STATUS_BADGE } from '../ui/styles';
-import { canApprove, canManageConfig, canUseTickets, isRequestOverdue } from '../workflows';
+import { INVENTORY_REQUEST_STATUS_BADGE, INVENTORY_REQUEST_STATUS_LABEL } from '../ui/styles';
+import { canApprove, canManageConfig } from '../workflows';
 
-function todayDateOnly(): string {
-    const d = new Date();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${month}-${day}`;
+interface QueueCard {
+    label: string;
+    value: number;
+    description: string;
+    section: 'inventory' | 'programs' | 'tickets';
+    status?: string;
+    assignee?: string;
 }
 
-function todayDisplayParts(): { day: string; weekday: string; monthYear: string } {
-    const now = new Date();
-    return {
-        day: String(now.getDate()).padStart(2, '0'),
-        weekday: now.toLocaleDateString(undefined, { weekday: 'long' }),
-        monthYear: now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
-    };
+function todayDisplay(): string {
+    return new Date().toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
 }
 
-function rosterTimeLabel(roster: RosterDTO): string {
-    const start = roster.StartTime || 'All day';
-    const end = roster.EndTime ? `–${roster.EndTime}` : '';
-    return `${start}${end}`;
+function queueCards(dashboard: DashboardPayload): QueueCard[] {
+    const summary = dashboard.attentionSummary;
+    if (canApprove(dashboard.me)) {
+        return [
+            {
+                label: 'Equipment review',
+                value: summary.inventoryAwaitingApproval,
+                description: 'Requests waiting for a decision',
+                section: 'inventory',
+                status: 'submitted',
+            },
+            {
+                label: 'Ready to issue',
+                value: summary.inventoryReadyToIssue,
+                description: 'Approved equipment to hand over',
+                section: 'inventory',
+                status: 'approved',
+            },
+            {
+                label: 'Returns overdue',
+                value: summary.inventoryOverdue,
+                description: 'Issued requests past their end date',
+                section: 'inventory',
+                status: 'issued',
+            },
+            {
+                label: 'Program review',
+                value: summary.programAwaitingApproval,
+                description: 'Bookings waiting for a decision',
+                section: 'programs',
+                status: 'submitted',
+            },
+            {
+                label: 'Open tickets',
+                value: summary.openTickets,
+                description: 'Unassigned and in-progress support work',
+                section: 'tickets',
+                status: 'unassigned,pending',
+            },
+        ];
+    }
+    if (summary.assignedTickets > 0) {
+        return [
+            {
+                label: 'Assigned to you',
+                value: summary.assignedTickets,
+                description: 'Support tickets that need your follow-up',
+                section: 'tickets',
+                assignee: dashboard.me.Email,
+            },
+        ];
+    }
+    return [];
+}
+
+function renderQueueCard(card: QueueCard): string {
+    return `<button type="button" class="attention-card" data-nav-section="${card.section}" ${card.status ? `data-nav-status="${escapeHtml(card.status)}"` : ''} ${card.assignee ? `data-nav-assignee="${escapeHtml(card.assignee)}"` : ''}>
+      <span class="ops-kicker">${escapeHtml(card.label)}</span>
+      <strong>${card.value}</strong>
+      <span>${escapeHtml(card.description)}</span>
+      <span class="attention-card-link">Open queue →</span>
+    </button>`;
 }
 
 export async function renderHome(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {
+    const cards = queueCards(dashboard);
     const showRoster = canApprove(dashboard.me);
-    const showTickets = canUseTickets(dashboard.me);
-    const date = todayDisplayParts();
-    const today = todayDateOnly();
-
-    const todayRosters = dashboard.upcomingRosters.filter(
-        (roster) => roster.StartDate <= today && roster.EndDate >= today,
-    );
-    const activeRequests = dashboard.inventoryRequests.filter(
-        (request) => ['submitted', 'approved', 'issued'].indexOf(request.Status) !== -1,
-    );
-    const awaitingApproval = activeRequests.filter(
-        (request) => request.Status === 'submitted',
-    ).length;
-    const overdueRequests = activeRequests.filter(isRequestOverdue).length;
-
-    const activePrograms = dashboard.programRequests.filter(
-        (request) => ['submitted', 'approved'].indexOf(request.Status) !== -1,
-    );
-    const programsAwaitingApproval = activePrograms.filter(
-        (request) => request.Status === 'submitted',
-    ).length;
-    const openTickets = dashboard.tickets.filter((ticket) => ticket.Status !== 'closed');
-    const lowStockItems = dashboard.inventoryTypes.filter(
-        (type) => type.TotalQuantity > 0 && type.availableQuantity / type.TotalQuantity <= 0.3,
+    const activeRequests = dashboard.inventoryRequests.filter((request) =>
+        ['submitted', 'approved', 'issued'].includes(request.Status),
     );
 
-    const nextRoster = [...dashboard.upcomingRosters].sort((a, b) =>
-        (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime),
-    )[0];
-
-    const attentionCount =
-        awaitingApproval +
-        programsAwaitingApproval +
-        overdueRequests +
-        lowStockItems.length +
-        (showTickets ? openTickets.length : 0);
-    const headline =
-        attentionCount > 0
-            ? `${attentionCount} item${attentionCount === 1 ? '' : 's'} need attention.`
-            : 'Today’s operations are clear.';
-    const operationalSummary = [
-        showRoster
-            ? `${todayRosters.length} shift${todayRosters.length === 1 ? '' : 's'} today`
-            : '',
-        `${activeRequests.length} active equipment request${activeRequests.length === 1 ? '' : 's'}`,
-        `${activePrograms.length} active program request${activePrograms.length === 1 ? '' : 's'}`,
-    ]
-        .filter(Boolean)
-        .join(' · ');
-
-    container.innerHTML = `
-    <section class="home-page space-y-10">
-      <header class="home-signature">
-        <div class="home-signature-day" aria-hidden="true">${date.day}</div>
-        <div class="home-signature-copy">
-          <div class="home-date-kicker">${escapeHtml(date.weekday)} · ${escapeHtml(date.monthYear)}</div>
-          <h1>${escapeHtml(headline)}</h1>
-          <p class="home-summary">${escapeHtml(operationalSummary)}</p>
+    container.innerHTML = `<section class="home-page space-y-8">
+      <header class="home-compact-hero">
+        <div>
+          <div class="ops-kicker">${escapeHtml(todayDisplay())}</div>
+          <h1>${dashboard.attentionSummary.total > 0 ? `${dashboard.attentionSummary.total} actions need attention` : 'Your workspace is up to date'}</h1>
+          <p>${canApprove(dashboard.me) ? 'Review operational work and move today’s livestreams forward.' : 'Create requests and track the work visible to your role.'}</p>
+        </div>
+        <div class="home-primary-actions" aria-label="Create a request">
+          <button class="btn btn-primary" data-nav-section="inventory" data-nav-mode="create">Request equipment</button>
+          <button class="btn btn-outline" data-nav-section="programs" data-nav-mode="create">Book a program</button>
         </div>
       </header>
 
       ${
           canManageConfig(dashboard.me) && dashboard.failedEmailCount > 0
-              ? `<div class="alert alert-warning">
-              <span class="font-mono text-xs">NOTICE</span>
-              <span>${dashboard.failedEmailCount} notification email(s) failed to send in the last 7 days.</span>
-            </div>`
+              ? `<div class="alert alert-warning"><span>${dashboard.failedEmailCount} notification email(s) failed in the last seven days.</span></div>`
               : ''
       }
 
-      <div class="home-command-grid">
-        <section class="home-actions">
-          <div class="ops-kicker">In service today</div>
-          <h2 class="mt-3">Support today’s livestreams</h2>
-          <p class="mt-3 max-w-xl text-sm text-base-content/60">
-            ${
-                dashboard.homeContent.SupportMessage
-                    ? escapeHtml(dashboard.homeContent.SupportMessage)
-                    : 'Create a request, reserve a place or review the working roster.'
-            }
-          </p>
-          <div class="mt-6 flex flex-wrap gap-2">
-            <button class="btn btn-primary btn-sm" data-nav-section="inventory">Request equipment</button>
-            <button class="btn btn-outline btn-sm" data-nav-section="programs">Book a program</button>
-            ${showRoster ? '<button class="btn btn-ghost btn-sm" data-nav-section="roster">Open roster →</button>' : ''}
-          </div>
-        </section>
-
-        ${
-            showRoster
-                ? `<aside class="home-next-shift">
-          <div class="ops-kicker">Next shift</div>
-          ${
-              nextRoster
-                  ? `<h3>${escapeHtml(nextRoster.Name)}</h3>
-              <p class="mt-3 text-sm text-base-content/60">${formatRosterSchedule(nextRoster)}</p>
-              <div class="mt-4">${nextRoster.UserId ? namePill(nextRoster.userName) : '<span class="badge badge-warning badge-sm">Unassigned</span>'}</div>`
-                  : '<p class="mt-4 text-sm text-base-content/50">No shifts scheduled yet.</p>'
-          }
-        </aside>`
-                : ''
-        }
-      </div>
-
-      <section>
-        <div class="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <div class="ops-kicker">Work queue</div>
-            <h2 class="home-panel-title mt-2">Needs a decision</h2>
-          </div>
-          <span class="text-xs text-base-content/50">Live from the current workspace</span>
+      <section aria-labelledby="attention-title">
+        <div class="home-panel-header">
+          <div><div class="ops-kicker">Action queue</div><h2 id="attention-title" class="home-panel-title mt-2">What needs action</h2></div>
+          <span class="text-xs text-base-content/55">Counts respect your role and permissions</span>
         </div>
-        <div class="work-queue">
-          <div class="work-queue-item" data-priority="${awaitingApproval > 0 ? 'high' : 'normal'}">
-            <span class="ops-kicker">Equipment</span>
-            <strong class="work-queue-value">${awaitingApproval}</strong>
-            <span class="work-queue-label">awaiting approval</span>
-          </div>
-          <div class="work-queue-item" data-priority="${programsAwaitingApproval > 0 ? 'high' : 'normal'}">
-            <span class="ops-kicker">Programs</span>
-            <strong class="work-queue-value">${programsAwaitingApproval}</strong>
-            <span class="work-queue-label">awaiting approval</span>
-          </div>
-          <div class="work-queue-item" data-priority="${overdueRequests > 0 ? 'high' : 'normal'}">
-            <span class="ops-kicker">Returns</span>
-            <strong class="work-queue-value">${overdueRequests}</strong>
-            <span class="work-queue-label">overdue requests</span>
-          </div>
-          <div class="work-queue-item" data-priority="${showTickets && openTickets.length > 0 ? 'high' : 'normal'}">
-            <span class="ops-kicker">${showTickets ? 'Tickets' : 'Inventory'}</span>
-            <strong class="work-queue-value">${showTickets ? openTickets.length : lowStockItems.length}</strong>
-            <span class="work-queue-label">${showTickets ? 'open tickets' : 'low-stock items'}</span>
-          </div>
-        </div>
+        ${cards.length ? `<div class="attention-grid">${cards.map(renderQueueCard).join('')}</div>` : `<div class="attention-clear"><strong>No actions are assigned to your role.</strong><span>You can still review your requests below.</span></div>`}
       </section>
 
       <div class="home-ledger-grid">
         ${
             showRoster
-                ? `<section class="home-ledger-section">
-          <div class="home-panel-header">
-            <h2 class="home-panel-title">Upcoming roster</h2>
-            <button class="btn btn-ghost btn-xs" data-nav-section="roster">View all →</button>
-          </div>
+                ? `<section class="home-ledger-section"><div class="home-panel-header"><h2 class="home-panel-title">Upcoming roster</h2><button class="btn btn-ghost btn-sm" data-nav-section="roster">View roster →</button></div>
           ${
-              dashboard.upcomingRosters.length === 0
-                  ? renderEmptyState('calendar', 'No upcoming shifts.')
-                  : `<div>${dashboard.upcomingRosters
+              dashboard.upcomingRosters.length
+                  ? dashboard.upcomingRosters
                         .slice(0, 5)
                         .map(
-                            (roster) => `<article class="ledger-row">
-                  <time class="ledger-time">${escapeHtml(rosterTimeLabel(roster))}</time>
-                  <div>
-                    <div class="ledger-title">${escapeHtml(roster.Name)}</div>
-                    <div class="ledger-meta">${formatRosterSchedule(roster)}</div>
-                  </div>
-                  <div class="text-right text-xs text-base-content/60">${roster.userName ? escapeHtml(roster.userName) : 'Unassigned'}</div>
-                </article>`,
+                            (roster) =>
+                                `<article class="ledger-row"><time class="ledger-time">${escapeHtml(roster.StartTime || 'All day')}</time><div><div class="ledger-title">${escapeHtml(roster.Name)}</div><div class="ledger-meta">${formatRosterSchedule(roster)}</div></div><div class="text-right">${namePill(roster.userName || 'Unassigned')}</div></article>`,
                         )
-                        .join('')}</div>`
-          }
-        </section>`
+                        .join('')
+                  : renderEmptyState('calendar', 'No upcoming shifts.')
+          }</section>`
                 : ''
         }
 
-        <section class="home-ledger-section">
-          <div class="home-panel-header">
-            <h2 class="home-panel-title">Equipment requests</h2>
-            <button class="btn btn-ghost btn-xs" data-nav-section="inventory">View all →</button>
-          </div>
+        <section class="home-ledger-section"><div class="home-panel-header"><h2 class="home-panel-title">Equipment requests</h2><button class="btn btn-ghost btn-sm" data-nav-section="inventory">View requests →</button></div>
           ${
-              activeRequests.length === 0
-                  ? renderEmptyState('box', 'No active requests.')
-                  : `<div>${activeRequests
+              activeRequests.length
+                  ? activeRequests
                         .slice(0, 5)
                         .map(
-                            (request) => `<article class="ledger-row">
-                  <span class="ledger-time">REQ-${request.DisplayId}</span>
-                  <div>
-                    <div class="ledger-title">${escapeHtml(request.Name)}</div>
-                    <div class="ledger-meta">${escapeHtml(request.userName)} · ${request.items.map((item) => `${item.Quantity}× ${escapeHtml(item.itemName)}`).join(', ')}</div>
-                  </div>
-                  <div class="flex flex-col items-end gap-1">
-                    ${isRequestOverdue(request) ? '<span class="badge badge-error badge-sm">Overdue</span>' : ''}
-                    <span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
-                  </div>
-                </article>`,
+                            (request) =>
+                                `<button type="button" class="ledger-row w-full text-left" data-nav-section="inventory" data-nav-request="${escapeHtml(request.Id)}"><span class="ledger-time">REQ-${request.DisplayId}</span><div><div class="ledger-title">${escapeHtml(request.Name)}</div><div class="ledger-meta">${escapeHtml(request.userName)} · ${request.items.map((item) => `${item.Quantity}× ${escapeHtml(item.itemName)}`).join(', ')}</div></div><span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${INVENTORY_REQUEST_STATUS_LABEL[request.Status]}</span></button>`,
                         )
-                        .join('')}</div>`
+                        .join('')
+                  : renderEmptyState('box', 'No active equipment requests.')
           }
         </section>
       </div>
 
       <div class="home-notes">
-        <section>
-          <div class="ops-kicker">Shortcuts</div>
-          <h2 class="home-panel-title mt-3">Quick links</h2>
-          ${
-              dashboard.links.length === 0
-                  ? '<p class="mt-5 text-sm">No links added yet.</p>'
-                  : `<div class="mt-5 space-y-3">${dashboard.links
-                        .map(
-                            (
-                                link,
-                            ) => `<a class="flex items-center justify-between gap-4 border-b border-white/15 pb-2 text-sm" href="${escapeHtml(link.Url)}" target="_blank" rel="noopener">
-                    <span>${escapeHtml(link.Name)}</span><span aria-hidden="true">↗</span>
-                  </a>`,
-                        )
-                        .join('')}</div>`
-          }
-        </section>
-        <section>
-          <div class="ops-kicker">Working note</div>
-          <h2 class="home-panel-title mt-3">Support & guidelines</h2>
-          <p class="mt-5 whitespace-pre-wrap text-sm leading-relaxed">${
-              dashboard.homeContent.Guidelines
-                  ? escapeHtml(dashboard.homeContent.Guidelines)
-                  : 'No guidelines published yet.'
-          }</p>
-          <div class="mt-5 flex flex-wrap gap-2">
-            ${dashboard.homeContent.WhatsappUrl ? `<a class="btn btn-sm border-white/25 bg-transparent text-white hover:bg-white/10" href="${escapeHtml(dashboard.homeContent.WhatsappUrl)}" target="_blank" rel="noopener">WhatsApp support</a>` : ''}
-            ${dashboard.homeContent.TutorialUrl ? `<a class="btn btn-ghost btn-sm text-white" href="${escapeHtml(dashboard.homeContent.TutorialUrl)}" target="_blank" rel="noopener">Booking tutorial</a>` : ''}
-          </div>
-        </section>
+        <section><div class="ops-kicker">Quick links</div><h2 class="home-panel-title mt-3">Team resources</h2><div class="mt-5 space-y-3">${
+            dashboard.links.length
+                ? dashboard.links
+                      .map(
+                          (link) =>
+                              `<a class="flex items-center justify-between gap-4 border-b border-white/15 pb-2 text-sm" href="${escapeHtml(link.Url)}" target="_blank" rel="noopener"><span>${escapeHtml(link.Name)}</span><span aria-hidden="true">↗</span></a>`,
+                      )
+                      .join('')
+                : '<p class="text-sm opacity-70">No links published.</p>'
+        }</div></section>
+        <section><div class="ops-kicker">Operations note</div><h2 class="home-panel-title mt-3">Support & guidelines</h2><p class="mt-5 whitespace-pre-wrap text-sm leading-relaxed">${escapeHtml(dashboard.homeContent.Guidelines || 'No guidelines published yet.')}</p>${dashboard.homeContent.WhatsappUrl ? `<a class="btn btn-sm mt-5 border-white/25 bg-transparent text-white" href="${escapeHtml(dashboard.homeContent.WhatsappUrl)}" target="_blank" rel="noopener">WhatsApp support</a>` : ''}</section>
       </div>
-    </section>
-  `;
+    </section>`;
 }

@@ -195,6 +195,11 @@ const Tables = {
         'Description',
         'Status',
         'AssigneeId',
+        'ReporterId',
+        'CreatedAt',
+        'UpdatedAt',
+        'Priority',
+        'PlaceId',
     ]),
     // Exactly one of ProgramRequestId/InventoryRequestId is set per row —
     // see the CommentRecord comment in shared/types.d.ts.
@@ -205,6 +210,7 @@ const Tables = {
         'InventoryRequestId',
         'UserId',
         'Message',
+        'TicketId',
     ]),
     // No separate Links tab: links are stored as one JSON-encoded row here
     // (Id 'links'), the same generic-key-value pattern HomeContent already

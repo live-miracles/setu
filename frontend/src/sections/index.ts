@@ -7,6 +7,8 @@ import { renderRoster } from './roster';
 import {
     SETTINGS_LIST_PAGES,
     renderHomeContent,
+    renderHomeSettings,
+    renderRosterPresets,
     renderSettingsList,
     renderUsers,
 } from './settings';
@@ -30,6 +32,8 @@ export const ROUTER_CONFIG: RouterConfig = {
         'inventory-types': (c, d) =>
             renderSettingsList(SETTINGS_LIST_PAGES['inventory-types'], c, d),
         'home-content': renderHomeContent,
+        'home-settings': renderHomeSettings,
+        'roster-presets': renderRosterPresets,
     },
     registrationGate: renderRegistrationGate,
 };

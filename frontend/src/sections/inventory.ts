@@ -4,6 +4,7 @@ import { generateRequestId } from '../ids';
 import {
     navigateToInventoryRequest,
     navigateToInventoryCreate,
+    navigateToInventoryEdit,
     navigateToInventoryRequests,
     refreshDashboard,
 } from '../router';
@@ -13,13 +14,20 @@ import {
     renderEmptyState,
     renderSectionHeader,
 } from '../ui/components';
-import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import {
+    setButtonPending,
+    showErrorAlert,
+    showSavingBadge,
+    showSuccessToast,
+} from '../ui/feedback';
+import { openFormDialog } from '../ui/dialog';
 import { escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
 import {
     INVENTORY_REQUEST_ACTION_BTN,
     INVENTORY_REQUEST_STATUS_ACCENT,
     INVENTORY_REQUEST_STATUS_BADGE,
+    INVENTORY_REQUEST_STATUS_LABEL,
     stockLevelClass,
 } from '../ui/styles';
 import { canApprove, canTransitionInventoryRequest, isRequestOverdue } from '../workflows';
@@ -110,6 +118,16 @@ export async function renderInventory(
 ): Promise<void> {
     const params = new URLSearchParams(window.location.search);
     const requestId = params.get(INVENTORY_REQUEST_QUERY_PARAM);
+    const mode = params.get(WORKBENCH_MODE_QUERY_PARAM);
+    if (mode === 'edit' && requestId) {
+        try {
+            renderInventoryCreate(container, dashboard, await api.getInventoryRequest(requestId));
+        } catch (err) {
+            showErrorAlert(err);
+            container.innerHTML = renderEmptyState('box', 'This draft could not be opened.');
+        }
+        return;
+    }
     if (requestId) {
         try {
             renderInventoryRequestDetail(
@@ -123,7 +141,7 @@ export async function renderInventory(
         }
         return;
     }
-    if (params.get(WORKBENCH_MODE_QUERY_PARAM) === 'create') {
+    if (mode === 'create') {
         renderInventoryCreate(container, dashboard);
         return;
     }
@@ -307,7 +325,7 @@ function inventorySortHeader(label: string, sort: string, state: WorkbenchState)
 
 function renderInventoryListRow(request: InventoryRequestDTO): string {
     const overdue = isRequestOverdue(request);
-    return `<tr><td data-label="Request"><a href="${workItemHref(INVENTORY_REQUEST_QUERY_PARAM, request.Id)}" data-inventory-id="${request.Id}"><span class="font-mono text-xs">REQ-${request.DisplayId}</span><strong>${escapeHtml(request.Name)}</strong></a></td><td data-label="Equipment">${request.items.map((item) => `${escapeHtml(item.itemName)} × ${item.Quantity}`).join('<br />')}</td><td data-label="Dates">${escapeHtml(request.StartDate)} → ${escapeHtml(request.EndDate)}${overdue ? '<small><span class="badge badge-error badge-xs">Overdue</span></small>' : ''}</td><td data-label="Requested by">${escapeHtml(request.userName)}</td><td data-label="Status"><span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></td></tr>`;
+    return `<tr><td data-label="Request"><a href="${workItemHref(INVENTORY_REQUEST_QUERY_PARAM, request.Id)}" data-inventory-id="${request.Id}"><span class="font-mono text-xs">REQ-${request.DisplayId}</span><strong>${escapeHtml(request.Name)}</strong></a></td><td data-label="Equipment">${request.items.map((item) => `${escapeHtml(item.itemName)} × ${item.Quantity}`).join('<br />')}</td><td data-label="Dates">${escapeHtml(request.StartDate)} → ${escapeHtml(request.EndDate)}${overdue ? '<small><span class="badge badge-error badge-xs">Overdue</span></small>' : ''}</td><td data-label="Requested by">${escapeHtml(request.userName)}</td><td data-label="Status"><span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${INVENTORY_REQUEST_STATUS_LABEL[request.Status]}</span></td></tr>`;
 }
 
 function wireInventoryLinks(root: ParentNode): void {
@@ -322,16 +340,20 @@ function wireInventoryLinks(root: ParentNode): void {
     });
 }
 
-function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPayload): void {
-    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-inventory" class="btn btn-ghost btn-sm">← Back to requests</button><div><p>New equipment request</p><h1>Request equipment</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-request-form" class="space-y-3"><fieldset class="fieldset"><label class="label" for="request-name">Name</label><input id="request-name" name="name" class="input w-full" placeholder="e.g. Studio 2 camera setup" required /><div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="request-start">From</label><input id="request-start" name="startDate" type="date" class="input w-full" required /></div><div><label class="label" for="request-end">To</label><input id="request-end" name="endDate" type="date" class="input w-full" required /></div></div><label class="label" for="request-participants">Participants</label><input id="request-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" /><label class="label" for="request-images">Photos</label><input id="request-images" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple class="file-input w-full" /><label class="label">Items</label><div id="request-items" class="space-y-2"></div><div><button type="button" id="add-request-item" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add item</button></div></fieldset><div class="flex gap-2"><button type="submit" class="btn btn-primary">Submit request</button><button type="button" id="cancel-inventory" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
+function renderInventoryCreate(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    draft?: InventoryRequestDTO,
+): void {
+    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-inventory" class="btn btn-ghost btn-sm">← Back to requests</button><div><p>${draft ? `REQ-${draft.DisplayId} · Draft` : 'New equipment request'}</p><h1>${draft ? 'Edit equipment request' : 'Request equipment'}</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-request-form" class="space-y-4" data-draft-id="${draft ? escapeHtml(draft.Id) : ''}"><fieldset class="fieldset"><label class="label" for="request-name">Name</label><input id="request-name" name="name" class="input w-full" value="${escapeHtml(draft?.Name || '')}" placeholder="e.g. Studio 2 camera setup" required /><div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="request-start">From</label><input id="request-start" name="startDate" type="date" class="input w-full" value="${escapeHtml(draft?.StartDate || '')}" required /></div><div><label class="label" for="request-end">To</label><input id="request-end" name="endDate" type="date" class="input w-full" value="${escapeHtml(draft?.EndDate || '')}" required /></div></div><label class="label" for="request-participants">Participants</label><input id="request-participants" name="participants" class="input w-full" value="${escapeHtml(draft?.participants.join(', ') || '')}" placeholder="comma-separated emails (optional)" /><label class="label" for="request-images">Photos</label><input id="request-images" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple class="file-input w-full" /><p class="text-xs text-base-content/55">Up to three images. Existing draft images remain unless replacements are uploaded.</p><label class="label">Items</label><div id="request-items" class="space-y-2"></div><div><button type="button" id="add-request-item" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add item</button></div><div id="availability-feedback" class="hidden alert" role="status" aria-live="polite"></div></fieldset><div class="flex flex-wrap gap-2"><button type="submit" name="intent" value="submitted" class="btn btn-primary">${draft ? 'Save and submit' : 'Submit request'}</button><button type="submit" name="intent" value="draft" class="btn btn-outline">Save draft</button><button type="button" id="cancel-inventory" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
     document
         .getElementById('back-to-inventory')!
         .addEventListener('click', navigateToInventoryRequests);
     document
         .getElementById('cancel-inventory')!
         .addEventListener('click', navigateToInventoryRequests);
-    wireInventoryTypePicker(dashboard);
-    wireCreateRequestForm();
+    wireInventoryTypePicker(dashboard, draft?.items || []);
+    wireCreateRequestForm(draft);
 }
 
 function renderInventoryRequestDetail(
@@ -341,7 +363,11 @@ function renderInventoryRequestDetail(
 ): void {
     const actions = availableInventoryRequestActions(request, dashboard);
     const overdue = isRequestOverdue(request);
-    const actionControls = renderInventoryDetailActions(request.Status, actions);
+    const canEditDraft =
+        request.Status === 'draft' &&
+        (request.UserId === dashboard.me.Email ||
+            request.participants.indexOf(dashboard.me.Email) !== -1);
+    const actionControls = `${canEditDraft ? '<button type="button" id="edit-inventory-draft" class="btn btn-outline btn-sm">Edit draft</button>' : ''}${renderInventoryDetailActions(request.Status, actions)}`;
     container.innerHTML = `
     <section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-6">
       ${renderDetailCommandHeader({
@@ -350,7 +376,7 @@ function renderInventoryRequestDetail(
           eyebrow: 'Equipment request',
           reference: `REQ-${request.DisplayId}`,
           title: request.Name,
-          statusHtml: `${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}<span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
+          statusHtml: `${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}<span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${INVENTORY_REQUEST_STATUS_LABEL[request.Status]}</span>`,
           nextStatuses: INVENTORY_NEXT_STATUS_LABELS[request.Status],
           actionsHtml: actionControls,
       })}
@@ -412,6 +438,9 @@ function renderInventoryRequestDetail(
     document
         .getElementById('back-to-inventory-requests')!
         .addEventListener('click', navigateToInventoryRequests);
+    document
+        .getElementById('edit-inventory-draft')
+        ?.addEventListener('click', () => navigateToInventoryEdit(request.Id));
     wireInventoryRequestDetail(request);
 }
 
@@ -466,11 +495,13 @@ function availableInventoryRequestActions(
 
 function wireInventoryRequestDetail(request: InventoryRequestDTO): void {
     const detail = document.getElementById('inventory-request-detail')!;
-    detail.querySelectorAll<HTMLButtonElement>('button[data-action]').forEach((button) => {
+    const page = detail.closest('.detail-page') || detail;
+    page.querySelectorAll<HTMLButtonElement>('button[data-action]').forEach((button) => {
         button.addEventListener('click', async () => {
             await handleInventoryRequestAction(
                 request,
                 button.dataset.action as InventoryRequestAction,
+                button,
             );
         });
     });
@@ -483,6 +514,7 @@ function wireInventoryRequestDetail(request: InventoryRequestDTO): void {
         try {
             showSavingBadge(true);
             await api.addComment(request.Id, message, generateRequestId());
+            showSuccessToast('Comment added.');
             await refreshDashboard();
         } catch (err) {
             showErrorAlert(err);
@@ -492,26 +524,30 @@ function wireInventoryRequestDetail(request: InventoryRequestDTO): void {
     });
 }
 
-function wireInventoryTypePicker(dashboard: DashboardPayload): void {
+function wireInventoryTypePicker(
+    dashboard: DashboardPayload,
+    initialItems: InventoryItemDTO[] = [],
+): void {
     const list = document.getElementById('request-items')!;
     const addButton = document.getElementById('add-request-item')!;
 
-    function addRow(): void {
+    function addRow(initial?: InventoryItemDTO): void {
         const row = document.createElement('div');
         row.className = 'flex gap-2 request-item-row';
         row.innerHTML = `
-      <select class="select flex-1" name="inventoryTypeId">
-        ${dashboard.inventoryTypes.map((type) => `<option value="${type.Id}">${escapeHtml(type.Name)} (${type.availableQuantity} available)</option>`).join('')}
+      <select class="select flex-1" name="inventoryTypeId" aria-label="Equipment type">
+        ${dashboard.inventoryTypes.map((type) => `<option value="${type.Id}" ${initial?.InventoryTypeId === type.Id ? 'selected' : ''}>${escapeHtml(type.Name)} (${type.availableQuantity} currently available)</option>`).join('')}
       </select>
-      <input type="number" min="1" value="1" class="input w-20" name="quantity" />
+      <input type="number" min="1" value="${initial?.Quantity || 1}" class="input w-24" name="quantity" aria-label="Quantity" />
       <button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove item">✕</button>
     `;
         row.querySelector('.remove-row')!.addEventListener('click', () => row.remove());
         list.appendChild(row);
     }
 
-    addButton.addEventListener('click', addRow);
-    if (dashboard.inventoryTypes.length > 0) addRow();
+    addButton.addEventListener('click', () => addRow());
+    if (initialItems.length > 0) initialItems.forEach(addRow);
+    else if (dashboard.inventoryTypes.length > 0) addRow();
 }
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -527,10 +563,12 @@ function readFileAsBase64(file: File): Promise<string> {
     });
 }
 
-function wireCreateRequestForm(): void {
+function wireCreateRequestForm(draft?: InventoryRequestDTO): void {
     const form = document.getElementById('create-request-form') as HTMLFormElement;
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const submitter = (e as SubmitEvent).submitter as HTMLButtonElement | null;
+        const initialStatus = submitter?.value === 'draft' ? 'draft' : 'submitted';
         const data = new FormData(form);
         const items = Array.from(form.querySelectorAll('.request-item-row')).map((row) => {
             const inventoryTypeId = (
@@ -547,6 +585,25 @@ function wireCreateRequestForm(): void {
         }
         try {
             showSavingBadge(true);
+            if (submitter) setButtonPending(submitter, true);
+            const startDate = String(data.get('startDate'));
+            const endDate = String(data.get('endDate'));
+            const availability = await api.getInventoryAvailability(
+                startDate,
+                endDate,
+                items,
+                draft?.Id,
+            );
+            const unavailable = availability.filter((item) => !item.available);
+            const feedback = document.getElementById('availability-feedback')!;
+            feedback.classList.remove('hidden', 'alert-success', 'alert-warning');
+            if (unavailable.length > 0) {
+                feedback.classList.add('alert-warning');
+                feedback.textContent = `${unavailable.length} item type${unavailable.length === 1 ? '' : 's'} may be unavailable for these dates. Approval will re-check availability.`;
+            } else {
+                feedback.classList.add('alert-success');
+                feedback.textContent = 'Requested quantities are available for these dates.';
+            }
             const fileInput = document.getElementById('request-images') as HTMLInputElement;
             const files = fileInput.files ? Array.from(fileInput.files).slice(0, 3) : [];
             const images: string[] = [];
@@ -554,22 +611,28 @@ function wireCreateRequestForm(): void {
                 const base64 = await readFileAsBase64(file);
                 images.push(await api.uploadImage(base64, file.name, file.type));
             }
-            const created = await api.createInventoryRequest(
-                {
-                    name: String(data.get('name')),
-                    startDate: String(data.get('startDate')),
-                    endDate: String(data.get('endDate')),
-                    items,
-                    images,
-                    participants: String(data.get('participants') || ''),
-                },
-                generateRequestId(),
-            );
+            const existingImages = draft
+                ? [draft.Image1Id, draft.Image2Id, draft.Image3Id].filter(Boolean)
+                : [];
+            const input: CreateInventoryRequestInput = {
+                name: String(data.get('name')),
+                startDate,
+                endDate,
+                items,
+                images: images.length > 0 ? images : existingImages,
+                participants: String(data.get('participants') || ''),
+                initialStatus,
+            };
+            const created = draft
+                ? await api.updateInventoryRequestDraft(draft.Id, input, generateRequestId())
+                : await api.createInventoryRequest(input, generateRequestId());
+            showSuccessToast(initialStatus === 'draft' ? 'Draft saved.' : 'Request submitted.');
             navigateToInventoryRequest(created.Id);
         } catch (err) {
             showErrorAlert(err);
         } finally {
             showSavingBadge(false);
+            if (submitter?.isConnected) setButtonPending(submitter, false);
         }
     });
 }
@@ -583,7 +646,7 @@ function renderInventoryRequestBoardCard(request: InventoryRequestDTO): string {
       <a class="workbench-card border-l-4 ${INVENTORY_REQUEST_STATUS_ACCENT[request.Status]}" href="${workItemHref(INVENTORY_REQUEST_QUERY_PARAM, request.Id)}" data-inventory-id="${request.Id}" aria-label="Open REQ-${request.DisplayId} ${escapeHtml(request.Name)}">
         <div class="workbench-card-top">
           <span class="font-mono text-xs text-base-content/50">REQ-${request.DisplayId}</span>
-          <span class="badge badge-xs ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>
+          <span class="badge badge-xs ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${INVENTORY_REQUEST_STATUS_LABEL[request.Status]}</span>
         </div>
         <h4 class="mt-1.5 line-clamp-2 font-medium leading-snug">${escapeHtml(request.Name)}</h4>
         <p class="mt-1 text-xs text-base-content/55">${escapeHtml(request.userName)}</p>
@@ -596,27 +659,60 @@ function renderInventoryRequestBoardCard(request: InventoryRequestDTO): string {
 async function handleInventoryRequestAction(
     request: InventoryRequestDTO,
     action: InventoryRequestAction,
+    trigger: HTMLButtonElement,
 ): Promise<void> {
-    let note = '';
-    if (action === 'reject' || action === 'cancel') {
-        note = window.prompt('Add a note (required, at least 3 characters):') || '';
-        if (note.trim().length < 3) return;
+    const noteRequired = action === 'reject' || action === 'cancel';
+    const fields = [];
+    if (noteRequired || ['approve', 'issue', 'close'].includes(action)) {
+        fields.push({
+            name: 'note',
+            label: noteRequired ? 'Reason' : 'Note (optional)',
+            type: 'textarea' as const,
+            required: noteRequired,
+            minLength: noteRequired ? 3 : undefined,
+            placeholder: noteRequired
+                ? 'Explain why this action is needed.'
+                : 'Add context for the activity log.',
+        });
     }
-
-    let returnItems: ReturnItemInput[] | null = null;
     if (action === 'return') {
-        returnItems = [];
-        for (const item of request.items) {
-            const condition = window.prompt(
-                `Condition for ${item.itemName}: good, damaged, or missing`,
-                'good',
-            );
-            if (!condition) return;
-            returnItems.push({ requestItemId: item.Id, condition: condition as ReturnCondition });
-        }
+        request.items.forEach((item, index) =>
+            fields.push({
+                name: `condition-${index}`,
+                label: `${item.itemName} × ${item.Quantity}`,
+                type: 'select' as const,
+                value: 'good',
+                required: true,
+                options: [
+                    { value: 'good', label: 'Good' },
+                    { value: 'damaged', label: 'Damaged' },
+                    { value: 'missing', label: 'Missing' },
+                ],
+            }),
+        );
     }
+    const values = await openFormDialog({
+        title: `${INVENTORY_REQUEST_ACTION_LABELS[action]} REQ-${request.DisplayId}?`,
+        description:
+            action === 'return'
+                ? 'Record the condition of every item in one return.'
+                : `This will move the request from ${INVENTORY_REQUEST_STATUS_LABEL[request.Status]} to its next lifecycle state.`,
+        confirmLabel: INVENTORY_REQUEST_ACTION_LABELS[action],
+        tone: action === 'reject' || action === 'cancel' ? 'danger' : 'primary',
+        fields,
+    });
+    if (!values) return;
+    const note = values.note || '';
+    const returnItems: ReturnItemInput[] | null =
+        action === 'return'
+            ? request.items.map((item, index) => ({
+                  requestItemId: item.Id,
+                  condition: values[`condition-${index}`] as ReturnCondition,
+              }))
+            : null;
 
     try {
+        setButtonPending(trigger, true);
         showSavingBadge(true);
         await api.performInventoryRequestAction(
             request.Id,
@@ -625,10 +721,12 @@ async function handleInventoryRequestAction(
             returnItems,
             generateRequestId(),
         );
+        showSuccessToast(`REQ-${request.DisplayId} updated.`);
         await refreshDashboard();
     } catch (err) {
         showErrorAlert(err);
     } finally {
         showSavingBadge(false);
+        if (trigger.isConnected) setButtonPending(trigger, false);
     }
 }

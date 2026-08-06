@@ -5,3 +5,5 @@ node_modules
 src/Index.html
 src/Stylesheet.html
 src/JavaScript.html
+playwright-report
+test-results

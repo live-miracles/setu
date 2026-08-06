@@ -111,6 +111,12 @@ export function renderWorkbenchToolbar(
 }
 
 function labelFor(options: WorkbenchFilterOption[], value: string): string {
+    if (value.includes(',')) {
+        return value
+            .split(',')
+            .map((part) => options.find((option) => option.value === part)?.label || part)
+            .join(' + ');
+    }
     return options.find((option) => option.value === value)?.label || value;
 }
 
