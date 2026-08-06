@@ -54,14 +54,15 @@ test('inventory requests can be saved, edited, and submitted as drafts', async (
     const end = new Date(Date.now() + 21 * 86_400_000).toISOString().slice(0, 10);
     await page.getByLabel('Name').fill('Draft field kit');
     await page.getByLabel('From').fill(start);
-    await page.getByLabel('To').fill(end);
+    await page.locator('#request-end').fill(end);
     await page.getByLabel('Equipment type').selectOption('inv-1');
     await page.getByRole('button', { name: 'Save draft' }).click();
     await expect(page.getByText('Draft', { exact: true }).first()).toBeVisible();
     await page.getByRole('button', { name: 'Edit draft' }).click();
     await page.getByLabel('Name').fill('Submitted field kit');
     await page.getByRole('button', { name: 'Save and submit' }).click();
-    await expect(page.getByText('Submitted', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Needs review', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/submitted this request/i)).toBeVisible();
 });
 
 test('rejection requires a structured reason and records the new state', async ({ page }) => {
