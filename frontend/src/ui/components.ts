@@ -54,6 +54,94 @@ export function renderCommentLine(comment: CommentDTO): string {
     return `<div><span class="font-medium">${escapeHtml(comment.userName)}</span> <span class="text-base-content/70">${escapeHtml(comment.Message)}</span></div>`;
 }
 
+export interface RequestFieldSection {
+    title: string;
+    rows: string[];
+}
+
+export function renderRequestDetailPage(
+    headerHtml: string,
+    mainHtml: string,
+    asideHtml = '',
+    hasActions = false,
+): string {
+    return `<section class="detail-page request-detail-page ${hasActions ? 'detail-page-has-actions' : ''}">
+      ${headerHtml}
+      <div class="request-detail-layout">
+        ${mainHtml}
+        ${asideHtml}
+      </div>
+    </section>`;
+}
+
+export function renderRequestRecordPanel(
+    contentHtml: string,
+    tagName: 'main' | 'form' = 'main',
+    attrs = '',
+): string {
+    return `<${tagName} class="request-record-panel" ${attrs}>${contentHtml}</${tagName}>`;
+}
+
+export function renderRequestTitleInput(id: string, name: string, placeholder: string): string {
+    return `<div class="request-record-title"><label class="sr-only" for="${escapeHtml(id)}">${escapeHtml(placeholder)}</label><input id="${escapeHtml(id)}" name="${escapeHtml(name)}" class="request-title-input" placeholder="${escapeHtml(placeholder)}" required /></div>`;
+}
+
+export function renderRequestDisplayTitle(title: string): string {
+    return `<h2 class="request-display-title">${escapeHtml(title)}</h2>`;
+}
+
+export function renderRequestFieldGrid(sections: RequestFieldSection[]): string {
+    return `<div class="request-record-grid">${sections
+        .map(
+            (section) =>
+                `<section><h2>${escapeHtml(section.title)}</h2>${section.rows.join('')}</section>`,
+        )
+        .join('')}</div>`;
+}
+
+export function renderRequestEditableField(label: string, controlHtml: string): string {
+    return `<label class="request-field"><span>${escapeHtml(label)}</span>${controlHtml}</label>`;
+}
+
+export function renderRequestReadonlyFields(rows: { label: string; valueHtml: string }[]): string {
+    return `<dl class="request-readonly-fields">${rows
+        .map((row) => `<div><dt>${escapeHtml(row.label)}</dt><dd>${row.valueHtml}</dd></div>`)
+        .join('')}</dl>`;
+}
+
+export function renderRequestLineSection(title: string, contentHtml: string, notice = ''): string {
+    return `<section class="request-lines-panel">
+      <div class="request-tabs"><span>${escapeHtml(title)}</span></div>
+      ${notice ? `<div class="request-line-notice">${escapeHtml(notice)}</div>` : ''}
+      ${contentHtml}
+    </section>`;
+}
+
+export function renderRequestActivityPanel(options: {
+    comments?: CommentDTO[];
+    createMode?: boolean;
+    commentFormId?: string;
+    emptyMessage?: string;
+}): string {
+    const createMode = Boolean(options.createMode);
+    const canComment = !createMode && Boolean(options.commentFormId);
+    const content = createMode
+        ? `<div class="request-activity-empty"><strong>New request</strong><span>${escapeHtml(options.emptyMessage || 'Activity will appear here after this record is saved.')}</span></div>`
+        : (options.comments || []).map(renderCommentLine).join('') ||
+          `<p class="text-sm text-base-content/50">${escapeHtml(options.emptyMessage || 'No updates yet.')}</p>`;
+    return `<aside class="request-activity-panel">
+      <div class="request-activity-actions">
+        <button type="button" class="btn btn-primary btn-sm" ${canComment ? '' : 'disabled'}>${icon('mail', 'size-4')} Add comment</button>
+      </div>
+      <div class="request-activity-timeline">${content}</div>
+      ${
+          !canComment
+              ? ''
+              : `<form id="${escapeHtml(options.commentFormId)}" class="request-comment-form"><input name="message" class="input input-sm flex-1" placeholder="Add a comment" /><button class="btn btn-sm" type="submit">Send</button></form>`
+      }
+    </aside>`;
+}
+
 interface DetailCommandHeaderOptions {
     backButtonId: string;
     backLabel: string;
@@ -62,6 +150,7 @@ interface DetailCommandHeaderOptions {
     title: string;
     statusHtml: string;
     nextStatuses?: string[];
+    statusSteps?: { label: string; active: boolean }[];
     actionsHtml?: string;
 }
 
@@ -69,6 +158,14 @@ export function renderDetailCommandHeader(options: DetailCommandHeaderOptions): 
     const nextState = options.nextStatuses?.length
         ? `<span><span class="detail-state-label">Possible next</span><strong>${options.nextStatuses.map(escapeHtml).join(' / ')}</strong></span>`
         : '<span><span class="detail-state-label">Lifecycle</span><strong>Final state</strong></span>';
+    const statusSteps = options.statusSteps?.length
+        ? `<div class="detail-status-track" aria-label="Status progress">${options.statusSteps
+              .map(
+                  (step) =>
+                      `<span class="${step.active ? 'active' : ''}">${escapeHtml(step.label)}</span>`,
+              )
+              .join('')}</div>`
+        : '';
 
     return `<header class="detail-command-header">
       <button type="button" id="${escapeHtml(options.backButtonId)}" class="detail-command-back btn btn-ghost btn-sm">← ${escapeHtml(options.backLabel)}</button>
@@ -82,6 +179,7 @@ export function renderDetailCommandHeader(options: DetailCommandHeaderOptions): 
           ${options.actionsHtml ? `<div class="detail-command-actions" aria-label="Available actions">${options.actionsHtml}</div>` : ''}
         </div>
       </div>
+      ${statusSteps}
       <div class="detail-state-summary" aria-label="Lifecycle status">
         <span><span class="detail-state-label">Current status</span><strong>${options.statusHtml}</strong></span>
         ${nextState}

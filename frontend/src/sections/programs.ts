@@ -9,9 +9,17 @@ import {
 } from '../router';
 import {
     namePill,
-    renderCommentLine,
     renderDetailCommandHeader,
     renderEmptyState,
+    renderRequestActivityPanel,
+    renderRequestDetailPage,
+    renderRequestDisplayTitle,
+    renderRequestEditableField,
+    renderRequestFieldGrid,
+    renderRequestLineSection,
+    renderRequestReadonlyFields,
+    renderRequestRecordPanel,
+    renderRequestTitleInput,
     renderWorkbenchHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
@@ -45,6 +53,21 @@ const PROGRAM_NEXT_STATUS_LABELS: Record<ProgramRequestStatus, string[]> = {
     rejected: [],
     cancelled: [],
 };
+
+const PROGRAM_STATUS_STEPS: { status: ProgramRequestStatus; label: string }[] = [
+    { status: 'draft', label: 'Draft' },
+    { status: 'submitted', label: 'Submit for Approval' },
+    { status: 'approved', label: 'Approved' },
+    { status: 'rejected', label: 'Rejected' },
+    { status: 'cancelled', label: 'Cancelled' },
+];
+
+function programStatusSteps(status: ProgramRequestStatus): { label: string; active: boolean }[] {
+    return PROGRAM_STATUS_STEPS.map((step) => ({
+        label: step.label,
+        active: step.status === status,
+    }));
+}
 
 const PROGRAM_BOARD_COLUMNS: {
     id: string;
@@ -290,21 +313,65 @@ function wireProgramLinks(root: ParentNode): void {
 }
 
 function renderProgramCreate(container: HTMLElement, dashboard: DashboardPayload): void {
-    container.innerHTML = `<section class="space-y-5">
-      <div class="detail-heading"><button type="button" id="back-to-programs" class="btn btn-ghost btn-sm">← Back to programs</button><div><p>New program</p><h1>Request a program</h1></div></div>
-      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3">
-        <form id="create-program-form" class="space-y-3">
-          <fieldset class="fieldset">
-            <label class="label" for="program-name">Name</label><input id="program-name" name="name" class="input w-full" placeholder="e.g. Sunday livestream" required />
-            <div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="program-type">Type</label><input id="program-type" name="type" class="input w-full" placeholder="e.g. Livestream" required /></div><div><label class="label" for="program-place">Place</label><select id="program-place" name="placeId" class="select w-full" required>${dashboard.places.map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`).join('')}</select></div></div>
-            <label class="label" for="program-participants">Participants</label><input id="program-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" />
-            <label class="label">Sessions</label><div id="program-sessions" class="space-y-2"></div>
-            <div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button></div>
-          </fieldset>
-          <div class="flex gap-2"><button type="submit" class="btn btn-primary">Submit request</button><button type="button" id="cancel-program" class="btn btn-ghost">Cancel</button></div>
-        </form>
-      </div></div>
-    </section>`;
+    const header = renderDetailCommandHeader({
+        backButtonId: 'back-to-programs',
+        backLabel: 'Back to programs',
+        eyebrow: 'Program request',
+        reference: 'New',
+        title: 'New program request',
+        statusHtml: '<span class="badge badge-ghost">draft</span>',
+        nextStatuses: PROGRAM_NEXT_STATUS_LABELS.draft,
+        statusSteps: programStatusSteps('draft'),
+        actionsHtml:
+            '<button type="submit" form="create-program-form" class="btn btn-primary btn-sm">Save</button><button type="button" id="cancel-program" class="btn btn-ghost btn-sm">Cancel</button>',
+    });
+    const fields = renderRequestFieldGrid([
+        {
+            title: 'Basic details',
+            rows: [
+                renderRequestEditableField(
+                    'Program type',
+                    '<input id="program-type" name="type" class="input input-sm" placeholder="e.g. Livestream" required />',
+                ),
+                renderRequestEditableField(
+                    'Place',
+                    `<select id="program-place" name="placeId" class="select select-sm" required><option value="">Select place</option>${dashboard.places.map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`).join('')}</select>`,
+                ),
+                renderRequestEditableField(
+                    'Participants',
+                    '<input id="program-participants" name="participants" class="input input-sm" placeholder="email1, email2" />',
+                ),
+            ],
+        },
+        {
+            title: 'Requester info',
+            rows: [
+                renderRequestReadonlyFields([
+                    { label: 'Requester', valueHtml: escapeHtml(dashboard.me.Name) },
+                    {
+                        label: 'Department',
+                        valueHtml: escapeHtml(dashboard.me.departmentName || ''),
+                    },
+                    { label: 'Email', valueHtml: escapeHtml(dashboard.me.Email) },
+                ]),
+            ],
+        },
+    ]);
+    const sessions = renderRequestLineSection(
+        'Sessions',
+        `<div id="program-sessions" class="request-line-list"></div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button>`,
+        'Reservations should include at least one session before saving.',
+    );
+    container.innerHTML = renderRequestDetailPage(
+        header,
+        renderRequestRecordPanel(
+            `${renderRequestTitleInput('program-name', 'name', 'Program title')}${fields}${sessions}`,
+            'form',
+            'id="create-program-form"',
+        ),
+        renderRequestActivityPanel({ createMode: true }),
+        true,
+    );
     document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
     document.getElementById('cancel-program')!.addEventListener('click', navigateToPrograms);
     wireSessionRows();
@@ -316,9 +383,8 @@ function wireSessionRows(): void {
     const addButton = document.getElementById('add-program-session')!;
     const addRow = () => {
         const row = document.createElement('div');
-        row.className =
-            'grid gap-2 rounded-box border border-base-200 p-3 sm:grid-cols-2 program-session-row';
-        row.innerHTML = `<input class="input input-sm" name="sessionName" placeholder="Session name" required /><div class="flex gap-2"><input class="input input-sm flex-1" name="sessionType" placeholder="Session type" required /><button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button></div><label class="label text-xs">Start</label><label class="label text-xs">End</label><input type="datetime-local" class="input input-sm" name="startDateTime" required /><input type="datetime-local" class="input input-sm" name="endDateTime" required />`;
+        row.className = 'program-session-row';
+        row.innerHTML = `<input class="input input-sm" name="sessionType" placeholder="Session type" required /><input type="datetime-local" class="input input-sm" name="startDateTime" required /><input type="datetime-local" class="input input-sm" name="endDateTime" required /><input class="input input-sm" name="sessionName" placeholder="Session title" required /><button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button>`;
         row.querySelector('.remove-row')!.addEventListener('click', () => row.remove());
         list.appendChild(row);
     };
@@ -387,23 +453,56 @@ function renderProgramDetail(
 ): void {
     const actions = availableProgramActions(request, dashboard);
     const actionControls = renderProgramDetailActions(request.Status, actions);
-    container.innerHTML = `<section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-5">
-      ${renderDetailCommandHeader({
-          backButtonId: 'back-to-programs',
-          backLabel: 'Back to programs',
-          eyebrow: 'Program request',
-          reference: `PRG-${request.DisplayId}`,
-          title: request.Name,
-          statusHtml: `<span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
-          nextStatuses: PROGRAM_NEXT_STATUS_LABELS[request.Status],
-          actionsHtml: actionControls,
-      })}
-      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-5">
-        <dl class="detail-grid"><div><dt>Requested by</dt><dd>${escapeHtml(request.userName)}</dd></div><div><dt>Type</dt><dd>${escapeHtml(request.Type)}</dd></div><div><dt>Place</dt><dd>${escapeHtml(request.placeName)}</dd></div><div><dt>Participants</dt><dd class="flex flex-wrap gap-1">${request.participants.length ? request.participants.map(namePill).join('') : 'None'}</dd></div></dl>
-      </div></div>
-      <div class="card border border-base-300 bg-base-100"><div class="card-body"><h2 class="card-title">Sessions</h2><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Name</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>${request.sessions.map((session) => `<tr><td>${escapeHtml(session.Name)}</td><td>${escapeHtml(session.Type)}</td><td>${formatDateTime(session.StartDateTime)}</td><td>${formatDateTime(session.EndDateTime)}</td></tr>`).join('')}</tbody></table></div></div></div>
-      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-3"><h2 class="card-title">Updates</h2><div class="space-y-2">${request.comments.map(renderCommentLine).join('') || '<p class="text-sm text-base-content/50">No updates yet.</p>'}</div><form id="program-comment-form" class="flex gap-2 border-t border-base-200 pt-3"><input name="message" class="input input-sm flex-1" placeholder="Add a comment" /><button class="btn btn-sm" type="submit">Send</button></form></div></div>
-    </section>`;
+    const header = renderDetailCommandHeader({
+        backButtonId: 'back-to-programs',
+        backLabel: 'Back to programs',
+        eyebrow: 'Program request',
+        reference: `PRG-${request.DisplayId}`,
+        title: request.Name,
+        statusHtml: `<span class="badge ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
+        nextStatuses: PROGRAM_NEXT_STATUS_LABELS[request.Status],
+        statusSteps: programStatusSteps(request.Status),
+        actionsHtml: actionControls,
+    });
+    const fields = renderRequestFieldGrid([
+        {
+            title: 'Basic details',
+            rows: [
+                renderRequestReadonlyFields([
+                    { label: 'Type', valueHtml: escapeHtml(request.Type) },
+                    { label: 'Place', valueHtml: escapeHtml(request.placeName) },
+                    {
+                        label: 'Participants',
+                        valueHtml: request.participants.length
+                            ? request.participants.map(namePill).join('')
+                            : 'None',
+                    },
+                ]),
+            ],
+        },
+        {
+            title: 'Requester info',
+            rows: [
+                renderRequestReadonlyFields([
+                    { label: 'Requested by', valueHtml: escapeHtml(request.userName) },
+                    { label: 'Status', valueHtml: escapeHtml(request.Status) },
+                ]),
+            ],
+        },
+    ]);
+    const sessions = renderRequestLineSection(
+        'Sessions',
+        `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Name</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>${request.sessions.map((session) => `<tr><td>${escapeHtml(session.Name)}</td><td>${escapeHtml(session.Type)}</td><td>${formatDateTime(session.StartDateTime)}</td><td>${formatDateTime(session.EndDateTime)}</td></tr>`).join('')}</tbody></table></div>`,
+    );
+    container.innerHTML = renderRequestDetailPage(
+        header,
+        renderRequestRecordPanel(`${renderRequestDisplayTitle(request.Name)}${fields}${sessions}`),
+        renderRequestActivityPanel({
+            comments: request.comments,
+            commentFormId: 'request-comment-form',
+        }),
+        actions.length > 0,
+    );
     document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
     document
         .querySelectorAll<HTMLButtonElement>('[data-program-action]')
@@ -418,7 +517,7 @@ function renderProgramDetail(
             ),
         );
     document
-        .getElementById('program-comment-form')!
+        .getElementById('request-comment-form')!
         .addEventListener('submit', (event) => void submitProgramComment(event, request.Id));
 }
 

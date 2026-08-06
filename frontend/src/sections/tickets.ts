@@ -10,6 +10,14 @@ import {
 import {
     renderDetailCommandHeader,
     renderEmptyState,
+    renderRequestActivityPanel,
+    renderRequestDetailPage,
+    renderRequestDisplayTitle,
+    renderRequestEditableField,
+    renderRequestFieldGrid,
+    renderRequestReadonlyFields,
+    renderRequestRecordPanel,
+    renderRequestTitleInput,
     renderWorkbenchHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
@@ -57,6 +65,19 @@ const TICKET_NEXT_STATUS_LABELS: Record<TicketStatus, string[]> = {
     pending: ['Reassigned / Pending', 'Closed'],
     closed: ['Reopened / Pending'],
 };
+
+const TICKET_STATUS_STEPS: { status: TicketStatus; label: string }[] = [
+    { status: 'unassigned', label: 'Unassigned' },
+    { status: 'pending', label: 'Pending' },
+    { status: 'closed', label: 'Closed' },
+];
+
+function ticketStatusSteps(status: TicketStatus): { label: string; active: boolean }[] {
+    return TICKET_STATUS_STEPS.map((step) => ({
+        label: step.label,
+        active: step.status === status,
+    }));
+}
 
 function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
     void dashboard;
@@ -238,7 +259,45 @@ function wireTicketLinks(root: ParentNode): void {
 }
 
 function renderTicketCreate(container: HTMLElement): void {
-    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-tickets" class="btn btn-ghost btn-sm">← Back to tickets</button><div><p>New ticket</p><h1>Report an issue</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-ticket-form" class="space-y-3"><fieldset class="fieldset"><label class="label" for="ticket-title">Title</label><input id="ticket-title" name="title" class="input w-full" placeholder="Short, searchable title" required /><label class="label" for="ticket-description">Description</label><textarea id="ticket-description" name="description" class="textarea min-h-32 w-full" placeholder="What happened, when, and what have you already tried?"></textarea></fieldset><div class="flex gap-2"><button type="submit" class="btn btn-primary">Create ticket</button><button type="button" id="cancel-ticket" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
+    const header = renderDetailCommandHeader({
+        backButtonId: 'back-to-tickets',
+        backLabel: 'Back to tickets',
+        eyebrow: 'Ticket',
+        reference: 'New',
+        title: 'New ticket',
+        statusHtml: '<span class="badge badge-ghost">unassigned</span>',
+        nextStatuses: TICKET_NEXT_STATUS_LABELS.unassigned,
+        statusSteps: ticketStatusSteps('unassigned'),
+        actionsHtml:
+            '<button type="submit" form="create-ticket-form" class="btn btn-primary btn-sm">Save</button><button type="button" id="cancel-ticket" class="btn btn-ghost btn-sm">Cancel</button>',
+    });
+    const fields = renderRequestFieldGrid([
+        {
+            title: 'Issue details',
+            rows: [
+                renderRequestEditableField(
+                    'Description',
+                    '<textarea id="ticket-description" name="description" class="textarea textarea-sm min-h-32" placeholder="What happened, when, and what have you already tried?"></textarea>',
+                ),
+            ],
+        },
+        {
+            title: 'Assignment',
+            rows: [
+                renderRequestReadonlyFields([{ label: 'Assigned to', valueHtml: 'Not assigned' }]),
+            ],
+        },
+    ]);
+    container.innerHTML = renderRequestDetailPage(
+        header,
+        renderRequestRecordPanel(
+            `${renderRequestTitleInput('ticket-title', 'title', 'Ticket title')}${fields}`,
+            'form',
+            'id="create-ticket-form"',
+        ),
+        renderRequestActivityPanel({ createMode: true }),
+        true,
+    );
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
     document.getElementById('cancel-ticket')!.addEventListener('click', navigateToTickets);
     document
@@ -283,19 +342,52 @@ function renderTicketDetail(
 ): void {
     const actions = availableTicketActions(ticket, dashboard);
     const actionControls = renderTicketDetailActions(ticket.Status, actions);
-    container.innerHTML = `<section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-5">
-      ${renderDetailCommandHeader({
-          backButtonId: 'back-to-tickets',
-          backLabel: 'Back to tickets',
-          eyebrow: 'Ticket',
-          reference: `TKT-${ticket.DisplayId}`,
-          title: ticket.Title,
-          statusHtml: `<span class="badge ${TICKET_STATUS_BADGES[ticket.Status]}">${TICKET_STATUS_LABELS[ticket.Status]}</span>`,
-          nextStatuses: TICKET_NEXT_STATUS_LABELS[ticket.Status],
-          actionsHtml: actionControls,
-      })}
-      <div class="card border border-base-300 bg-base-100"><div class="card-body gap-5"><dl class="detail-grid"><div><dt>Assigned to</dt><dd>${ticket.assigneeName ? escapeHtml(ticket.assigneeName) : 'Not assigned'}</dd></div><div class="sm:col-span-2"><dt>Description</dt><dd class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</dd></div></dl></div></div>
-    </section>`;
+    const header = renderDetailCommandHeader({
+        backButtonId: 'back-to-tickets',
+        backLabel: 'Back to tickets',
+        eyebrow: 'Ticket',
+        reference: `TKT-${ticket.DisplayId}`,
+        title: ticket.Title,
+        statusHtml: `<span class="badge ${TICKET_STATUS_BADGES[ticket.Status]}">${TICKET_STATUS_LABELS[ticket.Status]}</span>`,
+        nextStatuses: TICKET_NEXT_STATUS_LABELS[ticket.Status],
+        statusSteps: ticketStatusSteps(ticket.Status),
+        actionsHtml: actionControls,
+    });
+    const fields = renderRequestFieldGrid([
+        {
+            title: 'Issue details',
+            rows: [
+                renderRequestReadonlyFields([
+                    {
+                        label: 'Description',
+                        valueHtml: `<span class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</span>`,
+                    },
+                ]),
+            ],
+        },
+        {
+            title: 'Assignment',
+            rows: [
+                renderRequestReadonlyFields([
+                    {
+                        label: 'Assigned to',
+                        valueHtml: ticket.assigneeName
+                            ? escapeHtml(ticket.assigneeName)
+                            : 'Not assigned',
+                    },
+                    { label: 'Status', valueHtml: TICKET_STATUS_LABELS[ticket.Status] },
+                ]),
+            ],
+        },
+    ]);
+    container.innerHTML = renderRequestDetailPage(
+        header,
+        renderRequestRecordPanel(`${renderRequestDisplayTitle(ticket.Title)}${fields}`),
+        renderRequestActivityPanel({
+            emptyMessage: 'Ticket activity is captured through status changes.',
+        }),
+        actions.length > 0,
+    );
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
     document
         .querySelectorAll<HTMLButtonElement>('[data-ticket-action]')

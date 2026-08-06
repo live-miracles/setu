@@ -22,7 +22,9 @@ export type IconName =
     | 'pin'
     | 'edit'
     | 'trash'
-    | 'search';
+    | 'search'
+    | 'mail'
+    | 'message';
 
 const ICON_PATHS: Record<IconName, string> = {
     home: '<path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />',
@@ -49,6 +51,9 @@ const ICON_PATHS: Record<IconName, string> = {
     edit: '<path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z" /><line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />',
     trash: '<path d="M5 7h14" /><path d="M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />',
     search: '<circle cx="11" cy="11" r="6.5" /><line x1="16" y1="16" x2="21" y2="21" />',
+    mail: '<rect x="4" y="6" width="16" height="12" rx="2" /><path d="m5 8 7 5 7-5" />',
+    message:
+        '<path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 16H9l-4.5 4v-4H5A1.5 1.5 0 0 1 3.5 14.5v-8A1.5 1.5 0 0 1 5 5Z" />',
 };
 
 export function icon(name: IconName, className = 'size-5'): string {

@@ -11,10 +11,19 @@ import {
     namePill,
     renderDetailCommandHeader,
     renderEmptyState,
+    renderRequestActivityPanel,
+    renderRequestDetailPage,
+    renderRequestDisplayTitle,
+    renderRequestEditableField,
+    renderRequestFieldGrid,
+    renderRequestLineSection,
+    renderRequestReadonlyFields,
+    renderRequestRecordPanel,
+    renderRequestTitleInput,
     renderWorkbenchHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { escapeHtml, formatDateTime } from '../ui/format';
+import { escapeHtml } from '../ui/format';
 import { icon } from '../ui/icons';
 import {
     INVENTORY_REQUEST_ACTION_BTN,
@@ -102,6 +111,26 @@ const INVENTORY_NEXT_STATUS_LABELS: Record<InventoryRequestStatus, string[]> = {
     cancelled: ['Closed'],
     closed: [],
 };
+
+const INVENTORY_STATUS_STEPS: { status: InventoryRequestStatus; label: string }[] = [
+    { status: 'draft', label: 'Draft' },
+    { status: 'submitted', label: 'Submit for Approval' },
+    { status: 'approved', label: 'Approved' },
+    { status: 'issued', label: 'Issued' },
+    { status: 'returned', label: 'Returned' },
+    { status: 'closed', label: 'Closed' },
+    { status: 'rejected', label: 'Rejected' },
+    { status: 'cancelled', label: 'Cancelled' },
+];
+
+function inventoryStatusSteps(
+    status: InventoryRequestStatus,
+): { label: string; active: boolean }[] {
+    return INVENTORY_STATUS_STEPS.map((step) => ({
+        label: step.label,
+        active: step.status === status,
+    }));
+}
 
 export async function renderInventory(
     container: HTMLElement,
@@ -289,7 +318,69 @@ function wireInventoryLinks(root: ParentNode): void {
 }
 
 function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPayload): void {
-    container.innerHTML = `<section class="space-y-5"><div class="detail-heading"><button type="button" id="back-to-inventory" class="btn btn-ghost btn-sm">← Back to requests</button><div><p>New equipment request</p><h1>Request equipment</h1></div></div><div class="card border border-base-300 bg-base-100"><div class="card-body"><form id="create-request-form" class="space-y-3"><fieldset class="fieldset"><label class="label" for="request-name">Name</label><input id="request-name" name="name" class="input w-full" placeholder="e.g. Studio 2 camera setup" required /><div class="grid gap-3 sm:grid-cols-2"><div><label class="label" for="request-start">From</label><input id="request-start" name="startDate" type="date" class="input w-full" required /></div><div><label class="label" for="request-end">To</label><input id="request-end" name="endDate" type="date" class="input w-full" required /></div></div><label class="label" for="request-participants">Participants</label><input id="request-participants" name="participants" class="input w-full" placeholder="comma-separated emails (optional)" /><label class="label" for="request-image">Photo</label><input id="request-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" class="file-input w-full" /><label class="label">Items</label><div id="request-items" class="space-y-2"></div><div><button type="button" id="add-request-item" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add item</button></div></fieldset><div class="flex gap-2"><button type="submit" class="btn btn-primary">Submit request</button><button type="button" id="cancel-inventory" class="btn btn-ghost">Cancel</button></div></form></div></div></section>`;
+    const header = renderDetailCommandHeader({
+        backButtonId: 'back-to-inventory',
+        backLabel: 'Back to requests',
+        eyebrow: 'Equipment request',
+        reference: 'New',
+        title: 'New equipment request',
+        statusHtml: '<span class="badge badge-ghost">draft</span>',
+        nextStatuses: INVENTORY_NEXT_STATUS_LABELS.draft,
+        statusSteps: inventoryStatusSteps('draft'),
+        actionsHtml:
+            '<button type="submit" form="create-request-form" class="btn btn-primary btn-sm">Save</button><button type="button" id="cancel-inventory" class="btn btn-ghost btn-sm">Cancel</button>',
+    });
+    const fields = renderRequestFieldGrid([
+        {
+            title: 'Basic details',
+            rows: [
+                renderRequestEditableField(
+                    'From',
+                    '<input id="request-start" name="startDate" type="date" class="input input-sm" required />',
+                ),
+                renderRequestEditableField(
+                    'To',
+                    '<input id="request-end" name="endDate" type="date" class="input input-sm" required />',
+                ),
+                renderRequestEditableField(
+                    'Participants',
+                    '<input id="request-participants" name="participants" class="input input-sm" placeholder="email1, email2" />',
+                ),
+                renderRequestEditableField(
+                    'Photo',
+                    '<input id="request-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" class="file-input file-input-sm" />',
+                ),
+            ],
+        },
+        {
+            title: 'Requester info',
+            rows: [
+                renderRequestReadonlyFields([
+                    { label: 'Requester', valueHtml: escapeHtml(dashboard.me.Name) },
+                    {
+                        label: 'Department',
+                        valueHtml: escapeHtml(dashboard.me.departmentName || ''),
+                    },
+                    { label: 'Email', valueHtml: escapeHtml(dashboard.me.Email) },
+                ]),
+            ],
+        },
+    ]);
+    const items = renderRequestLineSection(
+        'Items',
+        `<div id="request-items" class="request-line-list"></div><button type="button" id="add-request-item" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add item</button>`,
+        'Add at least one equipment item before saving.',
+    );
+    container.innerHTML = renderRequestDetailPage(
+        header,
+        renderRequestRecordPanel(
+            `${renderRequestTitleInput('request-name', 'name', 'Request name')}${fields}${items}`,
+            'form',
+            'id="create-request-form"',
+        ),
+        renderRequestActivityPanel({ createMode: true }),
+        true,
+    );
     document
         .getElementById('back-to-inventory')!
         .addEventListener('click', navigateToInventoryRequests);
@@ -308,73 +399,69 @@ function renderInventoryRequestDetail(
     const actions = availableInventoryRequestActions(request, dashboard);
     const overdue = isRequestOverdue(request);
     const actionControls = renderInventoryDetailActions(request.Status, actions);
-    container.innerHTML = `
-    <section class="detail-page ${actions.length ? 'detail-page-has-actions' : ''} space-y-6">
-      ${renderDetailCommandHeader({
-          backButtonId: 'back-to-inventory-requests',
-          backLabel: 'Back to requests',
-          eyebrow: 'Equipment request',
-          reference: `REQ-${request.DisplayId}`,
-          title: request.Name,
-          statusHtml: `${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}<span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
-          nextStatuses: INVENTORY_NEXT_STATUS_LABELS[request.Status],
-          actionsHtml: actionControls,
-      })}
-
-      <div id="inventory-request-detail" data-request-id="${request.Id}" class="space-y-4">
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-5">
-            <dl class="grid gap-4 text-sm sm:grid-cols-2">
-              <div>
-                <dt class="text-base-content/60">Requested by</dt>
-                <dd class="mt-1 font-medium">${escapeHtml(request.userName)}</dd>
-              </div>
-              <div>
-                <dt class="text-base-content/60">Equipment period</dt>
-                <dd class="mt-1 font-medium">${escapeHtml(request.StartDate)} to ${escapeHtml(request.EndDate)}</dd>
-              </div>
-              <div class="sm:col-span-2">
-                <dt class="text-base-content/60">Participants</dt>
-                <dd class="mt-1 flex flex-wrap gap-1">${request.participants.length > 0 ? request.participants.map((participant) => namePill(participant)).join('') : '<span class="text-base-content/60">No additional participants</span>'}</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-3">
-            <h2 class="card-title text-base">Equipment</h2>
-            <div class="overflow-x-auto">
-              <table class="table table-sm">
-                <thead><tr><th>Item</th><th class="text-right">Quantity</th><th>Return condition</th></tr></thead>
-                <tbody>${request.items
-                    .map(
-                        (item) =>
-                            `<tr><td class="font-medium">${escapeHtml(item.itemName)}</td><td class="text-right">${item.Quantity}</td><td>${item.Condition ? escapeHtml(item.Condition) : '<span class="text-base-content/50">Not returned</span>'}</td></tr>`,
-                    )
-                    .join('')}</tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        ${renderDetailRequestImages(request)}
-
-        <div class="card border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-3">
-            <div class="flex items-baseline justify-between gap-3"><h2 class="card-title text-base">Updates</h2><span class="text-sm text-base-content/60">${request.comments.length}</span></div>
-            <div class="space-y-3">
-              ${request.comments.length > 0 ? request.comments.map((comment) => `<article class="border-l-2 border-base-300 pl-3"><div class="flex flex-wrap items-baseline gap-x-2"><span class="font-medium">${escapeHtml(comment.userName)}</span><time class="text-xs text-base-content/50">${escapeHtml(formatDateTime(comment.Timestamp))}</time></div><p class="mt-1 text-sm text-base-content/75">${escapeHtml(comment.Message)}</p></article>`).join('') : '<p class="text-sm text-base-content/60">No updates yet.</p>'}
-            </div>
-            <form class="comment-form flex gap-2 border-t border-base-200 pt-3">
-              <input class="input input-sm flex-1" placeholder="Add a comment" name="message" />
-              <button type="submit" class="btn btn-sm">Send</button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
+    const header = renderDetailCommandHeader({
+        backButtonId: 'back-to-inventory-requests',
+        backLabel: 'Back to requests',
+        eyebrow: 'Equipment request',
+        reference: `REQ-${request.DisplayId}`,
+        title: request.Name,
+        statusHtml: `${overdue ? '<span class="badge badge-error">Overdue</span>' : ''}<span class="badge ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span>`,
+        nextStatuses: INVENTORY_NEXT_STATUS_LABELS[request.Status],
+        statusSteps: inventoryStatusSteps(request.Status),
+        actionsHtml: actionControls,
+    });
+    const fields = renderRequestFieldGrid([
+        {
+            title: 'Basic details',
+            rows: [
+                renderRequestReadonlyFields([
+                    { label: 'Requested by', valueHtml: escapeHtml(request.userName) },
+                    {
+                        label: 'Equipment period',
+                        valueHtml: `${escapeHtml(request.StartDate)} to ${escapeHtml(request.EndDate)}`,
+                    },
+                    {
+                        label: 'Participants',
+                        valueHtml:
+                            request.participants.length > 0
+                                ? request.participants.map(namePill).join('')
+                                : '<span class="text-base-content/60">No additional participants</span>',
+                    },
+                ]),
+            ],
+        },
+        {
+            title: 'Request state',
+            rows: [
+                renderRequestReadonlyFields([
+                    { label: 'Status', valueHtml: escapeHtml(request.Status) },
+                    { label: 'Overdue', valueHtml: overdue ? 'Yes' : 'No' },
+                ]),
+            ],
+        },
+    ]);
+    const equipment = renderRequestLineSection(
+        'Equipment',
+        `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Item</th><th class="text-right">Quantity</th><th>Return condition</th></tr></thead><tbody>${request.items
+            .map(
+                (item) =>
+                    `<tr><td class="font-medium">${escapeHtml(item.itemName)}</td><td class="text-right">${item.Quantity}</td><td>${item.Condition ? escapeHtml(item.Condition) : '<span class="text-base-content/50">Not returned</span>'}</td></tr>`,
+            )
+            .join('')}</tbody></table></div>`,
+    );
+    container.innerHTML = renderRequestDetailPage(
+        header,
+        renderRequestRecordPanel(
+            `${renderRequestDisplayTitle(request.Name)}${fields}${equipment}${renderDetailRequestImages(request)}`,
+            'main',
+            `id="inventory-request-detail" data-request-id="${escapeHtml(request.Id)}"`,
+        ),
+        renderRequestActivityPanel({
+            comments: request.comments,
+            commentFormId: 'request-comment-form',
+        }),
+        actions.length > 0,
+    );
     document
         .getElementById('back-to-inventory-requests')!
         .addEventListener('click', navigateToInventoryRequests);
@@ -430,8 +517,7 @@ function availableInventoryRequestActions(
 }
 
 function wireInventoryRequestDetail(request: InventoryRequestDTO): void {
-    const detail = document.getElementById('inventory-request-detail')!;
-    detail.querySelectorAll<HTMLButtonElement>('button[data-action]').forEach((button) => {
+    document.querySelectorAll<HTMLButtonElement>('button[data-action]').forEach((button) => {
         button.addEventListener('click', async () => {
             await handleInventoryRequestAction(
                 request,
@@ -439,7 +525,7 @@ function wireInventoryRequestDetail(request: InventoryRequestDTO): void {
             );
         });
     });
-    const commentForm = detail.querySelector('.comment-form') as HTMLFormElement;
+    const commentForm = document.getElementById('request-comment-form') as HTMLFormElement;
     commentForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const input = commentForm.querySelector('input[name="message"]') as HTMLInputElement;
