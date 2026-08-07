@@ -1,5 +1,60 @@
 const PROGRAM_REQUESTS_PAGE_SIZE = 20;
 
+const PROGRAM_REQUIRED_FIELDS: Record<
+    string,
+    (input: CreateProgramRequestInput | UpdateProgramRequestInput) => boolean
+> = {
+    name: (input) => input.type === 'Other',
+    language: () => true,
+    type: () => true,
+    departmentId: () => true,
+    leadEmail: () => true,
+};
+
+const PROGRAM_FIELD_LABELS: Record<string, string> = {
+    name: 'Program title',
+    language: 'Language',
+    type: 'Program type',
+    departmentId: 'Department',
+    leadEmail: 'Lead email',
+};
+
+const SESSION_REQUIRED_FIELDS: Record<string, (session: ProgramSessionInput) => boolean> = {
+    type: () => true,
+    startDateTime: () => true,
+    endDateTime: () => true,
+};
+
+const SESSION_FIELD_LABELS: Record<string, string> = {
+    type: 'Session type',
+    startDateTime: 'Session start',
+    endDateTime: 'Session end',
+};
+
+function programInputValue(
+    input: CreateProgramRequestInput | UpdateProgramRequestInput,
+    field: string,
+): string {
+    return String((input as unknown as Record<string, unknown>)[field] || '');
+}
+
+function cleanProgramField(
+    input: CreateProgramRequestInput | UpdateProgramRequestInput,
+    field: string,
+): string {
+    const value = programInputValue(input, field);
+    return PROGRAM_REQUIRED_FIELDS[field]?.(input)
+        ? requireNonEmpty(value, PROGRAM_FIELD_LABELS[field] + ' is required.')
+        : value;
+}
+
+function cleanSessionField(session: ProgramSessionInput, field: string): string {
+    const value = String((session as unknown as Record<string, unknown>)[field] || '');
+    return SESSION_REQUIRED_FIELDS[field]?.(session)
+        ? requireNonEmpty(value, SESSION_FIELD_LABELS[field] + ' is required.')
+        : value;
+}
+
 // Status-change history (who/when) lives in Comments, same as
 // InventoryRequests — see Comments.ts. No issue/return/close step here: a
 // program request only ever moves draft -> submitted -> approved/rejected,
@@ -136,49 +191,48 @@ function createProgramRequest(
     requestId: string,
 ): ProgramRequestDTO {
     const actor = requireUser();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-    const type = requireNonEmpty(input.type, 'Type is required.');
+    const type = cleanProgramField(input, 'type');
+    const name = cleanProgramField(input, 'name');
+    const language = cleanProgramField(input, 'language');
     const userId = (input.userId || actor.Email).toLowerCase();
     const requestedBy = Tables.Users.findById(userId);
     if (!requestedBy) throw new ValidationError('requester_not_found');
     if (requestedBy.Email !== actor.Email && !canApprove(actor)) {
         throw new AuthorizationError('requester_edit_not_allowed');
     }
-    const place = Tables.Places.findById(input.placeId);
-    if (!place) throw new ValidationError('place_not_found');
+    const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
+    if (input.placeId && !place) throw new ValidationError('place_not_found');
     if (!input.sessions || input.sessions.length === 0)
         throw new ValidationError('At least one session is required.');
     const sessionLines = input.sessions.map((session) => {
-        const sessionName = requireNonEmpty(session.name, 'Session name is required.');
-        const sessionType = requireNonEmpty(session.type, 'Session type is required.');
-        if (
-            !session.startDateTime ||
-            !session.endDateTime ||
-            session.endDateTime <= session.startDateTime
-        ) {
+        const sessionType = cleanSessionField(session, 'type');
+        const startDateTime = cleanSessionField(session, 'startDateTime');
+        const endDateTime = cleanSessionField(session, 'endDateTime');
+        if (!startDateTime || !endDateTime || endDateTime <= startDateTime) {
             throw new ValidationError('Session end must be after its start.');
         }
         return {
-            name: sessionName,
+            name: cleanSessionField(session, 'name'),
             type: sessionType,
-            startDateTime: session.startDateTime,
-            endDateTime: session.endDateTime,
+            startDateTime,
+            endDateTime,
         };
     });
     const participants = parseParticipants(input.participants);
-    const departmentId = requireNonEmpty(input.departmentId, 'Department is required.');
+    const departmentId = cleanProgramField(input, 'departmentId');
     const department = Tables.Departments.findById(departmentId);
     if (!department) throw new ValidationError('department_not_found');
-    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
+    const leadEmail = cleanProgramField(input, 'leadEmail').toLowerCase();
 
     const { result } = withLockedDedupe('program_request:create', requestId, () => {
         const created = Tables.ProgramRequests.insert({
             DisplayId: getNextDisplayId('program_request'),
             Name: name,
+            Language: language,
             Type: type,
             UserId: requestedBy.Email,
             Status: 'draft',
-            PlaceId: place.Id,
+            PlaceId: place ? place.Id : '',
             DepartmentId: department.Id,
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
@@ -220,38 +274,35 @@ function updateProgramRequest(
     requestId: string,
 ): ProgramRequestDTO {
     const actor = requireUser();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-    const type = requireNonEmpty(input.type, 'Type is required.');
+    const type = cleanProgramField(input, 'type');
+    const name = cleanProgramField(input, 'name');
+    const language = cleanProgramField(input, 'language');
     const userId = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
     const requestedBy = Tables.Users.findById(userId);
     if (!requestedBy) throw new ValidationError('requester_not_found');
-    const placeId = requireNonEmpty(input.placeId, 'Place is required.');
-    const place = Tables.Places.findById(placeId);
-    if (!place) throw new ValidationError('place_not_found');
+    const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
+    if (input.placeId && !place) throw new ValidationError('place_not_found');
     if (!input.sessions || input.sessions.length === 0)
         throw new ValidationError('At least one session is required.');
     const sessionLines = input.sessions.map((session) => {
-        const sessionName = requireNonEmpty(session.name, 'Session name is required.');
-        const sessionType = requireNonEmpty(session.type, 'Session type is required.');
-        if (
-            !session.startDateTime ||
-            !session.endDateTime ||
-            session.endDateTime <= session.startDateTime
-        ) {
+        const sessionType = cleanSessionField(session, 'type');
+        const startDateTime = cleanSessionField(session, 'startDateTime');
+        const endDateTime = cleanSessionField(session, 'endDateTime');
+        if (!startDateTime || !endDateTime || endDateTime <= startDateTime) {
             throw new ValidationError('Session end must be after its start.');
         }
         return {
-            name: sessionName,
+            name: cleanSessionField(session, 'name'),
             type: sessionType,
-            startDateTime: session.startDateTime,
-            endDateTime: session.endDateTime,
+            startDateTime,
+            endDateTime,
         };
     });
     const participants = parseParticipants(input.participants);
-    const departmentId = requireNonEmpty(input.departmentId, 'Department is required.');
+    const departmentId = cleanProgramField(input, 'departmentId');
     const department = Tables.Departments.findById(departmentId);
     if (!department) throw new ValidationError('department_not_found');
-    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
+    const leadEmail = cleanProgramField(input, 'leadEmail').toLowerCase();
 
     const { result } = withLockedDedupe('program_request:update:' + id, requestId, () => {
         const request = Tables.ProgramRequests.findById(id);
@@ -265,7 +316,7 @@ function updateProgramRequest(
         if (['cancelled', 'rejected'].indexOf(request.Status) !== -1) {
             throw new ValidationError('request_not_editable');
         }
-        if (request.PlaceId !== place.Id && !canApprove(actor)) {
+        if (request.PlaceId !== (place ? place.Id : '') && !canApprove(actor)) {
             throw new AuthorizationError('place_edit_not_allowed');
         }
         if (request.UserId !== requestedBy.Email && !canApprove(actor)) {
@@ -274,9 +325,10 @@ function updateProgramRequest(
 
         const updated = Tables.ProgramRequests.updateById(id, {
             Name: name,
+            Language: language,
             Type: type,
             UserId: requestedBy.Email,
-            PlaceId: place.Id,
+            PlaceId: place ? place.Id : '',
             DepartmentId: department.Id,
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),

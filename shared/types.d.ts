@@ -116,6 +116,7 @@ interface ProgramRequest {
     Id: string;
     DisplayId: number;
     Name: string;
+    Language: string;
     Type: string;
     UserId: string;
     Status: ProgramRequestStatus;
@@ -403,6 +404,7 @@ interface ProgramSessionInput {
 
 interface CreateProgramRequestInput {
     name: string;
+    language: string;
     type: string;
     userId: string;
     placeId: string;
@@ -414,6 +416,7 @@ interface CreateProgramRequestInput {
 
 interface UpdateProgramRequestInput {
     name: string;
+    language: string;
     type: string;
     userId: string;
     placeId: string;

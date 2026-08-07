@@ -19,7 +19,6 @@ import {
     renderRequestReadonlyFields,
     renderRequestRecordPanel,
     renderRequesterField,
-    renderRequestTitleInput,
     renderWorkbenchHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
@@ -44,6 +43,48 @@ const PROGRAM_REQUEST_ACTION_LABELS: Record<ProgramRequestAction, string> = {
     reject: 'Reject',
     cancel: 'Cancel',
 };
+
+type ProgramFieldName =
+    'name' | 'language' | 'type' | 'placeId' | 'departmentId' | 'leadEmail' | 'participants';
+
+type SessionFieldName = 'sessionType' | 'startDateTime' | 'endDateTime' | 'sessionName';
+
+const PROGRAM_FIELD_LABELS: Record<ProgramFieldName, string> = {
+    name: 'Program title',
+    language: 'Language',
+    type: 'Program type',
+    placeId: 'Place',
+    departmentId: 'Department',
+    leadEmail: 'Lead email',
+    participants: 'Participants',
+};
+
+const PROGRAM_FIELD_REQUIRED: Record<ProgramFieldName, (form: HTMLFormElement) => boolean> = {
+    name: (form) => String(new FormData(form).get('type') || '') === 'Other',
+    language: () => true,
+    type: () => true,
+    placeId: () => false,
+    departmentId: () => true,
+    leadEmail: () => true,
+    participants: () => false,
+};
+
+const SESSION_FIELD_REQUIRED: Record<SessionFieldName, () => boolean> = {
+    sessionType: () => true,
+    startDateTime: () => true,
+    endDateTime: () => true,
+    sessionName: () => false,
+};
+
+const SESSION_FIELD_LABELS: Record<SessionFieldName, string> = {
+    sessionType: 'Session type',
+    startDateTime: 'Start',
+    endDateTime: 'End',
+    sessionName: 'Session title',
+};
+
+const PROGRAM_FIELD_NAMES = Object.keys(PROGRAM_FIELD_LABELS) as ProgramFieldName[];
+const SESSION_FIELD_NAMES = Object.keys(SESSION_FIELD_LABELS) as SessionFieldName[];
 
 const PROGRAM_NEXT_STATUS_LABELS: Record<ProgramRequestStatus, string[]> = {
     draft: ['Submitted', 'Cancelled'],
@@ -251,7 +292,7 @@ function renderProgramBoardCard(request: ProgramRequestDTO): string {
     const last = request.sessions[request.sessions.length - 1];
     return `<a class="workbench-card" href="${workItemHref(PROGRAM_REQUEST_QUERY_PARAM, request.Id)}" data-program-id="${request.Id}">
       <div class="workbench-card-top"><span class="font-mono">PRG-${request.DisplayId}</span><span class="badge badge-xs ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></div>
-      <h3>${escapeHtml(request.Name)}</h3>
+      <h3>${escapeHtml(programDisplayTitle(request))}</h3>
       <p>${escapeHtml(request.Type)} · ${escapeHtml(request.placeName)}</p>
       ${first ? `<p>${formatDateTime(first.StartDateTime)}${last && last !== first ? ` → ${formatDateTime(last.EndDateTime)}` : ''}</p>` : ''}
       <p>${escapeHtml(request.userName)}</p>
@@ -289,37 +330,21 @@ function renderProgramCreate(
     });
     const fields = renderRequestFieldGrid([
         {
-            title: 'Basic details',
+            title: '',
             rows: [
+                renderProgramTitleField(),
                 renderRequestEditableField(
-                    'Program type',
-                    renderNamedOptionSelect('program-type', 'type', dashboard.programTypes),
+                    programFieldLabel('language'),
+                    '<input id="program-language" name="language" class="input input-sm" required />',
                 ),
                 renderRequestEditableField(
-                    'Place',
-                    `<select id="program-place" name="placeId" class="select select-sm" required><option value="">Select place</option>${dashboard.places.map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`).join('')}</select>`,
+                    programFieldLabel('type'),
+                    renderProgramTypeSelect(dashboard.programTypes),
                 ),
                 renderRequestEditableField(
-                    'Department',
-                    renderRequestDepartmentSelect(
-                        'program-department',
-                        dashboard.departments,
-                        dashboard.me.DepartmentId,
-                    ),
+                    programFieldLabel('placeId'),
+                    `<select id="program-place" name="placeId" class="select select-sm"><option value="">Select place</option>${dashboard.places.map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`).join('')}</select>`,
                 ),
-                renderRequestEditableField(
-                    'Lead email',
-                    `<input id="program-lead-email" name="leadEmail" type="email" class="input input-sm" value="${escapeHtml(defaultLeadEmail(dashboard.departments, dashboard.me.DepartmentId))}" required />`,
-                ),
-                renderRequestEditableField(
-                    'Participants',
-                    '<input id="program-participants" name="participants" class="input input-sm" placeholder="email1, email2" />',
-                ),
-            ],
-        },
-        {
-            title: 'Requester info',
-            rows: [
                 renderRequesterField({
                     selectId: 'program-user',
                     users,
@@ -330,25 +355,43 @@ function renderProgramCreate(
                 }),
             ],
         },
+        {
+            title: '',
+            rows: [
+                renderRequestEditableField(
+                    programFieldLabel('departmentId'),
+                    renderRequestDepartmentSelect(
+                        'program-department',
+                        dashboard.departments,
+                        dashboard.me.DepartmentId,
+                    ),
+                ),
+                renderRequestEditableField(
+                    programFieldLabel('leadEmail'),
+                    `<input id="program-lead-email" name="leadEmail" type="email" class="input input-sm" value="${escapeHtml(defaultLeadEmail(dashboard.departments, dashboard.me.DepartmentId))}" required />`,
+                ),
+                renderRequestEditableField(
+                    programFieldLabel('participants'),
+                    '<input id="program-participants" name="participants" class="input input-sm" placeholder="email1, email2" />',
+                ),
+            ],
+        },
     ]);
     const sessions = renderRequestLineSection(
         'Sessions',
-        `<div class="program-session-heading"><span>Session type</span><span>Start</span><span>End</span><span>Session title</span><span></span></div><div id="program-sessions" class="request-line-list"></div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button>`,
+        renderEditableSessionRowsShell(),
         'Reservations should include at least one session before saving.',
     );
     container.innerHTML = renderRequestDetailPage(
         header,
-        renderRequestRecordPanel(
-            `${renderRequestTitleInput('program-name', 'name', 'Program title')}${fields}${sessions}`,
-            'form',
-            'id="create-program-form"',
-        ),
+        renderRequestRecordPanel(`${fields}${sessions}`, 'form', 'id="create-program-form"'),
         renderRequestActivityPanel({ createMode: true }),
         false,
     );
     document.getElementById('back-to-programs')!.addEventListener('click', navigateToPrograms);
     document.getElementById('cancel-program')!.addEventListener('click', navigateToPrograms);
     wireDepartmentLeadPrefill(dashboard.departments, 'program-department', 'program-lead-email');
+    wireProgramTitleRequirement();
     wireSessionRows(dashboard.sessionTypes);
     wireCreateProgramForm();
 }
@@ -369,7 +412,7 @@ function addProgramSessionRow(
 ): void {
     const row = document.createElement('div');
     row.className = 'program-session-row';
-    row.innerHTML = `${renderNamedOptionSelect('', 'sessionType', sessionTypes, session?.Type || '')}<input type="datetime-local" class="input input-sm" name="startDateTime" value="${escapeHtml(toDateTimeLocalValue(session?.StartDateTime || ''))}" required /><input type="datetime-local" class="input input-sm" name="endDateTime" value="${escapeHtml(toDateTimeLocalValue(session?.EndDateTime || ''))}" required /><input class="input input-sm" name="sessionName" placeholder="Session title" value="${escapeHtml(session?.Name || '')}" required /><button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button>`;
+    row.innerHTML = `${renderNamedOptionSelect('', 'sessionType', sessionTypes, session?.Type || '')}<input type="datetime-local" class="input input-sm" name="startDateTime" value="${escapeHtml(toDateTimeLocalValue(session?.StartDateTime || ''))}" required /><input type="datetime-local" class="input input-sm" name="endDateTime" value="${escapeHtml(toDateTimeLocalValue(session?.EndDateTime || ''))}" required /><input class="input input-sm" name="sessionName" placeholder="${escapeHtml(sessionFieldLabel('sessionName'))}" value="${escapeHtml(session?.Name || '')}" /><button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button>`;
     row.querySelector('.remove-row')!.addEventListener('click', () => {
         row.remove();
         onChange?.();
@@ -384,8 +427,10 @@ function addProgramSessionRow(
 
 function wireCreateProgramForm(): void {
     const form = document.getElementById('create-program-form') as HTMLFormElement;
+    wireInvalidFieldStyles(form);
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (!validateProgramForm(form)) return;
         const data = new FormData(form);
         const sessions = Array.from(form.querySelectorAll('.program-session-row')).map((row) => {
             const value = (name: string) =>
@@ -406,6 +451,7 @@ function wireCreateProgramForm(): void {
             const created = await api.createProgramRequest(
                 {
                     name: String(data.get('name')),
+                    language: String(data.get('language') || ''),
                     type: String(data.get('type')),
                     userId: String(data.get('userId')),
                     placeId: String(data.get('placeId')),
@@ -454,7 +500,7 @@ function renderProgramDetail(
         backLabel: 'Back to programs',
         eyebrow: 'Program request',
         reference: `PRG-${request.DisplayId}`,
-        title: request.Name,
+        title: programDisplayTitle(request),
         nextStatuses: PROGRAM_NEXT_STATUS_LABELS[request.Status],
         statusSteps: programStatusSteps(request.Status, actions),
         topActionsHtml: editable
@@ -463,18 +509,18 @@ function renderProgramDetail(
     });
     const basicRows = editable
         ? [
+              renderProgramTitleField(request.Name),
               renderRequestEditableField(
-                  'Program type',
-                  renderNamedOptionSelect(
-                      'program-type',
-                      'type',
-                      dashboard.programTypes,
-                      request.Type,
-                  ),
+                  programFieldLabel('language'),
+                  `<input id="program-language" name="language" class="input input-sm" value="${escapeHtml(request.Language || '')}" required />`,
+              ),
+              renderRequestEditableField(
+                  programFieldLabel('type'),
+                  renderProgramTypeSelect(dashboard.programTypes, request.Type),
               ),
               canEditPlace
                   ? renderRequestEditableField(
-                        'Place',
+                        programFieldLabel('placeId'),
                         renderRequestPlaceSelect(
                             'program-place',
                             dashboard.places,
@@ -482,10 +528,10 @@ function renderProgramDetail(
                         ),
                     )
                   : `${renderRequestReadonlyFields([
-                        { label: 'Place', valueHtml: escapeHtml(request.placeName) },
+                        { label: 'Place', valueHtml: escapeHtml(request.placeName || 'None') },
                     ])}<input type="hidden" name="placeId" value="${escapeHtml(request.PlaceId)}" />`,
               renderRequestEditableField(
-                  'Department',
+                  programFieldLabel('departmentId'),
                   renderRequestDepartmentSelect(
                       'program-department',
                       dashboard.departments,
@@ -493,18 +539,20 @@ function renderProgramDetail(
                   ),
               ),
               renderRequestEditableField(
-                  'Lead email',
+                  programFieldLabel('leadEmail'),
                   `<input id="program-lead-email" name="leadEmail" type="email" class="input input-sm" value="${escapeHtml(request.LeadEmail)}" required />`,
               ),
               renderRequestEditableField(
-                  'Participants',
+                  programFieldLabel('participants'),
                   `<input id="program-participants" name="participants" class="input input-sm" value="${escapeHtml(request.participants.join(', '))}" />`,
               ),
           ]
         : [
               renderRequestReadonlyFields([
+                  { label: 'Program title', valueHtml: escapeHtml(request.Name || 'None') },
+                  { label: 'Language', valueHtml: escapeHtml(request.Language || 'None') },
                   { label: 'Type', valueHtml: escapeHtml(request.Type) },
-                  { label: 'Place', valueHtml: escapeHtml(request.placeName) },
+                  { label: 'Place', valueHtml: escapeHtml(request.placeName || 'None') },
                   { label: 'Department', valueHtml: escapeHtml(request.departmentName) },
                   { label: 'Lead email', valueHtml: escapeHtml(request.LeadEmail) },
                   {
@@ -517,33 +565,47 @@ function renderProgramDetail(
           ];
     const fields = renderRequestFieldGrid([
         {
-            title: 'Basic details',
-            rows: basicRows,
+            title: '',
+            rows: editable
+                ? [
+                      ...basicRows.slice(0, 4),
+                      renderRequesterField({
+                          selectId: 'program-user',
+                          users,
+                          selectedEmail: request.UserId,
+                          requesterName: request.userName,
+                          editable,
+                          canEditRequester,
+                      }),
+                  ]
+                : basicRows,
         },
         {
-            title: 'Requester info',
-            rows: [
-                renderRequesterField({
-                    selectId: 'program-user',
-                    users,
-                    selectedEmail: request.UserId,
-                    requesterName: request.userName,
-                    editable,
-                    canEditRequester,
-                }),
-            ],
+            title: '',
+            rows: editable
+                ? [...basicRows.slice(4)]
+                : [
+                      renderRequesterField({
+                          selectId: 'program-user',
+                          users,
+                          selectedEmail: request.UserId,
+                          requesterName: request.userName,
+                          editable,
+                          canEditRequester,
+                      }),
+                  ],
         },
     ]);
     const sessions = renderRequestLineSection(
         'Sessions',
         editable
-            ? `<div class="program-session-heading"><span>Session type</span><span>Start</span><span>End</span><span>Session title</span><span></span></div><div id="program-sessions" class="request-line-list"></div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button>`
-            : `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Name</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>${request.sessions.map((session) => `<tr><td>${escapeHtml(session.Name)}</td><td>${escapeHtml(session.Type)}</td><td>${formatDateTime(session.StartDateTime)}</td><td>${formatDateTime(session.EndDateTime)}</td></tr>`).join('')}</tbody></table></div>`,
+            ? renderEditableSessionRowsShell()
+            : `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Title (optional)</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>${request.sessions.map((session) => `<tr><td>${escapeHtml(session.Name)}</td><td>${escapeHtml(session.Type)}</td><td>${formatDateTime(session.StartDateTime)}</td><td>${formatDateTime(session.EndDateTime)}</td></tr>`).join('')}</tbody></table></div>`,
     );
     container.innerHTML = renderRequestDetailPage(
         header,
         renderRequestRecordPanel(
-            `${editable ? renderRequestTitleInput('program-name', 'name', 'Program title') : ''}${fields}${sessions}`,
+            `${fields}${sessions}`,
             editable ? 'form' : 'main',
             editable ? 'id="edit-program-form"' : '',
         ),
@@ -586,9 +648,9 @@ function wireProgramDetailEditForm(
     users: UserDTO[] = [],
 ): void {
     const form = document.getElementById('edit-program-form') as HTMLFormElement;
-    const title = document.getElementById('program-name') as HTMLInputElement;
-    title.value = request.Name;
+    wireInvalidFieldStyles(form);
     wireDepartmentLeadPrefill(dashboard.departments, 'program-department', 'program-lead-email');
+    wireProgramTitleRequirement();
     const list = document.getElementById('program-sessions')!;
     const actions = document.getElementById('program-edit-actions')!;
     const readSnapshot = () => JSON.stringify(readProgramFormInput(form));
@@ -611,6 +673,7 @@ function wireProgramDetailEditForm(
     });
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (!validateProgramForm(form)) return;
         try {
             showSavingBadge(true);
             const updated = await api.updateProgramRequest(
@@ -620,6 +683,7 @@ function wireProgramDetailEditForm(
             );
             savedSnapshot = JSON.stringify({
                 name: updated.Name,
+                language: updated.Language,
                 type: updated.Type,
                 userId: updated.UserId,
                 placeId: updated.PlaceId,
@@ -646,6 +710,7 @@ function readProgramFormInput(form: HTMLFormElement): UpdateProgramRequestInput 
     const data = new FormData(form);
     return {
         name: String(data.get('name')),
+        language: String(data.get('language') || ''),
         type: String(data.get('type')),
         userId: String(data.get('userId')),
         placeId: String(data.get('placeId')),
@@ -679,8 +744,131 @@ function renderNamedOptionSelect(
     return `<select ${id ? `id="${escapeHtml(id)}"` : ''} name="${escapeHtml(name)}" class="select select-sm" required><option value="">Select</option>${hasSelected ? '' : `<option value="${escapeHtml(selectedName)}" selected>${escapeHtml(selectedName)}</option>`}${options.map((option) => `<option value="${escapeHtml(option.Name)}" ${option.Name === selectedName ? 'selected' : ''}>${escapeHtml(option.Name)}</option>`).join('')}</select>`;
 }
 
+function renderProgramTypeSelect(options: { Name: string }[], selectedName = ''): string {
+    const withOther = options.some((option) => option.Name === 'Other')
+        ? options
+        : [...options, { Name: 'Other' }];
+    const ordered = withOther
+        .filter((option) => option.Name !== 'Other')
+        .concat(withOther.filter((option) => option.Name === 'Other'));
+    return renderNamedOptionSelect('program-type', 'type', ordered, selectedName);
+}
+
+function programDisplayTitle(request: ProgramRequestDTO): string {
+    return (
+        [request.Language, request.Type, request.Name].filter(Boolean).join(' ') ||
+        `PRG-${request.DisplayId}`
+    );
+}
+
+function renderProgramTitleField(value = ''): string {
+    return `<label class="request-field"><span id="program-title-label">${renderFieldLabelHtml(PROGRAM_FIELD_LABELS.name, false)}</span><input id="program-name" name="name" class="input input-sm" value="${escapeHtml(value)}" /></label>`;
+}
+
+function renderEditableSessionRowsShell(): string {
+    return `<div class="program-session-heading"><span>${escapeHtml(sessionFieldLabel('sessionType'))}</span><span>${escapeHtml(sessionFieldLabel('startDateTime'))}</span><span>${escapeHtml(sessionFieldLabel('endDateTime'))}</span><span>${renderFieldLabelHtml(SESSION_FIELD_LABELS.sessionName, SESSION_FIELD_REQUIRED.sessionName())}</span><span></span></div><div id="program-sessions" class="request-line-list"></div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button>`;
+}
+
+function renderFieldLabelHtml(label: string, required: boolean): string {
+    return required
+        ? escapeHtml(label)
+        : `${escapeHtml(label)} <span class="request-label-optional">(optional)</span>`;
+}
+
+function programFieldLabel(field: ProgramFieldName, form?: HTMLFormElement): string {
+    const required = form
+        ? PROGRAM_FIELD_REQUIRED[field](form)
+        : isAlwaysRequired(PROGRAM_FIELD_REQUIRED[field]);
+    return required ? PROGRAM_FIELD_LABELS[field] : PROGRAM_FIELD_LABELS[field] + ' (optional)';
+}
+
+function sessionFieldLabel(field: SessionFieldName): string {
+    return SESSION_FIELD_REQUIRED[field]()
+        ? SESSION_FIELD_LABELS[field]
+        : SESSION_FIELD_LABELS[field] + ' (optional)';
+}
+
+function isAlwaysRequired(rule: (form: HTMLFormElement) => boolean): boolean {
+    if (rule === PROGRAM_FIELD_REQUIRED.name) return false;
+    const emptyForm = document.createElement('form');
+    return rule(emptyForm);
+}
+
+function wireProgramTitleRequirement(): void {
+    const form =
+        document.getElementById('create-program-form') ||
+        document.getElementById('edit-program-form');
+    const typeSelect = document.getElementById('program-type') as HTMLSelectElement | null;
+    const titleInput = document.getElementById('program-name') as HTMLInputElement | null;
+    const titleLabel = document.getElementById('program-title-label');
+    if (!(form instanceof HTMLFormElement) || !typeSelect || !titleInput || !titleLabel) return;
+    const sync = () => {
+        const required = PROGRAM_FIELD_REQUIRED.name(form);
+        titleInput.required = required;
+        titleLabel.innerHTML = renderFieldLabelHtml(PROGRAM_FIELD_LABELS.name, required);
+    };
+    typeSelect.addEventListener('change', sync);
+    sync();
+}
+
+function wireInvalidFieldStyles(form: HTMLFormElement): void {
+    form.addEventListener('input', (event) => {
+        clearInvalidStyle(event.target);
+    });
+    form.addEventListener('change', (event) => {
+        clearInvalidStyle(event.target);
+    });
+}
+
+function clearInvalidStyle(target: EventTarget | null): void {
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+    target.classList.remove('input-error', 'select-error');
+    target.setCustomValidity('');
+}
+
+function validateProgramForm(form: HTMLFormElement): boolean {
+    PROGRAM_FIELD_NAMES.forEach((field) => {
+        const control = form.elements.namedItem(field);
+        if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement)) return;
+        const required = PROGRAM_FIELD_REQUIRED[field](form);
+        control.required = required;
+        control.setCustomValidity(
+            required && !control.value.trim() ? `${PROGRAM_FIELD_LABELS[field]} is required.` : '',
+        );
+    });
+    form.querySelectorAll('.program-session-row').forEach((row) => {
+        SESSION_FIELD_NAMES.forEach((field) => {
+            const control = row.querySelector<HTMLInputElement | HTMLSelectElement>(
+                `[name="${field}"]`,
+            );
+            if (!control) return;
+            const required = SESSION_FIELD_REQUIRED[field]();
+            control.required = required;
+            control.setCustomValidity(
+                required && !control.value.trim()
+                    ? `${SESSION_FIELD_LABELS[field]} is required.`
+                    : '',
+            );
+        });
+        const start = row.querySelector<HTMLInputElement>('input[name="startDateTime"]');
+        const end = row.querySelector<HTMLInputElement>('input[name="endDateTime"]');
+        if (!start || !end) return;
+        const invalidRange = Boolean(start.value && end.value && end.value <= start.value);
+        end.setCustomValidity(invalidRange ? 'End must be after start.' : '');
+    });
+    const valid = form.reportValidity();
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+        'input:invalid, select:invalid',
+    ).forEach((control) => {
+        control.classList.add(
+            control instanceof HTMLSelectElement ? 'select-error' : 'input-error',
+        );
+    });
+    return valid;
+}
+
 function renderRequestPlaceSelect(id: string, places: Place[], selectedId: string): string {
-    return `<select id="${id}" name="placeId" class="select select-sm" required><option value="">Select place</option>${places.map((place) => `<option value="${place.Id}" ${place.Id === selectedId ? 'selected' : ''}>${escapeHtml(place.Name)}</option>`).join('')}</select>`;
+    return `<select id="${id}" name="placeId" class="select select-sm"><option value="">Select place</option>${places.map((place) => `<option value="${place.Id}" ${place.Id === selectedId ? 'selected' : ''}>${escapeHtml(place.Name)}</option>`).join('')}</select>`;
 }
 
 function renderRequestDepartmentSelect(

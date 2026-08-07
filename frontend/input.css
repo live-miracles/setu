@@ -688,6 +688,13 @@ body > header.navbar {
     font-weight: 650;
 }
 
+.request-label-optional {
+    color: var(--setu-muted);
+    font-style: italic;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
 .request-field .input,
 .request-field .textarea,
 .request-field .file-input,
@@ -711,6 +718,14 @@ body > header.navbar {
 .request-field .select option {
     background: var(--setu-surface);
     color: var(--setu-ink);
+}
+
+.request-field .input.input-error,
+.request-field .select.select-error,
+.program-session-row .input.input-error,
+.program-session-row .select.select-error {
+    border-color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 8%, var(--setu-surface));
 }
 
 .request-lines-panel {

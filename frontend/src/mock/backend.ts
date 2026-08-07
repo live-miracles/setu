@@ -36,12 +36,89 @@ function mockParseParticipants(raw: string): string[] {
     return Array.from(seen);
 }
 
+type MockProgramFieldName = 'name' | 'language' | 'type' | 'departmentId' | 'leadEmail';
+type MockSessionFieldName = 'type' | 'startDateTime' | 'endDateTime';
+
+const MOCK_PROGRAM_FIELD_LABELS: Record<MockProgramFieldName, string> = {
+    name: 'Program title',
+    language: 'Language',
+    type: 'Program type',
+    departmentId: 'Department',
+    leadEmail: 'Lead email',
+};
+
+const MOCK_PROGRAM_FIELD_REQUIRED: Record<
+    MockProgramFieldName,
+    (input: CreateProgramRequestInput | UpdateProgramRequestInput) => boolean
+> = {
+    name: (input) => input.type === 'Other',
+    language: () => true,
+    type: () => true,
+    departmentId: () => true,
+    leadEmail: () => true,
+};
+
+const MOCK_SESSION_FIELD_LABELS: Record<MockSessionFieldName, string> = {
+    type: 'Session type',
+    startDateTime: 'Session start',
+    endDateTime: 'Session end',
+};
+
+const MOCK_SESSION_FIELD_REQUIRED: Record<
+    MockSessionFieldName,
+    (input: ProgramSessionInput) => boolean
+> = {
+    type: () => true,
+    startDateTime: () => true,
+    endDateTime: () => true,
+};
+
+function mockInputValue(input: object, field: string): string {
+    return String((input as unknown as Record<string, unknown>)[field] || '');
+}
+
+function mockCleanProgramField(
+    input: CreateProgramRequestInput | UpdateProgramRequestInput,
+    field: MockProgramFieldName,
+): string {
+    const value = mockInputValue(input, field);
+    if (MOCK_PROGRAM_FIELD_REQUIRED[field](input) && !value.trim()) {
+        throw new Error(MOCK_PROGRAM_FIELD_LABELS[field] + ' is required.');
+    }
+    return value;
+}
+
+function mockCleanSessionField(input: ProgramSessionInput, field: MockSessionFieldName): string {
+    const value = mockInputValue(input, field);
+    if (MOCK_SESSION_FIELD_REQUIRED[field](input) && !value.trim()) {
+        throw new Error(MOCK_SESSION_FIELD_LABELS[field] + ' is required.');
+    }
+    return value;
+}
+
+function mockCleanProgramSessions(input: ProgramSessionInput[]): ProgramSessionInput[] {
+    if (!input || input.length === 0) throw new Error('At least one session is required.');
+    return input.map((session) => {
+        const type = mockCleanSessionField(session, 'type');
+        const startDateTime = mockCleanSessionField(session, 'startDateTime');
+        const endDateTime = mockCleanSessionField(session, 'endDateTime');
+        if (endDateTime <= startDateTime) throw new Error('Session end must be after its start.');
+        return {
+            name: session.name || '',
+            type,
+            startDateTime,
+            endDateTime,
+        };
+    });
+}
+
 const EXTRA_APPROVED_PROGRAM_REQUESTS: ProgramRequest[] = Array.from({ length: 10 }, (_, index) => {
     const displayId = 29 + index;
     return {
         Id: 'program-' + displayId,
         DisplayId: displayId,
         Name: 'Approved studio program ' + (index + 1),
+        Language: 'English',
         Type: index % 2 === 0 ? 'Recording' : 'Live',
         UserId: ['sam@example.com', 'ana@example.com', 'vic@example.com'][index % 3],
         Status: 'approved' as ProgramRequestStatus,
@@ -242,6 +319,7 @@ const mockData = {
             Id: 'program-1',
             DisplayId: 21,
             Name: 'Sunday Satsang',
+            Language: 'English',
             Type: 'Livestream',
             UserId: 'sam@example.com',
             Status: 'submitted' as ProgramRequestStatus,
@@ -254,6 +332,7 @@ const mockData = {
             Id: 'program-2',
             DisplayId: 22,
             Name: 'Podcast recording',
+            Language: 'English',
             Type: 'Recording',
             UserId: 'ana@example.com',
             Status: 'approved' as ProgramRequestStatus,
@@ -266,6 +345,7 @@ const mockData = {
             Id: 'program-3',
             DisplayId: 23,
             Name: 'Volunteer orientation',
+            Language: 'English',
             Type: 'Webinar',
             UserId: 'vic@example.com',
             Status: 'draft' as ProgramRequestStatus,
@@ -278,6 +358,7 @@ const mockData = {
             Id: 'program-4',
             DisplayId: 24,
             Name: 'Festival rehearsal',
+            Language: 'English',
             Type: 'Dry run',
             UserId: 'admin@example.com',
             Status: 'cancelled' as ProgramRequestStatus,
@@ -290,6 +371,7 @@ const mockData = {
             Id: 'program-5',
             DisplayId: 25,
             Name: 'Monthly review',
+            Language: 'English',
             Type: 'Meeting',
             UserId: 'admin@example.com',
             Status: 'cancelled' as ProgramRequestStatus,
@@ -302,6 +384,7 @@ const mockData = {
             Id: 'program-6',
             DisplayId: 26,
             Name: 'Studio tour request',
+            Language: 'English',
             Type: 'Visit',
             UserId: 'sam@example.com',
             Status: 'rejected' as ProgramRequestStatus,
@@ -314,6 +397,7 @@ const mockData = {
             Id: 'program-7',
             DisplayId: 27,
             Name: 'Training archive recording',
+            Language: 'English',
             Type: 'Recording',
             UserId: 'ana@example.com',
             Status: 'approved' as ProgramRequestStatus,
@@ -326,6 +410,7 @@ const mockData = {
             Id: 'program-8',
             DisplayId: 28,
             Name: 'Evening music session',
+            Language: 'English',
             Type: 'Live',
             UserId: 'vic@example.com',
             Status: 'approved' as ProgramRequestStatus,
@@ -588,6 +673,7 @@ const mockData = {
         { Id: 'program-type-webinar', Name: 'Webinar' },
         { Id: 'program-type-meeting', Name: 'Meeting' },
         { Id: 'program-type-visit', Name: 'Visit' },
+        { Id: 'program-type-other', Name: 'Other' },
     ] as ProgramType[],
     sessionTypes: [
         { Id: 'session-type-live', Name: 'Live' },
@@ -1246,6 +1332,12 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     createProgramRequest: (input: CreateProgramRequestInput) => {
         const participants = mockParseParticipants(input.participants);
         const actor = mockCurrentUser();
+        const name = mockCleanProgramField(input, 'name');
+        const language = mockCleanProgramField(input, 'language');
+        const type = mockCleanProgramField(input, 'type');
+        const departmentId = mockCleanProgramField(input, 'departmentId');
+        const leadEmail = mockCleanProgramField(input, 'leadEmail');
+        const sessions = mockCleanProgramSessions(input.sessions);
         const requestedBy =
             mockData.users.find(
                 (user) => user.Email === (input.userId || mockData.currentUserId),
@@ -1253,20 +1345,25 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (requestedBy.Email !== mockData.currentUserId && !canApprove(mockToUserDTO(actor))) {
             throw new Error('requester_edit_not_allowed');
         }
+        const place = input.placeId
+            ? mockData.places.find((item) => item.Id === input.placeId)
+            : undefined;
+        if (input.placeId && !place) throw new Error('place_not_found');
         const created: ProgramRequest = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.program_request++,
-            Name: input.name,
-            Type: input.type,
+            Name: name,
+            Language: language,
+            Type: type,
             UserId: requestedBy.Email,
             Status: 'draft',
-            PlaceId: input.placeId,
-            DepartmentId: input.departmentId,
-            LeadEmail: input.leadEmail,
+            PlaceId: place ? place.Id : '',
+            DepartmentId: departmentId,
+            LeadEmail: leadEmail,
             Participants: participants.join(', '),
         };
         mockData.programRequests.push(created);
-        input.sessions.forEach((session) => {
+        sessions.forEach((session) => {
             mockData.sessions.push({
                 Id: mockUuid(),
                 Name: session.name,
@@ -1288,6 +1385,12 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const request = mockData.programRequests.find((item) => item.Id === id);
         if (!request) throw new Error('request_not_found');
         const actor = mockCurrentUser();
+        const name = mockCleanProgramField(input, 'name');
+        const language = mockCleanProgramField(input, 'language');
+        const type = mockCleanProgramField(input, 'type');
+        const departmentId = mockCleanProgramField(input, 'departmentId');
+        const leadEmail = mockCleanProgramField(input, 'leadEmail');
+        const sessions = mockCleanProgramSessions(input.sessions);
         const isOwner =
             request.UserId === mockData.currentUserId ||
             mockParseParticipants(request.Participants).includes(mockData.currentUserId);
@@ -1297,9 +1400,11 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (['rejected', 'cancelled'].includes(request.Status)) {
             throw new Error('request_not_editable');
         }
-        const place = mockData.places.find((item) => item.Id === input.placeId);
-        if (!place) throw new Error('place_not_found');
-        if (request.PlaceId !== place.Id && !canApprove(mockToUserDTO(actor))) {
+        const place = input.placeId
+            ? mockData.places.find((item) => item.Id === input.placeId)
+            : undefined;
+        if (input.placeId && !place) throw new Error('place_not_found');
+        if (request.PlaceId !== (place ? place.Id : '') && !canApprove(mockToUserDTO(actor))) {
             throw new Error('place_edit_not_allowed');
         }
         const requestedBy = mockData.users.find((user) => user.Email === input.userId);
@@ -1307,15 +1412,16 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (request.UserId !== requestedBy.Email && !canApprove(mockToUserDTO(actor))) {
             throw new Error('requester_edit_not_allowed');
         }
-        request.Name = input.name;
-        request.Type = input.type;
+        request.Name = name;
+        request.Language = language;
+        request.Type = type;
         request.UserId = requestedBy.Email;
-        request.PlaceId = place.Id;
-        request.DepartmentId = input.departmentId;
-        request.LeadEmail = input.leadEmail;
+        request.PlaceId = place ? place.Id : '';
+        request.DepartmentId = departmentId;
+        request.LeadEmail = leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');
         mockData.sessions = mockData.sessions.filter((session) => session.RequestId !== id);
-        input.sessions.forEach((session) => {
+        sessions.forEach((session) => {
             mockData.sessions.push({
                 Id: mockUuid(),
                 Name: session.name,

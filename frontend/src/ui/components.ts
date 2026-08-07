@@ -101,13 +101,19 @@ export function renderRequestFieldGrid(sections: RequestFieldSection[]): string 
     return `<div class="request-record-grid">${sections
         .map(
             (section) =>
-                `<section><h2>${escapeHtml(section.title)}</h2>${section.rows.join('')}</section>`,
+                `<section>${section.title ? `<h2>${escapeHtml(section.title)}</h2>` : ''}${section.rows.join('')}</section>`,
         )
         .join('')}</div>`;
 }
 
 export function renderRequestEditableField(label: string, controlHtml: string): string {
-    return `<label class="request-field"><span>${escapeHtml(label)}</span>${controlHtml}</label>`;
+    return `<label class="request-field"><span>${renderRequestFieldLabel(label)}</span>${controlHtml}</label>`;
+}
+
+function renderRequestFieldLabel(label: string): string {
+    const optionalSuffix = ' (optional)';
+    if (!label.endsWith(optionalSuffix)) return escapeHtml(label);
+    return `${escapeHtml(label.slice(0, -optionalSuffix.length))} <span class="request-label-optional">(optional)</span>`;
 }
 
 export function renderRequestReadonlyFields(rows: { label: string; valueHtml: string }[]): string {

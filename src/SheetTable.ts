@@ -181,6 +181,7 @@ const Tables = {
         'DepartmentId',
         'LeadEmail',
         'Participants',
+        'Language',
     ]),
     Sessions: SheetTable<ProgramSession>('Sessions', [
         'Id',

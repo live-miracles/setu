@@ -302,6 +302,7 @@ const DEFAULT_PROGRAM_TYPES: ProgramType[] = [
     { Id: 'program-type-webinar', Name: 'Webinar' },
     { Id: 'program-type-meeting', Name: 'Meeting' },
     { Id: 'program-type-visit', Name: 'Visit' },
+    { Id: 'program-type-other', Name: 'Other' },
 ];
 
 const DEFAULT_SESSION_TYPES: SessionType[] = [
