@@ -71,7 +71,7 @@ export function renderDevShell() {
  */
 export function renderDemoShell() {
     return renderShell({
-        title: `${TITLE} (demo)`,
+        title: TITLE,
         favicon: '<link rel="icon" type="image/png" href="icons/icon-192.png" />',
         head: '<link rel="stylesheet" href="app.css" />',
         body: '<script src="app.js"></script>',
