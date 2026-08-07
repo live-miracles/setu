@@ -6,6 +6,29 @@ function listUsers(): UserDTO[] {
     return Tables.Users.readAll().map(toUserDTO);
 }
 
+function createUser(input: CreateUserInput, requestId: string): UserDTO {
+    requireAdmin();
+    const email = requireNonEmpty(input.email, 'Email is required.').toLowerCase();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    if (USER_ROLES.indexOf(input.role) === -1) throw new ValidationError('unknown_role');
+    if (input.departmentId && !Tables.Departments.findById(input.departmentId)) {
+        throw new ValidationError('department_not_found');
+    }
+
+    const { result } = withLockedDedupe('user:create', requestId, () => {
+        if (Tables.Users.findById(email)) throw new ConflictError('User already exists.');
+        return Tables.Users.insert({
+            Email: email,
+            Name: name,
+            Role: input.role,
+            DepartmentId: input.departmentId || '',
+            Phone: input.phone || '',
+            Whatsapp: input.whatsapp || '',
+        });
+    });
+    return toUserDTO(result);
+}
+
 function updateUser(userId: string, patch: UpdateUserInput): UserDTO {
     const actor = requireAdmin();
     const target = Tables.Users.findById(userId);
@@ -17,12 +40,21 @@ function updateUser(userId: string, patch: UpdateUserInput): UserDTO {
     if (target.Email === actor.Email && patch.role && patch.role !== 'admin') {
         throw new ConflictError('You cannot remove your own administrator access.');
     }
+    if (patch.departmentId && !Tables.Departments.findById(patch.departmentId)) {
+        throw new ValidationError('department_not_found');
+    }
 
     const updated = withLock(() =>
         Tables.Users.updateById(userId, {
+            Name:
+                patch.name !== undefined
+                    ? requireNonEmpty(patch.name, 'Name is required.')
+                    : target.Name,
             Role: patch.role !== undefined ? patch.role : target.Role,
             DepartmentId:
                 patch.departmentId !== undefined ? patch.departmentId : target.DepartmentId,
+            Phone: patch.phone !== undefined ? patch.phone : target.Phone,
+            Whatsapp: patch.whatsapp !== undefined ? patch.whatsapp : target.Whatsapp,
         }),
     );
     return toUserDTO(updated);

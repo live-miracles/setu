@@ -32,6 +32,7 @@ export const api: AsyncApi = {
     getDashboard: (...args) => callBackend('getDashboard', ...args),
 
     listUsers: (...args) => callBackend('listUsers', ...args),
+    createUser: (...args) => callBackend('createUser', ...args),
     updateUser: (...args) => callBackend('updateUser', ...args),
     updateOwnProfile: (...args) => callBackend('updateOwnProfile', ...args),
 

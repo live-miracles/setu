@@ -91,14 +91,29 @@ body > header.navbar {
     width: 100%;
     min-height: 0;
     flex: 1;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+#app-content > section {
+    min-height: 100%;
+}
+
+#app-content.app-content-home {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+#app-content.app-content-edge {
     overflow: hidden;
     padding: 0 !important;
     margin: 0 !important;
     max-width: none !important;
 }
 
-#app-content > section {
-    min-height: 100%;
+#app-content.app-content-edge > section,
+#app-content.app-content-home > section {
     max-width: none !important;
 }
 
@@ -106,10 +121,10 @@ body > header.navbar {
 
 .section-heading {
     display: grid;
-    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
-    gap: 0.8rem;
-    align-items: start;
-    padding-bottom: 1.4rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem 1rem;
+    align-items: center;
+    padding-bottom: 0.85rem;
     border-bottom: 1px solid var(--setu-line);
 }
 
@@ -121,26 +136,20 @@ body > header.navbar {
 }
 
 .section-index {
-    padding-top: 0.25rem;
-    color: var(--setu-clay);
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.09em;
+    display: none;
 }
 
 .section-heading h1 {
-    font-family: var(--font-serif);
-    font-size: clamp(2rem, 4vw, 3.1rem);
-    font-weight: 400;
-    line-height: 0.98;
-    letter-spacing: -0.035em;
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.2;
 }
 
 .section-heading p {
-    max-width: 36rem;
-    margin-top: 0.55rem;
+    max-width: 34rem;
+    margin-top: 0.25rem;
     color: var(--setu-muted);
-    font-size: 0.88rem;
+    font-size: 0.82rem;
 }
 
 .card {
@@ -440,9 +449,9 @@ body > header.navbar {
 }
 
 .detail-heading h1 {
-    font-family: var(--font-serif);
-    font-size: clamp(1.8rem, 4vw, 2.5rem);
-    line-height: 1;
+    font-size: 1.2rem;
+    font-weight: 650;
+    line-height: 1.2;
 }
 
 .detail-command-header {
@@ -495,10 +504,9 @@ body > header.navbar {
 
 .detail-command-title h1 {
     overflow-wrap: anywhere;
-    font-family: var(--font-serif);
-    font-size: clamp(1.8rem, 4vw, 2.7rem);
-    font-weight: 400;
-    line-height: 1.05;
+    font-size: 1.25rem;
+    font-weight: 650;
+    line-height: 1.2;
 }
 
 .detail-command-controls {
@@ -637,9 +645,9 @@ body > header.navbar {
     border: 0;
     border-bottom: 1px solid transparent;
     background: transparent;
-    font-size: clamp(1.8rem, 4vw, 2.35rem);
-    font-weight: 500;
-    line-height: 1.12;
+    font-size: 1.25rem;
+    font-weight: 650;
+    line-height: 1.2;
 }
 
 .request-title-input:focus {
@@ -859,6 +867,11 @@ body > header.navbar {
     position: relative;
 }
 
+.home-content-wrap {
+    width: min(100% - 2rem, 50rem);
+    margin-inline: auto;
+}
+
 .home-signature {
     position: relative;
     display: grid;
@@ -884,10 +897,15 @@ body > header.navbar {
     content: '';
 }
 
-.home-signature-day {
+.home-signature-date {
     position: relative;
-    left: -0.06em;
-    bottom: -0.14em;
+    z-index: 1;
+    align-self: end;
+}
+
+.home-signature-day {
+    margin-top: 0.65rem;
+    margin-left: -0.06em;
     color: var(--setu-gold);
     font-family: var(--font-serif);
     font-size: clamp(8rem, 16vw, 13.5rem);
@@ -917,7 +935,6 @@ body > header.navbar {
 
 .home-signature-copy h1 {
     max-width: 42rem;
-    margin-top: 0.65rem;
     font-family: var(--font-serif);
     font-size: clamp(2.25rem, 5.4vw, 5rem);
     font-weight: 400;
@@ -1080,18 +1097,13 @@ body > header.navbar {
 }
 
 @media (max-width: 767px) {
-    #app-content {
-        padding: 0 !important;
-    }
-
     .section-heading {
-        grid-template-columns: 2rem minmax(0, 1fr);
+        grid-template-columns: 1fr;
     }
 
     .section-heading-actions {
         grid-column: 1 / -1;
         justify-content: stretch;
-        padding-left: 2.8rem;
     }
 
     .section-heading-actions .btn {
@@ -1290,12 +1302,15 @@ body > header.navbar {
         padding: 1.5rem 1.15rem;
     }
 
-    .home-signature-day {
+    .home-signature-date {
         position: absolute;
         left: 0.08em;
         bottom: -0.08em;
-        font-size: 8rem;
         opacity: 0.92;
+    }
+
+    .home-signature-day {
+        font-size: 8rem;
     }
 
     .home-signature-copy {

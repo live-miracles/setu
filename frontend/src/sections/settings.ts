@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
-import { renderEmptyState, renderSectionHeader } from '../ui/components';
+import { renderEmptyState } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { escapeHtml } from '../ui/format';
 import type { IconName } from '../ui/icons';
@@ -26,38 +26,33 @@ import { canManageConfig } from '../workflows';
 // Users
 // ---------------------------------------------------------------------------
 
+const CREATE_USER_MODAL_ID = 'create-user-modal';
+const EDIT_USER_MODAL_ID = 'edit-user-modal';
+let selectedUserEmail: string | null = null;
+
 export async function renderUsers(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {
     const isAdmin = canManageConfig(dashboard.me);
     const users = await api.listUsers();
+    const selectedUser = selectedUserEmail
+        ? users.find((user) => user.Email === selectedUserEmail) || null
+        : null;
+    if (selectedUserEmail && !selectedUser) selectedUserEmail = null;
 
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderSectionHeader(
-          'user',
-          'Users',
-          isAdmin ? 'Who has access, and what each of them can do.' : 'Everyone with access.',
-      )}
-
-      <div class="card border border-base-300 bg-base-100 shadow">
-        <div class="card-body gap-2">
-          <div class="flex items-center justify-between">
-            <h2 class="card-title text-base">${users.length} ${users.length === 1 ? 'person' : 'people'}</h2>
-            <span class="text-xs text-base-content/50">from your Google domain</span>
-          </div>
-          <p class="text-sm text-base-content/60">People self-register automatically the first time they sign in from your organisation's Google domain — there is no invite step. ${
-              isAdmin ? "Set someone's role here." : "Only an admin can change someone's role."
-          }</p>
-          <ul id="user-list" class="divide-y divide-base-200"></ul>
-          ${isAdmin ? renderRoleLegend() : ''}
-        </div>
-      </div>
+      ${
+          selectedUser
+              ? renderUserDetail(selectedUser, dashboard, isAdmin)
+              : renderUserListCard(users, isAdmin)
+      }
+      ${isAdmin ? renderUserCreateModal(dashboard.departments) + renderUserEditModal(dashboard.departments) : ''}
     </section>
   `;
 
-    renderUserList(users, dashboard, isAdmin);
+    wireUserControls(container, dashboard, users, isAdmin);
 }
 
 function renderRoleLegend(): string {
@@ -71,53 +66,282 @@ function renderRoleLegend(): string {
     </dl>`;
 }
 
-// `editable` is false for approvers, who see the same list as a plain
-// roster of who has access. Your own row stays locked either way — the
-// backend refuses self-demotion (see updateUser in Admin.ts).
-function renderUserList(users: UserDTO[], dashboard: DashboardPayload, editable: boolean): void {
-    const list = document.getElementById('user-list');
-    if (!list) return;
-    list.innerHTML = users
-        .map(
-            (u) => `
-        <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" data-user-id="${u.Email}">
+function renderUserListCard(users: UserDTO[], isAdmin: boolean): string {
+    return `
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <h2 class="card-title text-base">${users.length} ${users.length === 1 ? 'person' : 'people'}</h2>
+              <span class="text-xs text-base-content/50">from your Google domain</span>
+            </div>
+            ${isAdmin ? `<button type="button" class="btn btn-primary btn-sm btn-square" id="open-create-user-modal" aria-label="Add user">${icon('plus', 'size-4')}</button>` : ''}
+          </div>
+          <p class="text-sm text-base-content/60">People self-register automatically the first time they sign in from your organisation's Google domain. ${
+              isAdmin
+                  ? 'Use the add and edit forms to maintain access details.'
+                  : "Only an admin can change someone's details."
+          }</p>
+          <ul id="user-list" class="divide-y divide-base-200">
+            ${users
+                .map(
+                    (u) => `
+        <li class="flex cursor-pointer flex-wrap items-center justify-between gap-3 py-2.5 transition hover:bg-base-200/45" data-user-id="${escapeHtml(u.Email)}">
           <div class="min-w-0">
             <div class="font-medium">${escapeHtml(u.Name)} <span class="text-sm font-normal opacity-60">${escapeHtml(u.Email)}</span></div>
             <div class="text-sm text-base-content/60">${escapeHtml(u.departmentName || 'No department')}</div>
           </div>
           <div class="flex shrink-0 items-center gap-2">
-            ${
-                editable
-                    ? `<select class="select select-sm role-select" ${u.Email === dashboard.me.Email ? 'disabled' : ''} aria-label="Role for ${escapeHtml(u.Name)}">
-              ${USER_ROLE_ORDER.map(
-                  (role) =>
-                      `<option value="${role}" ${u.Role === role ? 'selected' : ''}>${escapeHtml(USER_ROLE_LABELS[role])}</option>`,
-              ).join('')}
-            </select>`
-                    : `<span class="badge badge-soft badge-sm ${roleBadgeClass(u.Role)}">${escapeHtml(roleLabel(u.Role))}</span>`
-            }
+            <span class="badge badge-soft badge-sm ${roleBadgeClass(u.Role)}">${escapeHtml(roleLabel(u.Role))}</span>
+            ${isAdmin ? `<button type="button" class="btn btn-ghost btn-xs user-edit-btn" data-user-edit="${escapeHtml(u.Email)}" aria-label="Edit ${escapeHtml(u.Name)}">${icon('edit', 'size-4')}</button>` : ''}
           </div>
         </li>`,
+                )
+                .join('')}
+          </ul>
+          ${isAdmin ? renderRoleLegend() : ''}
+        </div>
+      </div>`;
+}
+
+function renderUserRequestRows(
+    requests: { label: string; status: string; dates: string }[],
+): string {
+    return requests.length
+        ? `<div class="overflow-x-auto"><table class="table table-sm">
+          <thead><tr><th>Request</th><th>Status</th><th>Dates</th></tr></thead>
+          <tbody>${requests
+              .map(
+                  (request) => `<tr>
+                    <td>${escapeHtml(request.label)}</td>
+                    <td><span class="badge badge-ghost badge-sm">${escapeHtml(request.status)}</span></td>
+                    <td>${escapeHtml(request.dates)}</td>
+                  </tr>`,
+              )
+              .join('')}</tbody>
+        </table></div>`
+        : '<p class="text-sm text-base-content/50">No requests raised yet.</p>';
+}
+
+function renderUserDetail(user: UserDTO, dashboard: DashboardPayload, isAdmin: boolean): string {
+    const equipmentRequests = dashboard.inventoryRequests
+        .filter((request) => request.UserId === user.Email)
+        .map((request) => ({
+            label: `REQ-${request.DisplayId} · ${request.Name}`,
+            status: request.Status,
+            dates:
+                request.StartDate === request.EndDate
+                    ? request.StartDate
+                    : `${request.StartDate} – ${request.EndDate}`,
+        }));
+    const programRequests = dashboard.programRequests
+        .filter((request) => request.UserId === user.Email)
+        .map((request) => ({
+            label: `PRG-${request.DisplayId} · ${request.Name}`,
+            status: request.Status,
+            dates: request.sessions[0]
+                ? request.sessions[0].StartDateTime.slice(0, 10)
+                : 'No session',
+        }));
+
+    return `
+      <div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <button type="button" id="back-to-users" class="btn btn-ghost btn-xs mb-3">${icon('chevronLeft', 'size-4')} Users</button>
+              <h2 class="card-title text-base">${escapeHtml(user.Name)}</h2>
+              <p class="text-sm text-base-content/60">${escapeHtml(user.Email)}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="badge badge-soft badge-sm ${roleBadgeClass(user.Role)}">${escapeHtml(roleLabel(user.Role))}</span>
+              ${isAdmin ? `<button type="button" class="btn btn-primary btn-sm" data-user-edit="${escapeHtml(user.Email)}">${icon('edit', 'size-4')} Edit</button>` : ''}
+            </div>
+          </div>
+
+          <dl class="grid gap-3 text-sm sm:grid-cols-2">
+            <div><dt class="text-xs font-semibold text-base-content/50">Department</dt><dd>${escapeHtml(user.departmentName || 'No department')}</dd></div>
+            <div><dt class="text-xs font-semibold text-base-content/50">Phone</dt><dd>${escapeHtml(user.Phone || 'Not added')}</dd></div>
+            <div><dt class="text-xs font-semibold text-base-content/50">WhatsApp</dt><dd>${escapeHtml(user.Whatsapp || 'Not added')}</dd></div>
+          </dl>
+
+          <section class="border-t border-base-200 pt-4">
+            <h3 class="mb-2 text-sm font-semibold">Equipment requests</h3>
+            ${renderUserRequestRows(equipmentRequests)}
+          </section>
+          <section class="border-t border-base-200 pt-4">
+            <h3 class="mb-2 text-sm font-semibold">Program requests</h3>
+            ${renderUserRequestRows(programRequests)}
+          </section>
+        </div>
+      </div>`;
+}
+
+function renderDepartmentOptions(departments: Department[], selected = ''): string {
+    return `<option value="">No department</option>${departments
+        .map(
+            (department) =>
+                `<option value="${escapeHtml(department.Id)}" ${department.Id === selected ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`,
         )
-        .join('');
+        .join('')}`;
+}
 
-    if (!editable) return;
+function renderRoleOptions(selected: UserRole = 'user'): string {
+    return USER_ROLE_ORDER.map(
+        (role) =>
+            `<option value="${role}" ${role === selected ? 'selected' : ''}>${escapeHtml(USER_ROLE_LABELS[role])}</option>`,
+    ).join('');
+}
 
-    list.querySelectorAll('li[data-user-id]').forEach((li) => {
-        const userId = (li as HTMLElement).dataset.userId!;
-        const roleSelect = li.querySelector('.role-select') as HTMLSelectElement;
+function renderUserFormFields(departments: Department[], includeEmail: boolean): string {
+    return `
+      ${includeEmail ? '<input type="hidden" name="emailOriginal" />' : '<input type="hidden" name="emailOriginal" />'}
+      <div class="grid gap-3 sm:grid-cols-2">
+        ${
+            includeEmail
+                ? `<label class="fieldset"><span class="label">Email</span><input name="email" type="email" class="input w-full" required /></label>`
+                : '<input name="email" type="hidden" />'
+        }
+        <label class="fieldset"><span class="label">Name</span><input name="name" class="input w-full" required /></label>
+        <label class="fieldset"><span class="label">Role</span><select name="role" class="select w-full">${renderRoleOptions()}</select></label>
+        <label class="fieldset"><span class="label">Department</span><select name="departmentId" class="select w-full">${renderDepartmentOptions(departments)}</select></label>
+        <label class="fieldset"><span class="label">Phone</span><input name="phone" class="input w-full" /></label>
+        <label class="fieldset"><span class="label">WhatsApp</span><input name="whatsapp" class="input w-full" /></label>
+      </div>`;
+}
 
-        roleSelect.addEventListener('change', async () => {
-            try {
-                showSavingBadge(true);
-                await api.updateUser(userId, { role: roleSelect.value as UserRole });
-                await refreshDashboard();
-            } catch (err) {
-                showErrorAlert(err);
-            } finally {
-                showSavingBadge(false);
-            }
+function renderUserCreateModal(departments: Department[]): string {
+    return `
+      <dialog id="${CREATE_USER_MODAL_ID}" class="modal">
+        <div class="modal-box w-11/12 max-w-[50rem]">
+          <h3 class="mb-4 flex items-center gap-2 text-base font-semibold">${icon('plus', 'size-5 text-primary')} Add user</h3>
+          <form id="create-user-form" class="space-y-3">
+            ${renderUserFormFields(departments, true)}
+            <div class="modal-action"><button type="button" class="btn btn-ghost" data-user-modal-close="${CREATE_USER_MODAL_ID}">Cancel</button><button type="submit" class="btn btn-primary">Add</button></div>
+          </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+      </dialog>`;
+}
+
+function renderUserEditModal(departments: Department[]): string {
+    return `
+      <dialog id="${EDIT_USER_MODAL_ID}" class="modal">
+        <div class="modal-box w-11/12 max-w-[50rem]">
+          <h3 class="mb-4 flex items-center gap-2 text-base font-semibold">${icon('edit', 'size-5 text-primary')} Edit user</h3>
+          <form id="edit-user-form" class="space-y-3">
+            ${renderUserFormFields(departments, false)}
+            <div class="modal-action"><button type="button" class="btn btn-ghost" data-user-modal-close="${EDIT_USER_MODAL_ID}">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+          </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+      </dialog>`;
+}
+
+function readUserForm(form: HTMLFormElement): CreateUserInput {
+    const data = new FormData(form);
+    return {
+        email: String(data.get('email') || '')
+            .trim()
+            .toLowerCase(),
+        name: String(data.get('name') || ''),
+        role: String(data.get('role') || 'user') as UserRole,
+        departmentId: String(data.get('departmentId') || ''),
+        phone: String(data.get('phone') || ''),
+        whatsapp: String(data.get('whatsapp') || ''),
+    };
+}
+
+function fillUserEditForm(form: HTMLFormElement, user: UserDTO): void {
+    (form.elements.namedItem('email') as HTMLInputElement).value = user.Email;
+    (form.elements.namedItem('emailOriginal') as HTMLInputElement).value = user.Email;
+    (form.elements.namedItem('name') as HTMLInputElement).value = user.Name;
+    (form.elements.namedItem('role') as HTMLSelectElement).value = user.Role;
+    (form.elements.namedItem('departmentId') as HTMLSelectElement).value = user.DepartmentId || '';
+    (form.elements.namedItem('phone') as HTMLInputElement).value = user.Phone || '';
+    (form.elements.namedItem('whatsapp') as HTMLInputElement).value = user.Whatsapp || '';
+}
+
+function wireUserControls(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    users: UserDTO[],
+    isAdmin: boolean,
+): void {
+    document.getElementById('back-to-users')?.addEventListener('click', () => {
+        selectedUserEmail = null;
+        renderUsers(container, dashboard);
+    });
+
+    document.querySelectorAll<HTMLElement>('[data-user-id]').forEach((row) => {
+        row.addEventListener('click', () => {
+            selectedUserEmail = row.dataset.userId || null;
+            renderUsers(container, dashboard);
         });
+    });
+
+    if (!isAdmin) return;
+
+    document.getElementById('open-create-user-modal')?.addEventListener('click', () => {
+        const form = document.getElementById('create-user-form') as HTMLFormElement | null;
+        form?.reset();
+        (document.getElementById(CREATE_USER_MODAL_ID) as HTMLDialogElement | null)?.showModal();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-user-modal-close]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const modalId = btn.dataset.userModalClose;
+            if (modalId) (document.getElementById(modalId) as HTMLDialogElement | null)?.close();
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-user-edit]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const user = users.find((u) => u.Email === btn.dataset.userEdit);
+            const form = document.getElementById('edit-user-form') as HTMLFormElement | null;
+            if (!user || !form) return;
+            fillUserEditForm(form, user);
+            (document.getElementById(EDIT_USER_MODAL_ID) as HTMLDialogElement | null)?.showModal();
+        });
+    });
+
+    document.getElementById('create-user-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget as HTMLFormElement;
+        try {
+            showSavingBadge(true);
+            const created = await api.createUser(readUserForm(form), generateRequestId());
+            selectedUserEmail = created.Email;
+            await refreshDashboard();
+        } catch (err) {
+            showErrorAlert(err);
+        } finally {
+            showSavingBadge(false);
+        }
+    });
+
+    document.getElementById('edit-user-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget as HTMLFormElement;
+        const values = readUserForm(form);
+        const email = String(new FormData(form).get('emailOriginal') || values.email);
+        try {
+            showSavingBadge(true);
+            await api.updateUser(email, {
+                name: values.name,
+                role: values.role,
+                departmentId: values.departmentId,
+                phone: values.phone,
+                whatsapp: values.whatsapp,
+            });
+            selectedUserEmail = email;
+            await refreshDashboard();
+        } catch (err) {
+            showErrorAlert(err);
+        } finally {
+            showSavingBadge(false);
+        }
     });
 }
 
@@ -235,44 +459,87 @@ export function renderSettingsList(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): void {
+    const createInModal = true;
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderSectionHeader(page.iconName, page.title, page.subtitle)}
-      ${renderSettingsListCards(page, page.rows(dashboard))}
+      ${renderSettingsListCardsWithOptions(page, page.rows(dashboard), createInModal)}
     </section>
   `;
 
     wireSettingsForm();
+    if (createInModal) wireSettingsCreateModals();
     wireSettingsListRows();
 }
 
 // The add-form and list cards on their own, so Home content can embed the
 // Quick links pair below its own form instead of owning a whole page.
-function renderSettingsListCards(page: SettingsList, rows: Record<string, any>[]): string {
-    return `
-      <div class="card border border-base-300 bg-base-100 shadow">
-        <div class="card-body gap-3">
-          <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} ${escapeHtml(page.addLabel)}</h2>
-          <form class="settings-form flex flex-wrap items-end gap-2" data-kind="${page.kind}">
-            ${page.fields
-                .map(
-                    (f, i) => `
-              <div class="flex-1" style="min-width: 10rem;">
+function settingsCreateModalId(kind: string): string {
+    return `settings-create-${kind}-modal`;
+}
+
+function renderSettingsCreateFields(page: SettingsList): string {
+    return page.fields
+        .map(
+            (f, i) => `
+              <div class="min-w-48 flex-1">
                 <label class="label text-xs">${escapeHtml(f.label)}</label>
                 <input name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" ${i === 0 ? 'required' : ''} />
               </div>`,
-                )
-                .join('')}
+        )
+        .join('');
+}
+
+function renderSettingsCreateModal(page: SettingsList): string {
+    return `
+      <dialog id="${settingsCreateModalId(page.kind)}" class="modal">
+        <div class="modal-box w-11/12 max-w-[50rem]">
+          <h3 class="mb-4 flex items-center gap-2 text-base font-semibold">${icon('plus', 'size-5 text-primary')} ${escapeHtml(page.addLabel)}</h3>
+          <form class="settings-form space-y-3" data-kind="${page.kind}">
+            <div class="flex flex-wrap items-end gap-3">
+              ${renderSettingsCreateFields(page)}
+            </div>
+            <div class="modal-action">
+              <button type="button" class="btn btn-ghost" data-settings-modal-close="${page.kind}">Cancel</button>
+              <button type="submit" class="btn btn-primary">Add</button>
+            </div>
+          </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+      </dialog>`;
+}
+
+function renderSettingsListCardsWithOptions(
+    page: SettingsList,
+    rows: Record<string, any>[],
+    createInModal: boolean,
+): string {
+    return `
+      ${
+          createInModal
+              ? ''
+              : `<div class="card border border-base-300 bg-base-100 shadow">
+        <div class="card-body gap-3">
+          <h2 class="card-title text-base">${icon('plus', 'size-5 text-primary')} ${escapeHtml(page.addLabel)}</h2>
+          <form class="settings-form flex flex-wrap items-end gap-2" data-kind="${page.kind}">
+            ${renderSettingsCreateFields(page)}
             <button type="submit" class="btn btn-sm btn-primary">Add</button>
           </form>
         </div>
-      </div>
+      </div>`
+      }
 
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-2">
-          <div class="flex items-center justify-between">
-            <h2 class="card-title text-base">${escapeHtml(page.title)}</h2>
-            <span class="badge badge-ghost badge-sm">${rows.length}</span>
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-2">
+              <h2 class="card-title text-base">${escapeHtml(page.title)}</h2>
+              <span class="badge badge-ghost badge-sm">${rows.length}</span>
+            </div>
+            ${
+                createInModal
+                    ? `<button type="button" class="btn btn-primary btn-sm btn-square" data-settings-modal-open="${page.kind}" aria-label="${escapeHtml(page.addLabel)}">${icon('plus', 'size-4')}</button>`
+                    : ''
+            }
           </div>
           ${
               rows.length === 0
@@ -282,7 +549,8 @@ function renderSettingsListCards(page: SettingsList, rows: Record<string, any>[]
                         .join('')}</ul>`
           }
         </div>
-      </div>`;
+      </div>
+      ${createInModal ? renderSettingsCreateModal(page) : ''}`;
 }
 
 // A row's read-only view: name + the rest of its fields, plus edit/delete.
@@ -530,6 +798,28 @@ function wireSettingsForm(): void {
     });
 }
 
+function wireSettingsCreateModals(): void {
+    document.querySelectorAll<HTMLButtonElement>('[data-settings-modal-open]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const kind = btn.dataset.settingsModalOpen;
+            const modal = kind
+                ? (document.getElementById(settingsCreateModalId(kind)) as HTMLDialogElement | null)
+                : null;
+            modal?.showModal();
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-settings-modal-close]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const kind = btn.dataset.settingsModalClose;
+            const modal = kind
+                ? (document.getElementById(settingsCreateModalId(kind)) as HTMLDialogElement | null)
+                : null;
+            modal?.close();
+        });
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Others — the Home screen's message and guidelines, quick links and shift
 // presets: everything that didn't earn a Settings page of its own.
@@ -538,8 +828,6 @@ function wireSettingsForm(): void {
 export function renderHomeContent(container: HTMLElement, dashboard: DashboardPayload): void {
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderSectionHeader('home', 'Others', 'The message and guidelines shown on Home, quick links, and shift presets.')}
-
       <div class="card border border-base-300 bg-base-100 shadow">
         <div class="card-body gap-3">
           <form id="home-content-form" class="space-y-3">
@@ -568,13 +856,14 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
         </div>
       </div>
 
-      ${renderSettingsListCards(SETTINGS_LINKS_LIST, dashboard.links)}
-      ${renderSettingsListCards(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets)}
+      ${renderSettingsListCardsWithOptions(SETTINGS_LINKS_LIST, dashboard.links, true)}
+      ${renderSettingsListCardsWithOptions(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets, true)}
     </section>
   `;
 
     wireHomeContentForm();
     wireSettingsForm();
+    wireSettingsCreateModals();
     wireSettingsListRows();
 }
 

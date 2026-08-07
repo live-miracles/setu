@@ -312,8 +312,20 @@ interface CreatePlaceInput {
 }
 
 interface UpdateUserInput {
+    name?: string;
     role?: UserRole;
     departmentId?: string;
+    phone?: string;
+    whatsapp?: string;
+}
+
+interface CreateUserInput {
+    email: string;
+    name: string;
+    role: UserRole;
+    departmentId: string;
+    phone: string;
+    whatsapp: string;
 }
 
 interface UpdateOwnProfileInput {
@@ -430,6 +442,7 @@ interface Api {
     getDashboard(): DashboardPayload;
 
     listUsers(): UserDTO[];
+    createUser(input: CreateUserInput, requestId: string): UserDTO;
     updateUser(userId: string, patch: UpdateUserInput): UserDTO;
     updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO;
 

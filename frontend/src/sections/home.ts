@@ -83,14 +83,17 @@ export async function renderHome(
     container.innerHTML = `
     <section class="home-page space-y-10">
       <header class="home-signature">
-        <div class="home-signature-day" aria-hidden="true">${date.day}</div>
-        <div class="home-signature-copy">
+        <div class="home-signature-date">
           <div class="home-date-kicker">${escapeHtml(date.weekday)} · ${escapeHtml(date.monthYear)}</div>
+          <div class="home-signature-day" aria-hidden="true">${date.day}</div>
+        </div>
+        <div class="home-signature-copy">
           <h1>${escapeHtml(headline)}</h1>
           <p class="home-summary">${escapeHtml(operationalSummary)}</p>
         </div>
       </header>
 
+      <div class="home-content-wrap space-y-10">
       ${
           canManageConfig(dashboard.me) && dashboard.failedEmailCount > 0
               ? `<div class="alert alert-warning">
@@ -254,6 +257,7 @@ export async function renderHome(
             ${dashboard.homeContent.TutorialUrl ? `<a class="btn btn-ghost btn-sm text-white" href="${escapeHtml(dashboard.homeContent.TutorialUrl)}" target="_blank" rel="noopener">Booking tutorial</a>` : ''}
           </div>
         </section>
+      </div>
       </div>
     </section>
   `;

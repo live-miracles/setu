@@ -762,10 +762,29 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     getDashboard: () => mockBuildDashboard(),
 
     listUsers: () => mockData.users.map(mockToUserDTO),
+    createUser: (input: CreateUserInput) => {
+        const email = String(input.email || '')
+            .trim()
+            .toLowerCase();
+        if (mockData.users.find((u) => u.Email === email)) throw new Error('User already exists.');
+        const created: User = {
+            Email: email,
+            Name: input.name,
+            Role: input.role,
+            DepartmentId: input.departmentId || '',
+            Phone: input.phone || '',
+            Whatsapp: input.whatsapp || '',
+        };
+        mockData.users.push(created);
+        return mockToUserDTO(created);
+    },
     updateUser: (userId: string, patch: UpdateUserInput) => {
         const user = mockData.users.find((u) => u.Email === userId)!;
+        if (patch.name !== undefined) user.Name = patch.name;
         if (patch.role !== undefined) user.Role = patch.role;
         if (patch.departmentId !== undefined) user.DepartmentId = patch.departmentId;
+        if (patch.phone !== undefined) user.Phone = patch.phone;
+        if (patch.whatsapp !== undefined) user.Whatsapp = patch.whatsapp;
         return mockToUserDTO(user);
     },
     updateOwnProfile: (patch: UpdateOwnProfileInput) => {

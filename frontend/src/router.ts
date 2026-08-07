@@ -92,9 +92,12 @@ export async function renderCurrentSection(): Promise<void> {
         !params.get(INVENTORY_REQUEST_QUERY_PARAM) &&
         !params.get(PROGRAM_REQUEST_QUERY_PARAM) &&
         !params.get(TICKET_QUERY_PARAM);
-    const wide = sectionKey === 'roster' || isWorkbenchBrowse;
-    container.classList.toggle('max-w-3xl', !wide);
-    container.classList.toggle('max-w-[100rem]', wide);
+    const isHome = sectionKey === 'home';
+    const isEdgeToEdge = sectionKey === 'roster' || isWorkbenchBrowse;
+    container.classList.toggle('app-content-home', isHome);
+    container.classList.toggle('app-content-edge', isEdgeToEdge);
+    container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge);
+    container.classList.toggle('max-w-[100rem]', isEdgeToEdge);
     await sections[sectionKey](container, dashboard);
     toggleRoleNavVisibility(dashboard);
 }
