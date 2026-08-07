@@ -93,7 +93,6 @@ function renderUserListCard(users: UserDTO[], isAdmin: boolean): string {
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <span class="badge badge-soft badge-sm ${roleBadgeClass(u.Role)}">${escapeHtml(roleLabel(u.Role))}</span>
-            ${isAdmin ? `<button type="button" class="btn btn-ghost btn-xs user-edit-btn" data-user-edit="${escapeHtml(u.Email)}" aria-label="Edit ${escapeHtml(u.Name)}">${icon('edit', 'size-4')}</button>` : ''}
           </div>
         </li>`,
                 )
