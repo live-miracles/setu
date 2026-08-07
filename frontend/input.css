@@ -461,10 +461,23 @@ body > header.navbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     gap: 0.35rem 0.65rem;
     margin: -0.35rem 0 0.65rem -0.7rem;
     color: var(--setu-muted);
     font-size: 0.76rem;
+}
+
+.detail-command-meta-main,
+.detail-command-top-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+}
+
+.detail-command-top-actions {
+    margin-left: auto;
 }
 
 .detail-command-back {
@@ -1209,6 +1222,14 @@ body > header.navbar {
         position: static;
         padding: 0.9rem;
         backdrop-filter: none;
+    }
+
+    .detail-command-meta {
+        margin-left: 0;
+    }
+
+    .detail-command-top-actions {
+        margin-left: 0;
     }
 
     .detail-command-main {

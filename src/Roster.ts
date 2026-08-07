@@ -7,8 +7,8 @@ function buildRosterDTO(roster: Roster, usersByEmail: Record<string, User>): Ros
 
 // The whole roster — reading it, not just scheduling into it — is limited
 // to admins and approvers (canApprove in Auth.ts). Crew on the `viewer` or
-// `user` role still get the assignment email from createRoster below; they
-// just have no in-app shift list.
+// `user` role can still be assigned shifts, but they have no in-app shift
+// list.
 function listRosters(page: number): Paginated<RosterDTO> {
     requireApprover();
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
@@ -43,7 +43,7 @@ function requireValidRosterInput(input: CreateRosterInput): User {
 
 // Scheduling is an approver power, not an admin one. Anyone in the Users
 // tab can be the assignee, including roles that can't open the roster
-// themselves — the notification below is how they hear about the shift.
+// themselves.
 function createRoster(input: CreateRosterInput, requestId: string): RosterDTO {
     requireApprover();
     const user = requireValidRosterInput(input);
@@ -58,14 +58,6 @@ function createRoster(input: CreateRosterInput, requestId: string): RosterDTO {
             UserId: user.Email,
         });
     });
-
-    sendNotificationEmail(
-        user.Email,
-        'roster:' + roster.Id + ':assigned',
-        'New shift scheduled',
-        'You have been assigned to a shift on ' + roster.StartDate + '.',
-        '?section=roster',
-    );
 
     return Object.assign({}, roster, { userName: user.Name });
 }
@@ -86,14 +78,6 @@ function updateRoster(id: string, input: CreateRosterInput, requestId: string): 
         });
     });
 
-    sendNotificationEmail(
-        user.Email,
-        'roster:' + roster.Id + ':updated:' + requestId,
-        'Shift updated',
-        'Your shift on ' + roster.StartDate + ' was updated.',
-        '?section=roster',
-    );
-
     return Object.assign({}, roster, { userName: user.Name });
 }
 
@@ -106,14 +90,5 @@ function deleteRoster(id: string, requestId: string): void {
         return null;
     });
 
-    const user = roster && Tables.Users.findById(roster.UserId);
-    if (roster && user) {
-        sendNotificationEmail(
-            user.Email,
-            'roster:' + roster.Id + ':cancelled:' + requestId,
-            'Shift cancelled',
-            'Your shift on ' + roster.StartDate + ' was cancelled.',
-            '?section=roster',
-        );
-    }
+    void roster;
 }

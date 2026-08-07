@@ -168,6 +168,7 @@ const WORKBENCH_QUERY_PARAMS = [
     WORKBENCH_DIRECTION_QUERY_PARAM,
     'equipment',
     'place',
+    'period',
     'assignee',
 ];
 

@@ -27,7 +27,6 @@ import {
     type WorkbenchToolbarConfig,
     readWorkbenchState,
     renderWorkbenchToolbar,
-    wireSortableHeaders,
     wireWorkbenchToolbar,
     workItemHref,
 } from '../workbench';
@@ -94,11 +93,8 @@ function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
     return {
         storageKey: TICKET_VIEW_STORAGE_KEY,
         searchPlaceholder: 'Search tickets, descriptions or assignees',
-        statuses: TICKET_BOARD_COLUMNS.map((column) => ({
-            value: column.status,
-            label: column.title,
-        })),
         defaultSort: 'id',
+        defaultDirection: 'asc',
     };
 }
 
@@ -143,7 +139,7 @@ async function renderTicketWorkbench(
 function ticketQuery(state: WorkbenchState, statuses?: TicketStatus[]): TicketQuery {
     return {
         q: state.q,
-        statuses: state.status ? [state.status as TicketStatus] : statuses,
+        statuses,
         sortBy: state.sort as TicketQuery['sortBy'],
         sortDirection: state.direction,
     };
@@ -159,8 +155,7 @@ async function loadTicketResults(
     host.innerHTML =
         '<div class="workbench-loading"><span class="loading loading-spinner loading-sm"></span> Loading tickets…</div>';
     try {
-        if (state.view === 'board') await renderTicketBoard(host, dashboard, state, generation);
-        else await renderTicketList(host, dashboard, state, generation);
+        await renderTicketBoard(host, dashboard, state, generation);
     } catch (err) {
         if (generation !== ticketResultsGeneration) return;
         host.innerHTML = '<div class="alert alert-error">Tickets could not be loaded.</div>';
@@ -176,9 +171,7 @@ async function renderTicketBoard(
     state: WorkbenchState,
     generation: number,
 ): Promise<void> {
-    const columns = TICKET_BOARD_COLUMNS.filter(
-        (column) => !state.status || column.status === state.status,
-    );
+    const columns = TICKET_BOARD_COLUMNS;
     const results = await Promise.all(
         columns.map((column) => api.listTickets(1, ticketQuery(state, [column.status]))),
     );
@@ -221,41 +214,6 @@ function renderTicketCard(ticket: TicketDTO): string {
     </a>`;
 }
 
-async function renderTicketList(
-    host: HTMLElement,
-    dashboard: DashboardPayload,
-    state: WorkbenchState,
-    generation: number,
-): Promise<void> {
-    const result = await api.listTickets(1, ticketQuery(state));
-    if (generation !== ticketResultsGeneration || !host.isConnected) return;
-    host.innerHTML = `<div class="workbench-table-wrap"><table class="workbench-table"><thead><tr>${sortHeader('Ticket', 'title', state)}<th>Description</th>${sortHeader('Assignee', 'assignee', state)}${sortHeader('Status', 'status', state)}</tr></thead><tbody id="ticket-list-body">${result.items.map(renderTicketRow).join('')}</tbody></table>
-      ${result.items.length === 0 ? renderEmptyState('ticket', 'No tickets match these filters.') : ''}
-      ${result.items.length < result.totalCount ? `<button type="button" id="load-more-tickets" class="btn btn-ghost btn-sm mt-3">Load more (${result.totalCount - result.items.length})</button>` : ''}</div>`;
-    wireTicketLinks(host);
-    wireSortableHeaders(state, (next) => void loadTicketResults(dashboard, next));
-    document.getElementById('load-more-tickets')?.addEventListener('click', async (event) => {
-        const button = event.currentTarget as HTMLButtonElement;
-        const page = Number(button.dataset.page || '2');
-        const next = await api.listTickets(page, ticketQuery(state));
-        document
-            .getElementById('ticket-list-body')!
-            .insertAdjacentHTML('beforeend', next.items.map(renderTicketRow).join(''));
-        wireTicketLinks(host);
-        if (page * next.pageSize >= next.totalCount) button.remove();
-        else button.dataset.page = String(page + 1);
-    });
-}
-
-function sortHeader(label: string, sort: string, state: WorkbenchState): string {
-    const marker = state.sort === sort ? (state.direction === 'asc' ? ' ↑' : ' ↓') : '';
-    return `<th><button type="button" data-workbench-sort="${sort}">${label}${marker}</button></th>`;
-}
-
-function renderTicketRow(ticket: TicketDTO): string {
-    return `<tr><td data-label="Ticket"><a href="${workItemHref(TICKET_QUERY_PARAM, ticket.Id)}" data-ticket-id="${ticket.Id}"><span class="font-mono text-xs">TKT-${ticket.DisplayId}</span><strong>${escapeHtml(ticket.Title)}</strong></a></td><td data-label="Description"><span class="line-clamp-2">${escapeHtml(ticket.Description || 'No description')}</span></td><td data-label="Assignee">${ticket.assigneeName ? escapeHtml(ticket.assigneeName) : 'Not assigned'}</td><td data-label="Status"><span class="badge badge-sm ${TICKET_STATUS_BADGES[ticket.Status]}">${TICKET_STATUS_LABELS[ticket.Status]}</span></td></tr>`;
-}
-
 function wireTicketLinks(root: ParentNode): void {
     root.querySelectorAll<HTMLAnchorElement>('a[data-ticket-id]').forEach((link) => {
         if (link.dataset.wired) return;
@@ -277,7 +235,7 @@ function renderTicketCreate(container: HTMLElement): void {
         title: 'New ticket',
         nextStatuses: TICKET_NEXT_STATUS_LABELS.unassigned,
         statusSteps: ticketStatusSteps('unassigned'),
-        actionsHtml:
+        topActionsHtml:
             '<button type="submit" form="create-ticket-form" class="btn btn-primary btn-sm">Save</button><button type="button" id="cancel-ticket" class="btn btn-ghost btn-sm">Cancel</button>',
     });
     const fields = renderRequestFieldGrid([
@@ -305,7 +263,7 @@ function renderTicketCreate(container: HTMLElement): void {
             'id="create-ticket-form"',
         ),
         renderRequestActivityPanel({ createMode: true }),
-        true,
+        false,
     );
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
     document.getElementById('cancel-ticket')!.addEventListener('click', navigateToTickets);

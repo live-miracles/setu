@@ -9,6 +9,7 @@ function getDashboard(): DashboardPayload {
     const actor = requireUser();
 
     const departments = Tables.Departments.readAll();
+    const departmentsById = indexBy(departments, (d) => d.Id);
     const places = Tables.Places.readAll();
     const inventoryTypes = buildInventoryTypeDTOs(Tables.InventoryTypes.readAll());
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
@@ -44,6 +45,7 @@ function getDashboard(): DashboardPayload {
                 itemsByRequest,
                 inventoryTypesById,
                 usersByEmail,
+                departmentsById,
                 commentsByRequestId,
             ),
         )
@@ -64,6 +66,7 @@ function getDashboard(): DashboardPayload {
                 sessionsByRequest,
                 placesById,
                 usersByEmail,
+                departmentsById,
                 commentsByRequestId,
             ),
         )

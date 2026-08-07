@@ -8,12 +8,100 @@ function setupSheets(): void {
     migrateUsersTimezoneColumn(ss);
     migrateInventoryRequestImageColumns(ss);
     migrateCommentsRequestIdColumn(ss);
+    migrateTableToCurrentHeaders(ss, 'Departments', Tables.Departments.headers as string[]);
+    migrateRequestsDepartmentLeadColumns(ss, 'InventoryRequests');
+    migrateRequestsDepartmentLeadColumns(ss, 'ProgramRequests');
 
     Object.values(Tables).forEach((table) => {
         ensureTabWithHeaders(ss, table.tabName, table.headers as string[]);
     });
 
     removeDefaultSheetIfEmpty(ss);
+}
+
+function migrateTableToCurrentHeaders(
+    ss: GoogleAppsScript.Spreadsheet.Spreadsheet,
+    tabName: string,
+    desiredHeaders: string[],
+): void {
+    const sheet = ss.getSheetByName(tabName);
+    if (!sheet) return;
+    const lastColumn = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+    const existingHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String);
+    if (
+        existingHeaders.length >= desiredHeaders.length &&
+        desiredHeaders.every((header, index) => existingHeaders[index] === header)
+    ) {
+        return;
+    }
+    const headerIndex = (header: string) => existingHeaders.indexOf(header);
+    const lastRow = sheet.getLastRow();
+    const rowCount = Math.max(lastRow - 1, 0);
+    const oldRows = rowCount > 0 ? sheet.getRange(2, 1, rowCount, lastColumn).getValues() : [];
+    const migratedRows = oldRows.map((row) =>
+        desiredHeaders.map((header) => valueAt(row, headerIndex(header))),
+    );
+    sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
+    if (migratedRows.length > 0) {
+        sheet.getRange(2, 1, migratedRows.length, desiredHeaders.length).setValues(migratedRows);
+    }
+    const surplusColumns = sheet.getMaxColumns() - desiredHeaders.length;
+    if (surplusColumns > 0) {
+        sheet.deleteColumns(desiredHeaders.length + 1, surplusColumns);
+    }
+}
+
+function migrateRequestsDepartmentLeadColumns(
+    ss: GoogleAppsScript.Spreadsheet.Spreadsheet,
+    tabName: 'InventoryRequests' | 'ProgramRequests',
+): void {
+    const desiredHeaders =
+        tabName === 'InventoryRequests'
+            ? (Tables.InventoryRequests.headers as string[])
+            : (Tables.ProgramRequests.headers as string[]);
+    const sheet = ss.getSheetByName(tabName);
+    if (!sheet) return;
+
+    const usersByEmail = indexBy(Tables.Users.readAll(), (user) => user.Email);
+    const departmentsById = indexBy(Tables.Departments.readAll(), (department) => department.Id);
+    const lastColumn = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+    const existingHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String);
+    const headerIndex = (header: string) => existingHeaders.indexOf(header);
+    const lastRow = sheet.getLastRow();
+    const rowCount = Math.max(lastRow - 1, 0);
+    const oldRows = rowCount > 0 ? sheet.getRange(2, 1, rowCount, lastColumn).getValues() : [];
+    const migratedRows = oldRows.map((row) =>
+        desiredHeaders.map((header) => {
+            if (header === 'DepartmentId') {
+                return (
+                    valueAt(row, headerIndex('DepartmentId')) ||
+                    usersByEmail[valueAt(row, headerIndex('UserId'))]?.DepartmentId ||
+                    ''
+                );
+            }
+            if (header === 'LeadEmail') {
+                const departmentId =
+                    valueAt(row, headerIndex('DepartmentId')) ||
+                    usersByEmail[valueAt(row, headerIndex('UserId'))]?.DepartmentId ||
+                    '';
+                return (
+                    valueAt(row, headerIndex('LeadEmail')) ||
+                    departmentsById[departmentId]?.LeadEmail ||
+                    ''
+                );
+            }
+            return valueAt(row, headerIndex(header));
+        }),
+    );
+
+    sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
+    if (migratedRows.length > 0) {
+        sheet.getRange(2, 1, migratedRows.length, desiredHeaders.length).setValues(migratedRows);
+    }
+    const surplusColumns = sheet.getMaxColumns() - desiredHeaders.length;
+    if (surplusColumns > 0) {
+        sheet.deleteColumns(desiredHeaders.length + 1, surplusColumns);
+    }
 }
 
 function migrateUsersTimezoneColumn(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): void {

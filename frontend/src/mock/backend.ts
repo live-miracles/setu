@@ -46,6 +46,8 @@ const EXTRA_APPROVED_PROGRAM_REQUESTS: ProgramRequest[] = Array.from({ length: 1
         UserId: ['sam@example.com', 'ana@example.com', 'vic@example.com'][index % 3],
         Status: 'approved' as ProgramRequestStatus,
         PlaceId: 'place-' + ((index % 6) + 1),
+        DepartmentId: 'dep-' + ((index % 6) + 1),
+        LeadEmail: index % 3 === 0 ? 'ana@example.com' : 'admin@example.com',
         Participants: index % 2 === 0 ? 'ana@example.com' : '',
     };
 });
@@ -98,12 +100,12 @@ const mockData = {
         },
     ] as User[],
     departments: [
-        { Id: 'dep-1', Name: 'Production', ShortName: 'PROD' },
-        { Id: 'dep-2', Name: 'Post-Production', ShortName: 'POST' },
-        { Id: 'dep-3', Name: 'Marketing', ShortName: 'MKTG' },
-        { Id: 'dep-4', Name: 'Engineering', ShortName: 'ENG' },
-        { Id: 'dep-5', Name: 'Operations', ShortName: 'OPS' },
-        { Id: 'dep-6', Name: 'Finance', ShortName: 'FIN' },
+        { Id: 'dep-1', Name: 'Production', ShortName: 'PROD', LeadEmail: 'ana@example.com' },
+        { Id: 'dep-2', Name: 'Post-Production', ShortName: 'POST', LeadEmail: 'ana@example.com' },
+        { Id: 'dep-3', Name: 'Marketing', ShortName: 'MKTG', LeadEmail: 'vic@example.com' },
+        { Id: 'dep-4', Name: 'Engineering', ShortName: 'ENG', LeadEmail: 'admin@example.com' },
+        { Id: 'dep-5', Name: 'Operations', ShortName: 'OPS', LeadEmail: 'admin@example.com' },
+        { Id: 'dep-6', Name: 'Finance', ShortName: 'FIN', LeadEmail: 'admin@example.com' },
     ] as Department[],
     places: [
         { Id: 'place-1', Name: 'Studio A' },
@@ -141,6 +143,8 @@ const mockData = {
             EndDate: mockAddDays(3),
             Status: 'submitted' as InventoryRequestStatus,
             ImageId: '',
+            DepartmentId: 'dep-1',
+            LeadEmail: 'ana@example.com',
             Participants: '',
         },
         {
@@ -152,6 +156,8 @@ const mockData = {
             EndDate: mockAddDays(2),
             Status: 'approved' as InventoryRequestStatus,
             ImageId: '',
+            DepartmentId: 'dep-1',
+            LeadEmail: 'ana@example.com',
             Participants: 'sam@example.com',
         },
         {
@@ -163,6 +169,8 @@ const mockData = {
             EndDate: mockAddDays(-2),
             Status: 'issued' as InventoryRequestStatus,
             ImageId: '',
+            DepartmentId: 'dep-3',
+            LeadEmail: 'vic@example.com',
             Participants: '',
         },
         {
@@ -174,6 +182,8 @@ const mockData = {
             EndDate: mockAddDays(-6),
             Status: 'returned' as InventoryRequestStatus,
             ImageId: '',
+            DepartmentId: 'dep-1',
+            LeadEmail: 'ana@example.com',
             Participants: '',
         },
         {
@@ -185,6 +195,8 @@ const mockData = {
             EndDate: mockAddDays(-11),
             Status: 'closed' as InventoryRequestStatus,
             ImageId: '',
+            DepartmentId: 'dep-1',
+            LeadEmail: 'ana@example.com',
             Participants: '',
         },
     ] as InventoryRequest[],
@@ -234,6 +246,8 @@ const mockData = {
             UserId: 'sam@example.com',
             Status: 'submitted' as ProgramRequestStatus,
             PlaceId: 'place-1',
+            DepartmentId: 'dep-1',
+            LeadEmail: 'ana@example.com',
             Participants: 'ana@example.com',
         },
         {
@@ -244,6 +258,8 @@ const mockData = {
             UserId: 'ana@example.com',
             Status: 'approved' as ProgramRequestStatus,
             PlaceId: 'place-5',
+            DepartmentId: 'dep-1',
+            LeadEmail: 'ana@example.com',
             Participants: '',
         },
         {
@@ -254,6 +270,8 @@ const mockData = {
             UserId: 'vic@example.com',
             Status: 'draft' as ProgramRequestStatus,
             PlaceId: 'place-2',
+            DepartmentId: 'dep-3',
+            LeadEmail: 'vic@example.com',
             Participants: '',
         },
         {
@@ -264,6 +282,8 @@ const mockData = {
             UserId: 'admin@example.com',
             Status: 'cancelled' as ProgramRequestStatus,
             PlaceId: 'place-3',
+            DepartmentId: 'dep-4',
+            LeadEmail: 'admin@example.com',
             Participants: '',
         },
         {
@@ -274,6 +294,8 @@ const mockData = {
             UserId: 'admin@example.com',
             Status: 'cancelled' as ProgramRequestStatus,
             PlaceId: 'place-4',
+            DepartmentId: 'dep-4',
+            LeadEmail: 'admin@example.com',
             Participants: '',
         },
         {
@@ -284,6 +306,8 @@ const mockData = {
             UserId: 'sam@example.com',
             Status: 'rejected' as ProgramRequestStatus,
             PlaceId: 'place-1',
+            DepartmentId: 'dep-1',
+            LeadEmail: 'ana@example.com',
             Participants: '',
         },
         {
@@ -294,6 +318,8 @@ const mockData = {
             UserId: 'ana@example.com',
             Status: 'approved' as ProgramRequestStatus,
             PlaceId: 'place-4',
+            DepartmentId: 'dep-2',
+            LeadEmail: 'ana@example.com',
             Participants: 'sam@example.com',
         },
         {
@@ -304,6 +330,8 @@ const mockData = {
             UserId: 'vic@example.com',
             Status: 'approved' as ProgramRequestStatus,
             PlaceId: 'place-3',
+            DepartmentId: 'dep-3',
+            LeadEmail: 'vic@example.com',
             Participants: '',
         },
         ...EXTRA_APPROVED_PROGRAM_REQUESTS,
@@ -533,6 +561,7 @@ const mockData = {
         Guidelines: 'Please return equipment within 24 hours of your shoot ending.',
         WhatsappUrl: 'https://wa.me/10000000000',
         TutorialUrl: '',
+        NotificationEmail: 'email@domain.com',
     } as HomeContent,
     shiftPresets: [
         {
@@ -629,6 +658,7 @@ function mockInsertActionComment(
 
 function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryRequestDTO {
     const requester = mockData.users.find((u) => u.Email === request.UserId);
+    const department = mockData.departments.find((d) => d.Id === request.DepartmentId);
     const items = mockData.inventoryItems
         .filter((i) => i.RequestId === request.Id)
         .map((i) => {
@@ -637,6 +667,7 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
         });
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
+        departmentName: department ? department.Name : '',
         participants: mockParseParticipants(request.Participants),
         items,
         comments: mockCommentsForRequest(request.Id),
@@ -646,12 +677,14 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
 function mockBuildProgramRequestDTO(request: ProgramRequest): ProgramRequestDTO {
     const requester = mockData.users.find((u) => u.Email === request.UserId);
     const place = mockData.places.find((p) => p.Id === request.PlaceId);
+    const department = mockData.departments.find((d) => d.Id === request.DepartmentId);
     const sessions = mockData.sessions
         .filter((s) => s.RequestId === request.Id)
         .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         placeName: place ? place.Name : '',
+        departmentName: department ? department.Name : '',
         participants: mockParseParticipants(request.Participants),
         sessions,
         comments: mockCommentsForRequest(request.Id),
@@ -750,6 +783,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Id: mockUuid(),
             Name: input.name,
             ShortName: input.shortName || '',
+            LeadEmail: input.leadEmail || '',
         };
         mockData.departments.push(created);
         return created;
@@ -759,6 +793,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (!department) throw new Error('not_found');
         department.Name = input.name;
         department.ShortName = input.shortName || '';
+        department.LeadEmail = input.leadEmail || '';
         return department;
     },
     deleteDepartment: (id: string) => {
@@ -811,6 +846,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Guidelines: input.guidelines || '',
             WhatsappUrl: input.whatsappUrl || '',
             TutorialUrl: input.tutorialUrl || '',
+            NotificationEmail: input.notificationEmail || 'email@domain.com',
         };
         return mockData.homeContent;
     },
@@ -943,8 +979,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             UserId: mockData.currentUserId,
             StartDate: input.startDate,
             EndDate: input.endDate,
-            Status: 'submitted',
+            Status: 'draft',
             ImageId: input.imageId || '',
+            DepartmentId: input.departmentId,
+            LeadEmail: input.leadEmail,
             Participants: participants.join(', '),
         };
         mockData.inventoryRequests.push(created);
@@ -961,9 +999,46 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             'inventory',
             created.Id,
             mockData.currentUserId,
-            mockCurrentUser().Name + ' submitted this request.',
+            mockCurrentUser().Name + ' saved this draft.',
         );
         return mockBuildInventoryRequestDTO(created);
+    },
+    updateInventoryRequest: (id: string, input: UpdateInventoryRequestInput) => {
+        const request = mockData.inventoryRequests.find((item) => item.Id === id);
+        if (!request) throw new Error('request_not_found');
+        const actor = mockCurrentUser();
+        const isOwner =
+            request.UserId === mockData.currentUserId ||
+            mockParseParticipants(request.Participants).includes(mockData.currentUserId);
+        if (!(canApprove(mockToUserDTO(actor)) || (isOwner && request.Status === 'draft'))) {
+            throw new Error('edit_not_allowed');
+        }
+        if (['issued', 'returned', 'rejected', 'cancelled', 'closed'].includes(request.Status)) {
+            throw new Error('request_not_editable');
+        }
+        request.Name = input.name;
+        request.StartDate = input.startDate;
+        request.EndDate = input.endDate;
+        request.DepartmentId = input.departmentId;
+        request.LeadEmail = input.leadEmail;
+        request.Participants = mockParseParticipants(input.participants).join(', ');
+        mockData.inventoryItems = mockData.inventoryItems.filter((item) => item.RequestId !== id);
+        input.items.forEach((line) => {
+            mockData.inventoryItems.push({
+                Id: mockUuid(),
+                RequestId: id,
+                InventoryTypeId: line.inventoryTypeId,
+                Quantity: line.quantity,
+                Condition: '',
+            });
+        });
+        mockInsertActionComment(
+            'inventory',
+            id,
+            mockData.currentUserId,
+            actor.Name + ' updated this request.',
+        );
+        return mockBuildInventoryRequestDTO(request);
     },
     performInventoryRequestAction: (
         requestId: string,
@@ -1052,6 +1127,16 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             .map(mockBuildProgramRequestDTO)
             .filter((request) => !query.statuses?.length || query.statuses.includes(request.Status))
             .filter((request) => !query.placeId || request.PlaceId === query.placeId)
+            .filter((request) => {
+                if (!query.dateScope) return true;
+                const nowIso = new Date().toISOString();
+                const hasOngoingOrFutureSession = request.sessions.some(
+                    (session) => session.EndDateTime >= nowIso,
+                );
+                return query.dateScope === 'past'
+                    ? !hasOngoingOrFutureSession
+                    : hasOngoingOrFutureSession;
+            })
             .filter((request) =>
                 mockIncludes(query.q, [
                     `PRG-${request.DisplayId}`,
@@ -1087,8 +1172,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Name: input.name,
             Type: input.type,
             UserId: mockData.currentUserId,
-            Status: 'submitted',
+            Status: 'draft',
             PlaceId: input.placeId,
+            DepartmentId: input.departmentId,
+            LeadEmail: input.leadEmail,
             Participants: participants.join(', '),
         };
         mockData.programRequests.push(created);
@@ -1106,9 +1193,46 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             'program',
             created.Id,
             mockData.currentUserId,
-            mockCurrentUser().Name + ' submitted this request.',
+            mockCurrentUser().Name + ' saved this draft.',
         );
         return mockBuildProgramRequestDTO(created);
+    },
+    updateProgramRequest: (id: string, input: UpdateProgramRequestInput) => {
+        const request = mockData.programRequests.find((item) => item.Id === id);
+        if (!request) throw new Error('request_not_found');
+        const actor = mockCurrentUser();
+        const isOwner =
+            request.UserId === mockData.currentUserId ||
+            mockParseParticipants(request.Participants).includes(mockData.currentUserId);
+        if (!(canApprove(mockToUserDTO(actor)) || (isOwner && request.Status === 'draft'))) {
+            throw new Error('edit_not_allowed');
+        }
+        if (['rejected', 'cancelled'].includes(request.Status)) {
+            throw new Error('request_not_editable');
+        }
+        request.Name = input.name;
+        request.Type = input.type;
+        request.DepartmentId = input.departmentId;
+        request.LeadEmail = input.leadEmail;
+        request.Participants = mockParseParticipants(input.participants).join(', ');
+        mockData.sessions = mockData.sessions.filter((session) => session.RequestId !== id);
+        input.sessions.forEach((session) => {
+            mockData.sessions.push({
+                Id: mockUuid(),
+                Name: session.name,
+                Type: session.type,
+                RequestId: id,
+                StartDateTime: session.startDateTime,
+                EndDateTime: session.endDateTime,
+            });
+        });
+        mockInsertActionComment(
+            'program',
+            id,
+            mockData.currentUserId,
+            actor.Name + ' updated this request.',
+        );
+        return mockBuildProgramRequestDTO(request);
     },
     performProgramRequestAction: (
         requestId: string,

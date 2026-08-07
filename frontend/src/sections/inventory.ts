@@ -31,7 +31,6 @@ import {
     type WorkbenchToolbarConfig,
     readWorkbenchState,
     renderWorkbenchToolbar,
-    wireSortableHeaders,
     wireWorkbenchToolbar,
     workItemHref,
 } from '../workbench';
@@ -163,20 +162,12 @@ export async function renderInventory(
 }
 
 function inventoryToolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
+    void dashboard;
     return {
         storageKey: INVENTORY_REQUEST_VIEW_STORAGE_KEY,
         searchPlaceholder: 'Search requests, people or equipment',
-        statuses: [
-            { value: 'draft', label: 'Draft' },
-            { value: 'submitted', label: 'Needs review' },
-            { value: 'approved', label: 'Approved' },
-            { value: 'issued', label: 'Issued' },
-            { value: 'returned', label: 'Returned' },
-            { value: 'rejected', label: 'Rejected' },
-            { value: 'cancelled', label: 'Cancelled' },
-            { value: 'closed', label: 'Closed' },
-        ],
-        defaultSort: 'id',
+        defaultSort: 'startDate',
+        defaultDirection: 'asc',
     };
 }
 
@@ -201,7 +192,7 @@ function inventoryQuery(
 ): InventoryRequestQuery {
     return {
         q: state.q,
-        statuses: state.status ? [state.status as InventoryRequestStatus] : statuses,
+        statuses,
         sortBy: state.sort as InventoryRequestQuery['sortBy'],
         sortDirection: state.direction,
     };
@@ -217,8 +208,7 @@ async function loadInventoryResults(
     host.innerHTML =
         '<div class="workbench-loading"><span class="loading loading-spinner loading-sm"></span> Loading requests…</div>';
     try {
-        if (state.view === 'board') await renderInventoryBoard(host, state, generation);
-        else await renderInventoryList(host, dashboard, state, generation);
+        await renderInventoryBoard(host, state, generation);
     } catch (err) {
         if (generation !== inventoryResultsGeneration) return;
         host.innerHTML =
@@ -234,10 +224,7 @@ async function renderInventoryBoard(
     state: WorkbenchState,
     generation: number,
 ): Promise<void> {
-    const columns = INVENTORY_REQUEST_BOARD_COLUMNS.filter(
-        (column) =>
-            !state.status || column.statuses.includes(state.status as InventoryRequestStatus),
-    );
+    const columns = INVENTORY_REQUEST_BOARD_COLUMNS;
     const results = await Promise.all(
         columns.map((column) =>
             api.listInventoryRequests(1, inventoryQuery(state, column.statuses)),
@@ -275,40 +262,6 @@ function renderInventoryColumn(
     return `<section class="workbench-column" aria-labelledby="inventory-column-${column.id}"><header class="workbench-column-heading"><div><h2 id="inventory-column-${column.id}">${escapeHtml(column.title)}</h2><p>${escapeHtml(column.description)}</p></div><span class="badge badge-ghost badge-sm">${result.totalCount}</span></header><div class="workbench-column-items">${result.items.length ? result.items.map(renderInventoryRequestBoardCard).join('') : '<div class="workbench-empty-column">No requests</div>'}</div>${result.items.length < result.totalCount ? `<button type="button" class="btn btn-ghost btn-sm w-full" data-load-inventory-column="${index}" data-next-page="2">Load more</button>` : ''}</section>`;
 }
 
-async function renderInventoryList(
-    host: HTMLElement,
-    dashboard: DashboardPayload,
-    state: WorkbenchState,
-    generation: number,
-): Promise<void> {
-    const result = await api.listInventoryRequests(1, inventoryQuery(state));
-    if (generation !== inventoryResultsGeneration || !host.isConnected) return;
-    host.innerHTML = `<div class="workbench-table-wrap"><table class="workbench-table"><thead><tr>${inventorySortHeader('Request', 'name', state)}<th>Equipment</th>${inventorySortHeader('Dates', 'startDate', state)}${inventorySortHeader('Requested by', 'requester', state)}${inventorySortHeader('Status', 'status', state)}</tr></thead><tbody id="inventory-list-body">${result.items.map(renderInventoryListRow).join('')}</tbody></table>${result.items.length === 0 ? renderEmptyState('box', 'No requests match these filters.') : ''}${result.items.length < result.totalCount ? `<button type="button" id="load-more-inventory" class="btn btn-ghost btn-sm mt-3">Load more (${result.totalCount - result.items.length})</button>` : ''}</div>`;
-    wireInventoryLinks(host);
-    wireSortableHeaders(state, (next) => void loadInventoryResults(dashboard, next));
-    document.getElementById('load-more-inventory')?.addEventListener('click', async (event) => {
-        const button = event.currentTarget as HTMLButtonElement;
-        const page = Number(button.dataset.page || '2');
-        const next = await api.listInventoryRequests(page, inventoryQuery(state));
-        document
-            .getElementById('inventory-list-body')!
-            .insertAdjacentHTML('beforeend', next.items.map(renderInventoryListRow).join(''));
-        wireInventoryLinks(host);
-        if (page * next.pageSize >= next.totalCount) button.remove();
-        else button.dataset.page = String(page + 1);
-    });
-}
-
-function inventorySortHeader(label: string, sort: string, state: WorkbenchState): string {
-    const marker = state.sort === sort ? (state.direction === 'asc' ? ' ↑' : ' ↓') : '';
-    return `<th><button type="button" data-workbench-sort="${sort}">${label}${marker}</button></th>`;
-}
-
-function renderInventoryListRow(request: InventoryRequestDTO): string {
-    const overdue = isRequestOverdue(request);
-    return `<tr><td data-label="Request"><a href="${workItemHref(INVENTORY_REQUEST_QUERY_PARAM, request.Id)}" data-inventory-id="${request.Id}"><span class="font-mono text-xs">REQ-${request.DisplayId}</span><strong>${escapeHtml(request.Name)}</strong></a></td><td data-label="Equipment">${request.items.map((item) => `${escapeHtml(item.itemName)} × ${item.Quantity}`).join('<br />')}</td><td data-label="Dates">${escapeHtml(request.StartDate)} → ${escapeHtml(request.EndDate)}${overdue ? '<small><span class="badge badge-error badge-xs">Overdue</span></small>' : ''}</td><td data-label="Requested by">${escapeHtml(request.userName)}</td><td data-label="Status"><span class="badge badge-sm ${INVENTORY_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></td></tr>`;
-}
-
 function wireInventoryLinks(root: ParentNode): void {
     root.querySelectorAll<HTMLAnchorElement>('a[data-inventory-id]').forEach((link) => {
         if (link.dataset.wired) return;
@@ -330,7 +283,7 @@ function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPaylo
         title: 'New equipment request',
         nextStatuses: INVENTORY_NEXT_STATUS_LABELS.draft,
         statusSteps: inventoryStatusSteps('draft'),
-        actionsHtml:
+        topActionsHtml:
             '<button type="submit" form="create-request-form" class="btn btn-primary btn-sm">Save</button><button type="button" id="cancel-inventory" class="btn btn-ghost btn-sm">Cancel</button>',
     });
     const fields = renderRequestFieldGrid([
@@ -344,6 +297,18 @@ function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPaylo
                 renderRequestEditableField(
                     'To',
                     '<input id="request-end" name="endDate" type="date" class="input input-sm" required />',
+                ),
+                renderRequestEditableField(
+                    'Department',
+                    renderRequestDepartmentSelect(
+                        'request-department',
+                        dashboard.departments,
+                        dashboard.me.DepartmentId,
+                    ),
+                ),
+                renderRequestEditableField(
+                    'Lead email',
+                    `<input id="request-lead-email" name="leadEmail" type="email" class="input input-sm" value="${escapeHtml(defaultLeadEmail(dashboard.departments, dashboard.me.DepartmentId))}" required />`,
                 ),
                 renderRequestEditableField(
                     'Participants',
@@ -382,7 +347,7 @@ function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPaylo
             'id="create-request-form"',
         ),
         renderRequestActivityPanel({ createMode: true }),
-        true,
+        false,
     );
     document
         .getElementById('back-to-inventory')!
@@ -390,6 +355,7 @@ function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPaylo
     document
         .getElementById('cancel-inventory')!
         .addEventListener('click', navigateToInventoryRequests);
+    wireDepartmentLeadPrefill(dashboard.departments, 'request-department', 'request-lead-email');
     wireInventoryTypePicker(dashboard);
     wireCreateRequestForm();
 }
@@ -401,6 +367,7 @@ function renderInventoryRequestDetail(
 ): void {
     const actions = availableInventoryRequestActions(request, dashboard);
     const overdue = isRequestOverdue(request);
+    const editable = canEditInventoryRequest(request, dashboard);
     const header = renderDetailCommandHeader({
         backButtonId: 'back-to-inventory-requests',
         backLabel: 'Back to requests',
@@ -409,25 +376,62 @@ function renderInventoryRequestDetail(
         title: request.Name,
         nextStatuses: INVENTORY_NEXT_STATUS_LABELS[request.Status],
         statusSteps: inventoryStatusSteps(request.Status, actions),
+        topActionsHtml: editable
+            ? '<div id="inventory-edit-actions" class="hidden"><button type="submit" form="edit-inventory-form" class="btn btn-primary btn-sm">Save</button><button type="button" id="cancel-inventory-edits" class="btn btn-ghost btn-sm">Cancel</button></div>'
+            : '',
     });
     const fields = renderRequestFieldGrid([
         {
             title: 'Basic details',
             rows: [
-                renderRequestReadonlyFields([
-                    { label: 'Requested by', valueHtml: escapeHtml(request.userName) },
-                    {
-                        label: 'Equipment period',
-                        valueHtml: `${escapeHtml(request.StartDate)} to ${escapeHtml(request.EndDate)}`,
-                    },
-                    {
-                        label: 'Participants',
-                        valueHtml:
-                            request.participants.length > 0
-                                ? request.participants.map(namePill).join('')
-                                : '<span class="text-base-content/60">No additional participants</span>',
-                    },
-                ]),
+                ...(editable
+                    ? [
+                          renderRequestEditableField(
+                              'From',
+                              `<input id="request-start" name="startDate" type="date" class="input input-sm" value="${escapeHtml(request.StartDate)}" required />`,
+                          ),
+                          renderRequestEditableField(
+                              'To',
+                              `<input id="request-end" name="endDate" type="date" class="input input-sm" value="${escapeHtml(request.EndDate)}" required />`,
+                          ),
+                          renderRequestEditableField(
+                              'Department',
+                              renderRequestDepartmentSelect(
+                                  'request-department',
+                                  dashboard.departments,
+                                  request.DepartmentId,
+                              ),
+                          ),
+                          renderRequestEditableField(
+                              'Lead email',
+                              `<input id="request-lead-email" name="leadEmail" type="email" class="input input-sm" value="${escapeHtml(request.LeadEmail)}" required />`,
+                          ),
+                          renderRequestEditableField(
+                              'Participants',
+                              `<input id="request-participants" name="participants" class="input input-sm" value="${escapeHtml(request.participants.join(', '))}" />`,
+                          ),
+                      ]
+                    : [
+                          renderRequestReadonlyFields([
+                              { label: 'Requested by', valueHtml: escapeHtml(request.userName) },
+                              {
+                                  label: 'Equipment period',
+                                  valueHtml: `${escapeHtml(request.StartDate)} to ${escapeHtml(request.EndDate)}`,
+                              },
+                              {
+                                  label: 'Department',
+                                  valueHtml: escapeHtml(request.departmentName),
+                              },
+                              { label: 'Lead email', valueHtml: escapeHtml(request.LeadEmail) },
+                              {
+                                  label: 'Participants',
+                                  valueHtml:
+                                      request.participants.length > 0
+                                          ? request.participants.map(namePill).join('')
+                                          : '<span class="text-base-content/60">No additional participants</span>',
+                              },
+                          ]),
+                      ]),
             ],
         },
         {
@@ -441,19 +445,23 @@ function renderInventoryRequestDetail(
     ]);
     const equipment = renderRequestLineSection(
         'Equipment',
-        `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Item</th><th class="text-right">Quantity</th><th>Return condition</th></tr></thead><tbody>${request.items
-            .map(
-                (item) =>
-                    `<tr><td class="font-medium">${escapeHtml(item.itemName)}</td><td class="text-right">${item.Quantity}</td><td>${item.Condition ? escapeHtml(item.Condition) : '<span class="text-base-content/50">Not returned</span>'}</td></tr>`,
-            )
-            .join('')}</tbody></table></div>`,
+        editable
+            ? `<div id="request-items" class="request-line-list"></div><button type="button" id="add-request-item" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add item</button>`
+            : `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Item</th><th class="text-right">Quantity</th><th>Return condition</th></tr></thead><tbody>${request.items
+                  .map(
+                      (item) =>
+                          `<tr><td class="font-medium">${escapeHtml(item.itemName)}</td><td class="text-right">${item.Quantity}</td><td>${item.Condition ? escapeHtml(item.Condition) : '<span class="text-base-content/50">Not returned</span>'}</td></tr>`,
+                  )
+                  .join('')}</tbody></table></div>`,
     );
     container.innerHTML = renderRequestDetailPage(
         header,
         renderRequestRecordPanel(
-            `${fields}${equipment}${renderDetailRequestImages(request)}`,
-            'main',
-            `id="inventory-request-detail" data-request-id="${escapeHtml(request.Id)}"`,
+            `${editable ? renderRequestTitleInput('request-name', 'name', 'Request name') : ''}${fields}${equipment}${renderDetailRequestImages(request)}`,
+            editable ? 'form' : 'main',
+            editable
+                ? 'id="edit-inventory-form"'
+                : `id="inventory-request-detail" data-request-id="${escapeHtml(request.Id)}"`,
         ),
         renderRequestActivityPanel({
             comments: request.comments,
@@ -464,6 +472,7 @@ function renderInventoryRequestDetail(
     document
         .getElementById('back-to-inventory-requests')!
         .addEventListener('click', navigateToInventoryRequests);
+    if (editable) wireInventoryDetailEditForm(container, dashboard, request);
     wireInventoryRequestDetail(request);
 }
 
@@ -483,6 +492,63 @@ function availableInventoryRequestActions(
     return ALL_INVENTORY_REQUEST_ACTIONS.filter((action) => {
         if (!canTransitionInventoryRequest(request.Status, action)) return false;
         return action === 'submit' ? isOwner : isApprover;
+    });
+}
+
+function canEditInventoryRequest(
+    request: InventoryRequestDTO,
+    dashboard: DashboardPayload,
+): boolean {
+    const owner =
+        request.UserId === dashboard.me.Email ||
+        request.participants.indexOf(dashboard.me.Email) !== -1;
+    if (['issued', 'returned', 'rejected', 'cancelled', 'closed'].includes(request.Status)) {
+        return false;
+    }
+    return canApprove(dashboard.me) || (owner && request.Status === 'draft');
+}
+
+function wireInventoryDetailEditForm(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    request: InventoryRequestDTO,
+): void {
+    const form = document.getElementById('edit-inventory-form') as HTMLFormElement;
+    const title = document.getElementById('request-name') as HTMLInputElement;
+    title.value = request.Name;
+    wireDepartmentLeadPrefill(dashboard.departments, 'request-department', 'request-lead-email');
+    const list = document.getElementById('request-items')!;
+    const actions = document.getElementById('inventory-edit-actions')!;
+    const readSnapshot = () => JSON.stringify(readInventoryFormInput(form));
+    let savedSnapshot = '';
+    const updateDirty = () => actions.classList.toggle('hidden', readSnapshot() === savedSnapshot);
+    request.items.forEach((item) => addInventoryItemRow(list, dashboard, updateDirty, item));
+    savedSnapshot = readSnapshot();
+    updateDirty();
+    document
+        .getElementById('add-request-item')!
+        .addEventListener('click', () => addInventoryItemRow(list, dashboard, updateDirty));
+    form.addEventListener('input', updateDirty);
+    form.addEventListener('change', updateDirty);
+    document.getElementById('cancel-inventory-edits')!.addEventListener('click', () => {
+        renderInventoryRequestDetail(container, dashboard, request);
+    });
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = readInventoryFormInput(form);
+        if (input.items.length === 0) {
+            showErrorAlert(new Error('Add at least one item.'));
+            return;
+        }
+        try {
+            showSavingBadge(true);
+            await api.updateInventoryRequest(request.Id, input, generateRequestId());
+            await refreshDashboard();
+        } catch (err) {
+            showErrorAlert(err);
+        } finally {
+            showSavingBadge(false);
+        }
     });
 }
 
@@ -517,22 +583,86 @@ function wireInventoryTypePicker(dashboard: DashboardPayload): void {
     const list = document.getElementById('request-items')!;
     const addButton = document.getElementById('add-request-item')!;
 
-    function addRow(): void {
-        const row = document.createElement('div');
-        row.className = 'flex gap-2 request-item-row';
-        row.innerHTML = `
-      <select class="select flex-1" name="inventoryTypeId">
-        ${dashboard.inventoryTypes.map((type) => `<option value="${type.Id}">${escapeHtml(type.Name)} (${type.availableQuantity} available)</option>`).join('')}
-      </select>
-      <input type="number" min="1" value="1" class="input w-20" name="quantity" />
-      <button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove item">✕</button>
-    `;
-        row.querySelector('.remove-row')!.addEventListener('click', () => row.remove());
-        list.appendChild(row);
-    }
-
+    const addRow = () => addInventoryItemRow(list, dashboard);
     addButton.addEventListener('click', addRow);
     if (dashboard.inventoryTypes.length > 0) addRow();
+}
+
+function addInventoryItemRow(
+    list: HTMLElement,
+    dashboard: DashboardPayload,
+    onChange?: () => void,
+    item?: InventoryItemDTO,
+): void {
+    const selectedId = item?.InventoryTypeId || dashboard.inventoryTypes[0]?.Id || '';
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 request-item-row';
+    row.innerHTML = `
+      <select class="select flex-1" name="inventoryTypeId">
+        ${dashboard.inventoryTypes.map((type) => `<option value="${type.Id}" ${type.Id === selectedId ? 'selected' : ''}>${escapeHtml(type.Name)} (${type.availableQuantity} available)</option>`).join('')}
+      </select>
+      <input type="number" min="1" value="${item?.Quantity || 1}" class="input w-20" name="quantity" />
+      <button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove item">✕</button>
+    `;
+    row.querySelector('.remove-row')!.addEventListener('click', () => {
+        row.remove();
+        onChange?.();
+    });
+    row.querySelectorAll('input, select').forEach((control) => {
+        control.addEventListener('input', () => onChange?.());
+        control.addEventListener('change', () => onChange?.());
+    });
+    list.appendChild(row);
+    onChange?.();
+}
+
+function readInventoryFormInput(form: HTMLFormElement): UpdateInventoryRequestInput {
+    const data = new FormData(form);
+    return {
+        name: String(data.get('name')),
+        startDate: String(data.get('startDate')),
+        endDate: String(data.get('endDate')),
+        departmentId: String(data.get('departmentId')),
+        leadEmail: String(data.get('leadEmail')),
+        participants: String(data.get('participants') || ''),
+        items: Array.from(form.querySelectorAll('.request-item-row')).map((row) => {
+            const inventoryTypeId = (
+                row.querySelector('select[name="inventoryTypeId"]') as HTMLSelectElement
+            ).value;
+            const quantity = Number(
+                (row.querySelector('input[name="quantity"]') as HTMLInputElement).value,
+            );
+            return { inventoryTypeId, quantity };
+        }),
+    };
+}
+
+function renderRequestDepartmentSelect(
+    id: string,
+    departments: Department[],
+    selectedId: string,
+): string {
+    return `<select id="${id}" name="departmentId" class="select select-sm" required><option value="">Select department</option>${departments.map((department) => `<option value="${department.Id}" ${department.Id === selectedId ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`).join('')}</select>`;
+}
+
+function defaultLeadEmail(departments: Department[], departmentId: string): string {
+    return departments.find((department) => department.Id === departmentId)?.LeadEmail || '';
+}
+
+function wireDepartmentLeadPrefill(
+    departments: Department[],
+    departmentSelectId: string,
+    leadEmailId: string,
+): void {
+    const departmentSelect = document.getElementById(
+        departmentSelectId,
+    ) as HTMLSelectElement | null;
+    const leadEmail = document.getElementById(leadEmailId) as HTMLInputElement | null;
+    if (!departmentSelect || !leadEmail) return;
+    departmentSelect.addEventListener('change', () => {
+        leadEmail.value = defaultLeadEmail(departments, departmentSelect.value);
+        leadEmail.dispatchEvent(new Event('input', { bubbles: true }));
+    });
 }
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -582,6 +712,8 @@ function wireCreateRequestForm(): void {
                     endDate: String(data.get('endDate')),
                     items,
                     imageId,
+                    departmentId: String(data.get('departmentId')),
+                    leadEmail: String(data.get('leadEmail')),
                     participants: String(data.get('participants') || ''),
                 },
                 generateRequestId(),

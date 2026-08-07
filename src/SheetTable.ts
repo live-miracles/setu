@@ -126,7 +126,7 @@ function SheetTable<T extends Record<string, any>>(
 }
 
 const Tables = {
-    Departments: SheetTable<Department>('Departments', ['Id', 'Name', 'ShortName']),
+    Departments: SheetTable<Department>('Departments', ['Id', 'Name', 'ShortName', 'LeadEmail']),
     Places: SheetTable<Place>('Places', ['Id', 'Name']),
     Users: SheetTable<User>(
         'Users',
@@ -159,6 +159,8 @@ const Tables = {
         'EndDate',
         'Status',
         'ImageId',
+        'DepartmentId',
+        'LeadEmail',
         'Participants',
     ]),
     InventoryItems: SheetTable<InventoryItem>('InventoryItems', [
@@ -176,6 +178,8 @@ const Tables = {
         'UserId',
         'Status',
         'PlaceId',
+        'DepartmentId',
+        'LeadEmail',
         'Participants',
     ]),
     Sessions: SheetTable<ProgramSession>('Sessions', [

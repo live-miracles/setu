@@ -9,10 +9,12 @@ function buildProgramRequestDTO(
     sessionsByRequest: Record<string, ProgramSession[]>,
     placesById: Record<string, Place>,
     usersByEmail: Record<string, User>,
+    departmentsById: Record<string, Department>,
     commentsByRequestId: Record<string, CommentRecord[]>,
 ): ProgramRequestDTO {
     const place = placesById[request.PlaceId];
     const requester = usersByEmail[request.UserId];
+    const department = departmentsById[request.DepartmentId];
     const comments = commentsFor(request.Id, commentsByRequestId, usersByEmail);
     const sessions = (sessionsByRequest[request.Id] || [])
         .slice()
@@ -20,6 +22,7 @@ function buildProgramRequestDTO(
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         placeName: place ? place.Name : '',
+        departmentName: department ? department.Name : '',
         participants: parseParticipants(request.Participants),
         sessions,
         comments,
@@ -38,6 +41,18 @@ function programRequestSortValue(
     return request.DisplayId;
 }
 
+function matchesProgramDateScope(
+    request: ProgramRequestDTO,
+    dateScope: ProgramRequestQuery['dateScope'],
+): boolean {
+    if (!dateScope) return true;
+    const nowIso = new Date().toISOString();
+    const hasOngoingOrFutureSession = request.sessions.some(
+        (session) => session.EndDateTime >= nowIso,
+    );
+    return dateScope === 'past' ? !hasOngoingOrFutureSession : hasOngoingOrFutureSession;
+}
+
 function listProgramRequests(
     page: number,
     query: ProgramRequestQuery = {},
@@ -46,6 +61,7 @@ function listProgramRequests(
     const sessionsByRequest = groupBy(Tables.Sessions.readAll(), (s) => s.RequestId);
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
+    const departmentsById = indexBy(Tables.Departments.readAll(), (d) => d.Id);
     const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const statuses = query.statuses || [];
     const dtos = Tables.ProgramRequests.readAll()
@@ -56,17 +72,21 @@ function listProgramRequests(
                 sessionsByRequest,
                 placesById,
                 usersByEmail,
+                departmentsById,
                 commentsByRequestId,
             ),
         )
         .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
         .filter((request) => !query.placeId || request.PlaceId === query.placeId)
+        .filter((request) => matchesProgramDateScope(request, query.dateScope))
         .filter((request) =>
             matchesSearch(query.q, [
                 'PRG-' + request.DisplayId,
                 request.Name,
                 request.Type,
                 request.userName,
+                request.departmentName,
+                request.LeadEmail,
                 request.participants.join(' '),
                 request.placeName,
                 request.sessions.map((session) => session.Name + ' ' + session.Type).join(' '),
@@ -106,6 +126,7 @@ function getProgramRequest(id: string): ProgramRequestDTO {
         groupBy(Tables.Sessions.readAll(), (session) => session.RequestId),
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
+        indexBy(Tables.Departments.readAll(), (department) => department.Id),
         groupCommentsByRequestId(Tables.Comments.readAll()),
     );
 }
@@ -139,6 +160,10 @@ function createProgramRequest(
         };
     });
     const participants = parseParticipants(input.participants);
+    const departmentId = requireNonEmpty(input.departmentId, 'Department is required.');
+    const department = Tables.Departments.findById(departmentId);
+    if (!department) throw new ValidationError('department_not_found');
+    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
 
     const { result } = withLockedDedupe('program_request:create', requestId, () => {
         const created = Tables.ProgramRequests.insert({
@@ -146,8 +171,10 @@ function createProgramRequest(
             Name: name,
             Type: type,
             UserId: actor.Email,
-            Status: 'submitted',
+            Status: 'draft',
             PlaceId: place.Id,
+            DepartmentId: department.Id,
+            LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
         });
         const createdSessions = sessionLines.map((session) =>
@@ -163,22 +190,12 @@ function createProgramRequest(
             'program',
             created.Id,
             actor.Email,
-            actor.Name + ' submitted this request.',
+            actor.Name + ' saved this draft.',
+            false,
         );
         return { request: created, sessions: createdSessions, comment };
     });
     const { request, sessions: createdSessions, comment } = result;
-
-    const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
-    approvers.forEach((approver) => {
-        sendNotificationEmail(
-            approver.Email,
-            'program:' + request.Id + ':submitted',
-            'New program request: PRG-' + request.DisplayId,
-            actor.Name + ' requested a program: ' + request.Name + '.',
-            '?section=programs',
-        );
-    });
 
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     return buildProgramRequestDTO(
@@ -186,7 +203,93 @@ function createProgramRequest(
         { [request.Id]: createdSessions },
         placesById,
         indexBy([actor], (u) => u.Email),
+        { [department.Id]: department },
         { [request.Id]: [comment] },
+    );
+}
+
+function updateProgramRequest(
+    id: string,
+    input: UpdateProgramRequestInput,
+    requestId: string,
+): ProgramRequestDTO {
+    const actor = requireUser();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const type = requireNonEmpty(input.type, 'Type is required.');
+    if (!input.sessions || input.sessions.length === 0)
+        throw new ValidationError('At least one session is required.');
+    const sessionLines = input.sessions.map((session) => {
+        const sessionName = requireNonEmpty(session.name, 'Session name is required.');
+        const sessionType = requireNonEmpty(session.type, 'Session type is required.');
+        if (
+            !session.startDateTime ||
+            !session.endDateTime ||
+            session.endDateTime <= session.startDateTime
+        ) {
+            throw new ValidationError('Session end must be after its start.');
+        }
+        return {
+            name: sessionName,
+            type: sessionType,
+            startDateTime: session.startDateTime,
+            endDateTime: session.endDateTime,
+        };
+    });
+    const participants = parseParticipants(input.participants);
+    const departmentId = requireNonEmpty(input.departmentId, 'Department is required.');
+    const department = Tables.Departments.findById(departmentId);
+    if (!department) throw new ValidationError('department_not_found');
+    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
+
+    const { result } = withLockedDedupe('program_request:update:' + id, requestId, () => {
+        const request = Tables.ProgramRequests.findById(id);
+        if (!request) throw new ValidationError('request_not_found');
+        const requestParticipants = parseParticipants(request.Participants);
+        const isOwner =
+            request.UserId === actor.Email || requestParticipants.indexOf(actor.Email) !== -1;
+        if (!(canApprove(actor) || (isOwner && request.Status === 'draft'))) {
+            throw new AuthorizationError('edit_not_allowed');
+        }
+        if (['cancelled', 'rejected'].indexOf(request.Status) !== -1) {
+            throw new ValidationError('request_not_editable');
+        }
+
+        const updated = Tables.ProgramRequests.updateById(id, {
+            Name: name,
+            Type: type,
+            DepartmentId: department.Id,
+            LeadEmail: leadEmail,
+            Participants: formatParticipants(participants),
+        });
+        Tables.Sessions.findWhere((session) => session.RequestId === id).forEach((session) =>
+            Tables.Sessions.deleteById(session.Id),
+        );
+        const updatedSessions = sessionLines.map((session) =>
+            Tables.Sessions.insert({
+                Name: session.name,
+                Type: session.type,
+                RequestId: id,
+                StartDateTime: session.startDateTime,
+                EndDateTime: session.endDateTime,
+            }),
+        );
+        const comment = insertActionComment(
+            'program',
+            id,
+            actor.Email,
+            actor.Name + ' updated this request.',
+            false,
+        );
+        return { request: updated, sessions: updatedSessions, comment };
+    });
+
+    return buildProgramRequestDTO(
+        result.request,
+        { [id]: result.sessions },
+        indexBy(Tables.Places.readAll(), (place) => place.Id),
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
+        indexBy(Tables.Departments.readAll(), (department) => department.Id),
+        { [id]: [result.comment] },
     );
 }
 
@@ -201,7 +304,7 @@ function performProgramRequestAction(
 ): ProgramRequestStatus {
     const actor = requireUser();
 
-    const { duplicate, result: nextStatus } = withLockedDedupe(
+    const { result: nextStatus } = withLockedDedupe(
         'program_request:' + requestId + ':' + action,
         dedupeRequestId,
         (): ProgramRequestStatus => {
@@ -278,35 +381,5 @@ function performProgramRequestAction(
         },
     );
 
-    if (!duplicate) {
-        notifyOnProgramRequestAction(requestId, action, actor, nextStatus, dedupeRequestId);
-    }
     return nextStatus;
-}
-
-function notifyOnProgramRequestAction(
-    requestId: string,
-    action: ProgramRequestAction,
-    actor: User,
-    newStatus: ProgramRequestStatus,
-    dedupeRequestId: string,
-): void {
-    const request = Tables.ProgramRequests.findById(requestId);
-    if (!request) return;
-    const owner: RequestOwner = {
-        kind: 'program',
-        displayId: request.DisplayId,
-        userId: request.UserId,
-        participants: parseParticipants(request.Participants),
-    };
-    const eventKey = 'program:' + requestId + ':' + action + ':' + dedupeRequestId;
-    requestOwnerRecipients(owner, actor.Email).forEach((email) => {
-        sendNotificationEmail(
-            email,
-            eventKey,
-            'PRG-' + request.DisplayId + ' ' + newStatus,
-            actor.Name + ' ' + action + 'd your program request.',
-            '?section=programs',
-        );
-    });
 }

@@ -42,6 +42,7 @@ interface Department {
     Id: string;
     Name: string;
     ShortName: string;
+    LeadEmail: string;
 }
 
 interface Place {
@@ -96,6 +97,8 @@ interface InventoryRequest {
     EndDate: string;
     Status: InventoryRequestStatus;
     ImageId: string;
+    DepartmentId: string;
+    LeadEmail: string;
     // Comma-separated emails. Co-own the request (see the submit-permission
     // check in Inventory.ts) and are notified alongside UserId.
     Participants: string;
@@ -117,6 +120,8 @@ interface ProgramRequest {
     UserId: string;
     Status: ProgramRequestStatus;
     PlaceId: string;
+    DepartmentId: string;
+    LeadEmail: string;
     Participants: string;
 }
 
@@ -185,6 +190,7 @@ interface HomeContent {
     Guidelines: string;
     WhatsappUrl: string;
     TutorialUrl: string;
+    NotificationEmail: string;
 }
 
 interface FailedEmail {
@@ -218,6 +224,7 @@ interface InventoryItemDTO extends InventoryItem {
 
 interface InventoryRequestDTO extends InventoryRequest {
     userName: string;
+    departmentName: string;
     participants: string[];
     items: InventoryItemDTO[];
     comments: CommentDTO[];
@@ -226,6 +233,7 @@ interface InventoryRequestDTO extends InventoryRequest {
 interface ProgramRequestDTO extends ProgramRequest {
     userName: string;
     placeName: string;
+    departmentName: string;
     participants: string[];
     sessions: ProgramSession[];
     comments: CommentDTO[];
@@ -261,6 +269,7 @@ interface ProgramRequestQuery {
     q?: string;
     statuses?: ProgramRequestStatus[];
     placeId?: string;
+    dateScope?: 'ongoing-future' | 'past' | '';
     sortBy?: 'id' | 'name' | 'status' | 'place' | 'sessionStart' | 'requester';
     sortDirection?: SortDirection;
 }
@@ -295,6 +304,7 @@ interface DashboardPayload {
 interface CreateDepartmentInput {
     name: string;
     shortName: string;
+    leadEmail: string;
 }
 
 interface CreatePlaceInput {
@@ -335,6 +345,18 @@ interface CreateInventoryRequestInput {
     endDate: string;
     items: { inventoryTypeId: string; quantity: number }[];
     imageId: string;
+    departmentId: string;
+    leadEmail: string;
+    participants: string;
+}
+
+interface UpdateInventoryRequestInput {
+    name: string;
+    startDate: string;
+    endDate: string;
+    items: { inventoryTypeId: string; quantity: number }[];
+    departmentId: string;
+    leadEmail: string;
     participants: string;
 }
 
@@ -358,6 +380,17 @@ interface CreateProgramRequestInput {
     type: string;
     placeId: string;
     sessions: ProgramSessionInput[];
+    departmentId: string;
+    leadEmail: string;
+    participants: string;
+}
+
+interface UpdateProgramRequestInput {
+    name: string;
+    type: string;
+    sessions: ProgramSessionInput[];
+    departmentId: string;
+    leadEmail: string;
     participants: string;
 }
 
@@ -377,6 +410,7 @@ interface UpdateHomeContentInput {
     guidelines: string;
     whatsappUrl: string;
     tutorialUrl: string;
+    notificationEmail: string;
 }
 
 interface CreateShiftPresetInput {
@@ -445,6 +479,11 @@ interface Api {
         input: CreateInventoryRequestInput,
         requestId: string,
     ): InventoryRequestDTO;
+    updateInventoryRequest(
+        id: string,
+        input: UpdateInventoryRequestInput,
+        requestId: string,
+    ): InventoryRequestDTO;
     performInventoryRequestAction(
         requestId: string,
         action: InventoryRequestAction,
@@ -456,6 +495,11 @@ interface Api {
     listProgramRequests(page: number, query?: ProgramRequestQuery): Paginated<ProgramRequestDTO>;
     getProgramRequest(id: string): ProgramRequestDTO;
     createProgramRequest(input: CreateProgramRequestInput, requestId: string): ProgramRequestDTO;
+    updateProgramRequest(
+        id: string,
+        input: UpdateProgramRequestInput,
+        requestId: string,
+    ): ProgramRequestDTO;
     performProgramRequestAction(
         requestId: string,
         action: ProgramRequestAction,

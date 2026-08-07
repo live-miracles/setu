@@ -154,6 +154,7 @@ interface DetailCommandHeaderOptions {
     title: string;
     nextStatuses?: string[];
     statusSteps?: { label: string; active: boolean; action?: string }[];
+    topActionsHtml?: string;
     actionsHtml?: string;
 }
 
@@ -170,8 +171,11 @@ export function renderDetailCommandHeader(options: DetailCommandHeaderOptions): 
 
     return `<header class="detail-command-header">
       <div class="detail-command-meta">
-        <button type="button" id="${escapeHtml(options.backButtonId)}" class="detail-command-back btn btn-ghost btn-sm">${icon('chevronLeft', 'size-4')} ${escapeHtml(options.backLabel)}</button>
-        <span>${escapeHtml(options.eyebrow)} · <span class="font-mono">${escapeHtml(options.reference)}</span></span>
+        <div class="detail-command-meta-main">
+          <button type="button" id="${escapeHtml(options.backButtonId)}" class="detail-command-back btn btn-ghost btn-sm">${icon('chevronLeft', 'size-4')} ${escapeHtml(options.backLabel)}</button>
+          <span>${escapeHtml(options.eyebrow)} · <span class="font-mono">${escapeHtml(options.reference)}</span></span>
+        </div>
+        ${options.topActionsHtml ? `<div class="detail-command-top-actions">${options.topActionsHtml}</div>` : ''}
       </div>
       <div class="detail-command-main">
         <div class="detail-command-title min-w-0">

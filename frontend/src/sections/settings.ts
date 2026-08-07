@@ -159,6 +159,7 @@ export const SETTINGS_LIST_PAGES: Record<string, SettingsListPage> = {
         fields: [
             { field: 'Name', label: 'Name' },
             { field: 'ShortName', label: 'Short name' },
+            { field: 'LeadEmail', label: 'Lead email' },
         ],
         rows: (dashboard) => dashboard.departments,
     },
@@ -360,7 +361,11 @@ async function updateSettingsRow(
     requestId: string,
 ): Promise<void> {
     if (kind === 'department') {
-        await api.updateDepartment(id, { name: v.Name, shortName: v.ShortName || '' }, requestId);
+        await api.updateDepartment(
+            id,
+            { name: v.Name, shortName: v.ShortName || '', leadEmail: v.LeadEmail || '' },
+            requestId,
+        );
     } else if (kind === 'place') {
         await api.updatePlace(id, { name: v.Name }, requestId);
     } else if (kind === 'inventory-type') {
@@ -480,6 +485,7 @@ function wireSettingsForm(): void {
                         {
                             name: String(data.get('Name')),
                             shortName: String(data.get('ShortName') || ''),
+                            leadEmail: String(data.get('LeadEmail') || ''),
                         },
                         requestId,
                     );
@@ -551,6 +557,10 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
                   <label class="label" for="home-tutorial">Tutorial URL</label>
                   <input id="home-tutorial" name="tutorialUrl" class="input w-full" value="${escapeHtml(dashboard.homeContent.TutorialUrl)}" />
                 </div>
+                <div>
+                  <label class="label" for="home-notification-email">Notification email</label>
+                  <input id="home-notification-email" name="notificationEmail" type="email" class="input w-full" value="${escapeHtml(dashboard.homeContent.NotificationEmail)}" />
+                </div>
               </div>
             </fieldset>
             <button type="submit" class="btn btn-primary">Save</button>
@@ -580,6 +590,7 @@ function wireHomeContentForm(): void {
                 guidelines: String(data.get('guidelines') || ''),
                 whatsappUrl: String(data.get('whatsappUrl') || ''),
                 tutorialUrl: String(data.get('tutorialUrl') || ''),
+                notificationEmail: String(data.get('notificationEmail') || ''),
             });
             await refreshDashboard();
         } catch (err) {

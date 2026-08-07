@@ -9,6 +9,7 @@ interface RequestOwner {
     displayId: number;
     userId: string;
     participants: string[];
+    leadEmail: string;
 }
 
 function findRequestOwner(requestId: string): RequestOwner | null {
@@ -19,6 +20,7 @@ function findRequestOwner(requestId: string): RequestOwner | null {
             displayId: inventoryRequest.DisplayId,
             userId: inventoryRequest.UserId,
             participants: parseParticipants(inventoryRequest.Participants),
+            leadEmail: inventoryRequest.LeadEmail,
         };
     }
     const programRequest = Tables.ProgramRequests.findById(requestId);
@@ -28,6 +30,7 @@ function findRequestOwner(requestId: string): RequestOwner | null {
             displayId: programRequest.DisplayId,
             userId: programRequest.UserId,
             participants: parseParticipants(programRequest.Participants),
+            leadEmail: programRequest.LeadEmail,
         };
     }
     const ticket = Tables.Tickets.findById(requestId);
@@ -37,13 +40,14 @@ function findRequestOwner(requestId: string): RequestOwner | null {
             displayId: ticket.DisplayId,
             userId: ticket.AssigneeId,
             participants: [],
+            leadEmail: '',
         };
     }
     return null;
 }
 
 function requestOwnerRecipients(owner: RequestOwner, excludingActorId: string): string[] {
-    return Array.from(new Set([owner.userId, ...owner.participants])).filter(
+    return Array.from(new Set([owner.userId, owner.leadEmail, ...owner.participants])).filter(
         (email) => email && email !== excludingActorId,
     );
 }
@@ -53,13 +57,16 @@ function insertActionComment(
     requestId: string,
     actorId: string,
     message: string,
+    notify = true,
 ): CommentRecord {
-    return Tables.Comments.insert({
+    const comment = Tables.Comments.insert({
         Timestamp: nowIso(),
         RequestId: requestId,
         UserId: actorId,
         Message: message,
     });
+    if (notify) sendCommentNotification(requestId, comment);
+    return comment;
 }
 
 function buildCommentDTO(comment: CommentRecord, usersByEmail: Record<string, User>): CommentDTO {
@@ -89,6 +96,29 @@ function latestActivityAt(comments: CommentDTO[], displayId: number): string {
     return comments[comments.length - 1].Timestamp;
 }
 
+function sendCommentNotification(requestId: string, comment: CommentRecord): void {
+    const owner = findRequestOwner(requestId);
+    if (!owner) return;
+    const actor = Tables.Users.findById(comment.UserId);
+    const actorName = actor ? actor.Name : comment.UserId;
+    const prefix = owner.kind === 'inventory' ? 'REQ-' : owner.kind === 'program' ? 'PRG-' : 'TKT-';
+    const section =
+        owner.kind === 'inventory'
+            ? 'inventory'
+            : owner.kind === 'program'
+              ? 'programs'
+              : 'tickets';
+    sendNotificationEmail(
+        notificationFromEmail(),
+        requestOwnerRecipients(owner, comment.UserId),
+        owner.kind + ':' + requestId + ':comment:' + comment.Id,
+        'Update on ' + prefix + owner.displayId,
+        actorName + ': ' + comment.Message,
+        '?section=' + section,
+        actorName,
+    );
+}
+
 function addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO {
     const actor = requireUser();
     const trimmedMessage = requireNonEmpty(message, 'Message is required.');
@@ -106,31 +136,11 @@ function addComment(requestId: string, message: string, dedupeRequestId: string)
         throw new AuthorizationError('You do not have access to this request.');
     }
 
-    const { result: comment, duplicate } = withLockedDedupe(
+    const { result: comment } = withLockedDedupe(
         owner.kind + ':' + requestId + ':comment',
         dedupeRequestId,
-        () => insertActionComment(owner.kind, requestId, actor.Email, trimmedMessage),
+        () => insertActionComment(owner.kind, requestId, actor.Email, trimmedMessage, true),
     );
-
-    if (!duplicate) {
-        const prefix =
-            owner.kind === 'inventory' ? 'REQ-' : owner.kind === 'program' ? 'PRG-' : 'TKT-';
-        const section =
-            owner.kind === 'inventory'
-                ? 'inventory'
-                : owner.kind === 'program'
-                  ? 'programs'
-                  : 'tickets';
-        requestOwnerRecipients(owner, actor.Email).forEach((email) => {
-            sendNotificationEmail(
-                email,
-                owner.kind + ':' + requestId + ':comment:' + comment.Id,
-                'New comment on ' + prefix + owner.displayId,
-                actor.Name + ' commented: ' + trimmedMessage,
-                '?section=' + section,
-            );
-        });
-    }
 
     return buildCommentDTO(
         comment,

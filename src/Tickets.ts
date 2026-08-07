@@ -99,17 +99,6 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
     });
     const { ticket, comment } = result;
 
-    const approvers = Tables.Users.findWhere((u) => canApprove(u) && u.Email !== actor.Email);
-    approvers.forEach((approver) => {
-        sendNotificationEmail(
-            approver.Email,
-            'ticket:' + ticket.Id + ':created',
-            'New ticket: TKT-' + ticket.DisplayId,
-            actor.Name + ' reported: ' + ticket.Title,
-            '?section=tickets',
-        );
-    });
-
     return buildTicketDTO(
         ticket,
         indexBy([actor], (u) => u.Email),
@@ -128,7 +117,7 @@ function performTicketAction(
 ): TicketStatus {
     const actor = requireTicketAccess();
 
-    const { duplicate, result: nextStatus } = withLockedDedupe(
+    const { result: nextStatus } = withLockedDedupe(
         'ticket:' + ticketId + ':' + action,
         dedupeRequestId,
         (): TicketStatus => {
@@ -190,34 +179,5 @@ function performTicketAction(
         },
     );
 
-    if (!duplicate) {
-        notifyOnTicketAction(ticketId, action, actor, dedupeRequestId);
-    }
     return nextStatus;
-}
-
-function notifyOnTicketAction(
-    ticketId: string,
-    action: TicketAction,
-    actor: User,
-    dedupeRequestId: string,
-): void {
-    const ticket = Tables.Tickets.findById(ticketId);
-    if (!ticket) return;
-    const eventKey = 'ticket:' + ticketId + ':' + action + ':' + dedupeRequestId;
-    const title = 'TKT-' + ticket.DisplayId + ' ' + action + 'ed';
-
-    // The assignee is the only other interested party now that there's no
-    // reporter to track — notify them for any action they didn't perform
-    // themselves.
-    if (ticket.AssigneeId && ticket.AssigneeId !== actor.Email) {
-        const verb = action === 'assign' ? 'assigned you to' : action + 'd';
-        sendNotificationEmail(
-            ticket.AssigneeId,
-            eventKey,
-            title,
-            actor.Name + ' ' + verb + ': ' + ticket.Title,
-            '?section=tickets',
-        );
-    }
 }

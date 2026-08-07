@@ -65,6 +65,9 @@ function createDepartment(input: CreateDepartmentInput, requestId: string): Depa
         return Tables.Departments.insert({
             Name: name,
             ShortName: input.shortName || '',
+            LeadEmail: String(input.leadEmail || '')
+                .trim()
+                .toLowerCase(),
         });
     });
     return result;
@@ -75,7 +78,13 @@ function updateDepartment(id: string, input: CreateDepartmentInput, requestId: s
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('department:update', requestId, () => {
         if (!Tables.Departments.findById(id)) throw new ValidationError('not_found');
-        return Tables.Departments.updateById(id, { Name: name, ShortName: input.shortName || '' });
+        return Tables.Departments.updateById(id, {
+            Name: name,
+            ShortName: input.shortName || '',
+            LeadEmail: String(input.leadEmail || '')
+                .trim()
+                .toLowerCase(),
+        });
     });
     return result;
 }
@@ -264,6 +273,9 @@ function readHomeContent(): HomeContent {
         Guidelines: settingsById['Guidelines'] ? settingsById['Guidelines'].Value : '',
         WhatsappUrl: settingsById['WhatsappUrl'] ? settingsById['WhatsappUrl'].Value : '',
         TutorialUrl: settingsById['TutorialUrl'] ? settingsById['TutorialUrl'].Value : '',
+        NotificationEmail: settingsById['NotificationEmail']
+            ? settingsById['NotificationEmail'].Value
+            : 'email@domain.com',
     };
 }
 
@@ -287,6 +299,7 @@ function updateHomeContent(input: UpdateHomeContentInput): HomeContent {
         upsertSetting('Guidelines', input.guidelines || '');
         upsertSetting('WhatsappUrl', input.whatsappUrl || '');
         upsertSetting('TutorialUrl', input.tutorialUrl || '');
+        upsertSetting('NotificationEmail', input.notificationEmail || 'email@domain.com');
         return readHomeContent();
     });
 }
