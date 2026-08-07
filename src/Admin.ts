@@ -296,6 +296,167 @@ function deleteShiftPreset(id: string, requestId: string): void {
     });
 }
 
+const DEFAULT_PROGRAM_TYPES: ProgramType[] = [
+    { Id: 'program-type-livestream', Name: 'Livestream' },
+    { Id: 'program-type-recording', Name: 'Recording' },
+    { Id: 'program-type-webinar', Name: 'Webinar' },
+    { Id: 'program-type-meeting', Name: 'Meeting' },
+    { Id: 'program-type-visit', Name: 'Visit' },
+];
+
+const DEFAULT_SESSION_TYPES: SessionType[] = [
+    { Id: 'session-type-live', Name: 'Live' },
+    { Id: 'session-type-dry-run', Name: 'Dry Run' },
+    { Id: 'session-type-recording', Name: 'Recording' },
+];
+
+function readNamedOptions<T extends { Id: string; Name: string }>(key: string, fallback: T[]): T[] {
+    const setting = Tables.Settings.findById(key);
+    if (!setting || !setting.Value) return fallback.map((option) => Object.assign({}, option));
+    try {
+        return JSON.parse(setting.Value) as T[];
+    } catch (err) {
+        return fallback.map((option) => Object.assign({}, option));
+    }
+}
+
+function writeNamedOptions(key: string, options: { Id: string; Name: string }[]): void {
+    upsertSetting(key, JSON.stringify(options));
+}
+
+function createNamedOption<T extends { Id: string; Name: string }>(
+    key: string,
+    fallback: T[],
+    input: CreateNamedOptionInput,
+    requestId: string,
+    lockKey: string,
+): T {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe(lockKey + ':create', requestId, () => {
+        const created = { Id: Utilities.getUuid(), Name: name } as T;
+        const options = readNamedOptions(key, fallback);
+        options.push(created);
+        writeNamedOptions(key, options);
+        return created;
+    });
+    return result;
+}
+
+function updateNamedOption<T extends { Id: string; Name: string }>(
+    key: string,
+    fallback: T[],
+    id: string,
+    input: CreateNamedOptionInput,
+    requestId: string,
+    lockKey: string,
+): T {
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe(lockKey + ':update', requestId, () => {
+        const options = readNamedOptions(key, fallback);
+        const existing = options.find((option) => option.Id === id);
+        if (!existing) throw new ValidationError('not_found');
+        existing.Name = name;
+        writeNamedOptions(key, options);
+        return existing;
+    });
+    return result;
+}
+
+function deleteNamedOption<T extends { Id: string; Name: string }>(
+    key: string,
+    fallback: T[],
+    id: string,
+    requestId: string,
+    lockKey: string,
+): void {
+    requireAdmin();
+    withLockedDedupe(lockKey + ':delete', requestId, () => {
+        writeNamedOptions(
+            key,
+            readNamedOptions(key, fallback).filter((option) => option.Id !== id),
+        );
+        return null;
+    });
+}
+
+function readProgramTypes(): ProgramType[] {
+    return readNamedOptions('programTypes', DEFAULT_PROGRAM_TYPES);
+}
+
+function listProgramTypes(): ProgramType[] {
+    requireUser();
+    return readProgramTypes().sort((a, b) => a.Name.localeCompare(b.Name));
+}
+
+function createProgramType(input: CreateNamedOptionInput, requestId: string): ProgramType {
+    return createNamedOption(
+        'programTypes',
+        DEFAULT_PROGRAM_TYPES,
+        input,
+        requestId,
+        'program-type',
+    );
+}
+
+function updateProgramType(
+    id: string,
+    input: CreateNamedOptionInput,
+    requestId: string,
+): ProgramType {
+    return updateNamedOption(
+        'programTypes',
+        DEFAULT_PROGRAM_TYPES,
+        id,
+        input,
+        requestId,
+        'program-type',
+    );
+}
+
+function deleteProgramType(id: string, requestId: string): void {
+    deleteNamedOption('programTypes', DEFAULT_PROGRAM_TYPES, id, requestId, 'program-type');
+}
+
+function readSessionTypes(): SessionType[] {
+    return readNamedOptions('sessionTypes', DEFAULT_SESSION_TYPES);
+}
+
+function listSessionTypes(): SessionType[] {
+    requireUser();
+    return readSessionTypes().sort((a, b) => a.Name.localeCompare(b.Name));
+}
+
+function createSessionType(input: CreateNamedOptionInput, requestId: string): SessionType {
+    return createNamedOption(
+        'sessionTypes',
+        DEFAULT_SESSION_TYPES,
+        input,
+        requestId,
+        'session-type',
+    );
+}
+
+function updateSessionType(
+    id: string,
+    input: CreateNamedOptionInput,
+    requestId: string,
+): SessionType {
+    return updateNamedOption(
+        'sessionTypes',
+        DEFAULT_SESSION_TYPES,
+        id,
+        input,
+        requestId,
+        'session-type',
+    );
+}
+
+function deleteSessionType(id: string, requestId: string): void {
+    deleteNamedOption('sessionTypes', DEFAULT_SESSION_TYPES, id, requestId, 'session-type');
+}
+
 // Home content is just a handful of settings rows, keyed by field name
 // (see SettingRow in shared/types.d.ts).
 function readHomeContent(): HomeContent {

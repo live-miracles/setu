@@ -138,6 +138,12 @@ function createProgramRequest(
     const actor = requireUser();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const type = requireNonEmpty(input.type, 'Type is required.');
+    const userId = (input.userId || actor.Email).toLowerCase();
+    const requestedBy = Tables.Users.findById(userId);
+    if (!requestedBy) throw new ValidationError('requester_not_found');
+    if (requestedBy.Email !== actor.Email && !canApprove(actor)) {
+        throw new AuthorizationError('requester_edit_not_allowed');
+    }
     const place = Tables.Places.findById(input.placeId);
     if (!place) throw new ValidationError('place_not_found');
     if (!input.sessions || input.sessions.length === 0)
@@ -170,7 +176,7 @@ function createProgramRequest(
             DisplayId: getNextDisplayId('program_request'),
             Name: name,
             Type: type,
-            UserId: actor.Email,
+            UserId: requestedBy.Email,
             Status: 'draft',
             PlaceId: place.Id,
             DepartmentId: department.Id,
@@ -216,6 +222,12 @@ function updateProgramRequest(
     const actor = requireUser();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const type = requireNonEmpty(input.type, 'Type is required.');
+    const userId = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
+    const requestedBy = Tables.Users.findById(userId);
+    if (!requestedBy) throw new ValidationError('requester_not_found');
+    const placeId = requireNonEmpty(input.placeId, 'Place is required.');
+    const place = Tables.Places.findById(placeId);
+    if (!place) throw new ValidationError('place_not_found');
     if (!input.sessions || input.sessions.length === 0)
         throw new ValidationError('At least one session is required.');
     const sessionLines = input.sessions.map((session) => {
@@ -253,10 +265,18 @@ function updateProgramRequest(
         if (['cancelled', 'rejected'].indexOf(request.Status) !== -1) {
             throw new ValidationError('request_not_editable');
         }
+        if (request.PlaceId !== place.Id && !canApprove(actor)) {
+            throw new AuthorizationError('place_edit_not_allowed');
+        }
+        if (request.UserId !== requestedBy.Email && !canApprove(actor)) {
+            throw new AuthorizationError('requester_edit_not_allowed');
+        }
 
         const updated = Tables.ProgramRequests.updateById(id, {
             Name: name,
             Type: type,
+            UserId: requestedBy.Email,
+            PlaceId: place.Id,
             DepartmentId: department.Id,
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),

@@ -59,6 +59,16 @@ export const api: AsyncApi = {
     updateShiftPreset: (...args) => callBackend('updateShiftPreset', ...args),
     deleteShiftPreset: (...args) => callBackend('deleteShiftPreset', ...args),
 
+    listProgramTypes: (...args) => callBackend('listProgramTypes', ...args),
+    createProgramType: (...args) => callBackend('createProgramType', ...args),
+    updateProgramType: (...args) => callBackend('updateProgramType', ...args),
+    deleteProgramType: (...args) => callBackend('deleteProgramType', ...args),
+
+    listSessionTypes: (...args) => callBackend('listSessionTypes', ...args),
+    createSessionType: (...args) => callBackend('createSessionType', ...args),
+    updateSessionType: (...args) => callBackend('updateSessionType', ...args),
+    deleteSessionType: (...args) => callBackend('deleteSessionType', ...args),
+
     listRosters: (...args) => callBackend('listRosters', ...args),
     createRoster: (...args) => callBackend('createRoster', ...args),
     updateRoster: (...args) => callBackend('updateRoster', ...args),

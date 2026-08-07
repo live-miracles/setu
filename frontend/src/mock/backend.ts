@@ -582,6 +582,18 @@ const mockData = {
         { Id: 'shift-preset-4', Name: 'Day', DefaultStartTime: '', DefaultEndTime: '' },
         { Id: 'shift-preset-5', Name: 'Vacation', DefaultStartTime: '', DefaultEndTime: '' },
     ] as ShiftPreset[],
+    programTypes: [
+        { Id: 'program-type-livestream', Name: 'Livestream' },
+        { Id: 'program-type-recording', Name: 'Recording' },
+        { Id: 'program-type-webinar', Name: 'Webinar' },
+        { Id: 'program-type-meeting', Name: 'Meeting' },
+        { Id: 'program-type-visit', Name: 'Visit' },
+    ] as ProgramType[],
+    sessionTypes: [
+        { Id: 'session-type-live', Name: 'Live' },
+        { Id: 'session-type-dry-run', Name: 'Dry Run' },
+        { Id: 'session-type-recording', Name: 'Recording' },
+    ] as SessionType[],
     nextDisplayId: { inventory_request: 6, program_request: 39, ticket: 2 },
 };
 
@@ -753,6 +765,8 @@ function mockBuildDashboard(): DashboardPayload {
         links: mockData.links.filter((l) => l.Enabled),
         homeContent: mockData.homeContent,
         shiftPresets: [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
+        programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+        sessionTypes: [...mockData.sessionTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
         failedEmailCount: 0,
     };
 }
@@ -893,6 +907,38 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.shiftPresets = mockData.shiftPresets.filter((p) => p.Id !== id);
     },
 
+    listProgramTypes: () => [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+    createProgramType: (input: CreateNamedOptionInput) => {
+        const created: ProgramType = { Id: mockUuid(), Name: input.name };
+        mockData.programTypes.push(created);
+        return created;
+    },
+    updateProgramType: (id: string, input: CreateNamedOptionInput) => {
+        const option = mockData.programTypes.find((item) => item.Id === id);
+        if (!option) throw new Error('not_found');
+        option.Name = input.name;
+        return option;
+    },
+    deleteProgramType: (id: string) => {
+        mockData.programTypes = mockData.programTypes.filter((item) => item.Id !== id);
+    },
+
+    listSessionTypes: () => [...mockData.sessionTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+    createSessionType: (input: CreateNamedOptionInput) => {
+        const created: SessionType = { Id: mockUuid(), Name: input.name };
+        mockData.sessionTypes.push(created);
+        return created;
+    },
+    updateSessionType: (id: string, input: CreateNamedOptionInput) => {
+        const option = mockData.sessionTypes.find((item) => item.Id === id);
+        if (!option) throw new Error('not_found');
+        option.Name = input.name;
+        return option;
+    },
+    deleteSessionType: (id: string) => {
+        mockData.sessionTypes = mockData.sessionTypes.filter((item) => item.Id !== id);
+    },
+
     listRosters: (page: number) => {
         if (!canApprove(mockToUserDTO(mockCurrentUser()))) {
             throw new Error('Approver access is required.');
@@ -991,11 +1037,19 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
     createInventoryRequest: (input: CreateInventoryRequestInput) => {
         const participants = mockParseParticipants(input.participants);
+        const actor = mockCurrentUser();
+        const requestedBy =
+            mockData.users.find(
+                (user) => user.Email === (input.userId || mockData.currentUserId),
+            ) || actor;
+        if (requestedBy.Email !== mockData.currentUserId && !canApprove(mockToUserDTO(actor))) {
+            throw new Error('requester_edit_not_allowed');
+        }
         const created: InventoryRequest = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.inventory_request++,
             Name: input.name,
-            UserId: mockData.currentUserId,
+            UserId: requestedBy.Email,
             StartDate: input.startDate,
             EndDate: input.endDate,
             Status: 'draft',
@@ -1035,7 +1089,13 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (['issued', 'returned', 'rejected', 'cancelled', 'closed'].includes(request.Status)) {
             throw new Error('request_not_editable');
         }
+        const requestedBy = mockData.users.find((user) => user.Email === input.userId);
+        if (!requestedBy) throw new Error('requester_not_found');
+        if (request.UserId !== requestedBy.Email && !canApprove(mockToUserDTO(actor))) {
+            throw new Error('requester_edit_not_allowed');
+        }
         request.Name = input.name;
+        request.UserId = requestedBy.Email;
         request.StartDate = input.startDate;
         request.EndDate = input.endDate;
         request.DepartmentId = input.departmentId;
@@ -1185,12 +1245,20 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
     createProgramRequest: (input: CreateProgramRequestInput) => {
         const participants = mockParseParticipants(input.participants);
+        const actor = mockCurrentUser();
+        const requestedBy =
+            mockData.users.find(
+                (user) => user.Email === (input.userId || mockData.currentUserId),
+            ) || actor;
+        if (requestedBy.Email !== mockData.currentUserId && !canApprove(mockToUserDTO(actor))) {
+            throw new Error('requester_edit_not_allowed');
+        }
         const created: ProgramRequest = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.program_request++,
             Name: input.name,
             Type: input.type,
-            UserId: mockData.currentUserId,
+            UserId: requestedBy.Email,
             Status: 'draft',
             PlaceId: input.placeId,
             DepartmentId: input.departmentId,
@@ -1229,8 +1297,20 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (['rejected', 'cancelled'].includes(request.Status)) {
             throw new Error('request_not_editable');
         }
+        const place = mockData.places.find((item) => item.Id === input.placeId);
+        if (!place) throw new Error('place_not_found');
+        if (request.PlaceId !== place.Id && !canApprove(mockToUserDTO(actor))) {
+            throw new Error('place_edit_not_allowed');
+        }
+        const requestedBy = mockData.users.find((user) => user.Email === input.userId);
+        if (!requestedBy) throw new Error('requester_not_found');
+        if (request.UserId !== requestedBy.Email && !canApprove(mockToUserDTO(actor))) {
+            throw new Error('requester_edit_not_allowed');
+        }
         request.Name = input.name;
         request.Type = input.type;
+        request.UserId = requestedBy.Email;
+        request.PlaceId = place.Id;
         request.DepartmentId = input.departmentId;
         request.LeadEmail = input.leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');

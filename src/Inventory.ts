@@ -206,6 +206,12 @@ function createInventoryRequest(
 ): InventoryRequestDTO {
     const actor = requireUser();
     const name = requireNonEmpty(input.name, 'Name is required.');
+    const userId = (input.userId || actor.Email).toLowerCase();
+    const requestedBy = Tables.Users.findById(userId);
+    if (!requestedBy) throw new ValidationError('requester_not_found');
+    if (requestedBy.Email !== actor.Email && !canApprove(actor)) {
+        throw new AuthorizationError('requester_edit_not_allowed');
+    }
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
         throw new ValidationError('endDate must be on or after startDate.');
     }
@@ -228,7 +234,7 @@ function createInventoryRequest(
         const created = Tables.InventoryRequests.insert({
             DisplayId: getNextDisplayId('inventory_request'),
             Name: name,
-            UserId: actor.Email,
+            UserId: requestedBy.Email,
             StartDate: input.startDate,
             EndDate: input.endDate,
             Status: 'draft',
@@ -275,6 +281,9 @@ function updateInventoryRequest(
 ): InventoryRequestDTO {
     const actor = requireUser();
     const name = requireNonEmpty(input.name, 'Name is required.');
+    const userId = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
+    const requestedBy = Tables.Users.findById(userId);
+    if (!requestedBy) throw new ValidationError('requester_not_found');
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
         throw new ValidationError('endDate must be on or after startDate.');
     }
@@ -306,9 +315,13 @@ function updateInventoryRequest(
         ) {
             throw new ValidationError('request_not_editable');
         }
+        if (request.UserId !== requestedBy.Email && !canApprove(actor)) {
+            throw new AuthorizationError('requester_edit_not_allowed');
+        }
 
         const updated = Tables.InventoryRequests.updateById(id, {
             Name: name,
+            UserId: requestedBy.Email,
             StartDate: input.startDate,
             EndDate: input.endDate,
             DepartmentId: department.Id,

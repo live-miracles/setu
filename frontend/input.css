@@ -689,7 +689,6 @@ body > header.navbar {
 }
 
 .request-field .input,
-.request-field .select,
 .request-field .textarea,
 .request-field .file-input,
 .request-readonly-fields dd {
@@ -700,6 +699,18 @@ body > header.navbar {
     background: transparent;
     padding-inline: 0.15rem;
     font-size: 0.84rem;
+}
+
+.request-field .select {
+    min-height: 2.05rem;
+    border-color: var(--setu-line);
+    background: var(--setu-surface);
+    font-size: 0.84rem;
+}
+
+.request-field .select option {
+    background: var(--setu-surface);
+    color: var(--setu-ink);
 }
 
 .request-lines-panel {
@@ -737,6 +748,25 @@ body > header.navbar {
     gap: 0;
     margin-bottom: 0.5rem;
     border-top: 1px solid var(--setu-line);
+}
+
+.program-session-heading {
+    display: grid;
+    grid-template-columns:
+        minmax(8rem, 1fr) minmax(11rem, 1fr) minmax(11rem, 1fr) minmax(8rem, 1fr)
+        auto;
+    gap: 0.55rem;
+    padding: 0.75rem 0 0.45rem;
+    border-bottom: 1px solid var(--setu-line);
+    color: var(--setu-muted);
+    font-size: 0.68rem;
+    font-weight: 750;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.program-session-heading + .request-line-list {
+    border-top: 0;
 }
 
 .program-session-row {
@@ -1176,6 +1206,10 @@ body > header.navbar {
 
     .program-session-row {
         grid-template-columns: 1fr;
+    }
+
+    .program-session-heading {
+        display: none;
     }
 
     .workbench-table-wrap {

@@ -92,6 +92,8 @@ function getDashboard(): DashboardPayload {
 
     const homeContent = readHomeContent();
     const shiftPresets = readShiftPresets().sort((a, b) => a.Name.localeCompare(b.Name));
+    const programTypes = readProgramTypes().sort((a, b) => a.Name.localeCompare(b.Name));
+    const sessionTypes = readSessionTypes().sort((a, b) => a.Name.localeCompare(b.Name));
 
     // Only the Admin section surfaces this, so non-admins skip the read
     // entirely rather than being handed a count they can't act on.
@@ -112,6 +114,8 @@ function getDashboard(): DashboardPayload {
         links,
         homeContent,
         shiftPresets,
+        programTypes,
+        sessionTypes,
         failedEmailCount,
     };
 }

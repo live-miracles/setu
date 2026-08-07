@@ -443,6 +443,24 @@ const SETTINGS_SHIFT_PRESETS_LIST: SettingsList = {
     ],
 };
 
+const SETTINGS_PROGRAM_TYPES_LIST: SettingsList = {
+    kind: 'program-type',
+    title: 'Program types',
+    iconName: 'clapper',
+    addLabel: 'Add a program type',
+    emptyMessage: 'No program types configured yet.',
+    fields: [{ field: 'Name', label: 'Name' }],
+};
+
+const SETTINGS_SESSION_TYPES_LIST: SettingsList = {
+    kind: 'session-type',
+    title: 'Session types',
+    iconName: 'calendar',
+    addLabel: 'Add a session type',
+    emptyMessage: 'No session types configured yet.',
+    fields: [{ field: 'Name', label: 'Name' }],
+};
+
 // Keyed by `kind` (not by the page-map keys above, which are plural/page
 // slugs) so a row's own data-kind attribute can look up its field list for
 // the inline edit form and dispatch its update/delete call — see
@@ -451,6 +469,8 @@ const SETTINGS_LIST_BY_KIND: Record<string, SettingsList> = {
     ...Object.fromEntries(Object.values(SETTINGS_LIST_PAGES).map((p) => [p.kind, p])),
     [SETTINGS_LINKS_LIST.kind]: SETTINGS_LINKS_LIST,
     [SETTINGS_SHIFT_PRESETS_LIST.kind]: SETTINGS_SHIFT_PRESETS_LIST,
+    [SETTINGS_PROGRAM_TYPES_LIST.kind]: SETTINGS_PROGRAM_TYPES_LIST,
+    [SETTINGS_SESSION_TYPES_LIST.kind]: SETTINGS_SESSION_TYPES_LIST,
 };
 
 export function renderSettingsList(
@@ -658,6 +678,10 @@ async function updateSettingsRow(
             },
             requestId,
         );
+    } else if (kind === 'program-type') {
+        await api.updateProgramType(id, { name: v.Name }, requestId);
+    } else if (kind === 'session-type') {
+        await api.updateSessionType(id, { name: v.Name }, requestId);
     }
 }
 
@@ -667,6 +691,8 @@ async function deleteSettingsRow(kind: string, id: string, requestId: string): P
     else if (kind === 'inventory-type') await api.deleteInventoryType(id, requestId);
     else if (kind === 'link') await api.deleteLink(id, requestId);
     else if (kind === 'shift-preset') await api.deleteShiftPreset(id, requestId);
+    else if (kind === 'program-type') await api.deleteProgramType(id, requestId);
+    else if (kind === 'session-type') await api.deleteSessionType(id, requestId);
 }
 
 // Wires one row's edit/delete buttons. Called for every row on initial
@@ -786,6 +812,10 @@ function wireSettingsForm(): void {
                         },
                         requestId,
                     );
+                } else if (kind === 'program-type') {
+                    await api.createProgramType({ name: String(data.get('Name')) }, requestId);
+                } else if (kind === 'session-type') {
+                    await api.createSessionType({ name: String(data.get('Name')) }, requestId);
                 }
                 await refreshDashboard();
             } catch (err) {
@@ -857,6 +887,8 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
 
       ${renderSettingsListCardsWithOptions(SETTINGS_LINKS_LIST, dashboard.links, true)}
       ${renderSettingsListCardsWithOptions(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets, true)}
+      ${renderSettingsListCardsWithOptions(SETTINGS_PROGRAM_TYPES_LIST, dashboard.programTypes, true)}
+      ${renderSettingsListCardsWithOptions(SETTINGS_SESSION_TYPES_LIST, dashboard.sessionTypes, true)}
     </section>
   `;
 

@@ -48,6 +48,7 @@ export interface RouterConfig {
 }
 
 let config: RouterConfig | null = null;
+let lastRenderedLocation = '';
 
 export function initRouter(routerConfig: RouterConfig): void {
     config = routerConfig;
@@ -73,6 +74,12 @@ export async function renderCurrentSection(): Promise<void> {
     if (!dashboard) return;
     const container = document.getElementById('app-content');
     if (!container) return;
+    const renderLocation = window.location.pathname + window.location.search;
+    if (renderLocation !== lastRenderedLocation) {
+        container.scrollTop = 0;
+        container.scrollLeft = 0;
+        lastRenderedLocation = renderLocation;
+    }
 
     const { sections, registrationGate } = requireConfig();
     renderNavIdentity(dashboard);
@@ -86,14 +93,21 @@ export async function renderCurrentSection(): Promise<void> {
 
     const sectionKey = resolveSection(section, dashboard);
     const params = new URLSearchParams(window.location.search);
+    const isWorkbenchSection = ['inventory', 'programs', 'tickets'].indexOf(sectionKey) !== -1;
+    const isWorkbenchDetail =
+        isWorkbenchSection &&
+        (params.get(WORKBENCH_MODE_QUERY_PARAM) === 'create' ||
+            Boolean(params.get(INVENTORY_REQUEST_QUERY_PARAM)) ||
+            Boolean(params.get(PROGRAM_REQUEST_QUERY_PARAM)) ||
+            Boolean(params.get(TICKET_QUERY_PARAM)));
     const isWorkbenchBrowse =
-        ['inventory', 'programs', 'tickets'].indexOf(sectionKey) !== -1 &&
+        isWorkbenchSection &&
         !params.get(WORKBENCH_MODE_QUERY_PARAM) &&
         !params.get(INVENTORY_REQUEST_QUERY_PARAM) &&
         !params.get(PROGRAM_REQUEST_QUERY_PARAM) &&
         !params.get(TICKET_QUERY_PARAM);
     const isHome = sectionKey === 'home';
-    const isEdgeToEdge = sectionKey === 'roster' || isWorkbenchBrowse;
+    const isEdgeToEdge = sectionKey === 'roster' || isWorkbenchBrowse || isWorkbenchDetail;
     container.classList.toggle('app-content-home', isHome);
     container.classList.toggle('app-content-edge', isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge);

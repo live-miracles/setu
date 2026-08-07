@@ -116,6 +116,30 @@ export function renderRequestReadonlyFields(rows: { label: string; valueHtml: st
         .join('')}</dl>`;
 }
 
+export function renderRequesterField(options: {
+    selectId: string;
+    users: UserDTO[];
+    selectedEmail: string;
+    requesterName: string;
+    editable: boolean;
+    canEditRequester: boolean;
+}): string {
+    if (options.editable && options.canEditRequester) {
+        return renderRequestEditableField(
+            'Requested by',
+            `<select id="${escapeHtml(options.selectId)}" name="userId" class="select select-sm" required>${options.users
+                .map(
+                    (user) =>
+                        `<option value="${escapeHtml(user.Email)}" ${user.Email === options.selectedEmail ? 'selected' : ''}>${escapeHtml(user.Name)} (${escapeHtml(user.Email)})</option>`,
+                )
+                .join('')}</select>`,
+        );
+    }
+    return `${renderRequestReadonlyFields([
+        { label: 'Requested by', valueHtml: escapeHtml(options.requesterName) },
+    ])}${options.editable ? `<input type="hidden" name="userId" value="${escapeHtml(options.selectedEmail)}" />` : ''}`;
+}
+
 export function renderRequestLineSection(title: string, contentHtml: string, notice = ''): string {
     return `<section class="request-lines-panel">
       <div class="request-tabs"><span>${escapeHtml(title)}</span></div>

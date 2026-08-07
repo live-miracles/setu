@@ -18,6 +18,7 @@ import {
     renderRequestLineSection,
     renderRequestReadonlyFields,
     renderRequestRecordPanel,
+    renderRequesterField,
     renderRequestTitleInput,
     renderWorkbenchHeader,
 } from '../ui/components';
@@ -143,11 +144,9 @@ export async function renderInventory(
     const requestId = params.get(INVENTORY_REQUEST_QUERY_PARAM);
     if (requestId) {
         try {
-            renderInventoryRequestDetail(
-                container,
-                dashboard,
-                await api.getInventoryRequest(requestId),
-            );
+            const request = await api.getInventoryRequest(requestId);
+            const users = canApprove(dashboard.me) ? await api.listUsers() : [];
+            renderInventoryRequestDetail(container, dashboard, request, users);
         } catch (err) {
             showErrorAlert(err);
             container.innerHTML = renderEmptyState('box', 'This request could not be opened.');
@@ -155,7 +154,8 @@ export async function renderInventory(
         return;
     }
     if (params.get(WORKBENCH_MODE_QUERY_PARAM) === 'create') {
-        renderInventoryCreate(container, dashboard);
+        const users = canApprove(dashboard.me) ? await api.listUsers() : [];
+        renderInventoryCreate(container, dashboard, users);
         return;
     }
     renderInventoryWorkbench(container, dashboard);
@@ -274,7 +274,12 @@ function wireInventoryLinks(root: ParentNode): void {
     });
 }
 
-function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPayload): void {
+function renderInventoryCreate(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    users: UserDTO[] = [],
+): void {
+    const canEditRequester = canApprove(dashboard.me);
     const header = renderDetailCommandHeader({
         backButtonId: 'back-to-inventory',
         backLabel: 'Back to requests',
@@ -323,14 +328,14 @@ function renderInventoryCreate(container: HTMLElement, dashboard: DashboardPaylo
         {
             title: 'Requester info',
             rows: [
-                renderRequestReadonlyFields([
-                    { label: 'Requester', valueHtml: escapeHtml(dashboard.me.Name) },
-                    {
-                        label: 'Department',
-                        valueHtml: escapeHtml(dashboard.me.departmentName || ''),
-                    },
-                    { label: 'Email', valueHtml: escapeHtml(dashboard.me.Email) },
-                ]),
+                renderRequesterField({
+                    selectId: 'request-user',
+                    users,
+                    selectedEmail: dashboard.me.Email,
+                    requesterName: dashboard.me.Name,
+                    editable: true,
+                    canEditRequester,
+                }),
             ],
         },
     ]);
@@ -364,10 +369,12 @@ function renderInventoryRequestDetail(
     container: HTMLElement,
     dashboard: DashboardPayload,
     request: InventoryRequestDTO,
+    users: UserDTO[] = [],
 ): void {
     const actions = availableInventoryRequestActions(request, dashboard);
     const overdue = isRequestOverdue(request);
     const editable = canEditInventoryRequest(request, dashboard);
+    const canEditRequester = canApprove(dashboard.me);
     const header = renderDetailCommandHeader({
         backButtonId: 'back-to-inventory-requests',
         backLabel: 'Back to requests',
@@ -386,6 +393,14 @@ function renderInventoryRequestDetail(
             rows: [
                 ...(editable
                     ? [
+                          renderRequesterField({
+                              selectId: 'request-user',
+                              users,
+                              selectedEmail: request.UserId,
+                              requesterName: request.userName,
+                              editable: true,
+                              canEditRequester,
+                          }),
                           renderRequestEditableField(
                               'From',
                               `<input id="request-start" name="startDate" type="date" class="input input-sm" value="${escapeHtml(request.StartDate)}" required />`,
@@ -472,7 +487,7 @@ function renderInventoryRequestDetail(
     document
         .getElementById('back-to-inventory-requests')!
         .addEventListener('click', navigateToInventoryRequests);
-    if (editable) wireInventoryDetailEditForm(container, dashboard, request);
+    if (editable) wireInventoryDetailEditForm(container, dashboard, request, users);
     wireInventoryRequestDetail(request);
 }
 
@@ -512,6 +527,7 @@ function wireInventoryDetailEditForm(
     container: HTMLElement,
     dashboard: DashboardPayload,
     request: InventoryRequestDTO,
+    users: UserDTO[] = [],
 ): void {
     const form = document.getElementById('edit-inventory-form') as HTMLFormElement;
     const title = document.getElementById('request-name') as HTMLInputElement;
@@ -531,7 +547,7 @@ function wireInventoryDetailEditForm(
     form.addEventListener('input', updateDirty);
     form.addEventListener('change', updateDirty);
     document.getElementById('cancel-inventory-edits')!.addEventListener('click', () => {
-        renderInventoryRequestDetail(container, dashboard, request);
+        renderInventoryRequestDetail(container, dashboard, request, users);
     });
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -620,6 +636,7 @@ function readInventoryFormInput(form: HTMLFormElement): UpdateInventoryRequestIn
     const data = new FormData(form);
     return {
         name: String(data.get('name')),
+        userId: String(data.get('userId')),
         startDate: String(data.get('startDate')),
         endDate: String(data.get('endDate')),
         departmentId: String(data.get('departmentId')),
@@ -708,6 +725,7 @@ function wireCreateRequestForm(): void {
             const created = await api.createInventoryRequest(
                 {
                     name: String(data.get('name')),
+                    userId: String(data.get('userId')),
                     startDate: String(data.get('startDate')),
                     endDate: String(data.get('endDate')),
                     items,

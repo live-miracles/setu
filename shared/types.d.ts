@@ -176,6 +176,16 @@ interface ShiftPreset {
     DefaultEndTime: string;
 }
 
+interface ProgramType {
+    Id: string;
+    Name: string;
+}
+
+interface SessionType {
+    Id: string;
+    Name: string;
+}
+
 // Generic key-value store, e.g. for the Home content fields below and
 // display-id counters — Id doubles as the setting's key (see
 // readHomeContent/upsertSetting in Admin.ts, getNextDisplayId in
@@ -294,6 +304,8 @@ interface DashboardPayload {
     links: Link[];
     homeContent: HomeContent;
     shiftPresets: ShiftPreset[];
+    programTypes: ProgramType[];
+    sessionTypes: SessionType[];
     failedEmailCount: number;
 }
 
@@ -353,6 +365,7 @@ interface CreateInventoryTypeInput {
 
 interface CreateInventoryRequestInput {
     name: string;
+    userId: string;
     startDate: string;
     endDate: string;
     items: { inventoryTypeId: string; quantity: number }[];
@@ -364,6 +377,7 @@ interface CreateInventoryRequestInput {
 
 interface UpdateInventoryRequestInput {
     name: string;
+    userId: string;
     startDate: string;
     endDate: string;
     items: { inventoryTypeId: string; quantity: number }[];
@@ -390,6 +404,7 @@ interface ProgramSessionInput {
 interface CreateProgramRequestInput {
     name: string;
     type: string;
+    userId: string;
     placeId: string;
     sessions: ProgramSessionInput[];
     departmentId: string;
@@ -400,6 +415,8 @@ interface CreateProgramRequestInput {
 interface UpdateProgramRequestInput {
     name: string;
     type: string;
+    userId: string;
+    placeId: string;
     sessions: ProgramSessionInput[];
     departmentId: string;
     leadEmail: string;
@@ -429,6 +446,10 @@ interface CreateShiftPresetInput {
     name: string;
     defaultStartTime: string;
     defaultEndTime: string;
+}
+
+interface CreateNamedOptionInput {
+    name: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -468,6 +489,16 @@ interface Api {
     createShiftPreset(input: CreateShiftPresetInput, requestId: string): ShiftPreset;
     updateShiftPreset(id: string, input: CreateShiftPresetInput, requestId: string): ShiftPreset;
     deleteShiftPreset(id: string, requestId: string): void;
+
+    listProgramTypes(): ProgramType[];
+    createProgramType(input: CreateNamedOptionInput, requestId: string): ProgramType;
+    updateProgramType(id: string, input: CreateNamedOptionInput, requestId: string): ProgramType;
+    deleteProgramType(id: string, requestId: string): void;
+
+    listSessionTypes(): SessionType[];
+    createSessionType(input: CreateNamedOptionInput, requestId: string): SessionType;
+    updateSessionType(id: string, input: CreateNamedOptionInput, requestId: string): SessionType;
+    deleteSessionType(id: string, requestId: string): void;
 
     listRosters(page: number): Paginated<RosterDTO>;
     createRoster(input: CreateRosterInput, requestId: string): RosterDTO;
