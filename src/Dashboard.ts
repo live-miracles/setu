@@ -35,14 +35,12 @@ function getDashboard(): DashboardPayload {
     // gets only their own and the ones they're a participant on (see
     // canViewRequest in Auth.ts). listInventoryRequests/listProgramRequests
     // apply the same filter for their paged views.
-    const itemsByRequest = groupBy(Tables.InventoryItems.readAll(), (i) => i.RequestId);
     const inventoryTypesById = indexBy(Tables.InventoryTypes.readAll(), (t) => t.Id);
     const inventoryRequests = Tables.InventoryRequests.readAll()
         .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
         .map((request) =>
             buildInventoryRequestDTO(
                 request,
-                itemsByRequest,
                 inventoryTypesById,
                 usersByEmail,
                 departmentsById,
@@ -56,14 +54,12 @@ function getDashboard(): DashboardPayload {
         )
         .slice(0, 250);
 
-    const sessionsByRequest = groupBy(Tables.Sessions.readAll(), (s) => s.RequestId);
     const placesById = indexBy(places, (p) => p.Id);
     const programRequests = Tables.ProgramRequests.readAll()
         .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
         .map((request) =>
             buildProgramRequestDTO(
                 request,
-                sessionsByRequest,
                 placesById,
                 usersByEmail,
                 departmentsById,
@@ -93,7 +89,11 @@ function getDashboard(): DashboardPayload {
     const homeContent = readHomeContent();
     const shiftPresets = readShiftPresets().sort((a, b) => a.Name.localeCompare(b.Name));
     const programTypes = readProgramTypes().sort((a, b) => a.Name.localeCompare(b.Name));
+    const programLanguages = readProgramLanguages().sort((a, b) => a.Name.localeCompare(b.Name));
     const sessionTypes = readSessionTypes().sort((a, b) => a.Name.localeCompare(b.Name));
+    const blocks = canApprove(actor)
+        ? Tables.Blocks.readAll().sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime))
+        : [];
 
     // Only the Admin section surfaces this, so non-admins skip the read
     // entirely rather than being handed a count they can't act on.
@@ -115,7 +115,9 @@ function getDashboard(): DashboardPayload {
         homeContent,
         shiftPresets,
         programTypes,
+        programLanguages,
         sessionTypes,
+        blocks,
         failedEmailCount,
     };
 }

@@ -309,6 +309,7 @@ function renderTicketDetail(
     ticket: TicketDTO,
 ): void {
     const actions = availableTicketActions(ticket, dashboard);
+    const editable = canUseTickets(dashboard.me);
     const header = renderDetailCommandHeader({
         backButtonId: 'back-to-tickets',
         backLabel: 'Back to tickets',
@@ -317,17 +318,25 @@ function renderTicketDetail(
         title: ticket.Title,
         nextStatuses: TICKET_NEXT_STATUS_LABELS[ticket.Status],
         statusSteps: ticketStatusSteps(ticket.Status, actions),
+        topActionsHtml: editable
+            ? '<div id="ticket-edit-actions" class="hidden"><button type="submit" form="edit-ticket-form" class="btn btn-primary btn-sm">Save</button><button type="button" id="cancel-ticket-edits" class="btn btn-ghost btn-sm">Cancel</button></div>'
+            : '',
     });
     const fields = renderRequestFieldGrid([
         {
             title: 'Issue details',
             rows: [
-                renderRequestReadonlyFields([
-                    {
-                        label: 'Description',
-                        valueHtml: `<span class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</span>`,
-                    },
-                ]),
+                editable
+                    ? renderRequestEditableField(
+                          'Description',
+                          `<textarea id="ticket-description" name="description" class="textarea textarea-sm min-h-32">${escapeHtml(ticket.Description || '')}</textarea>`,
+                      )
+                    : renderRequestReadonlyFields([
+                          {
+                              label: 'Description',
+                              valueHtml: `<span class="whitespace-pre-wrap">${ticket.Description ? escapeHtml(ticket.Description) : 'No description provided.'}</span>`,
+                          },
+                      ]),
             ],
         },
         {
@@ -346,7 +355,11 @@ function renderTicketDetail(
     ]);
     container.innerHTML = renderRequestDetailPage(
         header,
-        renderRequestRecordPanel(fields),
+        renderRequestRecordPanel(
+            `${editable ? renderRequestTitleInput('ticket-title', 'title', 'Ticket title') : ''}${fields}`,
+            editable ? 'form' : 'main',
+            editable ? 'id="edit-ticket-form"' : '',
+        ),
         renderRequestActivityPanel({
             comments: ticket.comments,
             commentFormId: 'ticket-comment-form',
@@ -355,6 +368,7 @@ function renderTicketDetail(
         false,
     );
     document.getElementById('back-to-tickets')!.addEventListener('click', navigateToTickets);
+    if (editable) wireTicketDetailEditForm(container, dashboard, ticket);
     document
         .getElementById('ticket-comment-form')!
         .addEventListener('submit', (event) => void submitTicketComment(event, ticket.Id));
@@ -371,6 +385,50 @@ function renderTicketDetail(
                     ),
             ),
         );
+}
+
+function wireTicketDetailEditForm(
+    container: HTMLElement,
+    dashboard: DashboardPayload,
+    ticket: TicketDTO,
+): void {
+    const form = document.getElementById('edit-ticket-form') as HTMLFormElement;
+    const title = document.getElementById('ticket-title') as HTMLInputElement;
+    const actions = document.getElementById('ticket-edit-actions')!;
+    title.value = ticket.Title;
+    const readSnapshot = () => JSON.stringify(readTicketFormInput(form));
+    const savedSnapshot = readSnapshot();
+    const updateDirty = () => actions.classList.toggle('hidden', readSnapshot() === savedSnapshot);
+    form.addEventListener('input', updateDirty);
+    form.addEventListener('change', updateDirty);
+    document.getElementById('cancel-ticket-edits')!.addEventListener('click', () => {
+        renderTicketDetail(container, dashboard, ticket);
+    });
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = readTicketFormInput(form);
+        if (!input.title.trim()) {
+            showErrorAlert(new Error('Title is required.'));
+            return;
+        }
+        try {
+            showSavingBadge(true);
+            await api.updateTicket(ticket.Id, input, generateRequestId());
+            await refreshDashboard();
+        } catch (err) {
+            showErrorAlert(err);
+        } finally {
+            showSavingBadge(false);
+        }
+    });
+}
+
+function readTicketFormInput(form: HTMLFormElement): UpdateTicketInput {
+    const data = new FormData(form);
+    return {
+        title: String(data.get('title') || ''),
+        description: String(data.get('description') || ''),
+    };
 }
 
 async function submitTicketComment(event: Event, ticketId: string): Promise<void> {

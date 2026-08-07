@@ -3,7 +3,7 @@ import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
 import { renderEmptyState } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { escapeHtml } from '../ui/format';
+import { escapeHtml, formatDateTime } from '../ui/format';
 import type { IconName } from '../ui/icons';
 import { icon } from '../ui/icons';
 import {
@@ -177,7 +177,8 @@ function renderUserDetail(user: UserDTO, dashboard: DashboardPayload, isAdmin: b
 }
 
 function renderDepartmentOptions(departments: Department[], selected = ''): string {
-    return `<option value="">No department</option>${departments
+    return `<option value="">No department</option>${[...departments]
+        .sort((a, b) => a.Name.localeCompare(b.Name))
         .map(
             (department) =>
                 `<option value="${escapeHtml(department.Id)}" ${department.Id === selected ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`,
@@ -186,10 +187,13 @@ function renderDepartmentOptions(departments: Department[], selected = ''): stri
 }
 
 function renderRoleOptions(selected: UserRole = 'user'): string {
-    return USER_ROLE_ORDER.map(
-        (role) =>
-            `<option value="${role}" ${role === selected ? 'selected' : ''}>${escapeHtml(USER_ROLE_LABELS[role])}</option>`,
-    ).join('');
+    return [...USER_ROLE_ORDER]
+        .sort((a, b) => USER_ROLE_LABELS[a].localeCompare(USER_ROLE_LABELS[b]))
+        .map(
+            (role) =>
+                `<option value="${role}" ${role === selected ? 'selected' : ''}>${escapeHtml(USER_ROLE_LABELS[role])}</option>`,
+        )
+        .join('');
 }
 
 function renderUserFormFields(departments: Department[], includeEmail: boolean): string {
@@ -411,6 +415,21 @@ export const SETTINGS_LIST_PAGES: Record<string, SettingsListPage> = {
         rowAccessory: renderInventoryTypeAvailability,
         rows: (dashboard) => dashboard.inventoryTypes,
     },
+    blocks: {
+        kind: 'block',
+        title: 'Blocks',
+        subtitle: 'Global blocked times that prevent normal users from submitting overlapping program requests.',
+        iconName: 'calendar',
+        addLabel: 'Add a block',
+        emptyMessage: 'No blocked times configured yet.',
+        fields: [
+            { field: 'Name', label: 'Name' },
+            { field: 'StartDateTime', label: 'Start', type: 'datetime-local' },
+            { field: 'EndDateTime', label: 'End', type: 'datetime-local' },
+            { field: 'Place', label: 'Place id (optional)' },
+        ],
+        rows: (dashboard) => dashboard.blocks,
+    },
 };
 
 // Not in the map above: links have no page of their own, so this is a plain
@@ -452,6 +471,15 @@ const SETTINGS_PROGRAM_TYPES_LIST: SettingsList = {
     fields: [{ field: 'Name', label: 'Name' }],
 };
 
+const SETTINGS_PROGRAM_LANGUAGES_LIST: SettingsList = {
+    kind: 'program-language',
+    title: 'Program languages',
+    iconName: 'clapper',
+    addLabel: 'Add a language',
+    emptyMessage: 'No languages configured yet.',
+    fields: [{ field: 'Name', label: 'Name' }],
+};
+
 const SETTINGS_SESSION_TYPES_LIST: SettingsList = {
     kind: 'session-type',
     title: 'Session types',
@@ -470,6 +498,7 @@ const SETTINGS_LIST_BY_KIND: Record<string, SettingsList> = {
     [SETTINGS_LINKS_LIST.kind]: SETTINGS_LINKS_LIST,
     [SETTINGS_SHIFT_PRESETS_LIST.kind]: SETTINGS_SHIFT_PRESETS_LIST,
     [SETTINGS_PROGRAM_TYPES_LIST.kind]: SETTINGS_PROGRAM_TYPES_LIST,
+    [SETTINGS_PROGRAM_LANGUAGES_LIST.kind]: SETTINGS_PROGRAM_LANGUAGES_LIST,
     [SETTINGS_SESSION_TYPES_LIST.kind]: SETTINGS_SESSION_TYPES_LIST,
 };
 
@@ -582,7 +611,7 @@ function renderSettingsRowViewInner(page: SettingsList, row: Record<string, any>
             .slice(1)
             .map(
                 (f) =>
-                    `<span class="text-base-content/60">${escapeHtml(row[f.field] ?? '')}</span>`,
+                    `<span class="text-base-content/60">${escapeHtml(settingsDisplayValue(f, row[f.field]))}</span>`,
             )
             .join('')}
         ${page.rowAccessory ? page.rowAccessory(row) : ''}
@@ -622,7 +651,7 @@ function renderSettingsRowEditInner(page: SettingsList, row: Record<string, any>
                 (f, i) => `
           <div class="flex-1" style="min-width: 8rem;">
             <label class="label text-xs">${escapeHtml(f.label)}</label>
-            <input name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" value="${escapeHtml(String(row[f.field] ?? ''))}" ${i === 0 ? 'required' : ''} />
+            <input name="${f.field}" type="${f.type || 'text'}" class="input input-sm w-full" value="${escapeHtml(settingsInputValue(f, row[f.field]))}" ${i === 0 ? 'required' : ''} />
           </div>`,
             )
             .join('')}
@@ -631,6 +660,25 @@ function renderSettingsRowEditInner(page: SettingsList, row: Record<string, any>
           <button type="button" class="btn btn-ghost btn-xs settings-row-cancel">Cancel</button>
         </div>
       </form>`;
+}
+
+function settingsInputValue(field: { type?: string }, value: unknown): string {
+    if (field.type !== 'datetime-local') return String(value ?? '');
+    const raw = String(value || '');
+    if (!raw) return '';
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw.slice(0, 16);
+    const pad = (part: number) => String(part).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function settingsDisplayValue(field: { type?: string }, value: unknown): string {
+    if (field.type !== 'datetime-local') return String(value ?? '');
+    return formatDateTime(String(value || ''));
+}
+
+function toIsoDateTime(value: string): string {
+    return value ? new Date(value).toISOString() : '';
 }
 
 function readRowValuesFromLi(li: HTMLElement, page: SettingsList, id: string): Record<string, any> {
@@ -680,8 +728,21 @@ async function updateSettingsRow(
         );
     } else if (kind === 'program-type') {
         await api.updateProgramType(id, { name: v.Name }, requestId);
+    } else if (kind === 'program-language') {
+        await api.updateProgramLanguage(id, { name: v.Name }, requestId);
     } else if (kind === 'session-type') {
         await api.updateSessionType(id, { name: v.Name }, requestId);
+    } else if (kind === 'block') {
+        await api.updateBlock(
+            id,
+            {
+                name: v.Name,
+                startDateTime: toIsoDateTime(v.StartDateTime),
+                endDateTime: toIsoDateTime(v.EndDateTime),
+                place: v.Place || '',
+            },
+            requestId,
+        );
     }
 }
 
@@ -692,7 +753,9 @@ async function deleteSettingsRow(kind: string, id: string, requestId: string): P
     else if (kind === 'link') await api.deleteLink(id, requestId);
     else if (kind === 'shift-preset') await api.deleteShiftPreset(id, requestId);
     else if (kind === 'program-type') await api.deleteProgramType(id, requestId);
+    else if (kind === 'program-language') await api.deleteProgramLanguage(id, requestId);
     else if (kind === 'session-type') await api.deleteSessionType(id, requestId);
+    else if (kind === 'block') await api.deleteBlock(id, requestId);
 }
 
 // Wires one row's edit/delete buttons. Called for every row on initial
@@ -814,8 +877,20 @@ function wireSettingsForm(): void {
                     );
                 } else if (kind === 'program-type') {
                     await api.createProgramType({ name: String(data.get('Name')) }, requestId);
+                } else if (kind === 'program-language') {
+                    await api.createProgramLanguage({ name: String(data.get('Name')) }, requestId);
                 } else if (kind === 'session-type') {
                     await api.createSessionType({ name: String(data.get('Name')) }, requestId);
+                } else if (kind === 'block') {
+                    await api.createBlock(
+                        {
+                            name: String(data.get('Name')),
+                            startDateTime: toIsoDateTime(String(data.get('StartDateTime'))),
+                            endDateTime: toIsoDateTime(String(data.get('EndDateTime'))),
+                            place: String(data.get('Place') || ''),
+                        },
+                        requestId,
+                    );
                 }
                 await refreshDashboard();
             } catch (err) {
@@ -888,6 +963,7 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
       ${renderSettingsListCardsWithOptions(SETTINGS_LINKS_LIST, dashboard.links, true)}
       ${renderSettingsListCardsWithOptions(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets, true)}
       ${renderSettingsListCardsWithOptions(SETTINGS_PROGRAM_TYPES_LIST, dashboard.programTypes, true)}
+      ${renderSettingsListCardsWithOptions(SETTINGS_PROGRAM_LANGUAGES_LIST, dashboard.programLanguages, true)}
       ${renderSettingsListCardsWithOptions(SETTINGS_SESSION_TYPES_LIST, dashboard.sessionTypes, true)}
     </section>
   `;

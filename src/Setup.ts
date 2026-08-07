@@ -61,7 +61,6 @@ function migrateRequestsDepartmentLeadColumns(
             : (Tables.ProgramRequests.headers as string[]);
     const sheet = ss.getSheetByName(tabName);
     if (!sheet) return;
-
     const usersByEmail = indexBy(Tables.Users.readAll(), (user) => user.Email);
     const departmentsById = indexBy(Tables.Departments.readAll(), (department) => department.Id);
     const lastColumn = Math.max(sheet.getLastColumn(), desiredHeaders.length);
@@ -89,6 +88,16 @@ function migrateRequestsDepartmentLeadColumns(
                     departmentsById[departmentId]?.LeadEmail ||
                     ''
                 );
+            }
+            if (header === 'ItemsJson') {
+                const existing = valueAt(row, headerIndex('ItemsJson'));
+                if (existing) return existing;
+                return '[]';
+            }
+            if (header === 'SessionsJson') {
+                const existing = valueAt(row, headerIndex('SessionsJson'));
+                if (existing) return existing;
+                return '[]';
             }
             return valueAt(row, headerIndex(header));
         }),

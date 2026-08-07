@@ -55,13 +55,41 @@ function cleanSessionField(session: ProgramSessionInput, field: string): string 
         : value;
 }
 
+function cleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
+    if (!input || input.length === 0) throw new ValidationError('At least one session is required.');
+    return input.map((session) => {
+        const sessionType = cleanSessionField(session, 'type');
+        const startDateTime = cleanSessionField(session, 'startDateTime');
+        const endDateTime = cleanSessionField(session, 'endDateTime');
+        const startMs = Date.parse(startDateTime);
+        const endMs = Date.parse(endDateTime);
+        if (
+            !startDateTime ||
+            !endDateTime ||
+            Number.isNaN(startMs) ||
+            Number.isNaN(endMs) ||
+            endMs <= startMs
+        ) {
+            throw new ValidationError('Session end must be after its start.');
+        }
+        if (endMs - startMs >= 24 * 60 * 60 * 1000) {
+            throw new ValidationError('Sessions must be shorter than 24 hours.');
+        }
+        return {
+            Name: cleanSessionField(session, 'name'),
+            Type: sessionType,
+            StartDateTime: startDateTime,
+            EndDateTime: endDateTime,
+        };
+    });
+}
+
 // Status-change history (who/when) lives in Comments, same as
 // InventoryRequests — see Comments.ts. No issue/return/close step here: a
 // program request only ever moves draft -> submitted -> approved/rejected,
 // with cancellation available before a final decision.
 function buildProgramRequestDTO(
     request: ProgramRequest,
-    sessionsByRequest: Record<string, ProgramSession[]>,
     placesById: Record<string, Place>,
     usersByEmail: Record<string, User>,
     departmentsById: Record<string, Department>,
@@ -71,7 +99,7 @@ function buildProgramRequestDTO(
     const requester = usersByEmail[request.UserId];
     const department = departmentsById[request.DepartmentId];
     const comments = commentsFor(request.Id, commentsByRequestId, usersByEmail);
-    const sessions = (sessionsByRequest[request.Id] || [])
+    const sessions = parseProgramSessionsJson(request.SessionsJson)
         .slice()
         .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
     return Object.assign({}, request, {
@@ -108,12 +136,39 @@ function matchesProgramDateScope(
     return dateScope === 'past' ? !hasOngoingOrFutureSession : hasOngoingOrFutureSession;
 }
 
+function rangesOverlap(
+    leftStart: string,
+    leftEnd: string,
+    rightStart: string,
+    rightEnd: string,
+): boolean {
+    return leftStart < rightEnd && rightStart < leftEnd;
+}
+
+function assertProgramSessionsNotBlockedForUser(request: ProgramRequest): void {
+    const sessions = parseProgramSessionsJson(request.SessionsJson);
+    const blockingBlock = Tables.Blocks.readAll()
+        .filter((block) => !block.Place)
+        .find((block) =>
+            sessions.some((session) =>
+                rangesOverlap(
+                    session.StartDateTime,
+                    session.EndDateTime,
+                    block.StartDateTime,
+                    block.EndDateTime,
+                ),
+            ),
+        );
+    if (blockingBlock) {
+        throw new ValidationError('This request overlaps with a blocked time: ' + blockingBlock.Name);
+    }
+}
+
 function listProgramRequests(
     page: number,
     query: ProgramRequestQuery = {},
 ): Paginated<ProgramRequestDTO> {
     const actor = requireUser();
-    const sessionsByRequest = groupBy(Tables.Sessions.readAll(), (s) => s.RequestId);
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const departmentsById = indexBy(Tables.Departments.readAll(), (d) => d.Id);
@@ -124,7 +179,6 @@ function listProgramRequests(
         .map((r) =>
             buildProgramRequestDTO(
                 r,
-                sessionsByRequest,
                 placesById,
                 usersByEmail,
                 departmentsById,
@@ -138,8 +192,10 @@ function listProgramRequests(
             matchesSearch(query.q, [
                 'PRG-' + request.DisplayId,
                 request.Name,
+                request.Language,
                 request.Type,
                 request.userName,
+                request.UserId,
                 request.departmentName,
                 request.LeadEmail,
                 request.participants.join(' '),
@@ -178,7 +234,6 @@ function getProgramRequest(id: string): ProgramRequestDTO {
     }
     return buildProgramRequestDTO(
         request,
-        groupBy(Tables.Sessions.readAll(), (session) => session.RequestId),
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
@@ -202,22 +257,7 @@ function createProgramRequest(
     }
     const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
     if (input.placeId && !place) throw new ValidationError('place_not_found');
-    if (!input.sessions || input.sessions.length === 0)
-        throw new ValidationError('At least one session is required.');
-    const sessionLines = input.sessions.map((session) => {
-        const sessionType = cleanSessionField(session, 'type');
-        const startDateTime = cleanSessionField(session, 'startDateTime');
-        const endDateTime = cleanSessionField(session, 'endDateTime');
-        if (!startDateTime || !endDateTime || endDateTime <= startDateTime) {
-            throw new ValidationError('Session end must be after its start.');
-        }
-        return {
-            name: cleanSessionField(session, 'name'),
-            type: sessionType,
-            startDateTime,
-            endDateTime,
-        };
-    });
+    const sessionLines = cleanProgramSessions(input.sessions);
     const participants = parseParticipants(input.participants);
     const departmentId = cleanProgramField(input, 'departmentId');
     const department = Tables.Departments.findById(departmentId);
@@ -236,16 +276,8 @@ function createProgramRequest(
             DepartmentId: department.Id,
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
+            SessionsJson: stringifyProgramSessions(sessionLines),
         });
-        const createdSessions = sessionLines.map((session) =>
-            Tables.Sessions.insert({
-                Name: session.name,
-                Type: session.type,
-                RequestId: created.Id,
-                StartDateTime: session.startDateTime,
-                EndDateTime: session.endDateTime,
-            }),
-        );
         const comment = insertActionComment(
             'program',
             created.Id,
@@ -253,14 +285,13 @@ function createProgramRequest(
             actor.Name + ' saved this draft.',
             false,
         );
-        return { request: created, sessions: createdSessions, comment };
+        return { request: created, comment };
     });
-    const { request, sessions: createdSessions, comment } = result;
+    const { request, comment } = result;
 
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     return buildProgramRequestDTO(
         request,
-        { [request.Id]: createdSessions },
         placesById,
         indexBy([actor], (u) => u.Email),
         { [department.Id]: department },
@@ -282,22 +313,7 @@ function updateProgramRequest(
     if (!requestedBy) throw new ValidationError('requester_not_found');
     const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
     if (input.placeId && !place) throw new ValidationError('place_not_found');
-    if (!input.sessions || input.sessions.length === 0)
-        throw new ValidationError('At least one session is required.');
-    const sessionLines = input.sessions.map((session) => {
-        const sessionType = cleanSessionField(session, 'type');
-        const startDateTime = cleanSessionField(session, 'startDateTime');
-        const endDateTime = cleanSessionField(session, 'endDateTime');
-        if (!startDateTime || !endDateTime || endDateTime <= startDateTime) {
-            throw new ValidationError('Session end must be after its start.');
-        }
-        return {
-            name: cleanSessionField(session, 'name'),
-            type: sessionType,
-            startDateTime,
-            endDateTime,
-        };
-    });
+    const sessionLines = cleanProgramSessions(input.sessions);
     const participants = parseParticipants(input.participants);
     const departmentId = cleanProgramField(input, 'departmentId');
     const department = Tables.Departments.findById(departmentId);
@@ -332,19 +348,8 @@ function updateProgramRequest(
             DepartmentId: department.Id,
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
+            SessionsJson: stringifyProgramSessions(sessionLines),
         });
-        Tables.Sessions.findWhere((session) => session.RequestId === id).forEach((session) =>
-            Tables.Sessions.deleteById(session.Id),
-        );
-        const updatedSessions = sessionLines.map((session) =>
-            Tables.Sessions.insert({
-                Name: session.name,
-                Type: session.type,
-                RequestId: id,
-                StartDateTime: session.startDateTime,
-                EndDateTime: session.endDateTime,
-            }),
-        );
         const comment = insertActionComment(
             'program',
             id,
@@ -352,12 +357,11 @@ function updateProgramRequest(
             actor.Name + ' updated this request.',
             false,
         );
-        return { request: updated, sessions: updatedSessions, comment };
+        return { request: updated, comment };
     });
 
     return buildProgramRequestDTO(
         result.request,
-        { [id]: result.sessions },
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
@@ -390,6 +394,7 @@ function performProgramRequestAction(
                     request.UserId === actor.Email || participants.indexOf(actor.Email) !== -1;
                 if (!isOwner || request.Status !== 'draft')
                     throw new ValidationError('invalid_transition');
+                if (!canApprove(actor)) assertProgramSessionsNotBlockedForUser(request);
                 computedStatus = 'submitted';
                 Tables.ProgramRequests.updateById(requestId, { Status: computedStatus });
                 insertActionComment(

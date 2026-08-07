@@ -82,9 +82,15 @@ function normalizedSearch(value: unknown): string {
 }
 
 function matchesSearch(query: string | undefined, values: unknown[]): boolean {
-    const needle = normalizedSearch(query);
-    if (!needle) return true;
-    return values.some((value) => normalizedSearch(value).indexOf(needle) !== -1);
+    const needles = String(query || '')
+        .trim()
+        .toLocaleLowerCase()
+        .split(/\s+/)
+        .filter(Boolean);
+    if (!needles.length) return true;
+    return needles.every((needle) =>
+        values.some((value) => normalizedSearch(value).indexOf(needle) !== -1),
+    );
 }
 
 function compareQueryValues(left: unknown, right: unknown, direction: SortDirection): number {
@@ -124,4 +130,56 @@ function parseParticipants(raw: string): string[] {
 
 function formatParticipants(emails: string[]): string {
     return parseParticipants(emails.join(',')).join(', ');
+}
+
+function parseInventoryItemsJson(raw: string): InventoryItem[] {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((item) => ({
+            InventoryTypeId: String(item.InventoryTypeId || item.inventoryTypeId || ''),
+            Quantity: Number(item.Quantity || item.quantity || 0),
+            Condition: (item.Condition || item.condition || '') as ReturnCondition | '',
+        }));
+    } catch (err) {
+        return [];
+    }
+}
+
+function stringifyInventoryItems(items: InventoryItem[]): string {
+    return JSON.stringify(
+        items.map((item) => ({
+            InventoryTypeId: item.InventoryTypeId,
+            Quantity: item.Quantity,
+            Condition: item.Condition || '',
+        })),
+    );
+}
+
+function parseProgramSessionsJson(raw: string): ProgramSession[] {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((session) => ({
+            Name: String(session.Name || session.name || ''),
+            Type: String(session.Type || session.type || ''),
+            StartDateTime: String(session.StartDateTime || session.startDateTime || ''),
+            EndDateTime: String(session.EndDateTime || session.endDateTime || ''),
+        }));
+    } catch (err) {
+        return [];
+    }
+}
+
+function stringifyProgramSessions(sessions: ProgramSession[]): string {
+    return JSON.stringify(
+        sessions.map((session) => ({
+            Name: session.Name || '',
+            Type: session.Type,
+            StartDateTime: session.StartDateTime,
+            EndDateTime: session.EndDateTime,
+        })),
+    );
 }

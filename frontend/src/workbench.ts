@@ -13,6 +13,8 @@ import { replaceWorkbenchUrl } from './router';
 import { escapeHtml } from './ui/format';
 import { icon } from './ui/icons';
 
+const ALL_FILTER_PARAM_VALUE = 'all';
+
 export interface WorkbenchState {
     q: string;
     filter: string;
@@ -31,6 +33,7 @@ export interface WorkbenchToolbarConfig {
     filterParam?: string;
     filterLabel?: string;
     filterOptions?: WorkbenchFilterOption[];
+    defaultFilter?: string;
     defaultSort: string;
     defaultDirection?: SortDirection;
 }
@@ -38,9 +41,14 @@ export interface WorkbenchToolbarConfig {
 export function readWorkbenchState(config: WorkbenchToolbarConfig): WorkbenchState {
     void config.storageKey;
     const params = new URLSearchParams(window.location.search);
+    const filterParamValue = config.filterParam ? params.get(config.filterParam) : '';
     return {
         q: params.get(WORKBENCH_SEARCH_QUERY_PARAM) || '',
-        filter: config.filterParam ? params.get(config.filterParam) || '' : '',
+        filter: config.filterParam
+            ? filterParamValue === ALL_FILTER_PARAM_VALUE
+                ? ''
+                : filterParamValue || config.defaultFilter || ''
+            : '',
         sort: params.get(WORKBENCH_SORT_QUERY_PARAM) || config.defaultSort,
         direction:
             params.get(WORKBENCH_DIRECTION_QUERY_PARAM) === 'asc'
@@ -50,7 +58,8 @@ export function readWorkbenchState(config: WorkbenchToolbarConfig): WorkbenchSta
 }
 
 function optionMarkup(options: WorkbenchFilterOption[], selected: string): string {
-    return options
+    return [...options]
+        .sort((a, b) => a.label.localeCompare(b.label))
         .map(
             (option) =>
                 `<option value="${escapeHtml(option.value)}" ${option.value === selected ? 'selected' : ''}>${escapeHtml(option.label)}</option>`,
@@ -78,33 +87,7 @@ export function renderWorkbenchToolbar(
           <input id="workbench-search" type="search" value="${escapeHtml(state.q)}" placeholder="${escapeHtml(config.searchPlaceholder)}" autocomplete="off" />
         </label>
         ${specificFilter}
-        <div id="workbench-filter-chips" class="workbench-filter-chips"></div>
       </div>`;
-}
-
-function labelFor(options: WorkbenchFilterOption[], value: string): string {
-    return options.find((option) => option.value === value)?.label || value;
-}
-
-function renderChips(config: WorkbenchToolbarConfig, state: WorkbenchState): void {
-    const host = document.getElementById('workbench-filter-chips');
-    if (!host) return;
-    const chips: string[] = [];
-    if (state.q)
-        chips.push(
-            `<button type="button" class="filter-chip" data-clear-filter="q">Search: ${escapeHtml(state.q)} ×</button>`,
-        );
-    if (state.filter) {
-        chips.push(
-            `<button type="button" class="filter-chip" data-clear-filter="specific">${escapeHtml(labelFor(config.filterOptions || [], state.filter))} ×</button>`,
-        );
-    }
-    if (chips.length > 1) {
-        chips.push(
-            '<button type="button" class="filter-clear" data-clear-filter="all">Clear all</button>',
-        );
-    }
-    host.innerHTML = chips.join('');
 }
 
 function updateUrl(config: WorkbenchToolbarConfig, state: WorkbenchState): void {
@@ -116,7 +99,13 @@ function updateUrl(config: WorkbenchToolbarConfig, state: WorkbenchState): void 
     url.searchParams.delete(WORKBENCH_VIEW_QUERY_PARAM);
     url.searchParams.delete(WORKBENCH_STATUS_QUERY_PARAM);
     setOrDelete(WORKBENCH_SEARCH_QUERY_PARAM, state.q);
-    if (config.filterParam) setOrDelete(config.filterParam, state.filter);
+    if (config.filterParam)
+        setOrDelete(
+            config.filterParam,
+            state.filter === (config.defaultFilter || '')
+                ? ''
+                : state.filter || (config.defaultFilter ? ALL_FILTER_PARAM_VALUE : ''),
+        );
     setOrDelete(WORKBENCH_SORT_QUERY_PARAM, state.sort === config.defaultSort ? '' : state.sort);
     setOrDelete(
         WORKBENCH_DIRECTION_QUERY_PARAM,
@@ -133,7 +122,6 @@ export function wireWorkbenchToolbar(
     let searchTimer = 0;
     const emit = () => {
         updateUrl(config, state);
-        renderChips(config, state);
         onChange({ ...state });
     };
     const search = document.getElementById('workbench-search') as HTMLInputElement;
@@ -149,23 +137,6 @@ export function wireWorkbenchToolbar(
         state.filter = (event.target as HTMLSelectElement).value;
         emit();
     });
-    document.getElementById('workbench-filter-chips')?.addEventListener('click', (event) => {
-        const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
-            '[data-clear-filter]',
-        );
-        if (!button) return;
-        const target = button.dataset.clearFilter;
-        if (target === 'q' || target === 'all') {
-            state.q = '';
-            search.value = '';
-        }
-        if (target === 'specific' || target === 'all') {
-            state.filter = '';
-            if (filter) filter.value = '';
-        }
-        emit();
-    });
-    renderChips(config, state);
 }
 
 export function workItemHref(param: string, id: string): string {

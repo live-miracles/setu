@@ -15,16 +15,14 @@ import {
     renderRequestDetailPage,
     renderRequestEditableField,
     renderRequestFieldGrid,
-    renderRequestLineSection,
     renderRequestReadonlyFields,
     renderRequestRecordPanel,
     renderRequesterField,
     renderWorkbenchHeader,
 } from '../ui/components';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { escapeHtml, formatDateTime } from '../ui/format';
+import { MONTH_SHORT_NAMES, escapeHtml, formatDateTime } from '../ui/format';
 import { icon } from '../ui/icons';
-import { PROGRAM_REQUEST_STATUS_BADGE } from '../ui/styles';
 import { canApprove, canTransitionProgramRequest } from '../workflows';
 import {
     type WorkbenchState,
@@ -84,7 +82,6 @@ const SESSION_FIELD_LABELS: Record<SessionFieldName, string> = {
 };
 
 const PROGRAM_FIELD_NAMES = Object.keys(PROGRAM_FIELD_LABELS) as ProgramFieldName[];
-const SESSION_FIELD_NAMES = Object.keys(SESSION_FIELD_LABELS) as SessionFieldName[];
 
 const PROGRAM_NEXT_STATUS_LABELS: Record<ProgramRequestStatus, string[]> = {
     draft: ['Submitted', 'Cancelled'],
@@ -154,6 +151,7 @@ function toolbarConfig(dashboard: DashboardPayload): WorkbenchToolbarConfig {
             { value: 'ongoing-future', label: 'Ongoing & Future' },
             { value: 'past', label: 'Past' },
         ],
+        defaultFilter: 'ongoing-future',
         defaultSort: 'sessionStart',
         defaultDirection: 'asc',
     };
@@ -246,7 +244,7 @@ async function renderProgramBoard(
     );
     if (generation !== programResultsGeneration || !host.isConnected) return;
     host.innerHTML = `<div class="workbench-board">${columns
-        .map((column, index) => renderProgramColumn(column, results[index], index))
+        .map((column, index) => renderProgramColumn(column, results[index], index, dashboard))
         .join('')}</div>`;
     wireProgramLinks(host);
     host.querySelectorAll<HTMLButtonElement>('[data-load-program-column]').forEach((button) => {
@@ -259,7 +257,7 @@ async function renderProgramBoard(
             );
             button.insertAdjacentHTML(
                 'beforebegin',
-                result.items.map(renderProgramBoardCard).join(''),
+                result.items.map((request) => renderProgramBoardCard(request, dashboard)).join(''),
             );
             wireProgramLinks(button.closest('.workbench-column')!);
             const loaded = nextPage * result.pageSize;
@@ -273,9 +271,10 @@ function renderProgramColumn(
     column: (typeof PROGRAM_BOARD_COLUMNS)[number],
     result: Paginated<ProgramRequestDTO>,
     index: number,
+    dashboard: DashboardPayload,
 ): string {
     const content = result.items.length
-        ? result.items.map(renderProgramBoardCard).join('')
+        ? result.items.map((request) => renderProgramBoardCard(request, dashboard)).join('')
         : '<div class="workbench-empty-column">No programs</div>';
     return `<section class="workbench-column" aria-labelledby="program-column-${column.id}">
       <header class="workbench-column-heading">
@@ -287,16 +286,48 @@ function renderProgramColumn(
     </section>`;
 }
 
-function renderProgramBoardCard(request: ProgramRequestDTO): string {
+function renderProgramBoardCard(request: ProgramRequestDTO, dashboard: DashboardPayload): string {
     const first = request.sessions[0];
     const last = request.sessions[request.sessions.length - 1];
+    const department = dashboard.departments.find((item) => item.Id === request.DepartmentId);
+    const departmentLabel = department?.ShortName || request.departmentName;
+    const meta = [request.userName, departmentLabel, request.placeName]
+        .filter(Boolean)
+        .map(escapeHtml)
+        .join(' | ');
     return `<a class="workbench-card" href="${workItemHref(PROGRAM_REQUEST_QUERY_PARAM, request.Id)}" data-program-id="${request.Id}">
-      <div class="workbench-card-top"><span class="font-mono">PRG-${request.DisplayId}</span><span class="badge badge-xs ${PROGRAM_REQUEST_STATUS_BADGE[request.Status]}">${escapeHtml(request.Status)}</span></div>
-      <h3>${escapeHtml(programDisplayTitle(request))}</h3>
-      <p>${escapeHtml(request.Type)} · ${escapeHtml(request.placeName)}</p>
-      ${first ? `<p>${formatDateTime(first.StartDateTime)}${last && last !== first ? ` → ${formatDateTime(last.EndDateTime)}` : ''}</p>` : ''}
-      <p>${escapeHtml(request.userName)}</p>
+      <h3><span class="font-mono text-xs font-normal text-base-content/55">PRG-${request.DisplayId}</span> ${escapeHtml(programDisplayTitle(request))}</h3>
+      ${meta ? `<p>${meta}</p>` : ''}
+      ${first ? `<p>${escapeHtml(formatProgramSessionDateRange(first.StartDateTime, last?.EndDateTime || first.StartDateTime))}</p>` : ''}
     </a>`;
+}
+
+function formatProgramSessionDateRange(startIso: string, endIso: string): string {
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return startIso || endIso || '';
+
+    const startDay = start.getDate();
+    const endDay = end.getDate();
+    const startMonth = MONTH_SHORT_NAMES[start.getMonth()];
+    const endMonth = MONTH_SHORT_NAMES[end.getMonth()];
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+
+    if (
+        startDay === endDay &&
+        startMonth === endMonth &&
+        startYear === endYear
+    ) {
+        return `${startDay} ${startMonth}, ${startYear}`;
+    }
+    if (startMonth === endMonth && startYear === endYear) {
+        return `${startDay} - ${endDay} ${startMonth}, ${startYear}`;
+    }
+    if (startYear === endYear) {
+        return `${startDay} ${startMonth} - ${endDay} ${endMonth}, ${startYear}`;
+    }
+    return `${startDay} ${startMonth}, ${startYear} - ${endDay} ${endMonth}, ${endYear}`;
 }
 
 function wireProgramLinks(root: ParentNode): void {
@@ -335,7 +366,7 @@ function renderProgramCreate(
                 renderProgramTitleField(),
                 renderRequestEditableField(
                     programFieldLabel('language'),
-                    '<input id="program-language" name="language" class="input input-sm" required />',
+                    renderProgramLanguageSelect(dashboard.programLanguages),
                 ),
                 renderRequestEditableField(
                     programFieldLabel('type'),
@@ -343,7 +374,12 @@ function renderProgramCreate(
                 ),
                 renderRequestEditableField(
                     programFieldLabel('placeId'),
-                    `<select id="program-place" name="placeId" class="select select-sm"><option value="">Select place</option>${dashboard.places.map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`).join('')}</select>`,
+                    `<select id="program-place" name="placeId" class="select select-sm"><option value="">Select place</option>${[
+                        ...dashboard.places,
+                    ]
+                        .sort((a, b) => a.Name.localeCompare(b.Name))
+                        .map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`)
+                        .join('')}</select>`,
                 ),
                 renderRequesterField({
                     selectId: 'program-user',
@@ -353,11 +389,6 @@ function renderProgramCreate(
                     editable: true,
                     canEditRequester,
                 }),
-            ],
-        },
-        {
-            title: '',
-            rows: [
                 renderRequestEditableField(
                     programFieldLabel('departmentId'),
                     renderRequestDepartmentSelect(
@@ -377,14 +408,19 @@ function renderProgramCreate(
             ],
         },
     ]);
-    const sessions = renderRequestLineSection(
+    const sessions = renderProgramSessionsSection(
         'Sessions',
         renderEditableSessionRowsShell(),
         'Reservations should include at least one session before saving.',
+        renderAddSessionButton(),
     );
     container.innerHTML = renderRequestDetailPage(
         header,
-        renderRequestRecordPanel(`${fields}${sessions}`, 'form', 'id="create-program-form"'),
+        `${renderRequestRecordPanel(
+            renderRequestRecordTwoPane(fields, sessions),
+            'form',
+            'id="create-program-form"',
+        )}${renderSessionEditModal()}`,
         renderRequestActivityPanel({ createMode: true }),
         false,
     );
@@ -399,9 +435,9 @@ function renderProgramCreate(
 function wireSessionRows(sessionTypes: SessionType[]): void {
     const list = document.getElementById('program-sessions')!;
     const addButton = document.getElementById('add-program-session')!;
-    const addRow = () => addProgramSessionRow(list, sessionTypes);
-    addButton.addEventListener('click', addRow);
-    addRow();
+    wireProgramSessionModal(list, sessionTypes);
+    addButton.addEventListener('click', () => openProgramSessionModal(list, sessionTypes));
+    addProgramSessionRow(list, sessionTypes, defaultProgramSession(list));
 }
 
 function addProgramSessionRow(
@@ -410,19 +446,146 @@ function addProgramSessionRow(
     session?: ProgramSession,
     onChange?: () => void,
 ): void {
-    const row = document.createElement('div');
+    const row = document.createElement('tr');
     row.className = 'program-session-row';
-    row.innerHTML = `${renderNamedOptionSelect('', 'sessionType', sessionTypes, session?.Type || '')}<input type="datetime-local" class="input input-sm" name="startDateTime" value="${escapeHtml(toDateTimeLocalValue(session?.StartDateTime || ''))}" required /><input type="datetime-local" class="input input-sm" name="endDateTime" value="${escapeHtml(toDateTimeLocalValue(session?.EndDateTime || ''))}" required /><input class="input input-sm" name="sessionName" placeholder="${escapeHtml(sessionFieldLabel('sessionName'))}" value="${escapeHtml(session?.Name || '')}" /><button type="button" class="btn btn-ghost btn-sm remove-row" aria-label="Remove session">✕</button>`;
-    row.querySelector('.remove-row')!.addEventListener('click', () => {
+    setProgramSessionRow(row, session || defaultProgramSession(list), onChange);
+    wireProgramSessionRow(row, list, sessionTypes, onChange);
+    list.appendChild(row);
+    onChange?.();
+}
+
+function setProgramSessionRow(row: HTMLElement, session: ProgramSession, onChange?: () => void): void {
+    row.innerHTML = `
+      <td>${escapeHtml(session.Name || 'Untitled')}<input type="hidden" name="sessionName" value="${escapeHtml(session.Name || '')}" /></td>
+      <td>${escapeHtml(session.Type)}<input type="hidden" name="sessionType" value="${escapeHtml(session.Type)}" /></td>
+      <td>${escapeHtml(formatDateTime(session.StartDateTime))}<input type="hidden" name="startDateTime" value="${escapeHtml(toDateTimeLocalValue(session.StartDateTime))}" /></td>
+      <td>${escapeHtml(formatDateTime(session.EndDateTime))}<input type="hidden" name="endDateTime" value="${escapeHtml(toDateTimeLocalValue(session.EndDateTime))}" /></td>
+      <td><span class="program-session-actions"><button type="button" class="btn btn-ghost btn-xs" data-session-edit aria-label="Edit session">${icon('edit', 'size-4')}</button><button type="button" class="btn btn-ghost btn-xs text-error" data-session-delete aria-label="Delete session">${icon('trash', 'size-4')}</button></span></td>`;
+}
+
+function wireProgramSessionRow(
+    row: HTMLElement,
+    list: HTMLElement,
+    sessionTypes: SessionType[],
+    onChange?: () => void,
+): void {
+    row.querySelector<HTMLButtonElement>('[data-session-edit]')!.addEventListener('click', () =>
+        openProgramSessionModal(list, sessionTypes, row, onChange),
+    );
+    row.querySelector<HTMLButtonElement>('[data-session-delete]')!.addEventListener('click', () => {
         row.remove();
         onChange?.();
     });
-    row.querySelectorAll('input, select').forEach((control) => {
-        control.addEventListener('input', () => onChange?.());
-        control.addEventListener('change', () => onChange?.());
+}
+
+function defaultProgramSession(list: HTMLElement): ProgramSession {
+    const rows = Array.from(list.querySelectorAll<HTMLElement>('.program-session-row'));
+    const last = rows[rows.length - 1];
+    if (last) {
+        const start = (last.querySelector('[name="startDateTime"]') as HTMLInputElement).value;
+        const end = (last.querySelector('[name="endDateTime"]') as HTMLInputElement).value;
+        return {
+            Name: '',
+            Type: '',
+            StartDateTime: new Date(start).toISOString(),
+            EndDateTime: new Date(end).toISOString(),
+        };
+    }
+    const today = new Date();
+    const pad = (part: number) => String(part).padStart(2, '0');
+    const date = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    return {
+        Name: '',
+        Type: '',
+        StartDateTime: new Date(`${date}T13:00`).toISOString(),
+        EndDateTime: new Date(`${date}T14:00`).toISOString(),
+    };
+}
+
+function readSessionFromRow(row: HTMLElement): ProgramSession {
+    const value = (name: string) => (row.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
+    return {
+        Name: value('sessionName'),
+        Type: value('sessionType'),
+        StartDateTime: value('startDateTime') ? new Date(value('startDateTime')).toISOString() : '',
+        EndDateTime: value('endDateTime') ? new Date(value('endDateTime')).toISOString() : '',
+    };
+}
+
+function wireProgramSessionModal(list: HTMLElement, sessionTypes: SessionType[], onChange?: () => void): void {
+    const modal = document.getElementById('program-session-modal') as HTMLDialogElement;
+    const form = document.getElementById('program-session-modal-form') as HTMLFormElement;
+    const typeSelect = form.elements.namedItem('sessionType') as HTMLSelectElement;
+    typeSelect.innerHTML = renderNamedOptionSelect('', 'sessionType', sessionTypes, '')
+        .replace(/^<select[^>]*>/, '')
+        .replace('</select>', '');
+    document.getElementById('cancel-session-modal')!.addEventListener('click', () => modal.close());
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const session = readSessionFromModal(form);
+        const error = sessionValidationError(session);
+        if (error) {
+            showErrorAlert(new Error(error));
+            return;
+        }
+        const index = Number((form.elements.namedItem('rowIndex') as HTMLInputElement).value);
+        const rows = Array.from(list.querySelectorAll<HTMLElement>('.program-session-row'));
+        const row = rows[index] || document.createElement('tr');
+        row.className = 'program-session-row';
+        setProgramSessionRow(row, session);
+        wireProgramSessionRow(row, list, sessionTypes, onChange);
+        if (!rows[index]) list.appendChild(row);
+        modal.close();
+        onChange?.();
     });
-    list.appendChild(row);
-    onChange?.();
+}
+
+function openProgramSessionModal(
+    list: HTMLElement,
+    sessionTypes: SessionType[],
+    row?: HTMLElement,
+    onChange?: () => void,
+): void {
+    void sessionTypes;
+    void onChange;
+    const modal = document.getElementById('program-session-modal') as HTMLDialogElement;
+    const form = document.getElementById('program-session-modal-form') as HTMLFormElement;
+    const rows = Array.from(list.querySelectorAll<HTMLElement>('.program-session-row'));
+    const session = row ? readSessionFromRow(row) : defaultProgramSession(list);
+    (form.elements.namedItem('rowIndex') as HTMLInputElement).value = row
+        ? String(rows.indexOf(row))
+        : '-1';
+    (form.elements.namedItem('sessionType') as HTMLSelectElement).value = session.Type;
+    (form.elements.namedItem('sessionName') as HTMLInputElement).value = session.Name;
+    (form.elements.namedItem('startDateTime') as HTMLInputElement).value = toDateTimeLocalValue(
+        session.StartDateTime,
+    );
+    (form.elements.namedItem('endDateTime') as HTMLInputElement).value = toDateTimeLocalValue(
+        session.EndDateTime,
+    );
+    modal.showModal();
+}
+
+function readSessionFromModal(form: HTMLFormElement): ProgramSession {
+    const value = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value;
+    return {
+        Name: value('sessionName'),
+        Type: value('sessionType'),
+        StartDateTime: value('startDateTime') ? new Date(value('startDateTime')).toISOString() : '',
+        EndDateTime: value('endDateTime') ? new Date(value('endDateTime')).toISOString() : '',
+    };
+}
+
+function sessionValidationError(session: ProgramSession): string {
+    if (!session.Type) return 'Session type is required.';
+    if (!session.StartDateTime || !session.EndDateTime) return 'Session start and end are required.';
+    const start = Date.parse(session.StartDateTime);
+    const end = Date.parse(session.EndDateTime);
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
+        return 'Session end must be after start.';
+    }
+    if (end - start >= 86400000) return 'Sessions must be shorter than 24 hours.';
+    return '';
 }
 
 function wireCreateProgramForm(): void {
@@ -512,7 +675,7 @@ function renderProgramDetail(
               renderProgramTitleField(request.Name),
               renderRequestEditableField(
                   programFieldLabel('language'),
-                  `<input id="program-language" name="language" class="input input-sm" value="${escapeHtml(request.Language || '')}" required />`,
+                  renderProgramLanguageSelect(dashboard.programLanguages, request.Language),
               ),
               renderRequestEditableField(
                   programFieldLabel('type'),
@@ -577,14 +740,10 @@ function renderProgramDetail(
                           editable,
                           canEditRequester,
                       }),
+                      ...basicRows.slice(4),
                   ]
-                : basicRows,
-        },
-        {
-            title: '',
-            rows: editable
-                ? [...basicRows.slice(4)]
                 : [
+                      ...basicRows,
                       renderRequesterField({
                           selectId: 'program-user',
                           users,
@@ -596,19 +755,21 @@ function renderProgramDetail(
                   ],
         },
     ]);
-    const sessions = renderRequestLineSection(
+    const sessions = renderProgramSessionsSection(
         'Sessions',
         editable
             ? renderEditableSessionRowsShell()
             : `<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Title (optional)</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>${request.sessions.map((session) => `<tr><td>${escapeHtml(session.Name)}</td><td>${escapeHtml(session.Type)}</td><td>${formatDateTime(session.StartDateTime)}</td><td>${formatDateTime(session.EndDateTime)}</td></tr>`).join('')}</tbody></table></div>`,
+        '',
+        editable ? renderAddSessionButton() : '',
     );
     container.innerHTML = renderRequestDetailPage(
         header,
-        renderRequestRecordPanel(
-            `${fields}${sessions}`,
+        `${renderRequestRecordPanel(
+            renderRequestRecordTwoPane(fields, sessions),
             editable ? 'form' : 'main',
             editable ? 'id="edit-program-form"' : '',
-        ),
+        )}${editable ? renderSessionEditModal() : ''}`,
         renderRequestActivityPanel({
             comments: request.comments,
             commentFormId: 'request-comment-form',
@@ -656,6 +817,7 @@ function wireProgramDetailEditForm(
     const readSnapshot = () => JSON.stringify(readProgramFormInput(form));
     let savedSnapshot = '';
     const updateDirty = () => actions.classList.toggle('hidden', readSnapshot() === savedSnapshot);
+    wireProgramSessionModal(list, dashboard.sessionTypes, updateDirty);
     request.sessions.forEach((session) =>
         addProgramSessionRow(list, dashboard.sessionTypes, session, updateDirty),
     );
@@ -664,7 +826,7 @@ function wireProgramDetailEditForm(
     document
         .getElementById('add-program-session')!
         .addEventListener('click', () =>
-            addProgramSessionRow(list, dashboard.sessionTypes, undefined, updateDirty),
+            openProgramSessionModal(list, dashboard.sessionTypes, undefined, updateDirty),
         );
     form.addEventListener('input', updateDirty);
     form.addEventListener('change', updateDirty);
@@ -741,17 +903,19 @@ function renderNamedOptionSelect(
     selectedName = '',
 ): string {
     const hasSelected = !selectedName || options.some((option) => option.Name === selectedName);
-    return `<select ${id ? `id="${escapeHtml(id)}"` : ''} name="${escapeHtml(name)}" class="select select-sm" required><option value="">Select</option>${hasSelected ? '' : `<option value="${escapeHtml(selectedName)}" selected>${escapeHtml(selectedName)}</option>`}${options.map((option) => `<option value="${escapeHtml(option.Name)}" ${option.Name === selectedName ? 'selected' : ''}>${escapeHtml(option.Name)}</option>`).join('')}</select>`;
+    const sortedOptions = [...options].sort((a, b) => a.Name.localeCompare(b.Name));
+    return `<select ${id ? `id="${escapeHtml(id)}"` : ''} name="${escapeHtml(name)}" class="select select-sm" required><option value="">Select</option>${hasSelected ? '' : `<option value="${escapeHtml(selectedName)}" selected>${escapeHtml(selectedName)}</option>`}${sortedOptions.map((option) => `<option value="${escapeHtml(option.Name)}" ${option.Name === selectedName ? 'selected' : ''}>${escapeHtml(option.Name)}</option>`).join('')}</select>`;
 }
 
 function renderProgramTypeSelect(options: { Name: string }[], selectedName = ''): string {
     const withOther = options.some((option) => option.Name === 'Other')
         ? options
         : [...options, { Name: 'Other' }];
-    const ordered = withOther
-        .filter((option) => option.Name !== 'Other')
-        .concat(withOther.filter((option) => option.Name === 'Other'));
-    return renderNamedOptionSelect('program-type', 'type', ordered, selectedName);
+    return renderNamedOptionSelect('program-type', 'type', withOther, selectedName);
+}
+
+function renderProgramLanguageSelect(options: { Name: string }[], selectedName = ''): string {
+    return renderNamedOptionSelect('program-language', 'language', options, selectedName);
 }
 
 function programDisplayTitle(request: ProgramRequestDTO): string {
@@ -766,7 +930,50 @@ function renderProgramTitleField(value = ''): string {
 }
 
 function renderEditableSessionRowsShell(): string {
-    return `<div class="program-session-heading"><span>${escapeHtml(sessionFieldLabel('sessionType'))}</span><span>${escapeHtml(sessionFieldLabel('startDateTime'))}</span><span>${escapeHtml(sessionFieldLabel('endDateTime'))}</span><span>${renderFieldLabelHtml(SESSION_FIELD_LABELS.sessionName, SESSION_FIELD_REQUIRED.sessionName())}</span><span></span></div><div id="program-sessions" class="request-line-list"></div><button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button>`;
+    return '<div class="overflow-x-auto"><table class="table table-sm program-sessions-table"><thead><tr><th>Title</th><th>Type</th><th>Start</th><th>End</th><th></th></tr></thead><tbody id="program-sessions"></tbody></table></div>';
+}
+
+function renderRequestRecordTwoPane(fieldsHtml: string, linesHtml: string): string {
+    return `<div class="request-record-two-pane">${fieldsHtml}${linesHtml}</div>`;
+}
+
+function renderProgramSessionsSection(
+    title: string,
+    contentHtml: string,
+    notice = '',
+    actionsHtml = '',
+): string {
+    return `<section class="request-lines-panel program-sessions-panel">
+      <div class="program-sessions-frame">
+        <div class="request-line-header">
+          <h2>${escapeHtml(title)}</h2>
+          ${actionsHtml ? `<div class="request-line-actions">${actionsHtml}</div>` : ''}
+        </div>
+        ${contentHtml}
+      </div>
+      ${notice ? `<div class="request-line-notice">${escapeHtml(notice)}</div>` : ''}
+    </section>`;
+}
+
+function renderAddSessionButton(): string {
+    return `<button type="button" id="add-program-session" class="btn btn-ghost btn-sm">${icon('plus', 'size-4')} Add session</button>`;
+}
+
+function renderSessionEditModal(): string {
+    return `<dialog id="program-session-modal" class="modal">
+      <div class="modal-box w-11/12 max-w-[42rem]">
+        <h3 class="mb-4 text-base font-semibold">Session</h3>
+        <form id="program-session-modal-form" class="grid gap-3 sm:grid-cols-2">
+          <input type="hidden" name="rowIndex" />
+          <label class="fieldset"><span class="label">${escapeHtml(sessionFieldLabel('sessionType'))}</span><select name="sessionType" class="select w-full" required></select></label>
+          <label class="fieldset"><span class="label">${escapeHtml(sessionFieldLabel('sessionName'))}</span><input name="sessionName" class="input w-full" /></label>
+          <label class="fieldset"><span class="label">${escapeHtml(sessionFieldLabel('startDateTime'))}</span><input name="startDateTime" type="datetime-local" class="input w-full" required /></label>
+          <label class="fieldset"><span class="label">${escapeHtml(sessionFieldLabel('endDateTime'))}</span><input name="endDateTime" type="datetime-local" class="input w-full" required /></label>
+          <div class="modal-action sm:col-span-2"><button type="button" class="btn btn-ghost" id="cancel-session-modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>`;
 }
 
 function renderFieldLabelHtml(label: string, required: boolean): string {
@@ -827,6 +1034,7 @@ function clearInvalidStyle(target: EventTarget | null): void {
 }
 
 function validateProgramForm(form: HTMLFormElement): boolean {
+    let sessionError = '';
     PROGRAM_FIELD_NAMES.forEach((field) => {
         const control = form.elements.namedItem(field);
         if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement)) return;
@@ -837,25 +1045,14 @@ function validateProgramForm(form: HTMLFormElement): boolean {
         );
     });
     form.querySelectorAll('.program-session-row').forEach((row) => {
-        SESSION_FIELD_NAMES.forEach((field) => {
-            const control = row.querySelector<HTMLInputElement | HTMLSelectElement>(
-                `[name="${field}"]`,
-            );
-            if (!control) return;
-            const required = SESSION_FIELD_REQUIRED[field]();
-            control.required = required;
-            control.setCustomValidity(
-                required && !control.value.trim()
-                    ? `${SESSION_FIELD_LABELS[field]} is required.`
-                    : '',
-            );
-        });
-        const start = row.querySelector<HTMLInputElement>('input[name="startDateTime"]');
-        const end = row.querySelector<HTMLInputElement>('input[name="endDateTime"]');
-        if (!start || !end) return;
-        const invalidRange = Boolean(start.value && end.value && end.value <= start.value);
-        end.setCustomValidity(invalidRange ? 'End must be after start.' : '');
+        if (sessionError) return;
+        sessionError = sessionValidationError(readSessionFromRow(row as HTMLElement));
     });
+    if (!form.querySelector('.program-session-row')) sessionError = 'Add at least one session.';
+    if (sessionError) {
+        showErrorAlert(new Error(sessionError));
+        return false;
+    }
     const valid = form.reportValidity();
     form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
         'input:invalid, select:invalid',
@@ -868,7 +1065,12 @@ function validateProgramForm(form: HTMLFormElement): boolean {
 }
 
 function renderRequestPlaceSelect(id: string, places: Place[], selectedId: string): string {
-    return `<select id="${id}" name="placeId" class="select select-sm"><option value="">Select place</option>${places.map((place) => `<option value="${place.Id}" ${place.Id === selectedId ? 'selected' : ''}>${escapeHtml(place.Name)}</option>`).join('')}</select>`;
+    return `<select id="${id}" name="placeId" class="select select-sm"><option value="">Select place</option>${[
+        ...places,
+    ]
+        .sort((a, b) => a.Name.localeCompare(b.Name))
+        .map((place) => `<option value="${place.Id}" ${place.Id === selectedId ? 'selected' : ''}>${escapeHtml(place.Name)}</option>`)
+        .join('')}</select>`;
 }
 
 function renderRequestDepartmentSelect(
@@ -876,7 +1078,12 @@ function renderRequestDepartmentSelect(
     departments: Department[],
     selectedId: string,
 ): string {
-    return `<select id="${id}" name="departmentId" class="select select-sm" required><option value="">Select department</option>${departments.map((department) => `<option value="${department.Id}" ${department.Id === selectedId ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`).join('')}</select>`;
+    return `<select id="${id}" name="departmentId" class="select select-sm" required><option value="">Select department</option>${[
+        ...departments,
+    ]
+        .sort((a, b) => a.Name.localeCompare(b.Name))
+        .map((department) => `<option value="${department.Id}" ${department.Id === selectedId ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`)
+        .join('')}</select>`;
 }
 
 function defaultLeadEmail(departments: Department[], departmentId: string): string {

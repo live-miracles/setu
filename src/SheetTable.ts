@@ -162,13 +162,7 @@ const Tables = {
         'DepartmentId',
         'LeadEmail',
         'Participants',
-    ]),
-    InventoryItems: SheetTable<InventoryItem>('InventoryItems', [
-        'Id',
-        'RequestId',
-        'InventoryTypeId',
-        'Quantity',
-        'Condition',
+        'ItemsJson',
     ]),
     ProgramRequests: SheetTable<ProgramRequest>('ProgramRequests', [
         'Id',
@@ -182,14 +176,7 @@ const Tables = {
         'LeadEmail',
         'Participants',
         'Language',
-    ]),
-    Sessions: SheetTable<ProgramSession>('Sessions', [
-        'Id',
-        'Name',
-        'Type',
-        'RequestId',
-        'StartDateTime',
-        'EndDateTime',
+        'SessionsJson',
     ]),
     Tickets: SheetTable<Ticket>('Tickets', [
         'Id',
@@ -218,6 +205,7 @@ const Tables = {
         'Message',
         'Error',
     ]),
+    Blocks: SheetTable<Block>('Blocks', ['Id', 'StartDateTime', 'EndDateTime', 'Name', 'Place']),
 };
 
 // No separate Counters tab: each counter is a JSON-free Settings row keyed

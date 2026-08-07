@@ -29,6 +29,7 @@ export const ROUTER_CONFIG: RouterConfig = {
         places: (c, d) => renderSettingsList(SETTINGS_LIST_PAGES.places, c, d),
         'inventory-types': (c, d) =>
             renderSettingsList(SETTINGS_LIST_PAGES['inventory-types'], c, d),
+        blocks: (c, d) => renderSettingsList(SETTINGS_LIST_PAGES.blocks, c, d),
         'home-content': renderHomeContent,
     },
     registrationGate: renderRegistrationGate,

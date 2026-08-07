@@ -38,6 +38,8 @@ function mockParseParticipants(raw: string): string[] {
 
 type MockProgramFieldName = 'name' | 'language' | 'type' | 'departmentId' | 'leadEmail';
 type MockSessionFieldName = 'type' | 'startDateTime' | 'endDateTime';
+type MockLegacyInventoryItem = InventoryItem & { Id: string; RequestId: string };
+type MockLegacyProgramSession = ProgramSession & { Id: string; RequestId: string };
 
 const MOCK_PROGRAM_FIELD_LABELS: Record<MockProgramFieldName, string> = {
     name: 'Program title',
@@ -96,20 +98,64 @@ function mockCleanSessionField(input: ProgramSessionInput, field: MockSessionFie
     return value;
 }
 
-function mockCleanProgramSessions(input: ProgramSessionInput[]): ProgramSessionInput[] {
+function mockCleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
     if (!input || input.length === 0) throw new Error('At least one session is required.');
     return input.map((session) => {
         const type = mockCleanSessionField(session, 'type');
         const startDateTime = mockCleanSessionField(session, 'startDateTime');
         const endDateTime = mockCleanSessionField(session, 'endDateTime');
-        if (endDateTime <= startDateTime) throw new Error('Session end must be after its start.');
+        const startMs = Date.parse(startDateTime);
+        const endMs = Date.parse(endDateTime);
+        if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
+            throw new Error('Session end must be after its start.');
+        }
+        if (endMs - startMs >= 86400000) throw new Error('Sessions must be shorter than 24 hours.');
         return {
-            name: session.name || '',
-            type,
-            startDateTime,
-            endDateTime,
+            Name: session.name || '',
+            Type: type,
+            StartDateTime: startDateTime,
+            EndDateTime: endDateTime,
         };
     });
+}
+
+function mockInventoryItemsJson(items: InventoryItem[]): string {
+    return JSON.stringify(
+        items.map((item) => ({
+            InventoryTypeId: item.InventoryTypeId,
+            Quantity: item.Quantity,
+            Condition: item.Condition || '',
+        })),
+    );
+}
+
+function mockProgramSessionsJson(sessions: ProgramSession[]): string {
+    return JSON.stringify(
+        sessions.map((session) => ({
+            Name: session.Name || '',
+            Type: session.Type,
+            StartDateTime: session.StartDateTime,
+            EndDateTime: session.EndDateTime,
+        })),
+    );
+}
+
+function mockParseInventoryItems(raw: string): InventoryItem[] {
+    try {
+        const parsed = JSON.parse(raw || '[]');
+        return Array.isArray(parsed) ? (parsed as InventoryItem[]) : [];
+    } catch (err) {
+        return [];
+    }
+}
+
+function mockParseProgramSessions(raw: string): ProgramSession[] {
+    try {
+        const parsed = JSON.parse(raw || '[]');
+        return Array.isArray(parsed) ? (parsed as ProgramSession[]) : [];
+    } catch (err) {
+        return [];
+    }
 }
 
 const EXTRA_APPROVED_PROGRAM_REQUESTS: ProgramRequest[] = Array.from({ length: 10 }, (_, index) => {
@@ -126,19 +172,34 @@ const EXTRA_APPROVED_PROGRAM_REQUESTS: ProgramRequest[] = Array.from({ length: 1
         DepartmentId: 'dep-' + ((index % 6) + 1),
         LeadEmail: index % 3 === 0 ? 'ana@example.com' : 'admin@example.com',
         Participants: index % 2 === 0 ? 'ana@example.com' : '',
+        SessionsJson: '',
     };
 });
 
-const EXTRA_APPROVED_PROGRAM_SESSIONS: ProgramSession[] = EXTRA_APPROVED_PROGRAM_REQUESTS.map(
-    (request, index) => ({
-        Id: 'session-' + request.DisplayId,
-        Name: 'Main session',
-        Type: request.Type,
-        RequestId: request.Id,
-        StartDateTime: mockAddDays(8 + index) + 'T09:00:00.000Z',
-        EndDateTime: mockAddDays(8 + index) + 'T11:00:00.000Z',
-    }),
-);
+const EXTRA_APPROVED_PROGRAM_SESSIONS: MockLegacyProgramSession[] =
+    EXTRA_APPROVED_PROGRAM_REQUESTS.flatMap((request, index) => {
+        const sessions: MockLegacyProgramSession[] = [
+            {
+                Id: 'session-' + request.DisplayId,
+                Name: 'Main session',
+                Type: request.Type,
+                RequestId: request.Id,
+                StartDateTime: mockAddDays(8 + index) + 'T09:00:00.000Z',
+                EndDateTime: mockAddDays(8 + index) + 'T11:00:00.000Z',
+            },
+        ];
+        if (index % 3 === 0) {
+            sessions.push({
+                Id: 'session-' + request.DisplayId + '-prep',
+                Name: 'Prep session',
+                Type: 'Setup',
+                RequestId: request.Id,
+                StartDateTime: mockAddDays(8 + index) + 'T07:30:00.000Z',
+                EndDateTime: mockAddDays(8 + index) + 'T08:30:00.000Z',
+            });
+        }
+        return sessions;
+    });
 
 const mockData = {
     currentUserId: 'admin@example.com',
@@ -223,6 +284,7 @@ const mockData = {
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
             Participants: '',
+            ItemsJson: '',
         },
         {
             Id: 'req-2',
@@ -236,6 +298,7 @@ const mockData = {
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
             Participants: 'sam@example.com',
+            ItemsJson: '',
         },
         {
             Id: 'req-3',
@@ -249,6 +312,7 @@ const mockData = {
             DepartmentId: 'dep-3',
             LeadEmail: 'vic@example.com',
             Participants: '',
+            ItemsJson: '',
         },
         {
             Id: 'req-4',
@@ -262,6 +326,7 @@ const mockData = {
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
             Participants: '',
+            ItemsJson: '',
         },
         {
             Id: 'req-5',
@@ -275,6 +340,7 @@ const mockData = {
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
             Participants: '',
+            ItemsJson: '',
         },
     ] as InventoryRequest[],
     inventoryItems: [
@@ -313,7 +379,7 @@ const mockData = {
             Quantity: 1,
             Condition: 'good' as ReturnCondition,
         },
-    ] as InventoryItem[],
+    ] as MockLegacyInventoryItem[],
     programRequests: [
         {
             Id: 'program-1',
@@ -327,6 +393,7 @@ const mockData = {
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
             Participants: 'ana@example.com',
+            SessionsJson: '',
         },
         {
             Id: 'program-2',
@@ -340,6 +407,7 @@ const mockData = {
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
             Participants: '',
+            SessionsJson: '',
         },
         {
             Id: 'program-3',
@@ -353,6 +421,7 @@ const mockData = {
             DepartmentId: 'dep-3',
             LeadEmail: 'vic@example.com',
             Participants: '',
+            SessionsJson: '',
         },
         {
             Id: 'program-4',
@@ -366,6 +435,7 @@ const mockData = {
             DepartmentId: 'dep-4',
             LeadEmail: 'admin@example.com',
             Participants: '',
+            SessionsJson: '',
         },
         {
             Id: 'program-5',
@@ -379,6 +449,7 @@ const mockData = {
             DepartmentId: 'dep-4',
             LeadEmail: 'admin@example.com',
             Participants: '',
+            SessionsJson: '',
         },
         {
             Id: 'program-6',
@@ -392,6 +463,7 @@ const mockData = {
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
             Participants: '',
+            SessionsJson: '',
         },
         {
             Id: 'program-7',
@@ -405,6 +477,7 @@ const mockData = {
             DepartmentId: 'dep-2',
             LeadEmail: 'ana@example.com',
             Participants: 'sam@example.com',
+            SessionsJson: '',
         },
         {
             Id: 'program-8',
@@ -418,6 +491,7 @@ const mockData = {
             DepartmentId: 'dep-3',
             LeadEmail: 'vic@example.com',
             Participants: '',
+            SessionsJson: '',
         },
         ...EXTRA_APPROVED_PROGRAM_REQUESTS,
     ] as ProgramRequest[],
@@ -448,6 +522,14 @@ const mockData = {
         },
         {
             Id: 'session-4',
+            Name: 'Mic check',
+            Type: 'Setup',
+            RequestId: 'program-2',
+            StartDateTime: mockAddDays(4) + 'T08:15:00.000Z',
+            EndDateTime: mockAddDays(4) + 'T08:45:00.000Z',
+        },
+        {
+            Id: 'session-5',
             Name: 'Orientation',
             Type: 'Webinar',
             RequestId: 'program-3',
@@ -455,7 +537,15 @@ const mockData = {
             EndDateTime: mockAddDays(6) + 'T13:30:00.000Z',
         },
         {
-            Id: 'session-5',
+            Id: 'session-6',
+            Name: 'Q&A circle',
+            Type: 'Live',
+            RequestId: 'program-3',
+            StartDateTime: mockAddDays(6) + 'T14:00:00.000Z',
+            EndDateTime: mockAddDays(6) + 'T15:00:00.000Z',
+        },
+        {
+            Id: 'session-7',
             Name: 'Rehearsal',
             Type: 'Dry run',
             RequestId: 'program-4',
@@ -463,7 +553,7 @@ const mockData = {
             EndDateTime: mockAddDays(1) + 'T16:00:00.000Z',
         },
         {
-            Id: 'session-6',
+            Id: 'session-8',
             Name: 'Review',
             Type: 'Meeting',
             RequestId: 'program-5',
@@ -471,7 +561,7 @@ const mockData = {
             EndDateTime: mockAddDays(-2) + 'T11:00:00.000Z',
         },
         {
-            Id: 'session-7',
+            Id: 'session-9',
             Name: 'Walkthrough',
             Type: 'Visit',
             RequestId: 'program-6',
@@ -479,7 +569,7 @@ const mockData = {
             EndDateTime: mockAddDays(3) + 'T12:00:00.000Z',
         },
         {
-            Id: 'session-8',
+            Id: 'session-10',
             Name: 'Archive capture',
             Type: 'Recording',
             RequestId: 'program-7',
@@ -487,15 +577,31 @@ const mockData = {
             EndDateTime: mockAddDays(5) + 'T10:30:00.000Z',
         },
         {
-            Id: 'session-9',
+            Id: 'session-11',
+            Name: 'Edit notes review',
+            Type: 'Meeting',
+            RequestId: 'program-7',
+            StartDateTime: mockAddDays(5) + 'T11:00:00.000Z',
+            EndDateTime: mockAddDays(5) + 'T11:45:00.000Z',
+        },
+        {
+            Id: 'session-12',
             Name: 'Main session',
             Type: 'Live',
             RequestId: 'program-8',
             StartDateTime: mockAddDays(7) + 'T13:30:00.000Z',
             EndDateTime: mockAddDays(7) + 'T15:00:00.000Z',
         },
+        {
+            Id: 'session-13',
+            Name: 'Stage setup',
+            Type: 'Setup',
+            RequestId: 'program-8',
+            StartDateTime: mockAddDays(7) + 'T12:30:00.000Z',
+            EndDateTime: mockAddDays(7) + 'T13:15:00.000Z',
+        },
         ...EXTRA_APPROVED_PROGRAM_SESSIONS,
-    ] as ProgramSession[],
+    ] as MockLegacyProgramSession[],
     rosters: [
         {
             // Same day/name/time as roster-2 below - the calendar merges the
@@ -675,13 +781,54 @@ const mockData = {
         { Id: 'program-type-visit', Name: 'Visit' },
         { Id: 'program-type-other', Name: 'Other' },
     ] as ProgramType[],
+    programLanguages: [
+        { Id: 'program-language-english', Name: 'English' },
+        { Id: 'program-language-hindi', Name: 'Hindi' },
+        { Id: 'program-language-tamil', Name: 'Tamil' },
+        { Id: 'program-language-telugu', Name: 'Telugu' },
+        { Id: 'program-language-kannada', Name: 'Kannada' },
+    ] as ProgramLanguage[],
     sessionTypes: [
         { Id: 'session-type-live', Name: 'Live' },
         { Id: 'session-type-dry-run', Name: 'Dry Run' },
         { Id: 'session-type-recording', Name: 'Recording' },
     ] as SessionType[],
+    blocks: [
+        {
+            Id: 'block-1',
+            Name: 'Global maintenance',
+            StartDateTime: mockAddDays(10) + 'T09:00:00.000Z',
+            EndDateTime: mockAddDays(10) + 'T12:00:00.000Z',
+            Place: '',
+        },
+    ] as Block[],
     nextDisplayId: { inventory_request: 6, program_request: 39, ticket: 2 },
 };
+
+mockData.inventoryRequests.forEach((request) => {
+    request.ItemsJson = mockInventoryItemsJson(
+        mockData.inventoryItems
+            .filter((item) => item.RequestId === request.Id)
+            .map((item) => ({
+                InventoryTypeId: item.InventoryTypeId,
+                Quantity: item.Quantity,
+                Condition: item.Condition,
+            })),
+    );
+});
+
+mockData.programRequests.forEach((request) => {
+    request.SessionsJson = mockProgramSessionsJson(
+        mockData.sessions
+            .filter((session) => session.RequestId === request.Id)
+            .map((session) => ({
+                Name: session.Name,
+                Type: session.Type,
+                StartDateTime: session.StartDateTime,
+                EndDateTime: session.EndDateTime,
+            })),
+    );
+});
 
 function mockCurrentUser(): User {
     return mockData.users.find((u) => u.Email === mockData.currentUserId)!;
@@ -710,10 +857,11 @@ function mockBuildRosterDTO(roster: Roster): RosterDTO {
 
 function mockComputeDeductionsByType(): Record<string, number> {
     const deductions: Record<string, number> = {};
-    mockData.inventoryItems.forEach((item) => {
-        const request = mockData.inventoryRequests.find((r) => r.Id === item.RequestId);
-        if (!request || request.Status !== 'issued') return;
-        deductions[item.InventoryTypeId] = (deductions[item.InventoryTypeId] || 0) + item.Quantity;
+    mockData.inventoryRequests.forEach((request) => {
+        if (request.Status !== 'issued') return;
+        mockParseInventoryItems(request.ItemsJson).forEach((item) => {
+            deductions[item.InventoryTypeId] = (deductions[item.InventoryTypeId] || 0) + item.Quantity;
+        });
     });
     return deductions;
 }
@@ -757,9 +905,7 @@ function mockInsertActionComment(
 function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryRequestDTO {
     const requester = mockData.users.find((u) => u.Email === request.UserId);
     const department = mockData.departments.find((d) => d.Id === request.DepartmentId);
-    const items = mockData.inventoryItems
-        .filter((i) => i.RequestId === request.Id)
-        .map((i) => {
+    const items = mockParseInventoryItems(request.ItemsJson).map((i) => {
             const type = mockData.inventoryTypes.find((t) => t.Id === i.InventoryTypeId);
             return Object.assign({}, i, { itemName: type ? type.Name : '' });
         });
@@ -776,8 +922,7 @@ function mockBuildProgramRequestDTO(request: ProgramRequest): ProgramRequestDTO 
     const requester = mockData.users.find((u) => u.Email === request.UserId);
     const place = mockData.places.find((p) => p.Id === request.PlaceId);
     const department = mockData.departments.find((d) => d.Id === request.DepartmentId);
-    const sessions = mockData.sessions
-        .filter((s) => s.RequestId === request.Id)
+    const sessions = mockParseProgramSessions(request.SessionsJson)
         .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
@@ -798,16 +943,12 @@ function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
 }
 
 function mockIncludes(query: string | undefined, values: unknown[]): boolean {
-    const needle = String(query || '')
+    const needles = String(query || '')
         .trim()
         .toLocaleLowerCase();
-    return (
-        !needle ||
-        values.some((value) =>
-            String(value || '')
-                .toLocaleLowerCase()
-                .includes(needle),
-        )
+    if (!needles) return true;
+    return needles.split(/\s+/).every((needle) =>
+        values.some((value) => String(value || '').toLocaleLowerCase().includes(needle)),
     );
 }
 
@@ -852,7 +993,11 @@ function mockBuildDashboard(): DashboardPayload {
         homeContent: mockData.homeContent,
         shiftPresets: [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
         programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+        programLanguages: [...mockData.programLanguages].sort((a, b) =>
+            a.Name.localeCompare(b.Name),
+        ),
         sessionTypes: [...mockData.sessionTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+        blocks: [...mockData.blocks].sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime)),
         failedEmailCount: 0,
     };
 }
@@ -1009,6 +1154,23 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.programTypes = mockData.programTypes.filter((item) => item.Id !== id);
     },
 
+    listProgramLanguages: () =>
+        [...mockData.programLanguages].sort((a, b) => a.Name.localeCompare(b.Name)),
+    createProgramLanguage: (input: CreateNamedOptionInput) => {
+        const created: ProgramLanguage = { Id: mockUuid(), Name: input.name };
+        mockData.programLanguages.push(created);
+        return created;
+    },
+    updateProgramLanguage: (id: string, input: CreateNamedOptionInput) => {
+        const option = mockData.programLanguages.find((item) => item.Id === id);
+        if (!option) throw new Error('not_found');
+        option.Name = input.name;
+        return option;
+    },
+    deleteProgramLanguage: (id: string) => {
+        mockData.programLanguages = mockData.programLanguages.filter((item) => item.Id !== id);
+    },
+
     listSessionTypes: () => [...mockData.sessionTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
     createSessionType: (input: CreateNamedOptionInput) => {
         const created: SessionType = { Id: mockUuid(), Name: input.name };
@@ -1023,6 +1185,31 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     },
     deleteSessionType: (id: string) => {
         mockData.sessionTypes = mockData.sessionTypes.filter((item) => item.Id !== id);
+    },
+
+    listBlocks: () => [...mockData.blocks].sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime)),
+    createBlock: (input: CreateBlockInput) => {
+        const created: Block = {
+            Id: mockUuid(),
+            Name: input.name,
+            StartDateTime: input.startDateTime,
+            EndDateTime: input.endDateTime,
+            Place: input.place || '',
+        };
+        mockData.blocks.push(created);
+        return created;
+    },
+    updateBlock: (id: string, input: CreateBlockInput) => {
+        const block = mockData.blocks.find((item) => item.Id === id);
+        if (!block) throw new Error('not_found');
+        block.Name = input.name;
+        block.StartDateTime = input.startDateTime;
+        block.EndDateTime = input.endDateTime;
+        block.Place = input.place || '';
+        return block;
+    },
+    deleteBlock: (id: string) => {
+        mockData.blocks = mockData.blocks.filter((item) => item.Id !== id);
     },
 
     listRosters: (page: number) => {
@@ -1143,17 +1330,15 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             DepartmentId: input.departmentId,
             LeadEmail: input.leadEmail,
             Participants: participants.join(', '),
+            ItemsJson: mockInventoryItemsJson(
+                input.items.map((line) => ({
+                    InventoryTypeId: line.inventoryTypeId,
+                    Quantity: line.quantity,
+                    Condition: line.condition || '',
+                })),
+            ),
         };
         mockData.inventoryRequests.push(created);
-        input.items.forEach((line) => {
-            mockData.inventoryItems.push({
-                Id: mockUuid(),
-                RequestId: created.Id,
-                InventoryTypeId: line.inventoryTypeId,
-                Quantity: line.quantity,
-                Condition: '',
-            });
-        });
         mockInsertActionComment(
             'inventory',
             created.Id,
@@ -1172,9 +1357,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (!(canApprove(mockToUserDTO(actor)) || (isOwner && request.Status === 'draft'))) {
             throw new Error('edit_not_allowed');
         }
-        if (['issued', 'returned', 'rejected', 'cancelled', 'closed'].includes(request.Status)) {
-            throw new Error('request_not_editable');
-        }
         const requestedBy = mockData.users.find((user) => user.Email === input.userId);
         if (!requestedBy) throw new Error('requester_not_found');
         if (request.UserId !== requestedBy.Email && !canApprove(mockToUserDTO(actor))) {
@@ -1187,16 +1369,13 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         request.DepartmentId = input.departmentId;
         request.LeadEmail = input.leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');
-        mockData.inventoryItems = mockData.inventoryItems.filter((item) => item.RequestId !== id);
-        input.items.forEach((line) => {
-            mockData.inventoryItems.push({
-                Id: mockUuid(),
-                RequestId: id,
+        request.ItemsJson = mockInventoryItemsJson(
+            input.items.map((line) => ({
                 InventoryTypeId: line.inventoryTypeId,
                 Quantity: line.quantity,
-                Condition: '',
-            });
-        });
+                Condition: line.condition || '',
+            })),
+        );
         mockInsertActionComment(
             'inventory',
             id,
@@ -1251,14 +1430,17 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             );
         } else if (action === 'return' && returnItems) {
             const summaries: string[] = [];
-            returnItems.forEach((ret) => {
-                const item = mockData.inventoryItems.find((i) => i.Id === ret.requestItemId)!;
+            const items = mockParseInventoryItems(request.ItemsJson);
+            if (returnItems.length !== items.length) throw new Error('invalid_return_items');
+            returnItems.forEach((ret, index) => {
+                const item = items[index];
                 item.Condition = ret.condition;
                 const type = mockData.inventoryTypes.find((t) => t.Id === item.InventoryTypeId);
                 summaries.push(
                     item.Quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
                 );
             });
+            request.ItemsJson = mockInventoryItemsJson(items);
             request.Status = 'returned';
             mockInsertActionComment(
                 'inventory',
@@ -1306,8 +1488,13 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 mockIncludes(query.q, [
                     `PRG-${request.DisplayId}`,
                     request.Name,
+                    request.Language,
                     request.Type,
                     request.userName,
+                    request.UserId,
+                    request.departmentName,
+                    mockData.departments.find((department) => department.Id === request.DepartmentId)
+                        ?.LeadEmail,
                     request.participants.join(' '),
                     request.placeName,
                     request.sessions.map((session) => `${session.Name} ${session.Type}`).join(' '),
@@ -1361,18 +1548,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             DepartmentId: departmentId,
             LeadEmail: leadEmail,
             Participants: participants.join(', '),
+            SessionsJson: mockProgramSessionsJson(sessions),
         };
         mockData.programRequests.push(created);
-        sessions.forEach((session) => {
-            mockData.sessions.push({
-                Id: mockUuid(),
-                Name: session.name,
-                Type: session.type,
-                RequestId: created.Id,
-                StartDateTime: session.startDateTime,
-                EndDateTime: session.endDateTime,
-            });
-        });
         mockInsertActionComment(
             'program',
             created.Id,
@@ -1420,17 +1598,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         request.DepartmentId = departmentId;
         request.LeadEmail = leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');
-        mockData.sessions = mockData.sessions.filter((session) => session.RequestId !== id);
-        sessions.forEach((session) => {
-            mockData.sessions.push({
-                Id: mockUuid(),
-                Name: session.name,
-                Type: session.type,
-                RequestId: id,
-                StartDateTime: session.startDateTime,
-                EndDateTime: session.endDateTime,
-            });
-        });
+        request.SessionsJson = mockProgramSessionsJson(sessions);
         mockInsertActionComment(
             'program',
             id,
@@ -1451,6 +1619,21 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const actorId = mockData.currentUserId;
 
         if (action === 'submit') {
+            if (!canApprove(mockToUserDTO(mockCurrentUser()))) {
+                const sessions = mockParseProgramSessions(request.SessionsJson);
+                const blockingBlock = mockData.blocks
+                    .filter((block) => !block.Place)
+                    .find((block) =>
+                        sessions.some(
+                            (session) =>
+                                session.StartDateTime < block.EndDateTime &&
+                                block.StartDateTime < session.EndDateTime,
+                        ),
+                    );
+                if (blockingBlock) {
+                    throw new Error('This request overlaps with a blocked time: ' + blockingBlock.Name);
+                }
+            }
             request.Status = 'submitted';
             mockInsertActionComment(
                 'program',
@@ -1541,6 +1724,26 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             mockCurrentUser().Name + ' reported this ticket.',
         );
         return mockBuildTicketDTO(created);
+    },
+    updateTicket: (id: string, input: UpdateTicketInput) => {
+        if (!canUseTickets(mockToUserDTO(mockCurrentUser()))) {
+            throw new Error('Tickets are not available for your role.');
+        }
+        const ticket = mockData.tickets.find((item) => item.Id === id);
+        if (!ticket) throw new Error('ticket_not_found');
+        if (!input.title.trim()) throw new Error('Title is required.');
+        const changed = ticket.Title !== input.title || ticket.Description !== (input.description || '');
+        ticket.Title = input.title;
+        ticket.Description = input.description || '';
+        if (changed) {
+            mockInsertActionComment(
+                'ticket',
+                id,
+                mockData.currentUserId,
+                mockCurrentUser().Name + ' updated this ticket.',
+            );
+        }
+        return mockBuildTicketDTO(ticket);
     },
     performTicketAction: (ticketId: string, action: TicketAction, assigneeId: string | null) => {
         const ticket = mockData.tickets.find((t) => t.Id === ticketId)!;

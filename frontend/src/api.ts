@@ -64,10 +64,20 @@ export const api: AsyncApi = {
     updateProgramType: (...args) => callBackend('updateProgramType', ...args),
     deleteProgramType: (...args) => callBackend('deleteProgramType', ...args),
 
+    listProgramLanguages: (...args) => callBackend('listProgramLanguages', ...args),
+    createProgramLanguage: (...args) => callBackend('createProgramLanguage', ...args),
+    updateProgramLanguage: (...args) => callBackend('updateProgramLanguage', ...args),
+    deleteProgramLanguage: (...args) => callBackend('deleteProgramLanguage', ...args),
+
     listSessionTypes: (...args) => callBackend('listSessionTypes', ...args),
     createSessionType: (...args) => callBackend('createSessionType', ...args),
     updateSessionType: (...args) => callBackend('updateSessionType', ...args),
     deleteSessionType: (...args) => callBackend('deleteSessionType', ...args),
+
+    listBlocks: (...args) => callBackend('listBlocks', ...args),
+    createBlock: (...args) => callBackend('createBlock', ...args),
+    updateBlock: (...args) => callBackend('updateBlock', ...args),
+    deleteBlock: (...args) => callBackend('deleteBlock', ...args),
 
     listRosters: (...args) => callBackend('listRosters', ...args),
     createRoster: (...args) => callBackend('createRoster', ...args),
@@ -95,6 +105,7 @@ export const api: AsyncApi = {
     listTickets: (...args) => callBackend('listTickets', ...args),
     getTicket: (...args) => callBackend('getTicket', ...args),
     createTicket: (...args) => callBackend('createTicket', ...args),
+    updateTicket: (...args) => callBackend('updateTicket', ...args),
     performTicketAction: (...args) => callBackend('performTicketAction', ...args),
     addComment: (...args) => callBackend('addComment', ...args),
 

@@ -33,6 +33,7 @@ type SectionKey =
     | 'departments'
     | 'places'
     | 'inventory-types'
+    | 'blocks'
     | 'home-content';
 
 type SectionRenderer = (
@@ -139,7 +140,7 @@ function renderNavIdentity(dashboard: DashboardPayload): void {
 // Tickets.ts).
 function canOpenSection(section: SectionKey, me: UserDTO): boolean {
     if (CONFIG_SECTIONS.indexOf(section) !== -1) return canManageConfig(me);
-    if (section === 'users' || section === 'roster') return canApprove(me);
+    if (section === 'users' || section === 'roster' || section === 'blocks') return canApprove(me);
     if (section === 'tickets') return canUseTickets(me);
     return true;
 }

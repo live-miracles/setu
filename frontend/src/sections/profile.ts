@@ -94,7 +94,8 @@ export async function renderProfile(
 }
 
 function renderDepartmentSelect(id: string, departments: Department[], selectedId: string): string {
-    const options = departments
+    const options = [...departments]
+        .sort((a, b) => a.Name.localeCompare(b.Name))
         .map(
             (d) =>
                 `<option value="${d.Id}" ${d.Id === selectedId ? 'selected' : ''}>${escapeHtml(d.Name)}</option>`,

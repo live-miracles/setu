@@ -133,7 +133,10 @@ export function renderRequesterField(options: {
     if (options.editable && options.canEditRequester) {
         return renderRequestEditableField(
             'Requested by',
-            `<select id="${escapeHtml(options.selectId)}" name="userId" class="select select-sm" required>${options.users
+            `<select id="${escapeHtml(options.selectId)}" name="userId" class="select select-sm" required>${[
+                ...options.users,
+            ]
+                .sort((a, b) => a.Name.localeCompare(b.Name))
                 .map(
                     (user) =>
                         `<option value="${escapeHtml(user.Email)}" ${user.Email === options.selectedEmail ? 'selected' : ''}>${escapeHtml(user.Name)} (${escapeHtml(user.Email)})</option>`,
@@ -146,9 +149,17 @@ export function renderRequesterField(options: {
     ])}${options.editable ? `<input type="hidden" name="userId" value="${escapeHtml(options.selectedEmail)}" />` : ''}`;
 }
 
-export function renderRequestLineSection(title: string, contentHtml: string, notice = ''): string {
+export function renderRequestLineSection(
+    title: string,
+    contentHtml: string,
+    notice = '',
+    actionsHtml = '',
+): string {
     return `<section class="request-lines-panel">
-      <div class="request-tabs"><span>${escapeHtml(title)}</span></div>
+      <div class="request-line-header">
+        <h2>${escapeHtml(title)}</h2>
+        ${actionsHtml ? `<div class="request-line-actions">${actionsHtml}</div>` : ''}
+      </div>
       ${notice ? `<div class="request-line-notice">${escapeHtml(notice)}</div>` : ''}
       ${contentHtml}
     </section>`;

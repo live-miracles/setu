@@ -793,13 +793,17 @@ function renderCreateShiftModal(users: UserDTO[], shiftPresets: ShiftPreset[]): 
                 <label class="label" for="shift-assignee">Assignee</label>
                 <select id="shift-assignee" name="userId" class="select w-full" required>
                   <option value="" disabled selected>Select a team member</option>
-                  ${users.map((u) => `<option value="${u.Email}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`).join('')}
+                  ${[...users]
+                      .sort((a, b) => a.Name.localeCompare(b.Name))
+                      .map((u) => `<option value="${u.Email}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`)
+                      .join('')}
                 </select>
               </div>
               <div>
                 <label class="label" for="${SHIFT_NAME_PRESET_SELECT_ID}">Shift name</label>
                 <select id="${SHIFT_NAME_PRESET_SELECT_ID}" name="shiftNamePreset" class="select w-full" required>
-                  ${shiftPresets
+                  ${[...shiftPresets]
+                      .sort((a, b) => a.Name.localeCompare(b.Name))
                       .map(
                           (p) =>
                               `<option value="${escapeHtml(p.Name)}" data-start-time="${escapeHtml(p.DefaultStartTime)}" data-end-time="${escapeHtml(p.DefaultEndTime)}">${escapeHtml(p.Name)}</option>`,

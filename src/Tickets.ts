@@ -106,6 +106,34 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
     );
 }
 
+function updateTicket(id: string, input: UpdateTicketInput, requestId: string): TicketDTO {
+    const actor = requireTicketAccess();
+    const title = requireNonEmpty(input.title, 'Title is required.');
+    const description = input.description || '';
+
+    const { result } = withLockedDedupe('ticket:update:' + id, requestId, () => {
+        const ticket = Tables.Tickets.findById(id);
+        if (!ticket) throw new ValidationError('ticket_not_found');
+        const updated = Tables.Tickets.updateById(id, {
+            Title: title,
+            Description: description,
+        });
+        const comment =
+            ticket.Title === title && ticket.Description === description
+                ? null
+                : insertActionComment(
+                      'ticket',
+                      id,
+                      actor.Email,
+                      actor.Name + ' updated this ticket.',
+                  );
+        return { ticket: updated, comment };
+    });
+
+    const comments = result.comment ? { [id]: [result.comment] } : {};
+    return buildTicketDTO(result.ticket, indexBy([actor], (u) => u.Email), comments);
+}
+
 // Ported from the source app's `perform_ticket_action` Postgres function,
 // same one-lock-spans-the-whole-sequence discipline as Inventory.ts. There
 // is no reporter anymore, so 'close' is approver-or-assignee only.

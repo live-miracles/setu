@@ -102,11 +102,10 @@ interface InventoryRequest {
     // Comma-separated emails. Co-own the request (see the submit-permission
     // check in Inventory.ts) and are notified alongside UserId.
     Participants: string;
+    ItemsJson: string;
 }
 
 interface InventoryItem {
-    Id: string;
-    RequestId: string;
     InventoryTypeId: string;
     Quantity: number;
     Condition: ReturnCondition | '';
@@ -124,16 +123,15 @@ interface ProgramRequest {
     DepartmentId: string;
     LeadEmail: string;
     Participants: string;
+    SessionsJson: string;
 }
 
 // One or more scheduled sessions per program request. Named ProgramSession
 // (not Session) to avoid colliding with Apps Script's own global `Session`
 // service (Session.getActiveUser(), used in Auth.ts).
 interface ProgramSession {
-    Id: string;
     Name: string;
     Type: string;
-    RequestId: string;
     StartDateTime: string;
     EndDateTime: string;
 }
@@ -182,9 +180,22 @@ interface ProgramType {
     Name: string;
 }
 
+interface ProgramLanguage {
+    Id: string;
+    Name: string;
+}
+
 interface SessionType {
     Id: string;
     Name: string;
+}
+
+interface Block {
+    Id: string;
+    StartDateTime: string;
+    EndDateTime: string;
+    Name: string;
+    Place: string;
 }
 
 // Generic key-value store, e.g. for the Home content fields below and
@@ -306,7 +317,9 @@ interface DashboardPayload {
     homeContent: HomeContent;
     shiftPresets: ShiftPreset[];
     programTypes: ProgramType[];
+    programLanguages: ProgramLanguage[];
     sessionTypes: SessionType[];
+    blocks: Block[];
     failedEmailCount: number;
 }
 
@@ -369,7 +382,7 @@ interface CreateInventoryRequestInput {
     userId: string;
     startDate: string;
     endDate: string;
-    items: { inventoryTypeId: string; quantity: number }[];
+    items: InventoryItemInput[];
     imageId: string;
     departmentId: string;
     leadEmail: string;
@@ -381,17 +394,22 @@ interface UpdateInventoryRequestInput {
     userId: string;
     startDate: string;
     endDate: string;
-    items: { inventoryTypeId: string; quantity: number }[];
+    items: InventoryItemInput[];
     departmentId: string;
     leadEmail: string;
     participants: string;
+}
+
+interface InventoryItemInput {
+    inventoryTypeId: string;
+    quantity: number;
+    condition?: ReturnCondition | '';
 }
 
 // A return always covers every item on the request in full — see
 // performInventoryRequestAction's 'return' branch in Inventory.ts — so this
 // only needs to carry the condition each item came back in, not a quantity.
 interface ReturnItemInput {
-    requestItemId: string;
     condition: ReturnCondition;
 }
 
@@ -431,6 +449,11 @@ interface CreateTicketInput {
     description: string;
 }
 
+interface UpdateTicketInput {
+    title: string;
+    description: string;
+}
+
 interface CreateLinkInput {
     name: string;
     url: string;
@@ -453,6 +476,13 @@ interface CreateShiftPresetInput {
 
 interface CreateNamedOptionInput {
     name: string;
+}
+
+interface CreateBlockInput {
+    name: string;
+    startDateTime: string;
+    endDateTime: string;
+    place: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -498,10 +528,24 @@ interface Api {
     updateProgramType(id: string, input: CreateNamedOptionInput, requestId: string): ProgramType;
     deleteProgramType(id: string, requestId: string): void;
 
+    listProgramLanguages(): ProgramLanguage[];
+    createProgramLanguage(input: CreateNamedOptionInput, requestId: string): ProgramLanguage;
+    updateProgramLanguage(
+        id: string,
+        input: CreateNamedOptionInput,
+        requestId: string,
+    ): ProgramLanguage;
+    deleteProgramLanguage(id: string, requestId: string): void;
+
     listSessionTypes(): SessionType[];
     createSessionType(input: CreateNamedOptionInput, requestId: string): SessionType;
     updateSessionType(id: string, input: CreateNamedOptionInput, requestId: string): SessionType;
     deleteSessionType(id: string, requestId: string): void;
+
+    listBlocks(): Block[];
+    createBlock(input: CreateBlockInput, requestId: string): Block;
+    updateBlock(id: string, input: CreateBlockInput, requestId: string): Block;
+    deleteBlock(id: string, requestId: string): void;
 
     listRosters(page: number): Paginated<RosterDTO>;
     createRoster(input: CreateRosterInput, requestId: string): RosterDTO;
@@ -557,6 +601,7 @@ interface Api {
     listTickets(page: number, query?: TicketQuery): Paginated<TicketDTO>;
     getTicket(id: string): TicketDTO;
     createTicket(input: CreateTicketInput, requestId: string): TicketDTO;
+    updateTicket(id: string, input: UpdateTicketInput, requestId: string): TicketDTO;
     performTicketAction(
         ticketId: string,
         action: TicketAction,

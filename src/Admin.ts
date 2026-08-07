@@ -305,6 +305,14 @@ const DEFAULT_PROGRAM_TYPES: ProgramType[] = [
     { Id: 'program-type-other', Name: 'Other' },
 ];
 
+const DEFAULT_PROGRAM_LANGUAGES: ProgramLanguage[] = [
+    { Id: 'program-language-english', Name: 'English' },
+    { Id: 'program-language-hindi', Name: 'Hindi' },
+    { Id: 'program-language-tamil', Name: 'Tamil' },
+    { Id: 'program-language-telugu', Name: 'Telugu' },
+    { Id: 'program-language-kannada', Name: 'Kannada' },
+];
+
 const DEFAULT_SESSION_TYPES: SessionType[] = [
     { Id: 'session-type-live', Name: 'Live' },
     { Id: 'session-type-dry-run', Name: 'Dry Run' },
@@ -420,6 +428,53 @@ function deleteProgramType(id: string, requestId: string): void {
     deleteNamedOption('programTypes', DEFAULT_PROGRAM_TYPES, id, requestId, 'program-type');
 }
 
+function readProgramLanguages(): ProgramLanguage[] {
+    return readNamedOptions('programLanguages', DEFAULT_PROGRAM_LANGUAGES);
+}
+
+function listProgramLanguages(): ProgramLanguage[] {
+    requireUser();
+    return readProgramLanguages().sort((a, b) => a.Name.localeCompare(b.Name));
+}
+
+function createProgramLanguage(
+    input: CreateNamedOptionInput,
+    requestId: string,
+): ProgramLanguage {
+    return createNamedOption(
+        'programLanguages',
+        DEFAULT_PROGRAM_LANGUAGES,
+        input,
+        requestId,
+        'program-language',
+    );
+}
+
+function updateProgramLanguage(
+    id: string,
+    input: CreateNamedOptionInput,
+    requestId: string,
+): ProgramLanguage {
+    return updateNamedOption(
+        'programLanguages',
+        DEFAULT_PROGRAM_LANGUAGES,
+        id,
+        input,
+        requestId,
+        'program-language',
+    );
+}
+
+function deleteProgramLanguage(id: string, requestId: string): void {
+    deleteNamedOption(
+        'programLanguages',
+        DEFAULT_PROGRAM_LANGUAGES,
+        id,
+        requestId,
+        'program-language',
+    );
+}
+
 function readSessionTypes(): SessionType[] {
     return readNamedOptions('sessionTypes', DEFAULT_SESSION_TYPES);
 }
@@ -456,6 +511,48 @@ function updateSessionType(
 
 function deleteSessionType(id: string, requestId: string): void {
     deleteNamedOption('sessionTypes', DEFAULT_SESSION_TYPES, id, requestId, 'session-type');
+}
+
+function cleanBlockInput(input: CreateBlockInput): Omit<Block, 'Id'> {
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const startDateTime = requireNonEmpty(input.startDateTime, 'Start is required.');
+    const endDateTime = requireNonEmpty(input.endDateTime, 'End is required.');
+    if (endDateTime <= startDateTime) throw new ValidationError('Block end must be after start.');
+    const place = String(input.place || '');
+    if (place && !Tables.Places.findById(place)) throw new ValidationError('place_not_found');
+    return { Name: name, StartDateTime: startDateTime, EndDateTime: endDateTime, Place: place };
+}
+
+function listBlocks(): Block[] {
+    requireApprover();
+    return Tables.Blocks.readAll().sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
+}
+
+function createBlock(input: CreateBlockInput, requestId: string): Block {
+    requireApprover();
+    const block = cleanBlockInput(input);
+    const { result } = withLockedDedupe('block:create', requestId, () =>
+        Tables.Blocks.insert(block),
+    );
+    return result;
+}
+
+function updateBlock(id: string, input: CreateBlockInput, requestId: string): Block {
+    requireApprover();
+    const block = cleanBlockInput(input);
+    const { result } = withLockedDedupe('block:update:' + id, requestId, () => {
+        if (!Tables.Blocks.findById(id)) throw new ValidationError('not_found');
+        return Tables.Blocks.updateById(id, block);
+    });
+    return result;
+}
+
+function deleteBlock(id: string, requestId: string): void {
+    requireApprover();
+    withLockedDedupe('block:delete:' + id, requestId, () => {
+        Tables.Blocks.deleteById(id);
+        return null;
+    });
 }
 
 // Home content is just a handful of settings rows, keyed by field name
