@@ -56,7 +56,8 @@ function cleanSessionField(session: ProgramSessionInput, field: string): string 
 }
 
 function cleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
-    if (!input || input.length === 0) throw new ValidationError('At least one session is required.');
+    if (!input || input.length === 0)
+        throw new ValidationError('At least one session is required.');
     return input.map((session) => {
         const sessionType = cleanSessionField(session, 'type');
         const startDateTime = cleanSessionField(session, 'startDateTime');
@@ -160,7 +161,9 @@ function assertProgramSessionsNotBlockedForUser(request: ProgramRequest): void {
             ),
         );
     if (blockingBlock) {
-        throw new ValidationError('This request overlaps with a blocked time: ' + blockingBlock.Name);
+        throw new ValidationError(
+            'This request overlaps with a blocked time: ' + blockingBlock.Name,
+        );
     }
 }
 

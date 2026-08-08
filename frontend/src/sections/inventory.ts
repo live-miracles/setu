@@ -531,7 +531,9 @@ function wireInventoryDetailEditForm(
     updateDirty();
     document
         .getElementById('add-request-item')!
-        .addEventListener('click', () => openInventoryItemModal(list, dashboard, undefined, updateDirty));
+        .addEventListener('click', () =>
+            openInventoryItemModal(list, dashboard, undefined, updateDirty),
+        );
     form.addEventListener('input', updateDirty);
     form.addEventListener('change', updateDirty);
     document.getElementById('cancel-inventory-edits')!.addEventListener('click', () => {
@@ -651,11 +653,11 @@ function addInventoryItemRow(
     const selectedId = item?.InventoryTypeId || dashboard.inventoryTypes[0]?.Id || '';
     const row = document.createElement('tr');
     row.className = 'request-item-row';
-    setInventoryItemRow(
-        row,
-        dashboard,
-        { inventoryTypeId: selectedId, quantity: item?.Quantity || 1, condition: item?.Condition || '' },
-    );
+    setInventoryItemRow(row, dashboard, {
+        inventoryTypeId: selectedId,
+        quantity: item?.Quantity || 1,
+        condition: item?.Condition || '',
+    });
     wireInventoryItemRow(row, list, dashboard, onChange);
     list.appendChild(row);
     onChange?.();
@@ -666,7 +668,9 @@ function setInventoryItemRow(
     dashboard: DashboardPayload,
     item: InventoryItemInput,
 ): void {
-    const type = dashboard.inventoryTypes.find((inventoryType) => inventoryType.Id === item.inventoryTypeId);
+    const type = dashboard.inventoryTypes.find(
+        (inventoryType) => inventoryType.Id === item.inventoryTypeId,
+    );
     row.innerHTML = `
       <td>${escapeHtml(type ? type.Name : 'Select item')}<input type="hidden" name="inventoryTypeId" value="${escapeHtml(item.inventoryTypeId)}" /></td>
       <td class="text-right">${item.quantity}<input type="hidden" name="quantity" value="${escapeHtml(String(item.quantity))}" /></td>
@@ -704,7 +708,9 @@ function wireInventoryItemModal(
                 `<option value="${escapeHtml(type.Id)}">${escapeHtml(type.Name)} (${type.availableQuantity} available)</option>`,
         )
         .join('');
-    document.getElementById('cancel-inventory-item-modal')!.addEventListener('click', () => modal.close());
+    document
+        .getElementById('cancel-inventory-item-modal')!
+        .addEventListener('click', () => modal.close());
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         const item = readInventoryItemModal(form);
@@ -756,8 +762,8 @@ function readInventoryItemRow(row: HTMLElement): InventoryItemInput {
     return {
         inventoryTypeId: (row.querySelector('[name="inventoryTypeId"]') as HTMLInputElement).value,
         quantity: Number((row.querySelector('[name="quantity"]') as HTMLInputElement).value),
-        condition: (row.querySelector('[name="condition"]') as HTMLInputElement)
-            .value as ReturnCondition | '',
+        condition: (row.querySelector('[name="condition"]') as HTMLInputElement).value as
+            ReturnCondition | '',
     };
 }
 
@@ -765,8 +771,8 @@ function readInventoryItemModal(form: HTMLFormElement): InventoryItemInput {
     return {
         inventoryTypeId: (form.elements.namedItem('inventoryTypeId') as HTMLSelectElement).value,
         quantity: Number((form.elements.namedItem('quantity') as HTMLInputElement).value),
-        condition: (form.elements.namedItem('condition') as HTMLSelectElement)
-            .value as ReturnCondition | '',
+        condition: (form.elements.namedItem('condition') as HTMLSelectElement).value as
+            ReturnCondition | '',
     };
 }
 
@@ -784,7 +790,9 @@ function readInventoryFormInput(form: HTMLFormElement): UpdateInventoryRequestIn
             const inventoryTypeId = (
                 row.querySelector('[name="inventoryTypeId"]') as HTMLInputElement
             ).value;
-            const quantity = Number((row.querySelector('[name="quantity"]') as HTMLInputElement).value);
+            const quantity = Number(
+                (row.querySelector('[name="quantity"]') as HTMLInputElement).value,
+            );
             const condition = (row.querySelector('[name="condition"]') as HTMLInputElement)
                 .value as ReturnCondition | '';
             return { inventoryTypeId, quantity, condition };
@@ -801,7 +809,10 @@ function renderRequestDepartmentSelect(
         ...departments,
     ]
         .sort((a, b) => a.Name.localeCompare(b.Name))
-        .map((department) => `<option value="${department.Id}" ${department.Id === selectedId ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`)
+        .map(
+            (department) =>
+                `<option value="${department.Id}" ${department.Id === selectedId ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`,
+        )
         .join('')}</select>`;
 }
 
@@ -847,7 +858,9 @@ function wireCreateRequestForm(): void {
             const inventoryTypeId = (
                 row.querySelector('[name="inventoryTypeId"]') as HTMLInputElement
             ).value;
-            const quantity = Number((row.querySelector('[name="quantity"]') as HTMLInputElement).value);
+            const quantity = Number(
+                (row.querySelector('[name="quantity"]') as HTMLInputElement).value,
+            );
             const condition = (row.querySelector('[name="condition"]') as HTMLInputElement)
                 .value as ReturnCondition | '';
             return { inventoryTypeId, quantity, condition };

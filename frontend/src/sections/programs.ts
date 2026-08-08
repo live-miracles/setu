@@ -314,11 +314,7 @@ function formatProgramSessionDateRange(startIso: string, endIso: string): string
     const startYear = start.getFullYear();
     const endYear = end.getFullYear();
 
-    if (
-        startDay === endDay &&
-        startMonth === endMonth &&
-        startYear === endYear
-    ) {
+    if (startDay === endDay && startMonth === endMonth && startYear === endYear) {
         return `${startDay} ${startMonth}, ${startYear}`;
     }
     if (startMonth === endMonth && startYear === endYear) {
@@ -378,7 +374,10 @@ function renderProgramCreate(
                         ...dashboard.places,
                     ]
                         .sort((a, b) => a.Name.localeCompare(b.Name))
-                        .map((place) => `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`)
+                        .map(
+                            (place) =>
+                                `<option value="${place.Id}">${escapeHtml(place.Name)}</option>`,
+                        )
                         .join('')}</select>`,
                 ),
                 renderRequesterField({
@@ -454,7 +453,11 @@ function addProgramSessionRow(
     onChange?.();
 }
 
-function setProgramSessionRow(row: HTMLElement, session: ProgramSession, onChange?: () => void): void {
+function setProgramSessionRow(
+    row: HTMLElement,
+    session: ProgramSession,
+    onChange?: () => void,
+): void {
     row.innerHTML = `
       <td>${escapeHtml(session.Name || 'Untitled')}<input type="hidden" name="sessionName" value="${escapeHtml(session.Name || '')}" /></td>
       <td>${escapeHtml(session.Type)}<input type="hidden" name="sessionType" value="${escapeHtml(session.Type)}" /></td>
@@ -503,7 +506,8 @@ function defaultProgramSession(list: HTMLElement): ProgramSession {
 }
 
 function readSessionFromRow(row: HTMLElement): ProgramSession {
-    const value = (name: string) => (row.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
+    const value = (name: string) =>
+        (row.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
     return {
         Name: value('sessionName'),
         Type: value('sessionType'),
@@ -512,7 +516,11 @@ function readSessionFromRow(row: HTMLElement): ProgramSession {
     };
 }
 
-function wireProgramSessionModal(list: HTMLElement, sessionTypes: SessionType[], onChange?: () => void): void {
+function wireProgramSessionModal(
+    list: HTMLElement,
+    sessionTypes: SessionType[],
+    onChange?: () => void,
+): void {
     const modal = document.getElementById('program-session-modal') as HTMLDialogElement;
     const form = document.getElementById('program-session-modal-form') as HTMLFormElement;
     const typeSelect = form.elements.namedItem('sessionType') as HTMLSelectElement;
@@ -578,7 +586,8 @@ function readSessionFromModal(form: HTMLFormElement): ProgramSession {
 
 function sessionValidationError(session: ProgramSession): string {
     if (!session.Type) return 'Session type is required.';
-    if (!session.StartDateTime || !session.EndDateTime) return 'Session start and end are required.';
+    if (!session.StartDateTime || !session.EndDateTime)
+        return 'Session start and end are required.';
     const start = Date.parse(session.StartDateTime);
     const end = Date.parse(session.EndDateTime);
     if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
@@ -1069,7 +1078,10 @@ function renderRequestPlaceSelect(id: string, places: Place[], selectedId: strin
         ...places,
     ]
         .sort((a, b) => a.Name.localeCompare(b.Name))
-        .map((place) => `<option value="${place.Id}" ${place.Id === selectedId ? 'selected' : ''}>${escapeHtml(place.Name)}</option>`)
+        .map(
+            (place) =>
+                `<option value="${place.Id}" ${place.Id === selectedId ? 'selected' : ''}>${escapeHtml(place.Name)}</option>`,
+        )
         .join('')}</select>`;
 }
 
@@ -1082,7 +1094,10 @@ function renderRequestDepartmentSelect(
         ...departments,
     ]
         .sort((a, b) => a.Name.localeCompare(b.Name))
-        .map((department) => `<option value="${department.Id}" ${department.Id === selectedId ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`)
+        .map(
+            (department) =>
+                `<option value="${department.Id}" ${department.Id === selectedId ? 'selected' : ''}>${escapeHtml(department.Name)}</option>`,
+        )
         .join('')}</select>`;
 }
 

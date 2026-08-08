@@ -131,7 +131,11 @@ function updateTicket(id: string, input: UpdateTicketInput, requestId: string): 
     });
 
     const comments = result.comment ? { [id]: [result.comment] } : {};
-    return buildTicketDTO(result.ticket, indexBy([actor], (u) => u.Email), comments);
+    return buildTicketDTO(
+        result.ticket,
+        indexBy([actor], (u) => u.Email),
+        comments,
+    );
 }
 
 // Ported from the source app's `perform_ticket_action` Postgres function,

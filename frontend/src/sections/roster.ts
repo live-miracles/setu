@@ -795,7 +795,10 @@ function renderCreateShiftModal(users: UserDTO[], shiftPresets: ShiftPreset[]): 
                   <option value="" disabled selected>Select a team member</option>
                   ${[...users]
                       .sort((a, b) => a.Name.localeCompare(b.Name))
-                      .map((u) => `<option value="${u.Email}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`)
+                      .map(
+                          (u) =>
+                              `<option value="${u.Email}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`,
+                      )
                       .join('')}
                 </select>
               </div>

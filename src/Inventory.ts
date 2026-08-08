@@ -13,7 +13,8 @@ function computeDeductionsByType(): Record<string, number> {
     Tables.InventoryRequests.readAll().forEach((request) => {
         if (request.Status !== 'issued') return;
         parseInventoryItemsJson(request.ItemsJson).forEach((item) => {
-            deductions[item.InventoryTypeId] = (deductions[item.InventoryTypeId] || 0) + item.Quantity;
+            deductions[item.InventoryTypeId] =
+                (deductions[item.InventoryTypeId] || 0) + item.Quantity;
         });
     });
     return deductions;
