@@ -1,4 +1,6 @@
 import { Refine } from '@refinedev/core';
+import { useNotificationProvider } from '@refinedev/antd';
+import { App as AntApp, ConfigProvider } from 'antd';
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { appsScriptDataProvider } from './refine-data-provider';
@@ -18,13 +20,33 @@ export function mountRefinePage(container: HTMLElement, page: ReactNode, resourc
         roots.set(container, mounted);
     }
 
-    mounted.root.render(
-        <Refine
-            dataProvider={appsScriptDataProvider}
-            resources={[{ name: resource, list: `/${resource}` }]}
-            options={{ syncWithLocation: false }}>
-            {page}
-        </Refine>,
+    mounted.root.render(<RefineRoot page={page} resource={resource} />);
+}
+
+function RefineRoot({ page, resource }: { page: ReactNode; resource: string }) {
+    const notificationProvider = useNotificationProvider();
+    return (
+        <ConfigProvider
+            theme={{
+                token: {
+                    colorPrimary: '#c84f12',
+                    colorInfo: '#c84f12',
+                    colorBgBase: '#fffaf0',
+                    colorTextBase: '#29251f',
+                    borderRadius: 6,
+                    fontFamily: "'Avenir Next', Avenir, 'Segoe UI', sans-serif",
+                },
+            }}>
+            <AntApp>
+                <Refine
+                    dataProvider={appsScriptDataProvider}
+                    notificationProvider={notificationProvider}
+                    resources={[{ name: resource, list: `/${resource}` }]}
+                    options={{ syncWithLocation: false }}>
+                    {page}
+                </Refine>
+            </AntApp>
+        </ConfigProvider>
     );
 }
 

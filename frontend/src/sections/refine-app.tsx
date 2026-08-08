@@ -1,4 +1,18 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+    Button,
+    Card as AntCard,
+    Empty as AntEmpty,
+    Form as AntForm,
+    Input,
+    Modal as AntModal,
+    Select,
+    Space,
+    Tag,
+    Table,
+    Typography,
+} from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import {
@@ -18,18 +32,11 @@ import { WORKBENCH_SEARCH_QUERY_PARAM, WORKBENCH_VIEW_QUERY_PARAM } from '../con
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime, formatRosterSchedule } from '../ui/format';
-import { icon as iconMarkup, type IconName } from '../ui/icons';
-import { roleBadgeClass, roleLabel } from '../ui/styles';
+import { roleLabel } from '../ui/styles';
 import { canApprove, canManageConfig } from '../workflows';
 
 type Props = { dashboard: DashboardPayload };
 const error = (e: unknown) => showErrorAlert(e);
-const icon = (name: IconName, className = 'size-5') => (
-    <span
-        className="inline-flex"
-        dangerouslySetInnerHTML={{ __html: iconMarkup(name, className) }}
-    />
-);
 
 function Page({
     title,
@@ -43,14 +50,16 @@ function Page({
     children: ReactNode;
 }) {
     return (
-        <section className="space-y-5">
-            <header className="section-heading">
+        <section className="antd-page">
+            <div className="antd-page-heading">
                 <div>
-                    <h1>{title}</h1>
-                    {subtitle && <p>{subtitle}</p>}
+                    <Typography.Title level={2}>{title}</Typography.Title>
+                    {subtitle && (
+                        <Typography.Paragraph type="secondary">{subtitle}</Typography.Paragraph>
+                    )}
                 </div>
                 {action}
-            </header>
+            </div>
             {children}
         </section>
     );
@@ -65,30 +74,19 @@ function Card({
     children: ReactNode;
 }) {
     return (
-        <div className="card border border-base-300 bg-base-100">
-            <div className="card-body gap-3">
-                <div className="flex items-center justify-between gap-3">
-                    <h2 className="card-title text-base">{title}</h2>
-                    {action}
-                </div>
-                {children}
-            </div>
-        </div>
+        <AntCard title={title} extra={action}>
+            {children}
+        </AntCard>
     );
 }
 function Empty({ children = 'Nothing here yet.' }: { children?: ReactNode }) {
-    return (
-        <div className="border-y border-dashed border-base-300 py-10 text-center text-sm text-base-content/50">
-            {children}
-        </div>
-    );
+    return <AntEmpty description={children} />;
 }
 function Submit({ label = 'Save', busy }: { label?: string; busy?: boolean }) {
     return (
-        <button className="btn btn-primary" type="submit" disabled={busy}>
-            {busy && <span className="loading loading-spinner loading-xs" />}
+        <Button type="primary" htmlType="submit" loading={busy}>
             {label}
-        </button>
+        </Button>
     );
 }
 function Modal({
@@ -101,19 +99,9 @@ function Modal({
     close: () => void;
 }) {
     return (
-        <dialog open className="modal">
-            <div className="modal-box w-11/12 max-w-2xl">
-                <button
-                    className="btn btn-ghost absolute right-3 top-3"
-                    onClick={close}
-                    aria-label="Close">
-                    ×
-                </button>
-                <h3 className="mb-4 flex items-center gap-2 text-base font-semibold">{title}</h3>
-                {children}
-            </div>
-            <button className="modal-backdrop" onClick={close} aria-label="Close" />
-        </dialog>
+        <AntModal open title={title} onCancel={close} footer={null} destroyOnClose>
+            {children}
+        </AntModal>
     );
 }
 function useSave(action: () => Promise<unknown>, close?: () => void) {
@@ -149,16 +137,9 @@ function TextField({
     required?: boolean;
 }) {
     return (
-        <label className="fieldset">
-            <span className="label">{label}</span>
-            <input
-                className="input w-full"
-                name={name}
-                type={type}
-                defaultValue={value ?? ''}
-                required={required}
-            />
-        </label>
+        <AntForm.Item label={label} required={required} className="antd-form-item">
+            <Input name={name} type={type} defaultValue={value ?? ''} required={required} />
+        </AntForm.Item>
     );
 }
 
@@ -171,44 +152,46 @@ function Home({ dashboard }: Props) {
     ];
     return (
         <Page title="Home" subtitle={`Welcome back, ${dashboard.me.Name}.`}>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="antd-stat-grid">
                 {cards.map(([label, count, section]) => (
-                    <button
+                    <AntCard
                         key={String(section)}
-                        className="card border border-base-300 bg-base-100 text-left transition hover:border-primary"
+                        hoverable
                         onClick={() =>
                             document
                                 .querySelector<HTMLElement>(`[data-nav-section="${section}"]`)
                                 ?.click()
                         }>
-                        <div className="card-body gap-1">
-                            <span className="text-sm text-base-content/60">{label}</span>
-                            <strong className="text-3xl font-serif font-normal">{count}</strong>
-                            <span className="text-xs text-primary">Open section →</span>
-                        </div>
-                    </button>
+                        <Space direction="vertical" size={2}>
+                            <Typography.Text type="secondary">{label}</Typography.Text>
+                            <Typography.Title level={1}>{count}</Typography.Title>
+                            <Typography.Link>Open section →</Typography.Link>
+                        </Space>
+                    </AntCard>
                 ))}
             </div>
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="antd-two-column">
                 <Card title="Recent inventory requests">
                     {dashboard.inventoryRequests.slice(0, 5).map((r) => (
-                        <button
-                            className="flex w-full items-center justify-between border-b border-base-200 py-2 text-left text-sm last:border-0"
+                        <Button
+                            type="text"
+                            block
+                            className="antd-list-button"
                             key={r.Id}
                             onClick={() => navigateToInventoryRequest(r.Id)}>
-                            <span className="font-medium">
-                                REQ-{r.DisplayId} · {r.Name}
-                            </span>
-                            <span className="badge badge-ghost badge-sm">{r.Status}</span>
-                        </button>
+                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                <Typography.Text strong>
+                                    REQ-{r.DisplayId} · {r.Name}
+                                </Typography.Text>
+                                <Tag>{r.Status}</Tag>
+                            </Space>
+                        </Button>
                     ))}
                     {!dashboard.inventoryRequests.length && <Empty />}
                 </Card>
                 <Card title="Upcoming roster">
                     {dashboard.upcomingRosters.slice(0, 5).map((r) => (
-                        <div
-                            className="flex items-center justify-between border-b border-base-200 py-2 text-sm last:border-0"
-                            key={r.Id}>
+                        <div className="antd-list-row" key={r.Id}>
                             <span className="font-medium">{r.Name}</span>
                             <span>{formatRosterSchedule(r)}</span>
                         </div>
@@ -229,6 +212,7 @@ function Home({ dashboard }: Props) {
 
 function Profile({ dashboard, registration = false }: Props & { registration?: boolean }) {
     const me = dashboard.me;
+    const [departmentId, setDepartmentId] = useState(me.DepartmentId);
     const save = useSave(async () => {
         const form = document.getElementById(
             registration ? 'registration-form' : 'profile-form',
@@ -253,29 +237,25 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                     className="grid gap-3 sm:grid-cols-2"
                     onSubmit={save.run}>
                     <TextField name="name" label="Name" value={me.Name} required />
-                    <label className="fieldset">
-                        <span className="label">Department</span>
-                        <select
-                            className="select w-full"
-                            name="departmentId"
-                            defaultValue={me.DepartmentId}>
-                            <option value="">No department</option>
+                    <AntForm.Item label="Department">
+                        <input type="hidden" name="departmentId" value={departmentId} />
+                        <Select
+                            value={departmentId}
+                            onChange={setDepartmentId}
+                            style={{ width: '100%' }}>
+                            <Select.Option value="">No department</Select.Option>
                             {dashboard.departments.map((d) => (
-                                <option key={d.Id} value={d.Id}>
+                                <Select.Option key={d.Id} value={d.Id}>
                                     {d.Name}
-                                </option>
+                                </Select.Option>
                             ))}
-                        </select>
-                    </label>
+                        </Select>
+                    </AntForm.Item>
                     <TextField name="phone" label="Phone" value={me.Phone} required />
                     <TextField name="whatsapp" label="WhatsApp" value={me.Whatsapp} />
                     {!registration && (
                         <div className="text-sm text-base-content/60 sm:col-span-2">
-                            {me.Email} ·{' '}
-                            <span
-                                className={`badge badge-soft badge-sm ${roleBadgeClass(me.Role)}`}>
-                                {roleLabel(me.Role)}
-                            </span>
+                            {me.Email} · <Tag color="blue">{roleLabel(me.Role)}</Tag>
                         </div>
                     )}
                     <div className="sm:col-span-2">
@@ -299,6 +279,8 @@ function UserForm({
     user?: UserDTO;
     close: () => void;
 }) {
+    const [role, setRole] = useState<UserRole>(user?.Role || 'user');
+    const [departmentId, setDepartmentId] = useState(user?.DepartmentId || '');
     const save = useSave(async () => {
         const d = new FormData(document.getElementById('refine-user-form') as HTMLFormElement);
         const values = {
@@ -320,33 +302,30 @@ function UserForm({
             <form id="refine-user-form" className="grid gap-3 sm:grid-cols-2" onSubmit={save.run}>
                 {!user && <TextField name="email" label="Email" type="email" required />}
                 <TextField name="name" label="Name" value={user?.Name} required />
-                <label className="fieldset">
-                    <span className="label">Role</span>
-                    <select
-                        className="select w-full"
-                        name="role"
-                        defaultValue={user?.Role || 'user'}>
+                <AntForm.Item label="Role">
+                    <input type="hidden" name="role" value={role} />
+                    <Select value={role} onChange={setRole} style={{ width: '100%' }}>
                         {(['admin', 'approver', 'viewer', 'user'] as UserRole[]).map((r) => (
-                            <option key={r} value={r}>
+                            <Select.Option key={r} value={r}>
                                 {roleLabel(r)}
-                            </option>
+                            </Select.Option>
                         ))}
-                    </select>
-                </label>
-                <label className="fieldset">
-                    <span className="label">Department</span>
-                    <select
-                        className="select w-full"
-                        name="departmentId"
-                        defaultValue={user?.DepartmentId || ''}>
-                        <option value="">No department</option>
+                    </Select>
+                </AntForm.Item>
+                <AntForm.Item label="Department">
+                    <input type="hidden" name="departmentId" value={departmentId} />
+                    <Select
+                        value={departmentId}
+                        onChange={setDepartmentId}
+                        style={{ width: '100%' }}>
+                        <Select.Option value="">No department</Select.Option>
                         {dashboard.departments.map((d) => (
-                            <option key={d.Id} value={d.Id}>
+                            <Select.Option key={d.Id} value={d.Id}>
                                 {d.Name}
-                            </option>
+                            </Select.Option>
                         ))}
-                    </select>
-                </label>
+                    </Select>
+                </AntForm.Item>
                 <TextField name="phone" label="Phone" value={user?.Phone} />
                 <TextField name="whatsapp" label="WhatsApp" value={user?.Whatsapp} />
                 <div className="sm:col-span-2">
@@ -370,9 +349,12 @@ function Users({ dashboard }: Props) {
             subtitle="People in your Google domain."
             action={
                 canManageConfig(dashboard.me) && (
-                    <button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>
-                        {icon('plus', 'size-4')}Add user
-                    </button>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setCreating(true)}>
+                        Add user
+                    </Button>
                 )
             }>
             <Card
@@ -382,46 +364,51 @@ function Users({ dashboard }: Props) {
                 {users === null ? (
                     <Empty>Loading users…</Empty>
                 ) : shown.length ? (
-                    <div className="overflow-x-auto">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Department</th>
-                                    <th>Role</th>
-                                    <th />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {shown.map((u) => (
-                                    <tr key={u.Email}>
-                                        <td>
-                                            <div className="font-medium">{u.Name}</div>
-                                            <div className="text-xs text-base-content/60">
-                                                {u.Email}
-                                            </div>
-                                        </td>
-                                        <td>{u.departmentName || 'No department'}</td>
-                                        <td>
-                                            <span
-                                                className={`badge badge-soft badge-sm ${roleBadgeClass(u.Role)}`}>
-                                                {roleLabel(u.Role)}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {canManageConfig(dashboard.me) && (
-                                                <button
-                                                    className="btn btn-ghost btn-xs"
-                                                    onClick={() => setEditing(u)}>
-                                                    {icon('edit', 'size-4')}Edit
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <Table
+                        rowKey="Email"
+                        dataSource={shown}
+                        pagination={false}
+                        columns={[
+                            {
+                                title: 'Name',
+                                dataIndex: 'Name',
+                                render: (name: string, user: UserDTO) => (
+                                    <Space direction="vertical" size={0}>
+                                        <Typography.Text strong>{name}</Typography.Text>
+                                        <Typography.Text type="secondary">
+                                            {user.Email}
+                                        </Typography.Text>
+                                    </Space>
+                                ),
+                            },
+                            {
+                                title: 'Department',
+                                dataIndex: 'departmentName',
+                                render: (value: string) => value || 'No department',
+                            },
+                            {
+                                title: 'Role',
+                                dataIndex: 'Role',
+                                render: (value: UserRole) => (
+                                    <Tag color="blue">{roleLabel(value)}</Tag>
+                                ),
+                            },
+                            {
+                                title: '',
+                                key: 'actions',
+                                align: 'right' as const,
+                                render: (_: unknown, user: UserDTO) =>
+                                    canManageConfig(dashboard.me) ? (
+                                        <Button
+                                            type="link"
+                                            icon={<EditOutlined />}
+                                            onClick={() => setEditing(user)}>
+                                            Edit
+                                        </Button>
+                                    ) : null,
+                            },
+                        ]}
+                    />
                 ) : (
                     <Empty>No users yet.</Empty>
                 )}
@@ -445,6 +432,7 @@ function Roster({ dashboard }: Props) {
     const [editing, setEditing] = useState<RosterDTO>();
     const [creating, setCreating] = useState(false);
     const Form = ({ row }: { row?: RosterDTO }) => {
+        const [userId, setUserId] = useState(row?.UserId || '');
         const save = useSave(
             async () => {
                 const d = new FormData(
@@ -478,21 +466,18 @@ function Roster({ dashboard }: Props) {
                     className="grid gap-3 sm:grid-cols-2"
                     onSubmit={save.run}>
                     <TextField name="name" label="Shift" value={row?.Name} required />
-                    <label className="fieldset">
-                        <span className="label">Assignee</span>
-                        <select
-                            className="select w-full"
-                            name="userId"
-                            defaultValue={row?.UserId || ''}>
-                            <option value="">Unassigned</option>
+                    <AntForm.Item label="Assignee">
+                        <input type="hidden" name="userId" value={userId} />
+                        <Select value={userId} onChange={setUserId} style={{ width: '100%' }}>
+                            <Select.Option value="">Unassigned</Select.Option>
                             {dashboard.me &&
                                 dashboard.departments.map((d) => (
-                                    <option key={d.Id} value={d.Id}>
+                                    <Select.Option key={d.Id} value={d.Id}>
                                         {d.Name}
-                                    </option>
+                                    </Select.Option>
                                 ))}
-                        </select>
-                    </label>
+                        </Select>
+                    </AntForm.Item>
                     <TextField
                         name="startDate"
                         label="Start date"
@@ -527,58 +512,68 @@ function Roster({ dashboard }: Props) {
             subtitle="Upcoming shifts and assignments."
             action={
                 canEdit && (
-                    <button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>
-                        {icon('plus', 'size-4')}Schedule a shift
-                    </button>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setCreating(true)}>
+                        Schedule a shift
+                    </Button>
                 )
             }>
             <Card title="Upcoming shifts">
                 {dashboard.upcomingRosters.length ? (
-                    <div className="overflow-x-auto">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Shift</th>
-                                    <th>Schedule</th>
-                                    <th>Assignee</th>
-                                    <th />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {dashboard.upcomingRosters.map((r) => (
-                                    <tr key={r.Id}>
-                                        <td className="font-medium">{r.Name}</td>
-                                        <td>{formatRosterSchedule(r)}</td>
-                                        <td>{r.userName || 'Unassigned'}</td>
-                                        <td>
-                                            {canEdit && (
-                                                <div className="flex justify-end gap-1">
-                                                    <button
-                                                        className="btn btn-ghost btn-xs"
-                                                        onClick={() => setEditing(r)}>
-                                                        {icon('edit', 'size-4')}
-                                                    </button>
-                                                    <button
-                                                        className="btn btn-ghost btn-xs text-error"
-                                                        onClick={async () => {
-                                                            if (confirm('Delete this shift?')) {
-                                                                await api.deleteRoster(
-                                                                    r.Id,
-                                                                    generateRequestId(),
-                                                                );
-                                                                await refreshDashboard();
-                                                            }
-                                                        }}>
-                                                        {icon('trash', 'size-4')}
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <Table
+                        rowKey="Id"
+                        dataSource={dashboard.upcomingRosters}
+                        pagination={false}
+                        columns={[
+                            {
+                                title: 'Shift',
+                                dataIndex: 'Name',
+                                render: (value: string) => (
+                                    <Typography.Text strong>{value}</Typography.Text>
+                                ),
+                            },
+                            {
+                                title: 'Schedule',
+                                render: (_: unknown, row: RosterDTO) => formatRosterSchedule(row),
+                            },
+                            {
+                                title: 'Assignee',
+                                dataIndex: 'userName',
+                                render: (value: string) => value || 'Unassigned',
+                            },
+                            {
+                                title: '',
+                                key: 'actions',
+                                align: 'right' as const,
+                                render: (_: unknown, row: RosterDTO) =>
+                                    canEdit ? (
+                                        <Space>
+                                            <Button
+                                                type="text"
+                                                icon={<EditOutlined />}
+                                                onClick={() => setEditing(row)}
+                                            />
+                                            <Button
+                                                type="text"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={async () => {
+                                                    if (confirm('Delete this shift?')) {
+                                                        await api.deleteRoster(
+                                                            row.Id,
+                                                            generateRequestId(),
+                                                        );
+                                                        await refreshDashboard();
+                                                    }
+                                                }}
+                                            />
+                                        </Space>
+                                    ) : null,
+                            },
+                        ]}
+                    />
                 ) : (
                     <Empty>No shifts scheduled.</Empty>
                 )}
@@ -652,85 +647,82 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     };
     const filteredRows = rows.filter(matches);
     const filter = isProgram ? (
-        <select
-            className="select select-sm"
+        <Select
+            size="middle"
+            style={{ minWidth: 180 }}
             value={view}
-            onChange={(event) => {
-                setView(event.target.value);
-                updateQuery(WORKBENCH_VIEW_QUERY_PARAM, event.target.value);
+            onChange={(value) => {
+                setView(value);
+                updateQuery(WORKBENCH_VIEW_QUERY_PARAM, value);
             }}>
-            <option value="all">All programs</option>
-            <option value="active">Ongoing &amp; Future</option>
-            <option value="past">Past</option>
-        </select>
+            <Select.Option value="all">All programs</Select.Option>
+            <Select.Option value="active">Ongoing &amp; Future</Select.Option>
+            <Select.Option value="past">Past</Select.Option>
+        </Select>
     ) : null;
     return (
         <Page
             title={title}
             subtitle="A standardized request workspace."
             action={
-                <button className="btn btn-primary btn-sm" onClick={create}>
-                    {icon('plus', 'size-4')}New
-                </button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={create}>
+                    New
+                </Button>
             }>
-            <div className="workbench-toolbar mb-3">
-                <label className="workbench-search">
-                    <span className="sr-only">Search</span>
-                    {icon('search', 'size-4 text-base-content/50')}
-                    <input
-                        className="input input-sm w-full"
-                        value={search}
-                        placeholder={`Search ${title.toLowerCase()}`}
-                        onChange={(event) => {
-                            setSearch(event.target.value);
-                            updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, event.target.value);
-                        }}
-                    />
-                </label>
+            <Space className="antd-toolbar" wrap>
+                <Input
+                    prefix={<SearchOutlined />}
+                    value={search}
+                    placeholder={`Search ${title.toLowerCase()}`}
+                    onChange={(event) => {
+                        setSearch(event.target.value);
+                        updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, event.target.value);
+                    }}
+                />
                 {filter}
-            </div>
-            <div className="flex min-h-[28rem] gap-3 overflow-x-auto pb-3">
+            </Space>
+            <div className="antd-board">
                 {statuses.map((status) => {
                     const column = filteredRows.filter((row) => row.Status === status);
                     return (
-                        <section
-                            className="w-72 min-w-72 rounded-box border border-base-300 bg-base-200/40 p-2"
-                            key={status}>
-                            <div className="mb-2 flex items-center justify-between px-2">
-                                <h2 className="text-sm font-semibold">{label(status)}</h2>
-                                <span className="badge badge-ghost badge-sm">{column.length}</span>
+                        <section className="antd-board-column" key={status}>
+                            <div className="antd-board-column-heading">
+                                <Typography.Text strong>{label(status)}</Typography.Text>
+                                <Tag>{column.length}</Tag>
                             </div>
-                            <div className="space-y-2">
+                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
                                 {column.map((row) => (
-                                    <button
-                                        className="card w-full border border-base-300 bg-base-100 text-left transition hover:border-primary"
+                                    <AntCard
+                                        size="small"
+                                        hoverable
                                         key={row.Id}
                                         onClick={() => open(row.Id)}>
-                                        <div className="card-body gap-2 p-3">
-                                            <span className="font-mono text-[0.68rem] text-base-content/50">
+                                        <Space direction="vertical" size={2}>
+                                            <Typography.Text type="secondary">
                                                 {isInventory
                                                     ? `REQ-${row.DisplayId}`
                                                     : isProgram
                                                       ? `PRG-${row.DisplayId}`
                                                       : `TKT-${row.DisplayId}`}
-                                            </span>
-                                            <strong className="text-sm">
+                                            </Typography.Text>
+                                            <Typography.Text strong>
                                                 {isProgram || isInventory ? row.Name : row.Title}
-                                            </strong>
-                                            <span className="text-xs text-base-content/60">
+                                            </Typography.Text>
+                                            <Typography.Text type="secondary">
                                                 {isProgram || isInventory
                                                     ? row.userName
                                                     : row.assigneeName || 'Unassigned'}
-                                            </span>
-                                        </div>
-                                    </button>
+                                            </Typography.Text>
+                                        </Space>
+                                    </AntCard>
                                 ))}
                                 {!column.length && (
-                                    <p className="px-2 py-8 text-center text-xs text-base-content/45">
-                                        No requests
-                                    </p>
+                                    <AntEmpty
+                                        image={AntEmpty.PRESENTED_IMAGE_SIMPLE}
+                                        description="No requests"
+                                    />
                                 )}
-                            </div>
+                            </Space>
                         </section>
                     );
                 })}
@@ -745,6 +737,8 @@ function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
 }
 
 function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
+    const [inventoryTypeId, setInventoryTypeId] = useState('');
+    const [placeId, setPlaceId] = useState('');
     const back =
         kind === 'inventory'
             ? navigateToInventoryRequests
@@ -799,9 +793,9 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         <Page
             title={`New ${kind === 'tickets' ? 'ticket' : kind === 'programs' ? 'program request' : 'inventory request'}`}
             action={
-                <button className="btn btn-ghost btn-sm" onClick={back}>
-                    {icon('chevronLeft', 'size-4')}Cancel
-                </button>
+                <Button type="link" onClick={back}>
+                    Cancel
+                </Button>
             }>
             <Card title="Request details">
                 <form
@@ -817,17 +811,24 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                         <>
                             <TextField name="startDate" label="Start date" type="date" required />
                             <TextField name="endDate" label="End date" type="date" required />
-                            <label className="fieldset">
-                                <span className="label">Inventory type</span>
-                                <select name="inventoryTypeId" className="select w-full" required>
-                                    <option value="">Select equipment</option>
+                            <AntForm.Item label="Inventory type" required>
+                                <input
+                                    type="hidden"
+                                    name="inventoryTypeId"
+                                    value={inventoryTypeId}
+                                />
+                                <Select
+                                    value={inventoryTypeId}
+                                    onChange={setInventoryTypeId}
+                                    style={{ width: '100%' }}>
+                                    <Select.Option value="">Select equipment</Select.Option>
                                     {dashboard.inventoryTypes.map((t) => (
-                                        <option key={t.Id} value={t.Id}>
+                                        <Select.Option key={t.Id} value={t.Id}>
                                             {t.Name}
-                                        </option>
+                                        </Select.Option>
                                     ))}
-                                </select>
-                            </label>
+                                </Select>
+                            </AntForm.Item>
                             <TextField
                                 name="quantity"
                                 label="Quantity"
@@ -851,17 +852,20 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                 value={dashboard.programTypes[0]?.Name || 'Program'}
                                 required
                             />
-                            <label className="fieldset">
-                                <span className="label">Place</span>
-                                <select name="placeId" className="select w-full">
-                                    <option value="">No place</option>
+                            <AntForm.Item label="Place">
+                                <input type="hidden" name="placeId" value={placeId} />
+                                <Select
+                                    value={placeId}
+                                    onChange={setPlaceId}
+                                    style={{ width: '100%' }}>
+                                    <Select.Option value="">No place</Select.Option>
                                     {dashboard.places.map((p) => (
-                                        <option key={p.Id} value={p.Id}>
+                                        <Select.Option key={p.Id} value={p.Id}>
                                             {p.Name}
-                                        </option>
+                                        </Select.Option>
                                     ))}
-                                </select>
-                            </label>
+                                </Select>
+                            </AntForm.Item>
                         </>
                     )}
                     <div className="sm:col-span-2">
@@ -1011,20 +1015,21 @@ function ProgramDetail({
             }
             subtitle={`PRG-${request.DisplayId} · ${request.Status}`}
             action={
-                <button className="btn btn-ghost btn-sm" onClick={back}>
-                    {icon('chevronLeft', 'size-4')}Back
-                </button>
+                <Button type="link" onClick={back}>
+                    Back
+                </Button>
             }>
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
                 <Card
                     title="Program details"
                     action={
                         editable && (
-                            <button
-                                className="btn btn-primary btn-sm"
+                            <Button
+                                type="primary"
+                                icon={<EditOutlined />}
                                 onClick={() => setEditing(true)}>
-                                {icon('edit', 'size-4')}Edit
-                            </button>
+                                Edit
+                            </Button>
                         )
                     }>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -1051,14 +1056,11 @@ function ProgramDetail({
                 </Card>
                 <Card title="Actions">
                     <div className="flex flex-wrap gap-2">
-                        <span className="badge badge-ghost">{request.Status}</span>
+                        <Tag>{request.Status}</Tag>
                         {actions.map((action) => (
-                            <button
-                                className="btn btn-sm"
-                                key={action}
-                                onClick={() => perform(action)}>
+                            <Button size="small" key={action} onClick={() => perform(action)}>
                                 {action}
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </Card>
@@ -1067,11 +1069,12 @@ function ProgramDetail({
                         title="Sessions"
                         action={
                             editable && (
-                                <button
-                                    className="btn btn-primary btn-sm"
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
                                     onClick={() => editSession(null)}>
-                                    {icon('plus', 'size-4')}Add session
-                                </button>
+                                    Add session
+                                </Button>
                             )
                         }>
                         {sessions.length ? (
@@ -1096,22 +1099,23 @@ function ProgramDetail({
                                                 <td>
                                                     {editable && (
                                                         <div className="flex justify-end gap-1">
-                                                            <button
-                                                                className="btn btn-ghost btn-xs"
-                                                                onClick={() => editSession(index)}>
-                                                                {icon('edit', 'size-4')}
-                                                            </button>
-                                                            <button
-                                                                className="btn btn-ghost btn-xs text-error"
+                                                            <Button
+                                                                type="text"
+                                                                icon={<EditOutlined />}
+                                                                onClick={() =>
+                                                                    editSession(index)
+                                                                }></Button>
+                                                            <Button
+                                                                type="text"
+                                                                danger
+                                                                icon={<DeleteOutlined />}
                                                                 onClick={() =>
                                                                     setSessions((current) =>
                                                                         current.filter(
                                                                             (_, i) => i !== index,
                                                                         ),
                                                                     )
-                                                                }>
-                                                                {icon('trash', 'size-4')}
-                                                            </button>
+                                                                }></Button>
                                                         </div>
                                                     )}
                                                 </td>
@@ -1146,15 +1150,15 @@ function ProgramDetail({
                                 <Empty>No activity yet.</Empty>
                             )}
                             <form className="flex gap-2" onSubmit={submitComment}>
-                                <input
-                                    className="input input-sm min-w-0 flex-1"
+                                <Input
+                                    size="small"
                                     value={comment}
                                     onChange={(e) => setComment(e.target.value)}
                                     placeholder="Add a comment"
                                 />
-                                <button className="btn btn-sm" type="submit">
+                                <Button size="small" htmlType="submit">
                                     Send
-                                </button>
+                                </Button>
                             </form>
                         </div>
                     </Card>
@@ -1166,47 +1170,44 @@ function ProgramDetail({
                         <TextField name="name" label="Program title" value={values.Name} />
                         <TextField name="language" label="Language" value={values.Language} />
                         <TextField name="type" label="Type" value={values.Type} />
-                        <label className="fieldset">
-                            <span className="label">Place</span>
-                            <select
-                                className="select w-full"
+                        <AntForm.Item label="Place">
+                            <Select
                                 value={values.PlaceId}
-                                onChange={(e) => update('PlaceId', e.target.value)}>
-                                <option value="">No place</option>
+                                onChange={(value) => update('PlaceId', value)}
+                                style={{ width: '100%' }}>
+                                <Select.Option value="">No place</Select.Option>
                                 {dashboard.places.map((p) => (
-                                    <option key={p.Id} value={p.Id}>
+                                    <Select.Option key={p.Id} value={p.Id}>
                                         {p.Name}
-                                    </option>
+                                    </Select.Option>
                                 ))}
-                            </select>
-                        </label>
-                        <label className="fieldset">
-                            <span className="label">Department</span>
-                            <select
-                                className="select w-full"
+                            </Select>
+                        </AntForm.Item>
+                        <AntForm.Item label="Department">
+                            <Select
                                 value={values.DepartmentId}
-                                onChange={(e) => update('DepartmentId', e.target.value)}>
+                                onChange={(value) => update('DepartmentId', value)}
+                                style={{ width: '100%' }}>
                                 {dashboard.departments.map((d) => (
-                                    <option key={d.Id} value={d.Id}>
+                                    <Select.Option key={d.Id} value={d.Id}>
                                         {d.Name}
-                                    </option>
+                                    </Select.Option>
                                 ))}
-                            </select>
-                        </label>
+                            </Select>
+                        </AntForm.Item>
                         {canApprove(dashboard.me) && (
-                            <label className="fieldset">
-                                <span className="label">Requested by</span>
-                                <select
-                                    className="select w-full"
+                            <AntForm.Item label="Requested by">
+                                <Select
                                     value={values.UserId}
-                                    onChange={(e) => update('UserId', e.target.value)}>
+                                    onChange={(value) => update('UserId', value)}
+                                    style={{ width: '100%' }}>
                                     {users.map((u) => (
-                                        <option key={u.Email} value={u.Email}>
+                                        <Select.Option key={u.Email} value={u.Email}>
                                             {u.Name}
-                                        </option>
+                                        </Select.Option>
                                     ))}
-                                </select>
-                            </label>
+                                </Select>
+                            </AntForm.Item>
                         )}
                         <TextField name="leadEmail" label="Lead email" value={values.LeadEmail} />
                         <TextField
@@ -1254,50 +1255,39 @@ function SessionForm({
         setDraft({ ...draft, [key]: value });
     return (
         <form className="grid gap-3 sm:grid-cols-2" onSubmit={onSubmit}>
-            <label className="fieldset">
-                <span className="label">Session type</span>
-                <select
-                    className="select w-full"
+            <AntForm.Item label="Session type" required>
+                <Select
                     value={draft.Type}
-                    onChange={(e) => update('Type', e.target.value)}
-                    required>
-                    <option value="">Select type</option>
+                    onChange={(value) => update('Type', value)}
+                    style={{ width: '100%' }}>
+                    <Select.Option value="">Select type</Select.Option>
                     {types.map((t) => (
-                        <option key={t.Id} value={t.Name}>
+                        <Select.Option key={t.Id} value={t.Name}>
                             {t.Name}
-                        </option>
+                        </Select.Option>
                     ))}
-                </select>
-            </label>
-            <label className="fieldset">
-                <span className="label">Session title</span>
-                <input
-                    className="input w-full"
-                    value={draft.Name}
-                    onChange={(e) => update('Name', e.target.value)}
-                />
-            </label>
-            <label className="fieldset">
-                <span className="label">Start</span>
-                <input
-                    className="input w-full"
+                </Select>
+            </AntForm.Item>
+            <AntForm.Item label="Session title">
+                <Input value={draft.Name} onChange={(e) => update('Name', e.target.value)} />
+            </AntForm.Item>
+            <AntForm.Item label="Start" required>
+                <Input
                     type="datetime-local"
                     value={draft.StartDateTime ? draft.StartDateTime.slice(0, 16) : ''}
                     onChange={(e) => update('StartDateTime', e.target.value)}
                     required
                 />
-            </label>
-            <label className="fieldset">
-                <span className="label">End</span>
-                <input
-                    className="input w-full"
+            </AntForm.Item>
+            <AntForm.Item label="End" required>
+                <Input
                     type="datetime-local"
                     value={draft.EndDateTime ? draft.EndDateTime.slice(0, 16) : ''}
                     onChange={(e) => update('EndDateTime', e.target.value)}
                     required
                 />
-            </label>
-            <div className="modal-action sm:col-span-2">
+            </AntForm.Item>
+            <div>
                 <Submit label="Save session" />
             </div>
         </form>
@@ -1332,9 +1322,7 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
         ) : (
             <Page title="Not found">
                 <Card title="Record not found">
-                    <button className="btn" onClick={back}>
-                        Back
-                    </button>
+                    <Button onClick={back}>Back</Button>
                 </Card>
             </Page>
         );
@@ -1350,9 +1338,9 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
             title={title}
             subtitle={`${kind} · ${row.Status}`}
             action={
-                <button className="btn btn-ghost btn-sm" onClick={back}>
-                    {icon('chevronLeft', 'size-4')}Back
-                </button>
+                <Button type="link" onClick={back}>
+                    Back
+                </Button>
             }>
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
                 <Card title="Details">
@@ -1360,7 +1348,7 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                         <div>
                             <dt className="text-xs text-base-content/50">Status</dt>
                             <dd>
-                                <span className="badge badge-ghost">{row.Status}</span>
+                                <Tag>{row.Status}</Tag>
                             </dd>
                         </div>
                         <div>
@@ -1378,8 +1366,8 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                 <Card title="Actions">
                     <div className="flex flex-wrap gap-2">
                         {actions.map((action) => (
-                            <button
-                                className="btn btn-sm"
+                            <Button
+                                size="small"
                                 key={action}
                                 onClick={async () => {
                                     try {
@@ -1414,7 +1402,7 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                                     }
                                 }}>
                                 {action}
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </Card>

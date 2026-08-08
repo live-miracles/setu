@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
+import { Button, Card, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
-import { renderEmptyState } from '../ui/components';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { escapeHtml, formatDateTime } from '../ui/format';
-import { icon as iconMarkup, type IconName } from '../ui/icons';
+import { formatDateTime } from '../ui/format';
 import { stockLevelClass } from '../ui/styles';
 
 type Field = { field: string; label: string; type?: string };
@@ -29,13 +29,6 @@ interface ResourceConfig {
 const requestId = () => generateRequestId();
 const value = (data: FormData, field: Field) => String(data.get(field.field) || '');
 const iso = (raw: string) => (raw ? new Date(raw).toISOString() : '');
-const icon = (name: IconName, className = 'size-5') => (
-    <span
-        className="inline-flex"
-        dangerouslySetInnerHTML={{ __html: iconMarkup(name, className) }}
-    />
-);
-
 const RESOURCES: Record<string, ResourceConfig> = {
     departments: {
         kind: 'department',
@@ -256,25 +249,20 @@ function FieldSet({
         }
     }
     return (
-        <form className="grid gap-3 sm:grid-cols-2" onSubmit={submit}>
+        <form onSubmit={submit}>
             {config.fields.map((field, index) => (
-                <label className="fieldset" key={field.field}>
-                    <span className="label">{field.label}</span>
-                    <input
+                <Form.Item label={field.label} required={index === 0} key={field.field}>
+                    <Input
                         name={field.field}
                         type={field.type || 'text'}
                         required={index === 0}
                         defaultValue={inputValue(field, row?.[field.field])}
-                        className="input w-full"
                     />
-                </label>
+                </Form.Item>
             ))}
-            <div className="modal-action sm:col-span-2">
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                    {busy && <span className="loading loading-spinner loading-xs" />}
-                    {submitLabel}
-                </button>
-            </div>
+            <Button type="primary" htmlType="submit" loading={busy}>
+                {submitLabel}
+            </Button>
         </form>
     );
 }
@@ -291,31 +279,22 @@ function Editor({
     onSaved: (values: Record<string, string>) => Promise<void>;
 }) {
     return (
-        <dialog open className="modal" onCancel={onClose}>
-            <div className="modal-box w-11/12 max-w-[50rem]">
-                <h3 className="mb-4 flex items-center gap-2 text-base font-semibold">
-                    {icon(row ? 'edit' : 'plus', 'size-5 text-primary')}
-                    {row ? 'Edit' : config.addLabel}
-                </h3>
-                <FieldSet
-                    config={config}
-                    row={row}
-                    onSubmit={async (values) => {
-                        await onSaved(values);
-                        onClose();
-                    }}
-                    submitLabel={row ? 'Save' : 'Add'}
-                />
-                <button
-                    type="button"
-                    className="btn btn-ghost absolute right-3 top-3"
-                    onClick={onClose}
-                    aria-label="Close">
-                    ×
-                </button>
-            </div>
-            <button className="modal-backdrop" onClick={onClose} aria-label="Close dialog" />
-        </dialog>
+        <Modal
+            open
+            title={row ? 'Edit' : config.addLabel}
+            onCancel={onClose}
+            footer={null}
+            destroyOnClose>
+            <FieldSet
+                config={config}
+                row={row}
+                onSubmit={async (values) => {
+                    await onSaved(values);
+                    onClose();
+                }}
+                submitLabel={row ? 'Save' : 'Add'}
+            />
+        </Modal>
     );
 }
 
@@ -352,95 +331,80 @@ function SettingsResourcePage({
             showSavingBadge(false);
         }
     }
+    const columns = [
+        ...config.fields.map((field) => ({
+            title: field.label,
+            dataIndex: field.field,
+            key: field.field,
+            render: (value: unknown) =>
+                field.type === 'datetime-local'
+                    ? formatDateTime(String(value || ''))
+                    : String(value ?? ''),
+        })),
+        {
+            title: 'Actions',
+            key: 'actions',
+            align: 'right' as const,
+            render: (_: unknown, row: Row) => (
+                <Space>
+                    <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => setEditing(row)}
+                        aria-label="Edit"
+                    />
+                    <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => remove(row)}
+                        aria-label="Delete"
+                    />
+                </Space>
+            ),
+        },
+    ];
     return (
-        <section className={compact ? 'space-y-3' : 'space-y-5'}>
+        <section className={compact ? 'antd-settings-compact' : 'antd-page'}>
             {!compact && (
-                <header className="section-heading">
+                <div className="antd-page-heading">
                     <div>
-                        <h1>{config.title}</h1>
-                        <p>{config.subtitle}</p>
+                        <Typography.Title level={2}>{config.title}</Typography.Title>
+                        <Typography.Paragraph type="secondary">
+                            {config.subtitle}
+                        </Typography.Paragraph>
                     </div>
-                    <button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>
-                        {icon('plus', 'size-4')}
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setCreating(true)}>
                         {config.addLabel}
-                    </button>
-                </header>
-            )}
-            <div className="card border border-base-300 bg-base-100">
-                <div className="card-body gap-2">
-                    <div className="flex items-center justify-between">
-                        <h2 className="card-title text-base">{config.title}</h2>
-                        <div className="flex items-center gap-2">
-                            <span className="badge badge-ghost badge-sm">{rows.length}</span>
-                            {compact && (
-                                <button
-                                    className="btn btn-primary btn-xs"
-                                    onClick={() => setCreating(true)}>
-                                    {icon('plus', 'size-3')}Add
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    {rows.length ? (
-                        <div className="overflow-x-auto">
-                            <table className="table">
-                                <thead>
-                                    <tr>
-                                        {config.fields.map((f) => (
-                                            <th key={f.field}>{f.label}</th>
-                                        ))}
-                                        <th className="w-24" />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {rows.map((row) => (
-                                        <tr key={row.Id}>
-                                            <td className="font-medium">
-                                                {escapeHtml(
-                                                    String(row[config.fields[0].field] ?? ''),
-                                                )}
-                                            </td>
-                                            {config.fields.slice(1).map((field) => (
-                                                <td key={field.field}>
-                                                    {field.type === 'datetime-local'
-                                                        ? formatDateTime(
-                                                              String(row[field.field] || ''),
-                                                          )
-                                                        : escapeHtml(
-                                                              String(row[field.field] ?? ''),
-                                                          )}
-                                                </td>
-                                            ))}
-                                            <td>
-                                                <div className="flex justify-end gap-1">
-                                                    <button
-                                                        className="btn btn-ghost btn-xs"
-                                                        onClick={() => setEditing(row)}
-                                                        aria-label="Edit">
-                                                        {icon('edit', 'size-4')}
-                                                    </button>
-                                                    <button
-                                                        className="btn btn-ghost btn-xs text-error"
-                                                        onClick={() => remove(row)}
-                                                        aria-label="Delete">
-                                                        {icon('trash', 'size-4')}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <div
-                            dangerouslySetInnerHTML={{
-                                __html: renderEmptyState('box', config.emptyMessage),
-                            }}
-                        />
-                    )}
+                    </Button>
                 </div>
-            </div>
+            )}
+            <Card
+                title={config.title}
+                extra={
+                    compact ? (
+                        <Button
+                            type="primary"
+                            size="small"
+                            icon={<PlusOutlined />}
+                            onClick={() => setCreating(true)}>
+                            Add
+                        </Button>
+                    ) : (
+                        <Tag>{rows.length}</Tag>
+                    )
+                }>
+                <Table
+                    rowKey="Id"
+                    columns={columns}
+                    dataSource={rows}
+                    locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
+                    pagination={false}
+                />
+            </Card>
             {(creating || editing) && (
                 <Editor
                     config={config}
@@ -475,39 +439,36 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
         }
     }
     return (
-        <section className="space-y-5">
-            <header className="section-heading">
+        <section className="antd-page">
+            <div className="antd-page-heading">
                 <div>
-                    <h1>Other settings</h1>
-                    <p>Guidelines and reusable options used throughout the app.</p>
-                </div>
-            </header>
-            <div className="card border border-base-300 bg-base-100">
-                <div className="card-body">
-                    <form className="grid gap-3" onSubmit={save}>
-                        <label className="fieldset">
-                            <span className="label">Guidelines</span>
-                            <textarea
-                                name="guidelines"
-                                className="textarea w-full"
-                                defaultValue={dashboard.homeContent.Guidelines}
-                            />
-                        </label>
-                        <label className="fieldset max-w-md">
-                            <span className="label">Notification email</span>
-                            <input
-                                name="notificationEmail"
-                                type="email"
-                                className="input w-full"
-                                defaultValue={dashboard.homeContent.NotificationEmail}
-                            />
-                        </label>
-                        <button className="btn btn-primary w-fit" disabled={saving}>
-                            {saving && <span className="loading loading-spinner loading-xs" />}Save
-                        </button>
-                    </form>
+                    <Typography.Title level={2}>Other settings</Typography.Title>
+                    <Typography.Paragraph type="secondary">
+                        Guidelines and reusable options used throughout the app.
+                    </Typography.Paragraph>
                 </div>
             </div>
+            <Card title="Content">
+                <form onSubmit={save}>
+                    <Form.Item label="Guidelines">
+                        <Input.TextArea
+                            name="guidelines"
+                            rows={6}
+                            defaultValue={dashboard.homeContent.Guidelines}
+                        />
+                    </Form.Item>
+                    <Form.Item label="Notification email">
+                        <Input
+                            name="notificationEmail"
+                            type="email"
+                            defaultValue={dashboard.homeContent.NotificationEmail}
+                        />
+                    </Form.Item>
+                    <Button type="primary" htmlType="submit" loading={saving}>
+                        Save
+                    </Button>
+                </form>
+            </Card>
             {(
                 ['shift-presets', 'program-types', 'program-languages', 'session-types'] as const
             ).map((key) => (

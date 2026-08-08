@@ -20,15 +20,17 @@
         "@google/clasp": "^3.3.0",
         "@tailwindcss/cli": "^4.0.0",
         "@types/google-apps-script": "^1.0.83",
-        "daisyui": "^5.0.0",
         "esbuild": "^0.25.0",
         "prettier": "^3.3.3",
         "tailwindcss": "^4.0.0",
         "typescript": "^5.5.4"
     },
     "dependencies": {
+        "@ant-design/icons": "^6.3.2",
+        "@refinedev/antd": "^6.0.3",
         "@refinedev/core": "^5.0.12",
         "@refinedev/react-hook-form": "^5.0.4",
+        "antd": "^5.29.3",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
         "react-hook-form": "^7.85.0"
