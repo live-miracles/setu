@@ -8,6 +8,7 @@ import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
 import { stockLevelClass } from '../ui/styles';
+import { ActionConfirmation } from './refine-app';
 
 type Field = { field: string; label: string; type?: string };
 type Row = Record<string, any>;
@@ -300,6 +301,7 @@ function SettingsResourcePage({
 }) {
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
+    const [deleting, setDeleting] = useState<Row | null>(null);
     const [search, setSearch] = useState('');
     const rows = config.rows(dashboard);
     const hasSearch = config.kind === 'department' || config.kind === 'inventory-type';
@@ -322,7 +324,6 @@ function SettingsResourcePage({
         }
     }
     async function remove(row: Row) {
-        if (!window.confirm(`Delete “${row[config.fields[0].field]}”?`)) return;
         showSavingBadge(true);
         try {
             await config.remove(row.Id);
@@ -359,7 +360,7 @@ function SettingsResourcePage({
                         type="text"
                         danger
                         icon={<DeleteOutlined />}
-                        onClick={() => remove(row)}
+                        onClick={() => setDeleting(row)}
                         aria-label="Delete"
                     />
                 </Space>
@@ -415,6 +416,17 @@ function SettingsResourcePage({
                     pagination={false}
                 />
             </Card>
+            {deleting && (
+                <ActionConfirmation
+                    action="delete"
+                    description={`Delete “${deleting[config.fields[0].field]}”?`}
+                    onCancel={() => setDeleting(null)}
+                    onConfirm={async () => {
+                        await remove(deleting);
+                        setDeleting(null);
+                    }}
+                />
+            )}
             {(creating || editing) && (
                 <Editor
                     config={config}

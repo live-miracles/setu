@@ -77,3 +77,29 @@ export function formatDateTime(iso: string): string {
         minute: '2-digit',
     });
 }
+
+export function formatProgramDateRange(sessions: ProgramSession[]): string {
+    const dates = sessions
+        .flatMap((session) => [session.StartDateTime, session.EndDateTime])
+        .map((value) => new Date(value))
+        .filter((date) => !isNaN(date.getTime()))
+        .sort((a, b) => a.getTime() - b.getTime());
+    if (!dates.length) return 'No dates scheduled';
+
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+    const format = (date: Date) => ({
+        day: date.getDate(),
+        month: MONTH_SHORT_NAMES[date.getMonth()],
+        year: date.getFullYear(),
+    });
+    const start = format(first);
+    const end = format(last);
+    if (start.day === end.day && start.month === end.month && start.year === end.year)
+        return `${start.day} ${start.month}, ${start.year}`;
+    if (start.month === end.month && start.year === end.year)
+        return `${start.day} - ${end.day} ${end.month}, ${end.year}`;
+    if (start.year === end.year)
+        return `${start.day} ${start.month} - ${end.day} ${end.month}, ${end.year}`;
+    return `${start.day} ${start.month}, ${start.year} - ${end.day} ${end.month}, ${end.year}`;
+}

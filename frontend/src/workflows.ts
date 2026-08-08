@@ -28,7 +28,7 @@ export function canTransitionInventoryRequest(
 const PROGRAM_REQUEST_TRANSITIONS: Record<ProgramRequestStatus, ProgramRequestAction[]> = {
     draft: ['submit', 'cancel'],
     submitted: ['approve', 'reject', 'cancel'],
-    approved: [],
+    approved: ['cancel'],
     rejected: [],
     cancelled: [],
 };

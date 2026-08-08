@@ -399,11 +399,6 @@ function performInventoryRequestAction(
                         actor.Name + ' approved this request.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'reject') {
-                    requireMinLength(
-                        note,
-                        3,
-                        'A note of at least 3 characters is required to reject.',
-                    );
                     if (request.Status !== 'submitted')
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'rejected';
@@ -412,7 +407,7 @@ function performInventoryRequestAction(
                         'inventory',
                         requestId,
                         actor.Email,
-                        actor.Name + ' rejected this request. ' + note,
+                        actor.Name + ' rejected this request.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'issue') {
                     if (request.Status !== 'approved')
@@ -477,11 +472,6 @@ function performInventoryRequestAction(
                         actor.Name + ' returned ' + summaries.join(', ') + '.',
                     );
                 } else if (action === 'cancel') {
-                    requireMinLength(
-                        note,
-                        3,
-                        'A note of at least 3 characters is required to cancel.',
-                    );
                     if (['draft', 'submitted', 'approved'].indexOf(request.Status) === -1)
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'cancelled';
@@ -490,7 +480,7 @@ function performInventoryRequestAction(
                         'inventory',
                         requestId,
                         actor.Email,
-                        actor.Name + ' cancelled this request. ' + note,
+                        actor.Name + ' cancelled this request.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'close') {
                     if (['returned', 'rejected', 'cancelled'].indexOf(request.Status) === -1)

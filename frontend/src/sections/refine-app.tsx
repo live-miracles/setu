@@ -15,9 +15,13 @@ import {
 import {
     DeleteOutlined,
     EditOutlined,
+    CheckOutlined,
+    CloseOutlined,
     PhoneOutlined,
     PlusOutlined,
     SearchOutlined,
+    SendOutlined,
+    StopOutlined,
     WhatsAppOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
@@ -38,12 +42,37 @@ import {
 import { WORKBENCH_SEARCH_QUERY_PARAM, WORKBENCH_VIEW_QUERY_PARAM } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { formatDateTime, formatRosterSchedule } from '../ui/format';
+import { formatDateTime, formatProgramDateRange, formatRosterSchedule } from '../ui/format';
 import { roleLabel } from '../ui/styles';
 import { canApprove, canManageConfig } from '../workflows';
 
 type Props = { dashboard: DashboardPayload };
+const OTHER_PROGRAM_TYPE = 'Other';
 const error = (e: unknown) => showErrorAlert(e);
+
+function programTypeOptions(programTypes: ProgramType[], current = ''): string[] {
+    const names = [...programTypes.map((programType) => programType.Name), OTHER_PROGRAM_TYPE];
+    if (current) names.unshift(current);
+    return names.filter(
+        (name, index) =>
+            Boolean(name) &&
+            names.findIndex((candidate) => candidate.toLowerCase() === name.toLowerCase()) ===
+                index,
+    );
+}
+
+function formatProgramName(language: string, type: string, title: string): string {
+    return [language, type.toLowerCase() === OTHER_PROGRAM_TYPE.toLowerCase() ? '' : type, title]
+        .filter(Boolean)
+        .join(' ');
+}
+
+function programActionIcon(action: ProgramRequestAction): ReactNode {
+    if (action === 'submit') return <SendOutlined />;
+    if (action === 'approve') return <CheckOutlined />;
+    if (action === 'reject') return <CloseOutlined />;
+    return <StopOutlined />;
+}
 
 function Page({
     title,
@@ -109,6 +138,40 @@ function Modal({
         <AntModal open title={title} onCancel={close} footer={null} destroyOnHidden>
             {children}
         </AntModal>
+    );
+}
+export function ActionConfirmation({
+    action,
+    description,
+    onConfirm,
+    onCancel,
+}: {
+    action: string;
+    description?: string;
+    onConfirm: () => Promise<void>;
+    onCancel: () => void;
+}) {
+    const label = action.charAt(0).toUpperCase() + action.slice(1);
+    return (
+        <Modal title={`Confirm ${label}`} close={onCancel}>
+            <form
+                className="grid gap-3"
+                onSubmit={async (event) => {
+                    event.preventDefault();
+                    await onConfirm();
+                }}>
+                <p>
+                    {description ||
+                        `Are you sure you want to ${action.toLowerCase()} this request?`}
+                </p>
+                <div className="flex justify-end gap-2">
+                    <Button onClick={onCancel}>No</Button>
+                    <Button type="primary" htmlType="submit">
+                        Yes
+                    </Button>
+                </div>
+            </form>
+        </Modal>
     );
 }
 function useSave(action: () => Promise<unknown>, close?: () => void) {
@@ -495,6 +558,7 @@ function Roster({ dashboard }: Props) {
     const canEdit = canApprove(dashboard.me);
     const [editing, setEditing] = useState<RosterDTO>();
     const [creating, setCreating] = useState(false);
+    const [deleting, setDeleting] = useState<RosterDTO | null>(null);
     const [users, setUsers] = useState<UserDTO[]>([]);
     useEffect(() => {
         if (canEdit) api.listUsers().then(setUsers).catch(error);
@@ -624,15 +688,7 @@ function Roster({ dashboard }: Props) {
                                                 type="text"
                                                 danger
                                                 icon={<DeleteOutlined />}
-                                                onClick={async () => {
-                                                    if (confirm('Delete this shift?')) {
-                                                        await api.deleteRoster(
-                                                            row.Id,
-                                                            generateRequestId(),
-                                                        );
-                                                        await refreshDashboard();
-                                                    }
-                                                }}
+                                                onClick={() => setDeleting(row)}
                                             />
                                         </Space>
                                     ) : null,
@@ -643,6 +699,18 @@ function Roster({ dashboard }: Props) {
                     <Empty>No shifts scheduled.</Empty>
                 )}
             </Card>
+            {deleting && (
+                <ActionConfirmation
+                    action="delete"
+                    description="Are you sure you want to delete this shift?"
+                    onCancel={() => setDeleting(null)}
+                    onConfirm={async () => {
+                        await api.deleteRoster(deleting.Id, generateRequestId());
+                        setDeleting(null);
+                        await refreshDashboard();
+                    }}
+                />
+            )}
             {(creating || editing) && <Form row={editing} />}
         </Page>
     );
@@ -766,21 +834,48 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                         key={row.Id}
                                         onClick={() => open(row.Id)}>
                                         <Space direction="vertical" size={2}>
-                                            <Typography.Text type="secondary">
-                                                {isInventory
-                                                    ? `REQ-${row.DisplayId}`
-                                                    : isProgram
-                                                      ? `PRG-${row.DisplayId}`
-                                                      : `TKT-${row.DisplayId}`}
-                                            </Typography.Text>
-                                            <Typography.Text strong>
-                                                {isProgram || isInventory ? row.Name : row.Title}
-                                            </Typography.Text>
-                                            <Typography.Text type="secondary">
-                                                {isProgram || isInventory
-                                                    ? row.userName
-                                                    : row.assigneeName || 'Unassigned'}
-                                            </Typography.Text>
+                                            {isProgram ? (
+                                                <>
+                                                    <Typography.Text strong>
+                                                        {`PRG-${row.DisplayId}`} ·{' '}
+                                                        {formatProgramName(
+                                                            row.Language,
+                                                            row.Type,
+                                                            row.Name,
+                                                        ) || 'Unnamed program'}
+                                                    </Typography.Text>
+                                                    <Typography.Text type="secondary">
+                                                        {formatProgramDateRange(row.sessions || [])}
+                                                    </Typography.Text>
+                                                    <Typography.Text type="secondary">
+                                                        {row.userName || 'Unknown requester'} |{' '}
+                                                        {dashboard.departments.find(
+                                                            (department) =>
+                                                                department.Id ===
+                                                                dashboard.users.find(
+                                                                    (user) =>
+                                                                        user.Email === row.UserId,
+                                                                )?.DepartmentId,
+                                                        )?.ShortName || '—'}
+                                                    </Typography.Text>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Typography.Text type="secondary">
+                                                        {isInventory
+                                                            ? `REQ-${row.DisplayId}`
+                                                            : `TKT-${row.DisplayId}`}
+                                                    </Typography.Text>
+                                                    <Typography.Text strong>
+                                                        {isInventory ? row.Name : row.Title}
+                                                    </Typography.Text>
+                                                    <Typography.Text type="secondary">
+                                                        {isInventory
+                                                            ? row.userName
+                                                            : row.assigneeName || 'Unassigned'}
+                                                    </Typography.Text>
+                                                </>
+                                            )}
                                         </Space>
                                     </AntCard>
                                 ))}
@@ -807,6 +902,9 @@ function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
 function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
     const [inventoryTypeId, setInventoryTypeId] = useState('');
     const [placeId, setPlaceId] = useState('');
+    const [programType, setProgramType] = useState(
+        dashboard.programTypes[0]?.Name || OTHER_PROGRAM_TYPE,
+    );
     const back =
         kind === 'inventory'
             ? navigateToInventoryRequests
@@ -846,7 +944,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 {
                     name,
                     language: String(d.get('language') || 'English'),
-                    type: String(d.get('type') || 'Program'),
+                    type: programType,
                     userId: dashboard.me.Email,
                     placeId: String(d.get('placeId') || ''),
                     sessions: [],
@@ -873,7 +971,11 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                         await save.run(e);
                         back();
                     }}>
-                    <TextField name="name" label={kind === 'tickets' ? 'Title' : 'Name'} required />
+                    <TextField
+                        name="name"
+                        label={kind === 'tickets' ? 'Title' : 'Name'}
+                        required={kind !== 'programs' || programType === OTHER_PROGRAM_TYPE}
+                    />
                     <TextField name="description" label="Description" />
                     {kind === 'inventory' && (
                         <>
@@ -914,12 +1016,19 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                 value={dashboard.programLanguages[0]?.Name || 'English'}
                                 required
                             />
-                            <TextField
-                                name="type"
-                                label="Program type"
-                                value={dashboard.programTypes[0]?.Name || 'Program'}
-                                required
-                            />
+                            <AntForm.Item label="Program type" required>
+                                <input type="hidden" name="type" value={programType} />
+                                <Select
+                                    value={programType}
+                                    onChange={setProgramType}
+                                    style={{ width: '100%' }}>
+                                    {programTypeOptions(dashboard.programTypes).map((type) => (
+                                        <Select.Option key={type} value={type}>
+                                            {type}
+                                        </Select.Option>
+                                    ))}
+                                </Select>
+                            </AntForm.Item>
                             <AntForm.Item label="Place">
                                 <input type="hidden" name="placeId" value={placeId} />
                                 <Select
@@ -948,11 +1057,9 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
 function ProgramDetail({
     request,
     dashboard,
-    back,
 }: {
     request: ProgramRequestDTO;
     dashboard: DashboardPayload;
-    back: () => void;
 }) {
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
@@ -961,6 +1068,8 @@ function ProgramDetail({
     const [sessions, setSessions] = useState<ProgramSession[]>(request.sessions);
     const [sessionIndex, setSessionIndex] = useState<number | null>(null);
     const [sessionOpen, setSessionOpen] = useState(false);
+    const [pendingAction, setPendingAction] = useState<ProgramRequestAction | null>(null);
+    const [pendingDeleteSessionIndex, setPendingDeleteSessionIndex] = useState<number | null>(null);
     const [sessionDraft, setSessionDraft] = useState<ProgramSession>({
         Name: '',
         Type: dashboard.sessionTypes[0]?.Name || '',
@@ -1075,63 +1184,119 @@ function ProgramDetail({
                     ? ['cancel']
                     : []
               : [];
+    const sessionRows = sessions.map((session, index) => ({
+        ...session,
+        key: `${session.StartDateTime}-${index}`,
+    }));
+    const sessionColumns = [
+        {
+            title: 'Title',
+            dataIndex: 'Name',
+            key: 'Name',
+            render: (value: string) => value || 'Untitled',
+        },
+        { title: 'Type', dataIndex: 'Type', key: 'Type' },
+        {
+            title: 'Start',
+            dataIndex: 'StartDateTime',
+            key: 'StartDateTime',
+            render: (value: string) => formatDateTime(value),
+        },
+        {
+            title: 'End',
+            dataIndex: 'EndDateTime',
+            key: 'EndDateTime',
+            render: (value: string) => formatDateTime(value),
+        },
+        {
+            title: 'Actions',
+            key: 'actions',
+            align: 'right' as const,
+            render: (_value: unknown, _session: ProgramSession, index: number) =>
+                editable ? (
+                    <Space>
+                        <Button
+                            type="text"
+                            icon={<EditOutlined />}
+                            onClick={() => editSession(index)}
+                            aria-label="Edit session"
+                        />
+                        <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => setPendingDeleteSessionIndex(index)}
+                            aria-label="Delete session"
+                        />
+                    </Space>
+                ) : null,
+        },
+    ];
     return (
         <Page
             title={
-                [request.Language, request.Type, request.Name].filter(Boolean).join(' ') ||
+                formatProgramName(request.Language, request.Type, request.Name) ||
                 `PRG-${request.DisplayId}`
             }
             action={
-                <Button type="link" onClick={back}>
-                    Back
-                </Button>
+                <Space className="program-detail-actions" wrap>
+                    {actions.map((action) => (
+                        <Button
+                            type="primary"
+                            key={action}
+                            icon={programActionIcon(action)}
+                            onClick={() => setPendingAction(action)}>
+                            {action}
+                        </Button>
+                    ))}
+                </Space>
             }>
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
-                <Card
-                    title="Program details"
-                    action={
-                        editable && (
-                            <Button
-                                type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => setEditing(true)}>
-                                Edit
-                            </Button>
-                        )
-                    }>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {(
-                            [
-                                ['Program title', values.Name],
-                                ['Language', values.Language],
-                                ['Type', values.Type],
-                                ['Place', request.placeName || 'None'],
-                                ['Department', request.departmentName || 'None'],
-                                ['Lead email', values.LeadEmail],
-                                ['Requested by', request.userName],
-                                ['Participants', values.Participants || 'None'],
-                            ] as const
-                        ).map(([label, value]) => (
-                            <div key={label}>
-                                <dt className="text-xs font-semibold text-base-content/50">
-                                    {label}
+            <div className="grid gap-5 xl:grid-cols-2">
+                <div className="min-w-0">
+                    <Card
+                        title="Program details"
+                        action={
+                            editable && (
+                                <Button
+                                    type="primary"
+                                    icon={<EditOutlined />}
+                                    onClick={() => setEditing(true)}>
+                                    Edit
+                                </Button>
+                            )
+                        }>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="flex min-w-0 items-baseline gap-2">
+                                <dt className="shrink-0 text-xs font-semibold text-base-content/50">
+                                    Status
                                 </dt>
-                                <dd className="mt-1 text-sm">{value}</dd>
+                                <dd className="min-w-0">
+                                    <Tag>{request.Status}</Tag>
+                                </dd>
                             </div>
-                        ))}
-                    </div>
-                </Card>
-                <Card title="Actions">
-                    <div className="flex flex-wrap gap-2">
-                        <Tag>{request.Status}</Tag>
-                        {actions.map((action) => (
-                            <Button size="small" key={action} onClick={() => perform(action)}>
-                                {action}
-                            </Button>
-                        ))}
-                    </div>
-                </Card>
-                <div className="xl:col-span-2">
+                            {(
+                                [
+                                    ['Program title', values.Name],
+                                    ['Language', values.Language],
+                                    ['Type', values.Type],
+                                    ['Place', request.placeName || 'None'],
+                                    ['Department', request.departmentName || 'None'],
+                                    ['Lead email', values.LeadEmail],
+                                    ['Requested by', request.userName],
+                                    ['Participants', values.Participants || 'None'],
+                                ] as const
+                            ).map(([label, value]) => (
+                                <div key={label} className="flex min-w-0 items-baseline gap-2">
+                                    <dt className="shrink-0 text-xs font-semibold text-base-content/50">
+                                        {label}
+                                    </dt>
+                                    <dd className="min-w-0 break-words text-sm">{value}</dd>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+                <div className="min-w-0 overflow-hidden">
                     <Card
                         title="Sessions"
                         action={
@@ -1140,56 +1305,19 @@ function ProgramDetail({
                                     type="primary"
                                     icon={<PlusOutlined />}
                                     onClick={() => editSession(null)}>
-                                    Add session
+                                    Add
                                 </Button>
                             )
                         }>
                         {sessions.length ? (
                             <div className="overflow-x-auto">
-                                <table className="table">
-                                    <thead>
-                                        <tr>
-                                            <th>Title</th>
-                                            <th>Type</th>
-                                            <th>Start</th>
-                                            <th>End</th>
-                                            <th />
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sessions.map((session, index) => (
-                                            <tr key={`${session.StartDateTime}-${index}`}>
-                                                <td>{session.Name || 'Untitled'}</td>
-                                                <td>{session.Type}</td>
-                                                <td>{formatDateTime(session.StartDateTime)}</td>
-                                                <td>{formatDateTime(session.EndDateTime)}</td>
-                                                <td>
-                                                    {editable && (
-                                                        <div className="flex justify-end gap-1">
-                                                            <Button
-                                                                type="text"
-                                                                icon={<EditOutlined />}
-                                                                onClick={() =>
-                                                                    editSession(index)
-                                                                }></Button>
-                                                            <Button
-                                                                type="text"
-                                                                danger
-                                                                icon={<DeleteOutlined />}
-                                                                onClick={() =>
-                                                                    setSessions((current) =>
-                                                                        current.filter(
-                                                                            (_, i) => i !== index,
-                                                                        ),
-                                                                    )
-                                                                }></Button>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <Table
+                                    rowKey="key"
+                                    columns={sessionColumns}
+                                    dataSource={sessionRows}
+                                    pagination={false}
+                                    scroll={{ x: 640 }}
+                                />
                             </div>
                         ) : (
                             <Empty>No sessions added.</Empty>
@@ -1231,12 +1359,59 @@ function ProgramDetail({
                     </Card>
                 </div>
             </div>
+            {pendingAction && (
+                <ActionConfirmation
+                    action={pendingAction}
+                    onCancel={() => setPendingAction(null)}
+                    onConfirm={async () => {
+                        await perform(pendingAction);
+                        setPendingAction(null);
+                    }}
+                />
+            )}
+            {pendingDeleteSessionIndex !== null && (
+                <ActionConfirmation
+                    action="delete"
+                    description="Are you sure you want to delete this session?"
+                    onCancel={() => setPendingDeleteSessionIndex(null)}
+                    onConfirm={async () => {
+                        setSessions((current) =>
+                            current.filter((_, i) => i !== pendingDeleteSessionIndex),
+                        );
+                        setPendingDeleteSessionIndex(null);
+                    }}
+                />
+            )}
             {editing && (
                 <Modal title="Edit program" close={() => setEditing(false)}>
-                    <form className="grid gap-3 sm:grid-cols-2" onSubmit={save.run}>
-                        <TextField name="name" label="Program title" value={values.Name} />
-                        <TextField name="language" label="Language" value={values.Language} />
-                        <TextField name="type" label="Type" value={values.Type} />
+                    <form className="grid gap-3" onSubmit={save.run}>
+                        <TextField
+                            name="name"
+                            label="Program title"
+                            value={values.Name}
+                            required={values.Type === OTHER_PROGRAM_TYPE}
+                        />
+                        <TextField
+                            name="language"
+                            label="Language"
+                            value={values.Language}
+                            required
+                        />
+                        <AntForm.Item label="Type" required>
+                            <input type="hidden" name="type" value={values.Type} />
+                            <Select
+                                value={values.Type}
+                                onChange={(value) => update('Type', value)}
+                                style={{ width: '100%' }}>
+                                {programTypeOptions(dashboard.programTypes, values.Type).map(
+                                    (type) => (
+                                        <Select.Option key={type} value={type}>
+                                            {type}
+                                        </Select.Option>
+                                    ),
+                                )}
+                            </Select>
+                        </AntForm.Item>
                         <AntForm.Item label="Place">
                             <Select
                                 value={values.PlaceId}
@@ -1250,20 +1425,9 @@ function ProgramDetail({
                                 ))}
                             </Select>
                         </AntForm.Item>
-                        <AntForm.Item label="Department">
-                            <Select
-                                value={values.DepartmentId}
-                                onChange={(value) => update('DepartmentId', value)}
-                                style={{ width: '100%' }}>
-                                {dashboard.departments.map((d) => (
-                                    <Select.Option key={d.Id} value={d.Id}>
-                                        {d.Name}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </AntForm.Item>
                         {canApprove(dashboard.me) && (
-                            <AntForm.Item label="Requested by">
+                            <AntForm.Item label="Requested by" required>
+                                <input type="hidden" name="userId" value={values.UserId} required />
                                 <Select
                                     value={values.UserId}
                                     onChange={(value) => update('UserId', value)}
@@ -1276,13 +1440,36 @@ function ProgramDetail({
                                 </Select>
                             </AntForm.Item>
                         )}
-                        <TextField name="leadEmail" label="Lead email" value={values.LeadEmail} />
+                        <AntForm.Item label="Department" required>
+                            <input
+                                type="hidden"
+                                name="departmentId"
+                                value={values.DepartmentId}
+                                required
+                            />
+                            <Select
+                                value={values.DepartmentId}
+                                onChange={(value) => update('DepartmentId', value)}
+                                style={{ width: '100%' }}>
+                                {dashboard.departments.map((d) => (
+                                    <Select.Option key={d.Id} value={d.Id}>
+                                        {d.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                        <TextField
+                            name="leadEmail"
+                            label="Lead email"
+                            value={values.LeadEmail}
+                            required
+                        />
                         <TextField
                             name="participants"
                             label="Participants (emails, comma-separated)"
                             value={values.Participants}
                         />
-                        <div className="sm:col-span-2">
+                        <div>
                             <Submit label="Save changes" busy={save.busy} />
                         </div>
                     </form>
@@ -1321,7 +1508,7 @@ function SessionForm({
     const update = (key: keyof ProgramSession, value: string) =>
         setDraft({ ...draft, [key]: value });
     return (
-        <form className="grid gap-3 sm:grid-cols-2" onSubmit={onSubmit}>
+        <form className="grid gap-3" onSubmit={onSubmit}>
             <AntForm.Item label="Session type" required>
                 <Select
                     value={draft.Type}
@@ -1377,6 +1564,7 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
               ? dashboard.programRequests
               : dashboard.tickets;
     const row = rows.find((r) => r.Id === id);
+    const [pendingAction, setPendingAction] = useState<string | null>(null);
     const back =
         kind === 'inventory'
             ? navigateToInventoryRequests
@@ -1400,6 +1588,38 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
             : kind === 'programs'
               ? ['submit', 'approve', 'reject', 'cancel']
               : ['submit', 'approve', 'reject', 'issue', 'return', 'close', 'cancel'];
+    const applyAction = async (action: string) => {
+        try {
+            showSavingBadge(true);
+            if (kind === 'tickets')
+                await api.performTicketAction(
+                    row.Id,
+                    action as TicketAction,
+                    null,
+                    generateRequestId(),
+                );
+            else if (kind === 'programs')
+                await api.performProgramRequestAction(
+                    row.Id,
+                    action as ProgramRequestAction,
+                    '',
+                    generateRequestId(),
+                );
+            else
+                await api.performInventoryRequestAction(
+                    row.Id,
+                    action as InventoryRequestAction,
+                    '',
+                    null,
+                    generateRequestId(),
+                );
+            await refreshDashboard();
+        } catch (e) {
+            error(e);
+        } finally {
+            showSavingBadge(false);
+        }
+    };
     return (
         <Page
             title={title}
@@ -1435,44 +1655,23 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                             <Button
                                 size="small"
                                 key={action}
-                                onClick={async () => {
-                                    try {
-                                        showSavingBadge(true);
-                                        if (kind === 'tickets')
-                                            await api.performTicketAction(
-                                                row.Id,
-                                                action as TicketAction,
-                                                null,
-                                                generateRequestId(),
-                                            );
-                                        else if (kind === 'programs')
-                                            await api.performProgramRequestAction(
-                                                row.Id,
-                                                action as ProgramRequestAction,
-                                                '',
-                                                generateRequestId(),
-                                            );
-                                        else
-                                            await api.performInventoryRequestAction(
-                                                row.Id,
-                                                action as InventoryRequestAction,
-                                                '',
-                                                null,
-                                                generateRequestId(),
-                                            );
-                                        await refreshDashboard();
-                                    } catch (e) {
-                                        error(e);
-                                    } finally {
-                                        showSavingBadge(false);
-                                    }
-                                }}>
+                                onClick={() => setPendingAction(action)}>
                                 {action}
                             </Button>
                         ))}
                     </div>
                 </Card>
             </div>
+            {pendingAction && (
+                <ActionConfirmation
+                    action={pendingAction}
+                    onCancel={() => setPendingAction(null)}
+                    onConfirm={async () => {
+                        await applyAction(pendingAction);
+                        setPendingAction(null);
+                    }}
+                />
+            )}
         </Page>
     );
 }
@@ -1490,7 +1689,7 @@ export function renderRefineApp(
         if (request) {
             mountRefinePage(
                 container,
-                <ProgramDetail request={request} dashboard={dashboard} back={navigateToPrograms} />,
+                <ProgramDetail request={request} dashboard={dashboard} />,
                 'programs',
             );
             return;

@@ -421,11 +421,6 @@ function performProgramRequestAction(
                         actor.Name + ' approved this request.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'reject') {
-                    requireMinLength(
-                        note,
-                        3,
-                        'A note of at least 3 characters is required to reject.',
-                    );
                     if (request.Status !== 'submitted')
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'rejected';
@@ -434,14 +429,9 @@ function performProgramRequestAction(
                         'program',
                         requestId,
                         actor.Email,
-                        actor.Name + ' rejected this request. ' + note,
+                        actor.Name + ' rejected this request.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'cancel') {
-                    requireMinLength(
-                        note,
-                        3,
-                        'A note of at least 3 characters is required to cancel.',
-                    );
                     if (['draft', 'submitted', 'approved'].indexOf(request.Status) === -1)
                         throw new ValidationError('invalid_transition');
                     computedStatus = 'cancelled';
@@ -450,7 +440,7 @@ function performProgramRequestAction(
                         'program',
                         requestId,
                         actor.Email,
-                        actor.Name + ' cancelled this request. ' + note,
+                        actor.Name + ' cancelled this request.' + (note ? ' ' + note : ''),
                     );
                 } else {
                     throw new ValidationError('unsupported_action');

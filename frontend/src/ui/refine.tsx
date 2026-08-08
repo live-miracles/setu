@@ -1,9 +1,10 @@
 import { Refine } from '@refinedev/core';
 import { useNotificationProvider } from '@refinedev/antd';
 import { App as AntApp, ConfigProvider } from 'antd';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { appsScriptDataProvider } from './refine-data-provider';
+import { setErrorNotifier } from './feedback';
 
 // Refine is intentionally headless here. Apps Script serves one inlined HTML
 // document, so the app keeps its existing transport and visual tokens while
@@ -24,7 +25,6 @@ export function mountRefinePage(container: HTMLElement, page: ReactNode, resourc
 }
 
 function RefineRoot({ page, resource }: { page: ReactNode; resource: string }) {
-    const notificationProvider = useNotificationProvider();
     return (
         <ConfigProvider
             theme={{
@@ -38,15 +38,27 @@ function RefineRoot({ page, resource }: { page: ReactNode; resource: string }) {
                 },
             }}>
             <AntApp>
-                <Refine
-                    dataProvider={appsScriptDataProvider}
-                    notificationProvider={notificationProvider}
-                    resources={[{ name: resource, list: `/${resource}` }]}
-                    options={{ syncWithLocation: false }}>
-                    {page}
-                </Refine>
+                <RefineRootContent page={page} resource={resource} />
             </AntApp>
         </ConfigProvider>
+    );
+}
+
+function RefineRootContent({ page, resource }: { page: ReactNode; resource: string }) {
+    const notificationProvider = useNotificationProvider();
+    const { notification } = AntApp.useApp();
+    useEffect(() => {
+        setErrorNotifier((config) => notification.error(config));
+        return () => setErrorNotifier(null);
+    }, [notification]);
+    return (
+        <Refine
+            dataProvider={appsScriptDataProvider}
+            notificationProvider={notificationProvider}
+            resources={[{ name: resource, list: `/${resource}` }]}
+            options={{ syncWithLocation: false }}>
+            {page}
+        </Refine>
     );
 }
 

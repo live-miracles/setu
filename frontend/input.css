@@ -272,6 +272,19 @@ body {
         padding: 1rem;
     }
 
+    .antd-page-heading {
+        flex-wrap: wrap;
+    }
+
+    .antd-page-heading > div:first-child {
+        min-width: 0;
+    }
+
+    .program-detail-actions {
+        flex: 1 1 100%;
+        justify-content: flex-end;
+    }
+
     .antd-page-board .antd-page-heading {
         flex-wrap: wrap;
     }
