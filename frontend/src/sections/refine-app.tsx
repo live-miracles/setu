@@ -136,18 +136,36 @@ function TextField({
     value,
     type = 'text',
     required = false,
+    pattern,
+    title,
 }: {
     name: string;
     label: string;
     value?: string | number;
     type?: string;
     required?: boolean;
+    pattern?: string;
+    title?: string;
 }) {
     return (
         <AntForm.Item label={label} required={required} className="antd-form-item">
-            <Input name={name} type={type} defaultValue={value ?? ''} required={required} />
+            <Input
+                name={name}
+                type={type}
+                defaultValue={value ?? ''}
+                required={required}
+                pattern={pattern}
+                title={title}
+            />
         </AntForm.Item>
     );
+}
+
+const INTERNATIONAL_PHONE_PATTERN = '\\+[1-9][0-9]{7,14}';
+const INTERNATIONAL_PHONE_TITLE =
+    'Enter a valid phone number with country code using digits only, for example +919000000000.';
+function isValidInternationalPhone(phone: string): boolean {
+    return /^\+[1-9]\d{7,14}$/.test(phone);
 }
 
 function Home({ dashboard }: Props) {
@@ -225,10 +243,14 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
             registration ? 'registration-form' : 'profile-form',
         ) as HTMLFormElement;
         const d = new FormData(form);
+        const phone = String(d.get('phone') || '');
+        if (!isValidInternationalPhone(phone)) {
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
         await api.updateOwnProfile({
             name: String(d.get('name')),
             departmentId: String(d.get('departmentId') || ''),
-            phone: String(d.get('phone') || ''),
+            phone,
             whatsapp: String(d.get('whatsapp') || ''),
         });
     });
@@ -258,7 +280,15 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                             ))}
                         </Select>
                     </AntForm.Item>
-                    <TextField name="phone" label="Phone" value={me.Phone} required />
+                    <TextField
+                        name="phone"
+                        label="Phone"
+                        type="tel"
+                        value={me.Phone}
+                        required
+                        pattern={INTERNATIONAL_PHONE_PATTERN}
+                        title={INTERNATIONAL_PHONE_TITLE}
+                    />
                     <TextField name="whatsapp" label="WhatsApp" value={me.Whatsapp} />
                     {!registration && (
                         <div className="text-sm text-base-content/60 sm:col-span-2">
@@ -297,6 +327,9 @@ function UserForm({
             phone: String(d.get('phone') || ''),
             whatsapp: String(d.get('whatsapp') || ''),
         };
+        if (!isValidInternationalPhone(values.phone)) {
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
         if (user) await api.updateUser(user.Email, values);
         else
             await api.createUser(
@@ -335,7 +368,15 @@ function UserForm({
                         ))}
                     </Select>
                 </AntForm.Item>
-                <TextField name="phone" label="Phone" value={user?.Phone} required />
+                <TextField
+                    name="phone"
+                    label="Phone"
+                    type="tel"
+                    value={user?.Phone}
+                    required
+                    pattern={INTERNATIONAL_PHONE_PATTERN}
+                    title={INTERNATIONAL_PHONE_TITLE}
+                />
                 <TextField name="whatsapp" label="WhatsApp" value={user?.Whatsapp} required />
                 <div>
                     <Submit label={user ? 'Save' : 'Add'} busy={save.busy} />
