@@ -15,7 +15,6 @@ type Row = Record<string, any>;
 interface ResourceConfig {
     kind: string;
     title: string;
-    subtitle: string;
     addLabel: string;
     emptyMessage: string;
     fields: Field[];
@@ -33,7 +32,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     departments: {
         kind: 'department',
         title: 'Departments',
-        subtitle: 'Teams people can belong to.',
         addLabel: 'Add department',
         emptyMessage: 'No departments yet.',
         fields: [
@@ -58,7 +56,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     places: {
         kind: 'place',
         title: 'Places',
-        subtitle: 'Studios and rooms a program can be booked into.',
         addLabel: 'Add place',
         emptyMessage: 'No places yet.',
         fields: [{ field: 'Name', label: 'Name' }],
@@ -70,7 +67,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     'inventory-types': {
         kind: 'inventory-type',
         title: 'Inventory types',
-        subtitle: 'The equipment catalogue people request from.',
         addLabel: 'Add equipment',
         emptyMessage: 'No equipment catalogued yet.',
         fields: [
@@ -112,7 +108,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     blocks: {
         kind: 'block',
         title: 'Blocks',
-        subtitle: 'Times unavailable for normal program requests.',
         addLabel: 'Add block',
         emptyMessage: 'No blocked times configured yet.',
         fields: [
@@ -148,7 +143,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     'shift-presets': {
         kind: 'shift-preset',
         title: 'Shift presets',
-        subtitle: 'Default times used when scheduling a roster shift.',
         addLabel: 'Add shift preset',
         emptyMessage: 'No shift presets yet.',
         fields: [
@@ -181,7 +175,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     'program-types': {
         kind: 'program-type',
         title: 'Program types',
-        subtitle: 'Options available when creating a program request.',
         addLabel: 'Add program type',
         emptyMessage: 'No program types configured yet.',
         fields: [{ field: 'Name', label: 'Name' }],
@@ -193,7 +186,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     'program-languages': {
         kind: 'program-language',
         title: 'Program languages',
-        subtitle: 'Languages available for program requests.',
         addLabel: 'Add language',
         emptyMessage: 'No languages configured yet.',
         fields: [{ field: 'Name', label: 'Name' }],
@@ -205,7 +197,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
     'session-types': {
         kind: 'session-type',
         title: 'Session types',
-        subtitle: 'Session formats available inside a program request.',
         addLabel: 'Add session type',
         emptyMessage: 'No session types configured yet.',
         fields: [{ field: 'Name', label: 'Name' }],
@@ -381,9 +372,6 @@ function SettingsResourcePage({
                 <div className="antd-page-heading">
                     <div>
                         <Typography.Title level={2}>{config.title}</Typography.Title>
-                        <Typography.Paragraph type="secondary">
-                            {config.subtitle}
-                        </Typography.Paragraph>
                     </div>
                     <Button
                         type="primary"

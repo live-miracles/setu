@@ -121,7 +121,7 @@ export async function renderCurrentSection(): Promise<void> {
     container.classList.toggle('app-content-edge', isEdgeToEdge);
     container.classList.toggle('mx-auto', !isHome && !isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge && !isSettingsSection);
-    container.classList.toggle('max-w-[70rem]', isSettingsSection);
+    container.classList.toggle('max-w-[50rem]', isSettingsSection);
     container.classList.toggle('max-w-[100rem]', isEdgeToEdge);
     unmountRefinePage(container);
     await sections[sectionKey](container, dashboard);
@@ -230,6 +230,7 @@ function navigateTo(section: SectionKey, options: NavigationOptions = {}): void 
     };
     if (options.replace) window.history.replaceState(state, '', url.toString());
     else window.history.pushState(state, '', url.toString());
+    window.dispatchEvent(new Event('setu:navigation'));
     renderCurrentSection();
 }
 
@@ -314,6 +315,7 @@ export function wireNav(): void {
     window.addEventListener('popstate', () => {
         const params = new URLSearchParams(window.location.search);
         setState({ section: params.get(APP_SECTION_QUERY_PARAM) || 'home' });
+        window.dispatchEvent(new Event('setu:navigation'));
         renderCurrentSection();
     });
 }

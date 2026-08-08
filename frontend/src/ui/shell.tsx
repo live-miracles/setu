@@ -7,6 +7,7 @@ import {
     UserOutlined,
 } from '@ant-design/icons';
 import { createRoot } from 'react-dom/client';
+import { useEffect, useState } from 'react';
 import appLogo from '../../logo.png';
 
 const { Header, Content } = Layout;
@@ -28,7 +29,19 @@ function navigate(section: string) {
     document.querySelector<HTMLElement>(`[data-nav-section="${section}"]`)?.click();
 }
 
+function sectionFromUrl(): string {
+    return new URLSearchParams(window.location.search).get('section') || 'home';
+}
+
 function Shell() {
+    const [selectedSection, setSelectedSection] = useState(sectionFromUrl);
+
+    useEffect(() => {
+        const syncSelection = () => setSelectedSection(sectionFromUrl());
+        window.addEventListener('setu:navigation', syncSelection);
+        return () => window.removeEventListener('setu:navigation', syncSelection);
+    }, []);
+
     return (
         <AntApp>
             <Layout className="app-layout">
@@ -41,6 +54,7 @@ function Shell() {
                         id="desktop-nav"
                         mode="horizontal"
                         className="app-main-menu"
+                        selectedKeys={[selectedSection]}
                         items={[
                             {
                                 key: 'programs',
@@ -88,6 +102,7 @@ function Shell() {
                     id="mobile-dock"
                     mode="horizontal"
                     className="app-mobile-menu"
+                    selectedKeys={[selectedSection]}
                     items={[
                         {
                             key: 'programs',

@@ -47,24 +47,24 @@ const error = (e: unknown) => showErrorAlert(e);
 
 function Page({
     title,
-    subtitle,
+    headingContent,
     action,
+    className,
     children,
 }: {
     title: string;
-    subtitle?: string;
+    headingContent?: ReactNode;
     action?: ReactNode;
+    className?: string;
     children: ReactNode;
 }) {
     return (
-        <section className="antd-page">
+        <section className={`antd-page${className ? ` ${className}` : ''}`}>
             <div className="antd-page-heading">
                 <div>
                     <Typography.Title level={2}>{title}</Typography.Title>
-                    {subtitle && (
-                        <Typography.Paragraph type="secondary">{subtitle}</Typography.Paragraph>
-                    )}
                 </div>
+                {headingContent}
                 {action}
             </div>
             {children}
@@ -176,7 +176,7 @@ function Home({ dashboard }: Props) {
         ['Upcoming shifts', dashboard.upcomingRosters.length, 'roster'],
     ];
     return (
-        <Page title="Home" subtitle={`Welcome back, ${dashboard.me.Name}.`}>
+        <Page title="Home">
             <div className="antd-stat-grid">
                 {cards.map(([label, count, section]) => (
                     <AntCard
@@ -244,30 +244,28 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
         ) as HTMLFormElement;
         const d = new FormData(form);
         const phone = String(d.get('phone') || '');
+        const departmentIdValue = String(d.get('departmentId') || '');
         if (!isValidInternationalPhone(phone)) {
             throw new Error(INTERNATIONAL_PHONE_TITLE);
         }
+        if (!departmentIdValue) throw new Error('Department is required.');
         await api.updateOwnProfile({
             name: String(d.get('name')),
-            departmentId: String(d.get('departmentId') || ''),
+            departmentId: departmentIdValue,
             phone,
             whatsapp: String(d.get('whatsapp') || ''),
         });
     });
     return (
-        <Page
-            title={registration ? 'Welcome' : 'Profile'}
-            subtitle={
-                registration ? 'Complete your profile to access the app.' : 'Your contact details.'
-            }>
+        <Page title={registration ? 'Welcome' : 'Profile'}>
             <Card title={registration ? 'Get started' : me.Name}>
                 <form
                     id={registration ? 'registration-form' : 'profile-form'}
                     className="grid gap-3 sm:grid-cols-2"
                     onSubmit={save.run}>
                     <TextField name="name" label="Name" value={me.Name} required />
-                    <AntForm.Item label="Department">
-                        <input type="hidden" name="departmentId" value={departmentId} />
+                    <AntForm.Item label="Department" required>
+                        <input type="hidden" name="departmentId" value={departmentId} required />
                         <Select
                             value={departmentId}
                             onChange={setDepartmentId}
@@ -289,17 +287,14 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                         pattern={INTERNATIONAL_PHONE_PATTERN}
                         title={INTERNATIONAL_PHONE_TITLE}
                     />
-                    <TextField name="whatsapp" label="WhatsApp" value={me.Whatsapp} />
+                    <TextField name="whatsapp" label="WhatsApp" value={me.Whatsapp} required />
                     {!registration && (
                         <div className="text-sm text-base-content/60 sm:col-span-2">
                             {me.Email} · <Tag color="blue">{roleLabel(me.Role)}</Tag>
                         </div>
                     )}
                     <div className="sm:col-span-2">
-                        <Submit
-                            label={registration ? 'Get started' : 'Save changes'}
-                            busy={save.busy}
-                        />
+                        <Submit label={registration ? 'Get started' : 'Save'} busy={save.busy} />
                     </div>
                 </form>
             </Card>
@@ -399,7 +394,6 @@ function Users({ dashboard }: Props) {
     return (
         <Page
             title="Users"
-            subtitle="People in your Google domain."
             action={
                 canManageConfig(dashboard.me) && (
                     <Button
@@ -581,7 +575,6 @@ function Roster({ dashboard }: Props) {
     return (
         <Page
             title="Roster"
-            subtitle="Upcoming shifts and assignments."
             action={
                 canEdit && (
                     <Button
@@ -691,7 +684,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         : isProgram
           ? navigateToProgramCreate
           : navigateToTicketCreate;
-    const title = isInventory ? 'Inventory requests' : isProgram ? 'Program requests' : 'Tickets';
+    const title = isInventory ? 'Inventory' : isProgram ? 'Programs' : 'Tickets';
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
         const url = new URL(window.location.href);
@@ -721,38 +714,41 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     const filter = isProgram ? (
         <Select
             size="middle"
-            style={{ minWidth: 180 }}
+            className="antd-board-filter-select"
             value={view}
             onChange={(value) => {
                 setView(value);
                 updateQuery(WORKBENCH_VIEW_QUERY_PARAM, value);
             }}>
-            <Select.Option value="all">All programs</Select.Option>
-            <Select.Option value="active">Ongoing &amp; Future</Select.Option>
+            <Select.Option value="all">All</Select.Option>
+            <Select.Option value="active">Future</Select.Option>
             <Select.Option value="past">Past</Select.Option>
         </Select>
     ) : null;
+    const boardFilters = (
+        <Space className="antd-board-filters" wrap>
+            <Input
+                prefix={<SearchOutlined />}
+                value={search}
+                placeholder={`Search ${title.toLowerCase()}`}
+                onChange={(event) => {
+                    setSearch(event.target.value);
+                    updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, event.target.value);
+                }}
+            />
+            {filter}
+        </Space>
+    );
     return (
         <Page
+            className="antd-page-board"
             title={title}
-            subtitle="A standardized request workspace."
+            headingContent={boardFilters}
             action={
                 <Button type="primary" icon={<PlusOutlined />} onClick={create}>
                     New
                 </Button>
             }>
-            <Space className="antd-toolbar" wrap>
-                <Input
-                    prefix={<SearchOutlined />}
-                    value={search}
-                    placeholder={`Search ${title.toLowerCase()}`}
-                    onChange={(event) => {
-                        setSearch(event.target.value);
-                        updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, event.target.value);
-                    }}
-                />
-                {filter}
-            </Space>
             <div className="antd-board">
                 {statuses.map((status) => {
                     const column = filteredRows.filter((row) => row.Status === status);
@@ -1085,7 +1081,6 @@ function ProgramDetail({
                 [request.Language, request.Type, request.Name].filter(Boolean).join(' ') ||
                 `PRG-${request.DisplayId}`
             }
-            subtitle={`PRG-${request.DisplayId} · ${request.Status}`}
             action={
                 <Button type="link" onClick={back}>
                     Back
@@ -1408,7 +1403,6 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
     return (
         <Page
             title={title}
-            subtitle={`${kind} · ${row.Status}`}
             action={
                 <Button type="link" onClick={back}>
                     Back
