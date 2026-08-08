@@ -1,7 +1,6 @@
 import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
 import {
     AppstoreOutlined,
-    CalendarOutlined,
     InboxOutlined,
     SettingOutlined,
     ToolOutlined,
@@ -65,11 +64,21 @@ function Shell() {
                         <Dropdown
                             menu={{ items: settingsItems, onClick: ({ key }) => navigate(key) }}
                             trigger={['click']}>
-                            <Button type="text" icon={<SettingOutlined />} data-settings-menu>
-                                Settings
+                            <Button
+                                type="text"
+                                className="app-settings-button"
+                                icon={<SettingOutlined />}
+                                data-settings-menu
+                                aria-label="Settings">
+                                <span className="app-settings-label">Settings</span>
                             </Button>
                         </Dropdown>
-                        <Button type="text" icon={<UserOutlined />} data-nav-section="profile">
+                        <Button
+                            type="text"
+                            className="app-profile-button"
+                            icon={<UserOutlined />}
+                            data-nav-section="profile"
+                            aria-label="Profile">
                             <span id="nav-user-name" />
                         </Button>
                     </Space>
@@ -94,11 +103,6 @@ function Shell() {
                             key: 'tickets',
                             icon: <ToolOutlined />,
                             label: <span data-nav-section="tickets">Tickets</span>,
-                        },
-                        {
-                            key: 'roster',
-                            icon: <CalendarOutlined />,
-                            label: <span data-nav-section="roster">Roster</span>,
                         },
                     ]}
                     onClick={({ key }) => navigate(key)}
