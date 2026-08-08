@@ -15,7 +15,9 @@ type Resource =
     | 'tickets'
     | 'inventory-requests'
     | 'program-requests'
-    | 'rosters';
+    | 'rosters'
+    | 'profile'
+    | 'home-content';
 
 type RecordValue = Record<string, unknown> & { Id?: string; id?: string };
 
@@ -54,6 +56,31 @@ const resources: Record<
         remove: async () => {
             throw new Error('Users are managed through your Google Workspace domain.');
         },
+    },
+    profile: {
+        list: async () => [await appsScriptClient.whoAmI()],
+        getOne: () => appsScriptClient.whoAmI(),
+        create: async () => { throw new Error('Profile cannot be created.'); },
+        update: (_id, data) => appsScriptClient.updateOwnProfile({
+            name: String(data.Name || ''),
+            departmentId: String(data.DepartmentId || ''),
+            phone: String(data.Phone || ''),
+            whatsapp: String(data.Whatsapp || ''),
+        }),
+        remove: async () => { throw new Error('Profile cannot be deleted.'); },
+    },
+    'home-content': {
+        list: async () => [await appsScriptClient.getHomeContent()],
+        getOne: async () => appsScriptClient.getHomeContent(),
+        create: async () => { throw new Error('Home content cannot be created.'); },
+        update: (_id, data) => appsScriptClient.updateHomeContent({
+            supportMessage: String(data.SupportMessage || ''),
+            guidelines: String(data.Guidelines || ''),
+            whatsappUrl: String(data.WhatsappUrl || ''),
+            tutorialUrl: String(data.TutorialUrl || ''),
+            notificationEmail: String(data.NotificationEmail || ''),
+        }),
+        remove: async () => { throw new Error('Home content cannot be deleted.'); },
     },
     departments: {
         list: () => appsScriptClient.listDepartments(),
@@ -338,7 +365,7 @@ function requestId(): string {
 
 function withId(value: unknown): RecordValue {
     const record = value as RecordValue;
-    return { ...record, id: String(record.Id || record.id || '') };
+    return { ...record, id: String(record.Id || record.id || record.Email || '') };
 }
 
 const rawDataProvider = {

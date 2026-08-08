@@ -1,12 +1,11 @@
-// Dev server: esbuild + Tailwind in watch mode behind a static file server
+// Dev server: esbuild watch mode behind a static file server
 // on http://localhost:3000. No clasp, no Google account, no Sheet — the entry
-// point is frontend/src/dev.ts, which pulls in the in-memory mock backend in
+// point is frontend/src/react/dev-main.tsx, which pulls in the in-memory mock backend in
 // place of google.script.run.
 //
 // Builds are automatic; the page is not. Reload the tab yourself once the
 // rebuild logs — that trade buys a server with no watcher of its own, no
 // injected client script, and nothing to get wedged between edits.
-import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -16,8 +15,6 @@ import {
     distDir,
     esbuildOptions,
     renderDevShell,
-    TAILWIND_BIN,
-    TAILWIND_ARGS,
 } from './shell.mjs';
 
 // `PORT=3001 npm run dev` when something else already holds the default.
@@ -43,7 +40,7 @@ const CONTENT_TYPES = {
 // /.well-known/ handshake, /sw.js if any project ever registered a service
 // worker on this port — and a 404 for those is the correct answer, not a
 // problem worth a line in the log.
-const BUILT_ASSETS = new Set(['/app.js', '/app.css']);
+const BUILT_ASSETS = new Set(['/app.js']);
 
 const server = createServer((req, res) => {
     const { pathname } = new URL(req.url, `http://localhost:${PORT}`);
@@ -108,27 +105,8 @@ server.listen(PORT, () => console.log(`[server] http://localhost:${PORT}`));
 const ctx = await esbuild.context(esbuildOptions('dev'));
 await ctx.watch();
 
-// `--watch=always` rather than `--watch`: plain --watch stops the moment
-// stdin closes, which silently kills CSS rebuilds any time `npm run dev`
-// isn't attached to a live terminal.
-const tailwind = spawn(
-    TAILWIND_BIN,
-    TAILWIND_ARGS(path.join(distDir, 'app.css'), ['--watch=always']),
-    {
-        cwd: root,
-        // No stdin: nothing here reads it, and handing children a closed one
-        // makes them quit (see --watch=always above).
-        stdio: ['ignore', 'inherit', 'inherit'],
-    },
-);
-tailwind.on('exit', (code) => console.log(`[tailwind] exited with code ${code}`));
-
-// Ctrl-C already reaches the child through the shared process group; this is
-// for every other way this process ends, so a watcher can't survive it and
-// then hold the port or the CSS output against the next run.
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
     process.on(signal, () => {
-        tailwind.kill();
         void ctx.dispose();
         server.close();
         process.exit(0);

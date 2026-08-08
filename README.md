@@ -18,7 +18,7 @@ Apps Script web app (doGet + ~30 exposed functions)
 Time-driven trigger --> daily overdue-request scan
 ```
 
-Everything — backend and frontend — is TypeScript. The backend compiles via `clasp push` directly to the Apps Script runtime (V8); the frontend is bundled by esbuild (no framework) into a single inlined `<script>` block served by `HtmlService`. Both share one ambient-global type contract at `shared/types.d.ts`.
+Everything — backend and frontend — is TypeScript. The backend compiles via `clasp push` directly to the Apps Script runtime (V8); the React frontend is bundled by esbuild into a single inlined `<script>` block served by `HtmlService`. Both share one ambient-global type contract at `shared/types.d.ts`.
 
 ## Frontend layout
 
@@ -26,33 +26,18 @@ Apps Script serves one HTML document and has no module loader, so whatever the f
 
 ```
 frontend/
-  shell.html            page chrome — the one copy, templated for all three targets
-  input.css             Tailwind + daisyUI entry
+  shell.html            minimal Apps Script HTML host
   icons/                the app icon set (512 is the master; 192 is the hosted favicon)
   src/
-    main.ts             production entry point
-    dev.ts              dev entry point: mock backend + main
-    router.ts           routing core — navigation, role gating, nav chrome
+    react/main.tsx      production React entry point
+    react/dev-main.tsx  demo/dev entry point with the mock backend
+    react/              React Admin resources and shared data-provider code
     api.ts              the only module that talks to the backend
-    state.ts            the client-side store
-    workflows.ts        client-side mirror of the server state machines
-    ids.ts              client-generated request ids
-    config.ts
-    ui/format.ts        value -> display string (escaping, dates)
-    ui/components.ts    reusable HTML fragments
-    ui/icons.ts         the hand-authored line-icon set
-    ui/styles.ts        domain value -> daisyUI class names
-    ui/feedback.ts      the saving badge and error toast
-    sections/index.ts   the routing table
-    sections/*.ts       one module per section (home, roster, inventory, …)
+    workflows.ts        client-side mirror of server state machines
     mock/backend.ts     in-memory stand-in for google.script.run
 ```
 
-Two properties of that graph are worth preserving:
-
-**It is acyclic.** `router.ts` imports no section — `sections/index.ts` builds the routing table and `main.ts` passes it in via `initRouter()`. Sections import navigation helpers from the router, and nothing in the router reaches back. Typing the table as `Record<SectionKey, SectionRenderer>` still makes a missing section a compile error rather than a blank page.
-
-**The mock cannot ship.** `mock/backend.ts` is reachable only from `dev.ts`, so no import path leads from the production entry point to it — that holds regardless of build flags, rather than depending on a file being left out of a list.
+The production entry point never imports `mock/backend.ts`; the dev and public-demo builds use `react/dev-main.tsx` to install the in-memory backend explicitly.
 
 ## Local development
 
@@ -61,7 +46,7 @@ npm install
 npm run dev
 ```
 
-This starts esbuild `--watch` + Tailwind `--watch` behind a static server on `http://localhost:3000`, building `frontend/src/dev.ts` into `frontend/dist/` and serving it against an in-memory mock backend — no Google account, Sheet, or Apps Script project needed to develop the UI. `frontend/dist/` is a build artifact and never gets pushed to Apps Script.
+This starts esbuild `--watch` behind a static server on `http://localhost:3000`, building `frontend/src/react/dev-main.tsx` into `frontend/dist/` and serving it against an in-memory mock backend — no Google account, Sheet, or Apps Script project needed to develop the UI. `frontend/dist/` is a build artifact and never gets pushed to Apps Script.
 
 Rebuilds are automatic, the browser is not: reload the tab once the rebuild logs. There is no live-reload client, so there is nothing to lose its connection and leave you restarting the dev server to get a working page back.
 
@@ -116,7 +101,7 @@ The workflow reconstructs `.clasp.json` and `~/.clasprc.json` on the runner from
 
 It carries two things:
 
-**The demo** (`index.html` + `app.js` + `app.css`) — the real UI built against `frontend/src/mock/backend.ts` instead of `google.script.run`, so anyone can click through the whole app with no Google account, no Sheet, and no real data behind it. It is exactly what `npm run dev` serves, minified: same shell, same bundle, same fake `@example.com` roster. Nothing about it can reach the live Sheet, because nothing in it knows the Sheet exists.
+**The demo** (`index.html` + `app.js`) — the real React UI built against `frontend/src/mock/backend.ts` instead of `google.script.run`, so anyone can click through the app with no Google account, Sheet, or live Apps Script project. It is exactly what `npm run dev` serves, minified: same shell, same bundle, same fake `@example.com` roster. Nothing about it can reach the live Sheet, because nothing in it knows the Sheet exists.
 
 **The icon** (`icons/`) — hosted because it has to be. The live app runs in an iframe, so a `<link rel="icon">` in `Index.html` never reaches the browser tab; `setFaviconUrl()` is the only hook, and it takes a URL, not a data URI. `FAVICON_URL` in `src/Code.ts` points at `icons/icon-192.png` on this site. If Pages is off or the URL 404s, the tab just falls back to Google's default icon — the app itself doesn't care.
 

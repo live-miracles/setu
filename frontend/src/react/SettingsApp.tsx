@@ -20,6 +20,7 @@ import { InventoryResource, ProgramResource } from './requests';
 import { RosterResource } from './roster';
 import { authProvider } from './auth-provider';
 import { Dashboard } from './dashboard';
+import { HomeContentEdit, HomeContentList, ProfileEdit, ProfileList } from './account';
 
 function NamedList() {
     return (
@@ -191,6 +192,8 @@ export function SettingsApp() {
     return (
         <Admin dataProvider={dataProvider} authProvider={authProvider} dashboard={Dashboard} basename="/">
             <Resource name="users" {...user} />
+            <Resource name="profile" list={ProfileList} edit={ProfileEdit} />
+            <Resource name="home-content" list={HomeContentList} edit={HomeContentEdit} />
             <Resource name="departments" {...department} />
             <Resource name="places" {...named} />
             <Resource name="inventory-types" {...inventoryType} />

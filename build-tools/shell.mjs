@@ -4,7 +4,6 @@
 // public demo site CI publishes to gh-pages. All three render
 // frontend/shell.html — one copy of the page chrome, rather than a template
 // per target that has to be kept identical by hand.
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -58,7 +57,7 @@ export function renderDevShell() {
     return renderShell({
         title: TITLE,
         favicon: devFaviconTag(),
-        head: '<link rel="stylesheet" href="app.css" />',
+        head: '',
         body: '<script src="app.js"></script>',
     });
 }
@@ -73,7 +72,7 @@ export function renderDemoShell() {
     return renderShell({
         title: TITLE,
         favicon: '<link rel="icon" type="image/png" href="icons/icon-192.png" />',
-        head: '<link rel="stylesheet" href="app.css" />',
+        head: '',
         body: '<script src="app.js"></script>',
     });
 }
@@ -116,33 +115,4 @@ export function esbuildOptions(mode) {
             ? { write: false, outfile: 'app.js' }
             : { outfile: path.join(mode === 'dev' ? distDir : siteDir, 'app.js') }),
     };
-}
-
-// The local binary rather than `npx @tailwindcss/cli`: npx wraps the real
-// process in two extra shells, which swallow the signals that are supposed
-// to shut a watcher down and leave it orphaned holding its output file.
-export const TAILWIND_BIN = path.join(
-    root,
-    'node_modules/.bin',
-    process.platform === 'win32' ? 'tailwindcss.cmd' : 'tailwindcss',
-);
-
-export const TAILWIND_ARGS = (out, extra = []) => [
-    '-i',
-    path.join(root, 'frontend/input.css'),
-    '-o',
-    out,
-    ...extra,
-];
-
-/**
- * One-shot minified Tailwind build to `outFile`, for the two builds that run
- * to completion and exit. dev.mjs spawns the watcher itself — it needs the
- * long-lived child process to hold on to and kill, not a return value.
- */
-export function compileCss(outFile) {
-    execFileSync(TAILWIND_BIN, TAILWIND_ARGS(outFile, ['--minify']), {
-        cwd: root,
-        stdio: 'inherit',
-    });
 }

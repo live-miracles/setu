@@ -1,35 +1,20 @@
 // Production build: frontend/ -> the three files clasp pushes to Apps Script.
 //
-//   frontend/src/main.ts  --esbuild-->  src/JavaScript.html   (one <script>)
-//   frontend/input.css    --tailwind->  src/Stylesheet.html   (one <style>)
+//   frontend/src/react/main.tsx --esbuild--> src/JavaScript.html (one <script>)
 //   frontend/shell.html   --template->  src/Index.html
 //
 // Apps Script has no module loader and serves the page as a single HTML
 // document, so everything has to arrive inlined — esbuild's iife output is
 // exactly that, and the old numeric filename prefixes that used to define
 // concatenation order are now just the import graph.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
-import { root, esbuildOptions, renderProdShell, compileCss } from './shell.mjs';
+import { root, esbuildOptions, renderProdShell } from './shell.mjs';
 
 console.log('Bundling frontend TypeScript...');
 const result = await esbuild.build(esbuildOptions('prod'));
 const js = result.outputFiles[0].text;
-
-console.log('Compiling Tailwind CSS...');
-// Tailwind only writes to a file, but this CSS is destined for a <style> block
-// rather than a route, so it goes to a scratch directory and gets read back.
-const scratch = mkdtempSync(path.join(tmpdir(), 'setu-css-'));
-const cssFile = path.join(scratch, 'app.css');
-let css;
-try {
-    compileCss(cssFile);
-    css = readFileSync(cssFile, 'utf8');
-} finally {
-    rmSync(scratch, { recursive: true, force: true });
-}
 
 // Both files are inlined into an HTML document, where the first literal
 // `</script`/`</style` ends the block no matter what the surrounding JS or
@@ -41,7 +26,7 @@ const inlineSafe = (text, tag) => text.replaceAll(`</${tag}`, `<\\/${tag}`);
 
 writeFileSync(
     path.join(root, 'src/Stylesheet.html'),
-    `<style>\n${inlineSafe(css, 'style')}\n</style>\n`,
+    '<style>\n/* Material UI injects its styles at runtime. */\n</style>\n',
 );
 writeFileSync(
     path.join(root, 'src/JavaScript.html'),
