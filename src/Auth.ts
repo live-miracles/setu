@@ -28,7 +28,7 @@ function roleOf(user: User): UserRole {
     return USER_ROLES.indexOf(raw) === -1 ? DEFAULT_USER_ROLE : raw;
 }
 
-// Departments, places, inventory types, quick links, home content and other
+// Departments, places, inventory types, home content and other
 // people's roles.
 function canManageConfig(user: User): boolean {
     return roleOf(user) === 'admin';

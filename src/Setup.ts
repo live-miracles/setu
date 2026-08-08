@@ -11,12 +11,22 @@ function setupSheets(): void {
     migrateTableToCurrentHeaders(ss, 'Departments', Tables.Departments.headers as string[]);
     migrateRequestsDepartmentLeadColumns(ss, 'InventoryRequests');
     migrateRequestsDepartmentLeadColumns(ss, 'ProgramRequests');
+    removeObsoleteHomeSettings();
 
     Object.values(Tables).forEach((table) => {
         ensureTabWithHeaders(ss, table.tabName, table.headers as string[]);
     });
 
     removeDefaultSheetIfEmpty(ss);
+}
+
+// Quick links and the old home-page support/tutorial fields are no longer
+// part of the configuration model. Remove their Settings rows when the
+// one-time bootstrap is rerun so the sheet reflects the current model.
+function removeObsoleteHomeSettings(): void {
+    ['links', 'SupportMessage', 'WhatsappUrl', 'TutorialUrl'].forEach((id) => {
+        if (Tables.Settings.findById(id)) Tables.Settings.deleteById(id);
+    });
 }
 
 function migrateTableToCurrentHeaders(

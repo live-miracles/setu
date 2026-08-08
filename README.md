@@ -134,14 +134,14 @@ Four roles, strictly nested — each row can do everything the row below it can:
 
 | Role       | Sections              | Requests                   | Can also                                                                                          |
 | ---------- | --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `admin`    | all                   | every request              | edit departments, places, inventory types, quick links and home content, and change anyone's role |
+| `admin`    | all                   | every request              | edit departments, places, inventory types and home content, and change anyone's role              |
 | `approver` | all                   | every request              | approve/reject/issue/return/cancel/close, assign and reopen tickets, schedule shifts, read People |
 | `viewer`   | no Roster             | every request              | —                                                                                                 |
 | `user`     | no Roster, no Tickets | own + participant requests | —                                                                                                 |
 
 Inventory, Programs, Home and Profile are open to everyone. Roster is admin/approver-only — reading it, not just scheduling into it. Tickets are hidden from `user` outright (a `Ticket` row has no reporter column, so there is nothing to scope a personal ticket list by); `user` can't list, report, act on or be assigned one, and the assignee picker skips them.
 
-There is no combined Admin page. The navbar's **Settings** dropdown holds one page per list — Users, Departments, Places, Inventory types, Home content. Quick links sit on the Home content page rather than a page of their own, since both feed the same screen. Users is visible to approvers as a read-only roster of who has access; the other four are admin-only, and the dropdown itself is hidden from viewers and users. The "notification emails failed" warning lives on Home, where only admins see it.
+There is no combined Admin page. The navbar's **Settings** dropdown holds one page per list — Users, Departments, Places, Inventory types, Home content. Users is visible to approvers as a read-only roster of who has access; the other four are admin-only, and the dropdown itself is hidden from viewers and users. The "notification emails failed" warning lives on Home, where only admins see it.
 
 Everyone, `user` included, can raise equipment and program requests, and comment on any request they can see.
 

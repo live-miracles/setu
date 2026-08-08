@@ -46,11 +46,6 @@ export const api: AsyncApi = {
     updatePlace: (...args) => callBackend('updatePlace', ...args),
     deletePlace: (...args) => callBackend('deletePlace', ...args),
 
-    listLinks: (...args) => callBackend('listLinks', ...args),
-    createLink: (...args) => callBackend('createLink', ...args),
-    updateLink: (...args) => callBackend('updateLink', ...args),
-    deleteLink: (...args) => callBackend('deleteLink', ...args),
-
     getHomeContent: (...args) => callBackend('getHomeContent', ...args),
     updateHomeContent: (...args) => callBackend('updateHomeContent', ...args),
 

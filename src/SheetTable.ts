@@ -193,9 +193,6 @@ const Tables = {
         'UserId',
         'Message',
     ]),
-    // No separate Links tab: links are stored as one JSON-encoded row here
-    // (Id 'links'), the same generic-key-value pattern HomeContent already
-    // uses — see readLinks/writeLinks in Admin.ts.
     Settings: SheetTable<SettingRow>('Settings', ['Id', 'Value']),
     FailedEmails: SheetTable<FailedEmail>('FailedEmails', [
         'Id',

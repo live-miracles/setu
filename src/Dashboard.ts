@@ -82,10 +82,6 @@ function getDashboard(): DashboardPayload {
               .map((ticket) => buildTicketDTO(ticket, usersByEmail, commentsByRequestId))
         : [];
 
-    const links = readLinks()
-        .filter((l) => toBool(l.Enabled))
-        .sort((a, b) => a.Name.localeCompare(b.Name));
-
     const homeContent = readHomeContent();
     const shiftPresets = readShiftPresets().sort((a, b) => a.Name.localeCompare(b.Name));
     const programTypes = readProgramTypes().sort((a, b) => a.Name.localeCompare(b.Name));
@@ -111,7 +107,6 @@ function getDashboard(): DashboardPayload {
         inventoryRequests,
         programRequests,
         tickets,
-        links,
         homeContent,
         shiftPresets,
         programTypes,

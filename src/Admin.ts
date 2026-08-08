@@ -163,74 +163,8 @@ function deletePlace(id: string, requestId: string): void {
     });
 }
 
-// Links have no dedicated tab — they're a JSON-encoded array in one
-// Settings row (Id 'links'), the same generic-key-value approach
-// HomeContent below already uses for its individual fields.
-function readLinks(): Link[] {
-    const setting = Tables.Settings.findById('links');
-    if (!setting || !setting.Value) return [];
-    try {
-        return JSON.parse(setting.Value) as Link[];
-    } catch (err) {
-        return [];
-    }
-}
-
-function writeLinks(links: Link[]): void {
-    upsertSetting('links', JSON.stringify(links));
-}
-
-function listLinks(): Link[] {
-    requireUser();
-    return readLinks().sort((a, b) => a.Name.localeCompare(b.Name));
-}
-
-function createLink(input: CreateLinkInput, requestId: string): Link {
-    requireAdmin();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-    const url = requireNonEmpty(input.url, 'URL is required.');
-    const { result } = withLockedDedupe('link:create', requestId, () => {
-        const created: Link = {
-            Id: Utilities.getUuid(),
-            Name: name,
-            Url: url,
-            Enabled: input.enabled !== false,
-        };
-        const links = readLinks();
-        links.push(created);
-        writeLinks(links);
-        return created;
-    });
-    return result;
-}
-
-function updateLink(id: string, input: CreateLinkInput, requestId: string): Link {
-    requireAdmin();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-    const url = requireNonEmpty(input.url, 'URL is required.');
-    const { result } = withLockedDedupe('link:update', requestId, () => {
-        const links = readLinks();
-        const existing = links.find((l) => l.Id === id);
-        if (!existing) throw new ValidationError('not_found');
-        existing.Name = name;
-        existing.Url = url;
-        existing.Enabled = input.enabled !== false;
-        writeLinks(links);
-        return existing;
-    });
-    return result;
-}
-
-function deleteLink(id: string, requestId: string): void {
-    requireAdmin();
-    withLockedDedupe('link:delete', requestId, () => {
-        writeLinks(readLinks().filter((l) => l.Id !== id));
-        return null;
-    });
-}
-
-// Shift presets have no dedicated tab either, for the same reason as
-// Links above — a JSON-encoded array in one Settings row (Id 'shiftPresets').
+// Shift presets have no dedicated tab; they are a JSON-encoded array in one
+// Settings row (Id 'shiftPresets').
 function readShiftPresets(): ShiftPreset[] {
     const setting = Tables.Settings.findById('shiftPresets');
     if (!setting || !setting.Value) return [];
@@ -437,10 +371,7 @@ function listProgramLanguages(): ProgramLanguage[] {
     return readProgramLanguages().sort((a, b) => a.Name.localeCompare(b.Name));
 }
 
-function createProgramLanguage(
-    input: CreateNamedOptionInput,
-    requestId: string,
-): ProgramLanguage {
+function createProgramLanguage(input: CreateNamedOptionInput, requestId: string): ProgramLanguage {
     return createNamedOption(
         'programLanguages',
         DEFAULT_PROGRAM_LANGUAGES,
@@ -560,10 +491,7 @@ function deleteBlock(id: string, requestId: string): void {
 function readHomeContent(): HomeContent {
     const settingsById = indexBy(Tables.Settings.readAll(), (s) => s.Id);
     return {
-        SupportMessage: settingsById['SupportMessage'] ? settingsById['SupportMessage'].Value : '',
         Guidelines: settingsById['Guidelines'] ? settingsById['Guidelines'].Value : '',
-        WhatsappUrl: settingsById['WhatsappUrl'] ? settingsById['WhatsappUrl'].Value : '',
-        TutorialUrl: settingsById['TutorialUrl'] ? settingsById['TutorialUrl'].Value : '',
         NotificationEmail: settingsById['NotificationEmail']
             ? settingsById['NotificationEmail'].Value
             : 'email@domain.com',
@@ -586,10 +514,7 @@ function getHomeContent(): HomeContent {
 function updateHomeContent(input: UpdateHomeContentInput): HomeContent {
     requireAdmin();
     return withLock(() => {
-        upsertSetting('SupportMessage', input.supportMessage || '');
         upsertSetting('Guidelines', input.guidelines || '');
-        upsertSetting('WhatsappUrl', input.whatsappUrl || '');
-        upsertSetting('TutorialUrl', input.tutorialUrl || '');
         upsertSetting('NotificationEmail', input.notificationEmail || 'email@domain.com');
         return readHomeContent();
     });

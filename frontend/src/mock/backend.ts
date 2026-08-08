@@ -739,19 +739,8 @@ const mockData = {
             Message: 'Ana Approver assigned this ticket to Ana Approver.',
         },
     ] as CommentRecord[],
-    links: [
-        {
-            Id: 'link-1',
-            Name: 'Team wiki',
-            Url: 'https://example.com/wiki',
-            Enabled: true,
-        },
-    ] as Link[],
     homeContent: {
-        SupportMessage: 'Reach out on WhatsApp for urgent issues.',
         Guidelines: 'Please return equipment within 24 hours of your shoot ending.',
-        WhatsappUrl: 'https://wa.me/10000000000',
-        TutorialUrl: '',
         NotificationEmail: 'email@domain.com',
     } as HomeContent,
     shiftPresets: [
@@ -860,7 +849,8 @@ function mockComputeDeductionsByType(): Record<string, number> {
     mockData.inventoryRequests.forEach((request) => {
         if (request.Status !== 'issued') return;
         mockParseInventoryItems(request.ItemsJson).forEach((item) => {
-            deductions[item.InventoryTypeId] = (deductions[item.InventoryTypeId] || 0) + item.Quantity;
+            deductions[item.InventoryTypeId] =
+                (deductions[item.InventoryTypeId] || 0) + item.Quantity;
         });
     });
     return deductions;
@@ -906,9 +896,9 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
     const requester = mockData.users.find((u) => u.Email === request.UserId);
     const department = mockData.departments.find((d) => d.Id === request.DepartmentId);
     const items = mockParseInventoryItems(request.ItemsJson).map((i) => {
-            const type = mockData.inventoryTypes.find((t) => t.Id === i.InventoryTypeId);
-            return Object.assign({}, i, { itemName: type ? type.Name : '' });
-        });
+        const type = mockData.inventoryTypes.find((t) => t.Id === i.InventoryTypeId);
+        return Object.assign({}, i, { itemName: type ? type.Name : '' });
+    });
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         departmentName: department ? department.Name : '',
@@ -922,8 +912,9 @@ function mockBuildProgramRequestDTO(request: ProgramRequest): ProgramRequestDTO 
     const requester = mockData.users.find((u) => u.Email === request.UserId);
     const place = mockData.places.find((p) => p.Id === request.PlaceId);
     const department = mockData.departments.find((d) => d.Id === request.DepartmentId);
-    const sessions = mockParseProgramSessions(request.SessionsJson)
-        .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
+    const sessions = mockParseProgramSessions(request.SessionsJson).sort((a, b) =>
+        a.StartDateTime.localeCompare(b.StartDateTime),
+    );
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         placeName: place ? place.Name : '',
@@ -948,7 +939,11 @@ function mockIncludes(query: string | undefined, values: unknown[]): boolean {
         .toLocaleLowerCase();
     if (!needles) return true;
     return needles.split(/\s+/).every((needle) =>
-        values.some((value) => String(value || '').toLocaleLowerCase().includes(needle)),
+        values.some((value) =>
+            String(value || '')
+                .toLocaleLowerCase()
+                .includes(needle),
+        ),
     );
 }
 
@@ -989,7 +984,6 @@ function mockBuildDashboard(): DashboardPayload {
         tickets: canUseTickets(mockToUserDTO(mockCurrentUser()))
             ? mockData.tickets.map(mockBuildTicketDTO)
             : [],
-        links: mockData.links.filter((l) => l.Enabled),
         homeContent: mockData.homeContent,
         shiftPresets: [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
         programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
@@ -1080,36 +1074,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.places = mockData.places.filter((p) => p.Id !== id);
     },
 
-    listLinks: () => [...mockData.links].sort((a, b) => a.Name.localeCompare(b.Name)),
-    createLink: (input: CreateLinkInput) => {
-        const created: Link = {
-            Id: mockUuid(),
-            Name: input.name,
-            Url: input.url,
-            Enabled: input.enabled !== false,
-        };
-        mockData.links.push(created);
-        return created;
-    },
-    updateLink: (id: string, input: CreateLinkInput) => {
-        const link = mockData.links.find((l) => l.Id === id);
-        if (!link) throw new Error('not_found');
-        link.Name = input.name;
-        link.Url = input.url;
-        link.Enabled = input.enabled !== false;
-        return link;
-    },
-    deleteLink: (id: string) => {
-        mockData.links = mockData.links.filter((l) => l.Id !== id);
-    },
-
     getHomeContent: () => mockData.homeContent,
     updateHomeContent: (input: UpdateHomeContentInput) => {
         mockData.homeContent = {
-            SupportMessage: input.supportMessage || '',
             Guidelines: input.guidelines || '',
-            WhatsappUrl: input.whatsappUrl || '',
-            TutorialUrl: input.tutorialUrl || '',
             NotificationEmail: input.notificationEmail || 'email@domain.com',
         };
         return mockData.homeContent;
@@ -1187,7 +1155,8 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.sessionTypes = mockData.sessionTypes.filter((item) => item.Id !== id);
     },
 
-    listBlocks: () => [...mockData.blocks].sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime)),
+    listBlocks: () =>
+        [...mockData.blocks].sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime)),
     createBlock: (input: CreateBlockInput) => {
         const created: Block = {
             Id: mockUuid(),
@@ -1493,8 +1462,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                     request.userName,
                     request.UserId,
                     request.departmentName,
-                    mockData.departments.find((department) => department.Id === request.DepartmentId)
-                        ?.LeadEmail,
+                    mockData.departments.find(
+                        (department) => department.Id === request.DepartmentId,
+                    )?.LeadEmail,
                     request.participants.join(' '),
                     request.placeName,
                     request.sessions.map((session) => `${session.Name} ${session.Type}`).join(' '),
@@ -1631,7 +1601,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                         ),
                     );
                 if (blockingBlock) {
-                    throw new Error('This request overlaps with a blocked time: ' + blockingBlock.Name);
+                    throw new Error(
+                        'This request overlaps with a blocked time: ' + blockingBlock.Name,
+                    );
                 }
             }
             request.Status = 'submitted';
@@ -1732,7 +1704,8 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const ticket = mockData.tickets.find((item) => item.Id === id);
         if (!ticket) throw new Error('ticket_not_found');
         if (!input.title.trim()) throw new Error('Title is required.');
-        const changed = ticket.Title !== input.title || ticket.Description !== (input.description || '');
+        const changed =
+            ticket.Title !== input.title || ticket.Description !== (input.description || '');
         ticket.Title = input.title;
         ticket.Description = input.description || '';
         if (changed) {

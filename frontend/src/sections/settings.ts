@@ -349,12 +349,10 @@ function wireUserControls(
 }
 
 // ---------------------------------------------------------------------------
-// Departments / Places / Inventory types / Quick links — four lists that
-// differ only in their columns and which dashboard array they read, so they
-// share one add-form-plus-list renderer. The first three are pages of their
-// own (keyed by SectionKey below); quick links ride along on the Home
-// content page instead. `kind` is what wireSettingsForm switches on to pick
-// the create endpoint.
+// Departments / Places / Inventory types — lists that differ only in their
+// columns and which dashboard array they read, so they share one
+// add-form-plus-list renderer. `kind` is what wireSettingsForm switches on to
+// pick the create endpoint.
 // ---------------------------------------------------------------------------
 
 // Everything the add-form and list cards need.
@@ -418,7 +416,8 @@ export const SETTINGS_LIST_PAGES: Record<string, SettingsListPage> = {
     blocks: {
         kind: 'block',
         title: 'Blocks',
-        subtitle: 'Global blocked times that prevent normal users from submitting overlapping program requests.',
+        subtitle:
+            'Global blocked times that prevent normal users from submitting overlapping program requests.',
         iconName: 'calendar',
         addLabel: 'Add a block',
         emptyMessage: 'No blocked times configured yet.',
@@ -430,20 +429,6 @@ export const SETTINGS_LIST_PAGES: Record<string, SettingsListPage> = {
         ],
         rows: (dashboard) => dashboard.blocks,
     },
-};
-
-// Not in the map above: links have no page of their own, so this is a plain
-// SettingsList that renderHomeContent embeds.
-const SETTINGS_LINKS_LIST: SettingsList = {
-    kind: 'link',
-    title: 'Quick links',
-    iconName: 'external',
-    addLabel: 'Add a quick link',
-    emptyMessage: 'No links yet.',
-    fields: [
-        { field: 'Name', label: 'Name' },
-        { field: 'Url', label: 'URL' },
-    ],
 };
 
 // Also embedded rather than a page of its own. Picking one of these by name
@@ -495,7 +480,6 @@ const SETTINGS_SESSION_TYPES_LIST: SettingsList = {
 // wireSettingsRow below.
 const SETTINGS_LIST_BY_KIND: Record<string, SettingsList> = {
     ...Object.fromEntries(Object.values(SETTINGS_LIST_PAGES).map((p) => [p.kind, p])),
-    [SETTINGS_LINKS_LIST.kind]: SETTINGS_LINKS_LIST,
     [SETTINGS_SHIFT_PRESETS_LIST.kind]: SETTINGS_SHIFT_PRESETS_LIST,
     [SETTINGS_PROGRAM_TYPES_LIST.kind]: SETTINGS_PROGRAM_TYPES_LIST,
     [SETTINGS_PROGRAM_LANGUAGES_LIST.kind]: SETTINGS_PROGRAM_LANGUAGES_LIST,
@@ -519,8 +503,7 @@ export function renderSettingsList(
     wireSettingsListRows();
 }
 
-// The add-form and list cards on their own, so Home content can embed the
-// Quick links pair below its own form instead of owning a whole page.
+// The add-form and list cards on their own.
 function settingsCreateModalId(kind: string): string {
     return `settings-create-${kind}-modal`;
 }
@@ -714,8 +697,6 @@ async function updateSettingsRow(
             },
             requestId,
         );
-    } else if (kind === 'link') {
-        await api.updateLink(id, { name: v.Name, url: v.Url, enabled: true }, requestId);
     } else if (kind === 'shift-preset') {
         await api.updateShiftPreset(
             id,
@@ -750,7 +731,6 @@ async function deleteSettingsRow(kind: string, id: string, requestId: string): P
     if (kind === 'department') await api.deleteDepartment(id, requestId);
     else if (kind === 'place') await api.deletePlace(id, requestId);
     else if (kind === 'inventory-type') await api.deleteInventoryType(id, requestId);
-    else if (kind === 'link') await api.deleteLink(id, requestId);
     else if (kind === 'shift-preset') await api.deleteShiftPreset(id, requestId);
     else if (kind === 'program-type') await api.deleteProgramType(id, requestId);
     else if (kind === 'program-language') await api.deleteProgramLanguage(id, requestId);
@@ -823,9 +803,7 @@ function wireSettingsListRows(): void {
         .forEach((li) => wireSettingsRow(li as HTMLElement));
 }
 
-// A page can embed more than one settings-form (Home content embeds both
-// Quick links and Shift presets), so every match gets wired, not just the
-// first.
+// A page can embed more than one settings-form, so every match gets wired.
 function wireSettingsForm(): void {
     document.querySelectorAll('form.settings-form').forEach((formEl) => {
         const form = formEl as HTMLFormElement;
@@ -854,15 +832,6 @@ function wireSettingsForm(): void {
                             description: String(data.get('Description') || ''),
                             requestable: true,
                             totalQuantity: Number(data.get('TotalQuantity') || 0),
-                        },
-                        requestId,
-                    );
-                } else if (kind === 'link') {
-                    await api.createLink(
-                        {
-                            name: String(data.get('Name')),
-                            url: String(data.get('Url')),
-                            enabled: true,
                         },
                         requestId,
                     );
@@ -925,8 +894,7 @@ function wireSettingsCreateModals(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Others — the Home screen's message and guidelines, quick links and shift
-// presets: everything that didn't earn a Settings page of its own.
+// Others — the Home screen's guidelines and shift presets.
 // ---------------------------------------------------------------------------
 
 export function renderHomeContent(container: HTMLElement, dashboard: DashboardPayload): void {
@@ -936,19 +904,9 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
         <div class="card-body gap-3">
           <form id="home-content-form" class="space-y-3">
             <fieldset class="fieldset">
-              <label class="label" for="home-support-message">Support message</label>
-              <textarea id="home-support-message" name="supportMessage" class="textarea w-full" placeholder="Shown at the top of Home">${escapeHtml(dashboard.homeContent.SupportMessage)}</textarea>
               <label class="label" for="home-guidelines">Guidelines</label>
               <textarea id="home-guidelines" name="guidelines" class="textarea w-full" placeholder="Studio safety and operating guidelines">${escapeHtml(dashboard.homeContent.Guidelines)}</textarea>
               <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label class="label" for="home-whatsapp">WhatsApp URL</label>
-                  <input id="home-whatsapp" name="whatsappUrl" class="input w-full" value="${escapeHtml(dashboard.homeContent.WhatsappUrl)}" />
-                </div>
-                <div>
-                  <label class="label" for="home-tutorial">Tutorial URL</label>
-                  <input id="home-tutorial" name="tutorialUrl" class="input w-full" value="${escapeHtml(dashboard.homeContent.TutorialUrl)}" />
-                </div>
                 <div>
                   <label class="label" for="home-notification-email">Notification email</label>
                   <input id="home-notification-email" name="notificationEmail" type="email" class="input w-full" value="${escapeHtml(dashboard.homeContent.NotificationEmail)}" />
@@ -960,7 +918,6 @@ export function renderHomeContent(container: HTMLElement, dashboard: DashboardPa
         </div>
       </div>
 
-      ${renderSettingsListCardsWithOptions(SETTINGS_LINKS_LIST, dashboard.links, true)}
       ${renderSettingsListCardsWithOptions(SETTINGS_SHIFT_PRESETS_LIST, dashboard.shiftPresets, true)}
       ${renderSettingsListCardsWithOptions(SETTINGS_PROGRAM_TYPES_LIST, dashboard.programTypes, true)}
       ${renderSettingsListCardsWithOptions(SETTINGS_PROGRAM_LANGUAGES_LIST, dashboard.programLanguages, true)}
@@ -982,10 +939,7 @@ function wireHomeContentForm(): void {
         try {
             showSavingBadge(true);
             await api.updateHomeContent({
-                supportMessage: String(data.get('supportMessage') || ''),
                 guidelines: String(data.get('guidelines') || ''),
-                whatsappUrl: String(data.get('whatsappUrl') || ''),
-                tutorialUrl: String(data.get('tutorialUrl') || ''),
                 notificationEmail: String(data.get('notificationEmail') || ''),
             });
             await refreshDashboard();

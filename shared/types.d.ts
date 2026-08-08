@@ -11,7 +11,7 @@
 // requests they raised or are a participant on; `viewer` sees every request
 // but can act on none; `approver` can additionally approve/reject/issue/
 // return requests, assign tickets and schedule shifts; `admin` can also edit
-// configuration (departments, places, inventory types, links, home content)
+// configuration (departments, places, inventory types, home content)
 // and other people's roles. Every check goes through the canX helpers in
 // Auth.ts rather than comparing User.Role directly — rows written before
 // this split carry the old 'member' value, which those helpers fold into
@@ -157,13 +157,6 @@ interface CommentRecord {
     Message: string;
 }
 
-interface Link {
-    Id: string;
-    Name: string;
-    Url: string;
-    Enabled: boolean;
-}
-
 // A named shift with default clock-in/out times, so scheduling a roster
 // entry can prefill Start time/End time once a preset is picked instead of
 // requiring both every time. See listShiftPresets/createShiftPreset in
@@ -208,10 +201,7 @@ interface SettingRow {
 }
 
 interface HomeContent {
-    SupportMessage: string;
     Guidelines: string;
-    WhatsappUrl: string;
-    TutorialUrl: string;
     NotificationEmail: string;
 }
 
@@ -313,7 +303,6 @@ interface DashboardPayload {
     inventoryRequests: InventoryRequestDTO[];
     programRequests: ProgramRequestDTO[];
     tickets: TicketDTO[];
-    links: Link[];
     homeContent: HomeContent;
     shiftPresets: ShiftPreset[];
     programTypes: ProgramType[];
@@ -454,17 +443,8 @@ interface UpdateTicketInput {
     description: string;
 }
 
-interface CreateLinkInput {
-    name: string;
-    url: string;
-    enabled: boolean;
-}
-
 interface UpdateHomeContentInput {
-    supportMessage: string;
     guidelines: string;
-    whatsappUrl: string;
-    tutorialUrl: string;
     notificationEmail: string;
 }
 
@@ -509,11 +489,6 @@ interface Api {
     createPlace(input: CreatePlaceInput, requestId: string): Place;
     updatePlace(id: string, input: CreatePlaceInput, requestId: string): Place;
     deletePlace(id: string, requestId: string): void;
-
-    listLinks(): Link[];
-    createLink(input: CreateLinkInput, requestId: string): Link;
-    updateLink(id: string, input: CreateLinkInput, requestId: string): Link;
-    deleteLink(id: string, requestId: string): void;
 
     getHomeContent(): HomeContent;
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;
