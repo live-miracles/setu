@@ -25,5 +25,12 @@
         "prettier": "^3.3.3",
         "tailwindcss": "^4.0.0",
         "typescript": "^5.5.4"
+    },
+    "dependencies": {
+        "@refinedev/core": "^5.0.12",
+        "@refinedev/react-hook-form": "^5.0.4",
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8",
+        "react-hook-form": "^7.85.0"
     }
 }

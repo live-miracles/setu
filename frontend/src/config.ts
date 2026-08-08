@@ -1,6 +1,6 @@
 export const APP_SECTION_QUERY_PARAM = 'section';
-export const INVENTORY_REQUEST_QUERY_PARAM = 'request';
-export const PROGRAM_REQUEST_QUERY_PARAM = 'program';
+export const INVENTORY_REQUEST_QUERY_PARAM = 'inventoryRequest';
+export const PROGRAM_REQUEST_QUERY_PARAM = 'programRequest';
 export const TICKET_QUERY_PARAM = 'ticket';
 export const WORKBENCH_MODE_QUERY_PARAM = 'mode';
 export const WORKBENCH_VIEW_QUERY_PARAM = 'view';

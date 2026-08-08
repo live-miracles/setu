@@ -13,6 +13,7 @@ import {
 } from './config';
 import { getState, setState } from './state';
 import { canApprove, canManageConfig, canUseTickets } from './workflows';
+import { unmountRefinePage } from './ui/refine';
 
 // The routing core: it owns navigation, role gating and the nav chrome, but
 // deliberately imports no section. The table of renderers is handed to it by
@@ -20,8 +21,7 @@ import { canApprove, canManageConfig, canUseTickets } from './workflows';
 // — sections import navigation helpers from here, and nothing here reaches
 // back into them.
 
-// The last five are the Settings pages, reached from the navbar dropdown
-// rather than the main nav — see sections/settings.ts.
+// Settings pages are reached from the navbar dropdown rather than the main nav.
 type SectionKey =
     | 'home'
     | 'roster'
@@ -113,6 +113,7 @@ export async function renderCurrentSection(): Promise<void> {
     container.classList.toggle('app-content-edge', isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge);
     container.classList.toggle('max-w-[100rem]', isEdgeToEdge);
+    unmountRefinePage(container);
     await sections[sectionKey](container, dashboard);
     toggleRoleNavVisibility(dashboard);
 }
