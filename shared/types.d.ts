@@ -296,6 +296,7 @@ interface TicketQuery {
 
 interface DashboardPayload {
     me: UserDTO;
+    users: UserDTO[];
     departments: Department[];
     places: Place[];
     inventoryTypes: InventoryTypeDTO[];

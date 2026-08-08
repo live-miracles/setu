@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Button, Card, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
@@ -284,7 +284,7 @@ function Editor({
             title={row ? 'Edit' : config.addLabel}
             onCancel={onClose}
             footer={null}
-            destroyOnClose>
+            destroyOnHidden>
             <FieldSet
                 config={config}
                 row={row}
@@ -309,7 +309,18 @@ function SettingsResourcePage({
 }) {
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
+    const [search, setSearch] = useState('');
     const rows = config.rows(dashboard);
+    const hasSearch = config.kind === 'department' || config.kind === 'inventory-type';
+    const filteredRows = hasSearch
+        ? rows.filter((row) =>
+              Object.values(row).some((value) =>
+                  String(value ?? '')
+                      .toLowerCase()
+                      .includes(search.toLowerCase()),
+              ),
+          )
+        : rows;
     async function save(values: Record<string, string>) {
         showSavingBadge(true);
         try {
@@ -378,7 +389,7 @@ function SettingsResourcePage({
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => setCreating(true)}>
-                        {config.addLabel}
+                        Add
                     </Button>
                 </div>
             )}
@@ -397,10 +408,21 @@ function SettingsResourcePage({
                         <Tag>{rows.length}</Tag>
                     )
                 }>
+                {hasSearch && (
+                    <div className="antd-table-search">
+                        <Input
+                            allowClear
+                            prefix={<SearchOutlined />}
+                            placeholder={`Search ${config.title.toLowerCase()}`}
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                        />
+                    </div>
+                )}
                 <Table
                     rowKey="Id"
                     columns={columns}
-                    dataSource={rows}
+                    dataSource={filteredRows}
                     locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
                     pagination={false}
                 />
@@ -421,21 +443,40 @@ function SettingsResourcePage({
 }
 
 function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
-    const [saving, setSaving] = useState(false);
-    async function save(event: FormEvent<HTMLFormElement>) {
+    const [savingGuidelines, setSavingGuidelines] = useState(false);
+    const [savingEmail, setSavingEmail] = useState(false);
+
+    async function saveGuidelines(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        setSaving(true);
+        setSavingGuidelines(true);
         try {
             const data = new FormData(event.currentTarget);
             await api.updateHomeContent({
                 guidelines: String(data.get('guidelines') || ''),
+                notificationEmail: dashboard.homeContent.NotificationEmail,
+            });
+            await refreshDashboard();
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setSavingGuidelines(false);
+        }
+    }
+
+    async function saveEmail(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        setSavingEmail(true);
+        try {
+            const data = new FormData(event.currentTarget);
+            await api.updateHomeContent({
+                guidelines: dashboard.homeContent.Guidelines,
                 notificationEmail: String(data.get('notificationEmail') || ''),
             });
             await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
         } finally {
-            setSaving(false);
+            setSavingEmail(false);
         }
     }
     return (
@@ -448,8 +489,8 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                     </Typography.Paragraph>
                 </div>
             </div>
-            <Card title="Content">
-                <form onSubmit={save}>
+            <Card title="Guidelines">
+                <form onSubmit={saveGuidelines}>
                     <Form.Item label="Guidelines">
                         <Input.TextArea
                             name="guidelines"
@@ -457,14 +498,23 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                             defaultValue={dashboard.homeContent.Guidelines}
                         />
                     </Form.Item>
-                    <Form.Item label="Notification email">
+                    <Button type="primary" htmlType="submit" loading={savingGuidelines}>
+                        Save
+                    </Button>
+                </form>
+            </Card>
+            <Card title="Notification email">
+                <form onSubmit={saveEmail}>
+                    <Form.Item
+                        label="Email address"
+                        extra="Used for notification emails sent by the app.">
                         <Input
                             name="notificationEmail"
                             type="email"
                             defaultValue={dashboard.homeContent.NotificationEmail}
                         />
                     </Form.Item>
-                    <Button type="primary" htmlType="submit" loading={saving}>
+                    <Button type="primary" htmlType="submit" loading={savingEmail}>
                         Save
                     </Button>
                 </form>

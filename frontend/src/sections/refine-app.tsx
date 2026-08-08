@@ -12,7 +12,14 @@ import {
     Table,
     Typography,
 } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+    DeleteOutlined,
+    EditOutlined,
+    PhoneOutlined,
+    PlusOutlined,
+    SearchOutlined,
+    WhatsAppOutlined,
+} from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import {
@@ -99,7 +106,7 @@ function Modal({
     close: () => void;
 }) {
     return (
-        <AntModal open title={title} onCancel={close} footer={null} destroyOnClose>
+        <AntModal open title={title} onCancel={close} footer={null} destroyOnHidden>
             {children}
         </AntModal>
     );
@@ -299,7 +306,7 @@ function UserForm({
     }, close);
     return (
         <Modal title={user ? 'Edit user' : 'Add user'} close={close}>
-            <form id="refine-user-form" className="grid gap-3 sm:grid-cols-2" onSubmit={save.run}>
+            <form id="refine-user-form" className="grid gap-3" onSubmit={save.run}>
                 {!user && <TextField name="email" label="Email" type="email" required />}
                 <TextField name="name" label="Name" value={user?.Name} required />
                 <AntForm.Item label="Role">
@@ -328,7 +335,7 @@ function UserForm({
                 </AntForm.Item>
                 <TextField name="phone" label="Phone" value={user?.Phone} />
                 <TextField name="whatsapp" label="WhatsApp" value={user?.Whatsapp} />
-                <div className="sm:col-span-2">
+                <div>
                     <Submit label={user ? 'Save' : 'Add'} busy={save.busy} />
                 </div>
             </form>
@@ -338,11 +345,14 @@ function UserForm({
 function Users({ dashboard }: Props) {
     const [editing, setEditing] = useState<UserDTO | undefined>();
     const [creating, setCreating] = useState(false);
-    const [users, setUsers] = useState<UserDTO[] | null>(null);
-    useEffect(() => {
-        api.listUsers().then(setUsers).catch(error);
-    }, []);
-    const shown = users || [];
+    const [search, setSearch] = useState('');
+    const shown = dashboard.users;
+    const filteredUsers = shown.filter((user) =>
+        [user.Name, user.Email, user.departmentName, user.Role, user.Phone, user.Whatsapp]
+            .join(' ')
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+    );
     return (
         <Page
             title="Users"
@@ -353,20 +363,24 @@ function Users({ dashboard }: Props) {
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => setCreating(true)}>
-                        Add user
+                        Add
                     </Button>
                 )
             }>
-            <Card
-                title={
-                    users ? `${shown.length} ${shown.length === 1 ? 'person' : 'people'}` : 'Users'
-                }>
-                {users === null ? (
-                    <Empty>Loading users…</Empty>
-                ) : shown.length ? (
+            <Card title="Users" action={<Tag>{shown.length}</Tag>}>
+                <div className="antd-table-search">
+                    <Input
+                        allowClear
+                        prefix={<SearchOutlined />}
+                        placeholder="Search users"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                    />
+                </div>
+                {filteredUsers.length ? (
                     <Table
                         rowKey="Email"
-                        dataSource={shown}
+                        dataSource={filteredUsers}
                         pagination={false}
                         columns={[
                             {
@@ -394,17 +408,30 @@ function Users({ dashboard }: Props) {
                                 ),
                             },
                             {
+                                title: 'Contact',
+                                render: (_: unknown, user: UserDTO) => (
+                                    <Space direction="vertical" size={0}>
+                                        <span>
+                                            <PhoneOutlined /> {user.Phone || '—'}
+                                        </span>
+                                        <span>
+                                            <WhatsAppOutlined /> {user.Whatsapp || '—'}
+                                        </span>
+                                    </Space>
+                                ),
+                            },
+                            {
                                 title: '',
                                 key: 'actions',
                                 align: 'right' as const,
                                 render: (_: unknown, user: UserDTO) =>
                                     canManageConfig(dashboard.me) ? (
                                         <Button
-                                            type="link"
+                                            type="text"
                                             icon={<EditOutlined />}
-                                            onClick={() => setEditing(user)}>
-                                            Edit
-                                        </Button>
+                                            onClick={() => setEditing(user)}
+                                            aria-label="Edit"
+                                        />
                                     ) : null,
                             },
                         ]}
@@ -431,6 +458,10 @@ function Roster({ dashboard }: Props) {
     const canEdit = canApprove(dashboard.me);
     const [editing, setEditing] = useState<RosterDTO>();
     const [creating, setCreating] = useState(false);
+    const [users, setUsers] = useState<UserDTO[]>([]);
+    useEffect(() => {
+        if (canEdit) api.listUsers().then(setUsers).catch(error);
+    }, [canEdit]);
     const Form = ({ row }: { row?: RosterDTO }) => {
         const [userId, setUserId] = useState(row?.UserId || '');
         const save = useSave(
@@ -461,21 +492,19 @@ function Roster({ dashboard }: Props) {
                     setCreating(false);
                     setEditing(undefined);
                 }}>
-                <form
-                    id="refine-roster-form"
-                    className="grid gap-3 sm:grid-cols-2"
-                    onSubmit={save.run}>
+                <form id="refine-roster-form" className="grid gap-3" onSubmit={save.run}>
                     <TextField name="name" label="Shift" value={row?.Name} required />
-                    <AntForm.Item label="Assignee">
-                        <input type="hidden" name="userId" value={userId} />
+                    <AntForm.Item label="Assignee" required>
+                        <input type="hidden" name="userId" value={userId} required />
                         <Select value={userId} onChange={setUserId} style={{ width: '100%' }}>
-                            <Select.Option value="">Unassigned</Select.Option>
-                            {dashboard.me &&
-                                dashboard.departments.map((d) => (
-                                    <Select.Option key={d.Id} value={d.Id}>
-                                        {d.Name}
-                                    </Select.Option>
-                                ))}
+                            <Select.Option value="" disabled>
+                                Select an assignee
+                            </Select.Option>
+                            {users.map((user) => (
+                                <Select.Option key={user.Email} value={user.Email}>
+                                    {user.Name}
+                                </Select.Option>
+                            ))}
                         </Select>
                     </AntForm.Item>
                     <TextField
@@ -499,7 +528,7 @@ function Roster({ dashboard }: Props) {
                         value={row?.StartTime}
                     />
                     <TextField name="endTime" label="End time" type="time" value={row?.EndTime} />
-                    <div className="sm:col-span-2">
+                    <div>
                         <Submit label={row ? 'Save' : 'Schedule'} busy={save.busy} />
                     </div>
                 </form>
@@ -516,7 +545,7 @@ function Roster({ dashboard }: Props) {
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => setCreating(true)}>
-                        Schedule a shift
+                        Add
                     </Button>
                 )
             }>

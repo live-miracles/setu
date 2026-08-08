@@ -969,6 +969,9 @@ function mockCompare(left: unknown, right: unknown, direction: SortDirection): n
 function mockBuildDashboard(): DashboardPayload {
     return {
         me: mockToUserDTO(mockCurrentUser()),
+        users: canApprove(mockToUserDTO(mockCurrentUser()))
+            ? mockData.users.map(mockToUserDTO)
+            : [],
         departments: mockData.departments,
         places: mockData.places,
         inventoryTypes: mockBuildInventoryTypeDTOs(),

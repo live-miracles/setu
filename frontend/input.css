@@ -49,6 +49,12 @@ body {
     flex: 0 0 auto;
 }
 
+.app-brand-logo {
+    width: 1.75rem;
+    height: 1.75rem;
+    object-fit: contain;
+}
+
 .app-main-menu {
     flex: 1;
     min-width: 0;
@@ -98,6 +104,10 @@ body {
     background: var(--setu-surface);
     border: 1px solid var(--setu-line);
     border-radius: 0.4rem;
+}
+
+.antd-table-search {
+    margin-bottom: 1rem;
 }
 
 .antd-toolbar .ant-input-affix-wrapper {

@@ -1,3 +1,4 @@
+import '@ant-design/v5-patch-for-react-19';
 import { APP_SECTION_QUERY_PARAM } from './config';
 import { initRouter, refreshDashboard, wireNav } from './router';
 import { ROUTER_CONFIG } from './sections';

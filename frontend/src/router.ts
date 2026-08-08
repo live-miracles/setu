@@ -108,10 +108,20 @@ export async function renderCurrentSection(): Promise<void> {
         !params.get(PROGRAM_REQUEST_QUERY_PARAM) &&
         !params.get(TICKET_QUERY_PARAM);
     const isHome = sectionKey === 'home';
-    const isEdgeToEdge = sectionKey === 'roster' || isWorkbenchBrowse || isWorkbenchDetail;
+    const isSettingsSection = [
+        'users',
+        'departments',
+        'places',
+        'inventory-types',
+        'blocks',
+        'home-content',
+    ].includes(sectionKey);
+    const isEdgeToEdge = isWorkbenchBrowse || isWorkbenchDetail;
     container.classList.toggle('app-content-home', isHome);
     container.classList.toggle('app-content-edge', isEdgeToEdge);
-    container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge);
+    container.classList.toggle('mx-auto', !isHome && !isEdgeToEdge);
+    container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge && !isSettingsSection);
+    container.classList.toggle('max-w-[70rem]', isSettingsSection);
     container.classList.toggle('max-w-[100rem]', isEdgeToEdge);
     unmountRefinePage(container);
     await sections[sectionKey](container, dashboard);

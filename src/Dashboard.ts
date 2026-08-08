@@ -100,6 +100,7 @@ function getDashboard(): DashboardPayload {
 
     return {
         me: toUserDTO(actor),
+        users: canApprove(actor) ? Tables.Users.readAll().map(toUserDTO) : [],
         departments,
         places,
         inventoryTypes,

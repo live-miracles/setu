@@ -1,4 +1,4 @@
-import { App as AntApp, Avatar, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
+import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
 import {
     AppstoreOutlined,
     CalendarOutlined,
@@ -8,6 +8,7 @@ import {
     UserOutlined,
 } from '@ant-design/icons';
 import { createRoot } from 'react-dom/client';
+import appLogo from '../../logo.png';
 
 const { Header, Content } = Layout;
 
@@ -34,7 +35,7 @@ function Shell() {
             <Layout className="app-layout">
                 <Header className="app-header">
                     <Button type="text" className="app-brand" data-nav-section="home">
-                        <Avatar size="small" style={{ backgroundColor: '#4d6855' }} />
+                        <img className="app-brand-logo" src={appLogo} alt="" />
                         <Typography.Text strong>Setu</Typography.Text>
                     </Button>
                     <Menu
