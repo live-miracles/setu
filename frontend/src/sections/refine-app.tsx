@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import {
     Button,
     Card as AntCard,
@@ -22,6 +22,7 @@ import {
     SearchOutlined,
     SendOutlined,
     StopOutlined,
+    RollbackOutlined,
     WhatsAppOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
@@ -44,7 +45,12 @@ import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime, formatProgramDateRange, formatRosterSchedule } from '../ui/format';
 import { roleLabel } from '../ui/styles';
-import { canApprove, canManageConfig } from '../workflows';
+import {
+    canApprove,
+    canManageConfig,
+    canTransitionInventoryRequest,
+    canTransitionTicket,
+} from '../workflows';
 
 type Props = { dashboard: DashboardPayload };
 const OTHER_PROGRAM_TYPE = 'Other';
@@ -67,10 +73,16 @@ function formatProgramName(language: string, type: string, title: string): strin
         .join(' ');
 }
 
-function programActionIcon(action: ProgramRequestAction): ReactNode {
+function workflowActionIcon(
+    action: ProgramRequestAction | InventoryRequestAction | TicketAction,
+): ReactNode {
     if (action === 'submit') return <SendOutlined />;
     if (action === 'approve') return <CheckOutlined />;
+    if (action === 'issue') return <CheckOutlined />;
+    if (action === 'return') return <RollbackOutlined />;
     if (action === 'reject') return <CloseOutlined />;
+    if (action === 'assign') return <CheckOutlined />;
+    if (action === 'reopen') return <RollbackOutlined />;
     return <StopOutlined />;
 }
 
@@ -201,6 +213,7 @@ function TextField({
     required = false,
     pattern,
     title,
+    onChange,
 }: {
     name: string;
     label: string;
@@ -209,6 +222,7 @@ function TextField({
     required?: boolean;
     pattern?: string;
     title?: string;
+    onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
     return (
         <AntForm.Item label={label} required={required} className="antd-form-item">
@@ -219,6 +233,7 @@ function TextField({
                 required={required}
                 pattern={pattern}
                 title={title}
+                onChange={onChange}
             />
         </AntForm.Item>
     );
@@ -1078,7 +1093,6 @@ function ProgramDetail({
         StartDateTime: '',
         EndDateTime: '',
     });
-    const [comment, setComment] = useState('');
     const [users, setUsers] = useState<UserDTO[]>([]);
     useEffect(() => {
         if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
@@ -1093,6 +1107,37 @@ function ProgramDetail({
         Participants: request.participants.join(', '),
         UserId: request.UserId,
     });
+    const persistSessions = async (nextSessions: ProgramSession[]) => {
+        try {
+            showSavingBadge(true);
+            await api.updateProgramRequest(
+                request.Id,
+                {
+                    name: values.Name,
+                    language: values.Language,
+                    type: values.Type,
+                    userId: values.UserId,
+                    placeId: values.PlaceId,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    sessions: nextSessions.map((s) => ({
+                        name: s.Name,
+                        type: s.Type,
+                        startDateTime: s.StartDateTime,
+                        endDateTime: s.EndDateTime,
+                    })),
+                },
+                generateRequestId(),
+            );
+            setSessions(nextSessions);
+            await refreshDashboard();
+        } catch (e) {
+            error(e);
+        } finally {
+            showSavingBadge(false);
+        }
+    };
     const save = useSave(
         async () => {
             await api.updateProgramRequest(
@@ -1132,7 +1177,7 @@ function ProgramDetail({
         );
         setSessionOpen(true);
     };
-    const saveSession = (event: FormEvent) => {
+    const saveSession = async (event: FormEvent) => {
         event.preventDefault();
         if (
             !sessionDraft.Type ||
@@ -1141,32 +1186,18 @@ function ProgramDetail({
             new Date(sessionDraft.EndDateTime) <= new Date(sessionDraft.StartDateTime)
         )
             return;
-        setSessions((current) =>
+        const nextSessions =
             sessionIndex === null
-                ? [...current, sessionDraft]
-                : current.map((s, i) => (i === sessionIndex ? sessionDraft : s)),
-        );
+                ? [...sessions, sessionDraft]
+                : sessions.map((s, i) => (i === sessionIndex ? sessionDraft : s));
         setSessionIndex(null);
         setSessionOpen(false);
+        await persistSessions(nextSessions);
     };
     const perform = async (action: ProgramRequestAction) => {
         try {
             showSavingBadge(true);
             await api.performProgramRequestAction(request.Id, action, '', generateRequestId());
-            await refreshDashboard();
-        } catch (e) {
-            error(e);
-        } finally {
-            showSavingBadge(false);
-        }
-    };
-    const submitComment = async (event: FormEvent) => {
-        event.preventDefault();
-        if (!comment.trim()) return;
-        try {
-            showSavingBadge(true);
-            await api.addComment(request.Id, comment.trim(), generateRequestId());
-            setComment('');
             await refreshDashboard();
         } catch (e) {
             error(e);
@@ -1235,131 +1266,76 @@ function ProgramDetail({
         },
     ];
     return (
-        <Page
+        <DetailLayout
             title={
                 formatProgramName(request.Language, request.Type, request.Name) ||
                 `PRG-${request.DisplayId}`
             }
             action={
-                <Space className="program-detail-actions" wrap>
-                    {actions.map((action) => (
-                        <Button
-                            type="primary"
-                            key={action}
-                            icon={programActionIcon(action)}
-                            onClick={() => setPendingAction(action)}>
-                            {action}
-                        </Button>
-                    ))}
-                </Space>
+                <WorkflowActions
+                    actions={actions}
+                    onAction={(action) => setPendingAction(action as ProgramRequestAction)}
+                    icon={(action) => workflowActionIcon(action as ProgramRequestAction)}
+                />
             }>
-            <div className="grid gap-5 xl:grid-cols-2">
-                <div className="min-w-0">
-                    <Card
-                        title="Program details"
-                        action={
-                            editable && (
-                                <Button
-                                    type="primary"
-                                    icon={<EditOutlined />}
-                                    onClick={() => setEditing(true)}>
-                                    Edit
-                                </Button>
-                            )
-                        }>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="flex min-w-0 items-baseline gap-2">
-                                <dt className="shrink-0 text-xs font-semibold text-base-content/50">
-                                    Status
-                                </dt>
-                                <dd className="min-w-0">
-                                    <Tag>{request.Status}</Tag>
-                                </dd>
-                            </div>
-                            {(
-                                [
-                                    ['Program title', values.Name],
-                                    ['Language', values.Language],
-                                    ['Type', values.Type],
-                                    ['Place', request.placeName || 'None'],
-                                    ['Department', request.departmentName || 'None'],
-                                    ['Lead email', values.LeadEmail],
-                                    ['Requested by', request.userName],
-                                    ['Participants', values.Participants || 'None'],
-                                ] as const
-                            ).map(([label, value]) => (
-                                <div key={label} className="flex min-w-0 items-baseline gap-2">
-                                    <dt className="shrink-0 text-xs font-semibold text-base-content/50">
-                                        {label}
-                                    </dt>
-                                    <dd className="min-w-0 break-words text-sm">{value}</dd>
-                                </div>
-                            ))}
+            <div className="min-w-0">
+                <Card
+                    title="Details"
+                    action={
+                        editable && (
+                            <Button
+                                type="primary"
+                                icon={<EditOutlined />}
+                                onClick={() => setEditing(true)}>
+                                Edit
+                            </Button>
+                        )
+                    }>
+                    <DetailFields
+                        fields={[
+                            ['Status', <Tag key="status">{request.Status}</Tag>],
+                            ['Program title', values.Name],
+                            ['Language', values.Language],
+                            ['Type', values.Type],
+                            ['Place', request.placeName || 'None'],
+                            ['Department', request.departmentName || 'None'],
+                            ['Lead email', values.LeadEmail],
+                            ['Requested by', request.userName],
+                            ['Participants', values.Participants || 'None'],
+                        ]}
+                    />
+                </Card>
+            </div>
+            <div className="min-w-0 overflow-hidden">
+                <Card
+                    title="Sessions"
+                    action={
+                        editable && (
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => editSession(null)}>
+                                Add
+                            </Button>
+                        )
+                    }>
+                    {sessions.length ? (
+                        <div className="overflow-x-auto">
+                            <Table
+                                rowKey="key"
+                                columns={sessionColumns}
+                                dataSource={sessionRows}
+                                pagination={false}
+                                scroll={{ x: 640 }}
+                            />
                         </div>
-                    </Card>
-                </div>
-                <div className="min-w-0 overflow-hidden">
-                    <Card
-                        title="Sessions"
-                        action={
-                            editable && (
-                                <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
-                                    onClick={() => editSession(null)}>
-                                    Add
-                                </Button>
-                            )
-                        }>
-                        {sessions.length ? (
-                            <div className="overflow-x-auto">
-                                <Table
-                                    rowKey="key"
-                                    columns={sessionColumns}
-                                    dataSource={sessionRows}
-                                    pagination={false}
-                                    scroll={{ x: 640 }}
-                                />
-                            </div>
-                        ) : (
-                            <Empty>No sessions added.</Empty>
-                        )}
-                    </Card>
-                </div>
-                <div className="xl:col-span-2">
-                    <Card title="Activity">
-                        <div className="space-y-3">
-                            {request.comments?.length ? (
-                                request.comments.map((c) => (
-                                    <div
-                                        className="border-b border-base-200 pb-2 text-sm last:border-0"
-                                        key={c.Id}>
-                                        <div className="font-medium">
-                                            {c.userName}{' '}
-                                            <span className="ml-2 text-xs font-normal text-base-content/50">
-                                                {formatDateTime(c.Timestamp)}
-                                            </span>
-                                        </div>
-                                        <p className="text-base-content/70">{c.Message}</p>
-                                    </div>
-                                ))
-                            ) : (
-                                <Empty>No activity yet.</Empty>
-                            )}
-                            <form className="flex gap-2" onSubmit={submitComment}>
-                                <Input
-                                    size="small"
-                                    value={comment}
-                                    onChange={(e) => setComment(e.target.value)}
-                                    placeholder="Add a comment"
-                                />
-                                <Button size="small" htmlType="submit">
-                                    Send
-                                </Button>
-                            </form>
-                        </div>
-                    </Card>
-                </div>
+                    ) : (
+                        <Empty>No sessions added.</Empty>
+                    )}
+                </Card>
+            </div>
+            <div className="xl:col-span-2">
+                <Activity comments={request.comments || []} requestId={request.Id} />
             </div>
             {pendingAction && (
                 <ActionConfirmation
@@ -1377,9 +1353,10 @@ function ProgramDetail({
                     description="Are you sure you want to delete this session?"
                     onCancel={() => setPendingDeleteSessionIndex(null)}
                     onConfirm={async () => {
-                        setSessions((current) =>
-                            current.filter((_, i) => i !== pendingDeleteSessionIndex),
+                        const nextSessions = sessions.filter(
+                            (_, i) => i !== pendingDeleteSessionIndex,
                         );
+                        await persistSessions(nextSessions);
                         setPendingDeleteSessionIndex(null);
                     }}
                 />
@@ -1492,7 +1469,7 @@ function ProgramDetail({
                     />
                 </Modal>
             )}
-        </Page>
+        </DetailLayout>
     );
 }
 
@@ -1550,6 +1527,602 @@ function SessionForm({
     );
 }
 
+function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: string }) {
+    const [comment, setComment] = useState('');
+    const submit = async (event: FormEvent) => {
+        event.preventDefault();
+        if (!comment.trim()) return;
+        try {
+            showSavingBadge(true);
+            await api.addComment(requestId, comment.trim(), generateRequestId());
+            setComment('');
+            await refreshDashboard();
+        } catch (e) {
+            error(e);
+        } finally {
+            showSavingBadge(false);
+        }
+    };
+    return (
+        <Card title="Activity">
+            <div className="space-y-3">
+                {comments.length ? (
+                    comments.map((c) => (
+                        <div
+                            className="border-b border-base-200 pb-2 text-sm last:border-0"
+                            key={c.Id}>
+                            <div className="font-medium">
+                                {c.userName}{' '}
+                                <span className="ml-2 text-xs font-normal text-base-content/50">
+                                    {formatDateTime(c.Timestamp)}
+                                </span>
+                            </div>
+                            <p className="whitespace-pre-wrap text-base-content/70">{c.Message}</p>
+                        </div>
+                    ))
+                ) : (
+                    <Empty>No activity yet.</Empty>
+                )}
+                <form className="flex gap-2" onSubmit={submit}>
+                    <Input
+                        size="small"
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Add a comment"
+                    />
+                    <Button size="small" htmlType="submit">
+                        Send
+                    </Button>
+                </form>
+            </div>
+        </Card>
+    );
+}
+
+function DetailFields({ fields }: { fields: Array<[label: string, value: ReactNode]> }) {
+    return (
+        <div className="grid gap-4 sm:grid-cols-2">
+            {fields.map(([label, value]) => (
+                <div key={label} className="flex min-w-0 items-baseline gap-2">
+                    <dt className="shrink-0 text-xs font-semibold text-base-content/50">{label}</dt>
+                    <dd className="min-w-0 break-words text-sm">{value}</dd>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function DetailLayout({
+    title,
+    action,
+    children,
+}: {
+    title: string;
+    action?: ReactNode;
+    children: ReactNode;
+}) {
+    return (
+        <Page title={title} action={action}>
+            <div className="grid gap-5 xl:grid-cols-2">{children}</div>
+        </Page>
+    );
+}
+
+function WorkflowActions({
+    actions,
+    onAction,
+    icon,
+}: {
+    actions: string[];
+    onAction: (action: string) => void;
+    icon?: (action: string) => ReactNode;
+}) {
+    return (
+        <Space wrap>
+            {actions.map((action) => (
+                <Button
+                    type="primary"
+                    key={action}
+                    icon={icon?.(action)}
+                    onClick={() => onAction(action)}>
+                    {action}
+                </Button>
+            ))}
+        </Space>
+    );
+}
+
+function InventoryDetail({
+    request,
+    dashboard,
+}: {
+    request: InventoryRequestDTO;
+    dashboard: DashboardPayload;
+}) {
+    const owner =
+        request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
+    const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
+    const [editing, setEditing] = useState(false);
+    const [pendingAction, setPendingAction] = useState<InventoryRequestAction | null>(null);
+    const [pendingDeleteItemIndex, setPendingDeleteItemIndex] = useState<number | null>(null);
+    const [itemIndex, setItemIndex] = useState<number | null>(null);
+    const [itemOpen, setItemOpen] = useState(false);
+    const [items, setItems] = useState<InventoryItemDTO[]>(
+        request.items.map((item) => ({ ...item })),
+    );
+    const [itemDraft, setItemDraft] = useState({
+        InventoryTypeId: dashboard.inventoryTypes[0]?.Id || '',
+        Quantity: 1,
+        Condition: '' as ReturnCondition | '',
+    });
+    const [values, setValues] = useState({
+        Name: request.Name,
+        StartDate: request.StartDate,
+        EndDate: request.EndDate,
+        DepartmentId: request.DepartmentId,
+        LeadEmail: request.LeadEmail,
+        Participants: request.participants.join(', '),
+        UserId: request.UserId,
+    });
+    const update = (key: keyof typeof values, value: string) =>
+        setValues((current) => ({ ...current, [key]: value }));
+    const persistItems = async (nextItems: InventoryItemDTO[]) => {
+        try {
+            showSavingBadge(true);
+            await api.updateInventoryRequest(
+                request.Id,
+                {
+                    name: values.Name,
+                    userId: values.UserId,
+                    startDate: values.StartDate,
+                    endDate: values.EndDate,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    items: nextItems.map((item) => ({
+                        inventoryTypeId: item.InventoryTypeId,
+                        quantity: item.Quantity,
+                        condition: item.Condition,
+                    })),
+                },
+                generateRequestId(),
+            );
+            setItems(nextItems);
+            await refreshDashboard();
+        } catch (e) {
+            error(e);
+        } finally {
+            showSavingBadge(false);
+        }
+    };
+    const save = useSave(
+        async () => {
+            await api.updateInventoryRequest(
+                request.Id,
+                {
+                    name: values.Name,
+                    userId: values.UserId,
+                    startDate: values.StartDate,
+                    endDate: values.EndDate,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    items: items.map((item) => ({
+                        inventoryTypeId: item.InventoryTypeId,
+                        quantity: item.Quantity,
+                        condition: item.Condition,
+                    })),
+                },
+                generateRequestId(),
+            );
+        },
+        () => setEditing(false),
+    );
+    const editItem = (index: number | null) => {
+        setItemIndex(index);
+        setItemDraft(
+            index === null
+                ? {
+                      InventoryTypeId: dashboard.inventoryTypes[0]?.Id || '',
+                      Quantity: 1,
+                      Condition: '',
+                  }
+                : {
+                      InventoryTypeId: items[index].InventoryTypeId,
+                      Quantity: items[index].Quantity,
+                      Condition: items[index].Condition,
+                  },
+        );
+        setItemOpen(true);
+    };
+    const saveItem = async (event: FormEvent) => {
+        event.preventDefault();
+        if (!itemDraft.InventoryTypeId || itemDraft.Quantity <= 0) return;
+        const type = dashboard.inventoryTypes.find(
+            (entry) => entry.Id === itemDraft.InventoryTypeId,
+        );
+        if (!type) return;
+        const nextItem = {
+            ...itemDraft,
+            itemName: type.Name,
+        };
+        const nextItems =
+            itemIndex === null
+                ? [...items, nextItem]
+                : items.map((item, index) =>
+                      index === itemIndex ? { ...item, ...nextItem } : item,
+                  );
+        setItemIndex(null);
+        setItemOpen(false);
+        await persistItems(nextItems);
+    };
+    const perform = async (action: InventoryRequestAction) => {
+        try {
+            showSavingBadge(true);
+            await api.performInventoryRequestAction(
+                request.Id,
+                action,
+                '',
+                null,
+                generateRequestId(),
+            );
+            await refreshDashboard();
+        } catch (e) {
+            error(e);
+        } finally {
+            showSavingBadge(false);
+        }
+    };
+    const actions = (
+        [
+            'submit',
+            'approve',
+            'reject',
+            'issue',
+            'return',
+            'close',
+            'cancel',
+        ] as InventoryRequestAction[]
+    )
+        .filter((action) => canTransitionInventoryRequest(request.Status, action))
+        .filter((action) => (action === 'submit' ? owner : canApprove(dashboard.me)));
+    return (
+        <DetailLayout
+            title={request.Name || `REQ-${request.DisplayId}`}
+            action={
+                <WorkflowActions
+                    actions={actions}
+                    onAction={(action) => setPendingAction(action as InventoryRequestAction)}
+                    icon={(action) => workflowActionIcon(action as InventoryRequestAction)}
+                />
+            }>
+            <Card
+                title="Details"
+                action={
+                    editable && (
+                        <Button
+                            type="primary"
+                            icon={<EditOutlined />}
+                            onClick={() => setEditing(true)}>
+                            Edit
+                        </Button>
+                    )
+                }>
+                <DetailFields
+                    fields={[
+                        ['Status', <Tag key="status">{request.Status}</Tag>],
+                        ['Request name', values.Name],
+                        ['Start date', values.StartDate],
+                        ['End date', values.EndDate],
+                        ['Department', request.departmentName || 'None'],
+                        ['Lead email', values.LeadEmail],
+                        ['Requested by', request.userName || 'Unknown'],
+                        ['Participants', values.Participants || 'None'],
+                    ]}
+                />
+            </Card>
+            <div className="min-w-0 overflow-hidden">
+                <Card
+                    title="Requested items"
+                    action={
+                        editable && (
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => editItem(null)}>
+                                Add
+                            </Button>
+                        )
+                    }>
+                    {items.length ? (
+                        <div className="overflow-x-auto">
+                            <Table
+                                rowKey={(item) => `${item.InventoryTypeId}-${item.Quantity}`}
+                                pagination={false}
+                                dataSource={items}
+                                columns={[
+                                    { title: 'Item', dataIndex: 'itemName', key: 'itemName' },
+                                    { title: 'Quantity', dataIndex: 'Quantity', key: 'Quantity' },
+                                    {
+                                        title: 'Condition',
+                                        dataIndex: 'Condition',
+                                        key: 'Condition',
+                                        render: (value: string) => value || '—',
+                                    },
+                                    {
+                                        title: 'Actions',
+                                        key: 'actions',
+                                        align: 'right' as const,
+                                        render: (
+                                            _value: unknown,
+                                            _item: InventoryItemDTO,
+                                            index: number,
+                                        ) =>
+                                            editable ? (
+                                                <Space>
+                                                    <Button
+                                                        type="text"
+                                                        icon={<EditOutlined />}
+                                                        onClick={() => editItem(index)}
+                                                        aria-label="Edit item"
+                                                    />
+                                                    <Button
+                                                        type="text"
+                                                        danger
+                                                        icon={<DeleteOutlined />}
+                                                        onClick={() =>
+                                                            setPendingDeleteItemIndex(index)
+                                                        }
+                                                        aria-label="Delete item"
+                                                    />
+                                                </Space>
+                                            ) : null,
+                                    },
+                                ]}
+                                scroll={{ x: 560 }}
+                            />
+                        </div>
+                    ) : (
+                        <Empty>No items added.</Empty>
+                    )}
+                </Card>
+            </div>
+            <div className="xl:col-span-2">
+                <Activity comments={request.comments || []} requestId={request.Id} />
+            </div>
+            {editing && (
+                <Modal title="Edit inventory request" close={() => setEditing(false)}>
+                    <form className="grid gap-3" onSubmit={save.run}>
+                        <TextField
+                            name="name"
+                            label="Request name"
+                            value={values.Name}
+                            required
+                            onChange={(e) => update('Name', e.target.value)}
+                        />
+                        <TextField
+                            name="startDate"
+                            label="Start date"
+                            type="date"
+                            value={values.StartDate}
+                            required
+                            onChange={(e) => update('StartDate', e.target.value)}
+                        />
+                        <TextField
+                            name="endDate"
+                            label="End date"
+                            type="date"
+                            value={values.EndDate}
+                            required
+                            onChange={(e) => update('EndDate', e.target.value)}
+                        />
+                        <TextField
+                            name="leadEmail"
+                            label="Lead email"
+                            value={values.LeadEmail}
+                            required
+                            onChange={(e) => update('LeadEmail', e.target.value)}
+                        />
+                        <TextField
+                            name="participants"
+                            label="Participants (emails, comma-separated)"
+                            value={values.Participants}
+                            onChange={(e) => update('Participants', e.target.value)}
+                        />
+                        <div>
+                            <Submit label="Save changes" busy={save.busy} />
+                        </div>
+                    </form>
+                </Modal>
+            )}
+            {itemOpen && (
+                <Modal
+                    title={itemIndex === null ? 'Add item' : 'Edit item'}
+                    close={() => {
+                        setItemOpen(false);
+                        setItemIndex(null);
+                    }}>
+                    <form className="grid gap-3" onSubmit={saveItem}>
+                        <AntForm.Item label="Inventory type" required>
+                            <Select
+                                value={itemDraft.InventoryTypeId}
+                                onChange={(value) =>
+                                    setItemDraft((current) => ({
+                                        ...current,
+                                        InventoryTypeId: value,
+                                    }))
+                                }
+                                style={{ width: '100%' }}>
+                                {dashboard.inventoryTypes.map((type) => (
+                                    <Select.Option key={type.Id} value={type.Id}>
+                                        {type.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                        <TextField
+                            name="quantity"
+                            label="Quantity"
+                            type="number"
+                            value={itemDraft.Quantity}
+                            required
+                            onChange={(event) =>
+                                setItemDraft((current) => ({
+                                    ...current,
+                                    Quantity: Number(event.target.value),
+                                }))
+                            }
+                        />
+                        <AntForm.Item label="Condition">
+                            <Select
+                                value={itemDraft.Condition}
+                                onChange={(value) =>
+                                    setItemDraft((current) => ({
+                                        ...current,
+                                        Condition: value as ReturnCondition | '',
+                                    }))
+                                }
+                                style={{ width: '100%' }}>
+                                <Select.Option value="">Not specified</Select.Option>
+                                <Select.Option value="good">Good</Select.Option>
+                                <Select.Option value="damaged">Damaged</Select.Option>
+                                <Select.Option value="missing">Missing</Select.Option>
+                            </Select>
+                        </AntForm.Item>
+                        <div>
+                            <Submit label="Save item" />
+                        </div>
+                    </form>
+                </Modal>
+            )}
+            {pendingDeleteItemIndex !== null && (
+                <ActionConfirmation
+                    action="delete"
+                    description="Are you sure you want to delete this item?"
+                    onCancel={() => setPendingDeleteItemIndex(null)}
+                    onConfirm={async () => {
+                        const nextItems = items.filter(
+                            (_, index) => index !== pendingDeleteItemIndex,
+                        );
+                        await persistItems(nextItems);
+                        setPendingDeleteItemIndex(null);
+                    }}
+                />
+            )}
+            {pendingAction && (
+                <ActionConfirmation
+                    action={pendingAction}
+                    onCancel={() => setPendingAction(null)}
+                    onConfirm={async () => {
+                        await perform(pendingAction);
+                        setPendingAction(null);
+                    }}
+                />
+            )}
+        </DetailLayout>
+    );
+}
+
+function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: DashboardPayload }) {
+    const [editing, setEditing] = useState(false);
+    const [pendingAction, setPendingAction] = useState<TicketAction | null>(null);
+    const [values, setValues] = useState({ Title: ticket.Title, Description: ticket.Description });
+    const save = useSave(
+        async () =>
+            api.updateTicket(
+                ticket.Id,
+                { title: values.Title, description: values.Description },
+                generateRequestId(),
+            ),
+        () => setEditing(false),
+    );
+    const actions = (['close', 'reopen'] as TicketAction[]).filter((action) =>
+        canTransitionTicket(ticket.Status, action),
+    );
+    const perform = async (action: TicketAction) => {
+        try {
+            showSavingBadge(true);
+            await api.performTicketAction(ticket.Id, action, null, generateRequestId());
+            await refreshDashboard();
+        } catch (e) {
+            error(e);
+        } finally {
+            showSavingBadge(false);
+        }
+    };
+    return (
+        <DetailLayout
+            title={ticket.Title || `TKT-${ticket.DisplayId}`}
+            action={
+                <WorkflowActions
+                    actions={actions}
+                    onAction={(action) => setPendingAction(action as TicketAction)}
+                    icon={(action) => workflowActionIcon(action as TicketAction)}
+                />
+            }>
+            <Card
+                title="Details"
+                action={
+                    <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)}>
+                        Edit
+                    </Button>
+                }>
+                <DetailFields
+                    fields={[
+                        ['Status', <Tag key="status">{ticket.Status}</Tag>],
+                        ['Title', values.Title],
+                        ['Assigned to', ticket.assigneeName || 'Unassigned'],
+                    ]}
+                />
+                <div className="mt-4 sm:col-span-2">
+                    <dt className="text-xs font-semibold text-base-content/50">Description</dt>
+                    <dd className="mt-1 whitespace-pre-wrap text-sm">
+                        {values.Description || 'No description.'}
+                    </dd>
+                </div>
+            </Card>
+            <div className="xl:col-span-2">
+                <Activity comments={ticket.comments || []} requestId={ticket.Id} />
+            </div>
+            {editing && (
+                <Modal title="Edit ticket" close={() => setEditing(false)}>
+                    <form className="grid gap-3" onSubmit={save.run}>
+                        <TextField
+                            name="title"
+                            label="Title"
+                            value={values.Title}
+                            required
+                            onChange={(e) => setValues({ ...values, Title: e.target.value })}
+                        />
+                        <AntForm.Item label="Description">
+                            <Input.TextArea
+                                value={values.Description}
+                                onChange={(e) =>
+                                    setValues({ ...values, Description: e.target.value })
+                                }
+                                rows={5}
+                            />
+                        </AntForm.Item>
+                        <div>
+                            <Submit label="Save changes" busy={save.busy} />
+                        </div>
+                    </form>
+                </Modal>
+            )}
+            {pendingAction && (
+                <ActionConfirmation
+                    action={pendingAction}
+                    onCancel={() => setPendingAction(null)}
+                    onConfirm={async () => {
+                        await perform(pendingAction);
+                        setPendingAction(null);
+                    }}
+                />
+            )}
+        </DetailLayout>
+    );
+}
+
 function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
     const params = new URLSearchParams(window.location.search);
     const id = params.get(
@@ -1583,38 +2156,20 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                 </Card>
             </Page>
         );
-    const title = kind === 'tickets' ? row.Title : row.Name;
-    const actions =
-        kind === 'tickets'
-            ? ['assign', 'close', 'reopen']
-            : kind === 'programs'
-              ? ['submit', 'approve', 'reject', 'cancel']
-              : ['submit', 'approve', 'reject', 'issue', 'return', 'close', 'cancel'];
+    if (kind === 'inventory')
+        return <InventoryDetail request={row as InventoryRequestDTO} dashboard={dashboard} />;
+    if (kind === 'tickets') return <TicketDetail ticket={row as TicketDTO} dashboard={dashboard} />;
+    const title = row.Name;
+    const actions = ['submit', 'approve', 'reject', 'cancel'];
     const applyAction = async (action: string) => {
         try {
             showSavingBadge(true);
-            if (kind === 'tickets')
-                await api.performTicketAction(
-                    row.Id,
-                    action as TicketAction,
-                    null,
-                    generateRequestId(),
-                );
-            else if (kind === 'programs')
-                await api.performProgramRequestAction(
-                    row.Id,
-                    action as ProgramRequestAction,
-                    '',
-                    generateRequestId(),
-                );
-            else
-                await api.performInventoryRequestAction(
-                    row.Id,
-                    action as InventoryRequestAction,
-                    '',
-                    null,
-                    generateRequestId(),
-                );
+            await api.performProgramRequestAction(
+                row.Id,
+                action as ProgramRequestAction,
+                '',
+                generateRequestId(),
+            );
             await refreshDashboard();
         } catch (e) {
             error(e);
