@@ -726,7 +726,9 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
           : dashboard.tickets;
     const params = new URLSearchParams(window.location.search);
     const [search, setSearch] = useState(params.get(WORKBENCH_SEARCH_QUERY_PARAM) || '');
-    const [view, setView] = useState(params.get(WORKBENCH_VIEW_QUERY_PARAM) || 'all');
+    const [view, setView] = useState(
+        params.get(WORKBENCH_VIEW_QUERY_PARAM) || (isProgram ? 'active' : 'all'),
+    );
     const statuses = isInventory
         ? [
               'draft',
