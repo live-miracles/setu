@@ -309,8 +309,8 @@ function UserForm({
             <form id="refine-user-form" className="grid gap-3" onSubmit={save.run}>
                 {!user && <TextField name="email" label="Email" type="email" required />}
                 <TextField name="name" label="Name" value={user?.Name} required />
-                <AntForm.Item label="Role">
-                    <input type="hidden" name="role" value={role} />
+                <AntForm.Item label="Role" required>
+                    <input type="hidden" name="role" value={role} required />
                     <Select value={role} onChange={setRole} style={{ width: '100%' }}>
                         {(['admin', 'approver', 'viewer', 'user'] as UserRole[]).map((r) => (
                             <Select.Option key={r} value={r}>
@@ -319,13 +319,15 @@ function UserForm({
                         ))}
                     </Select>
                 </AntForm.Item>
-                <AntForm.Item label="Department">
-                    <input type="hidden" name="departmentId" value={departmentId} />
+                <AntForm.Item label="Department" required>
+                    <input type="hidden" name="departmentId" value={departmentId} required />
                     <Select
                         value={departmentId}
                         onChange={setDepartmentId}
                         style={{ width: '100%' }}>
-                        <Select.Option value="">No department</Select.Option>
+                        <Select.Option value="" disabled>
+                            Select a department
+                        </Select.Option>
                         {dashboard.departments.map((d) => (
                             <Select.Option key={d.Id} value={d.Id}>
                                 {d.Name}
@@ -333,8 +335,8 @@ function UserForm({
                         ))}
                     </Select>
                 </AntForm.Item>
-                <TextField name="phone" label="Phone" value={user?.Phone} />
-                <TextField name="whatsapp" label="WhatsApp" value={user?.Whatsapp} />
+                <TextField name="phone" label="Phone" value={user?.Phone} required />
+                <TextField name="whatsapp" label="WhatsApp" value={user?.Whatsapp} required />
                 <div>
                     <Submit label={user ? 'Save' : 'Add'} busy={save.busy} />
                 </div>
