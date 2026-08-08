@@ -161,7 +161,6 @@ function resolveSection(section: string, dashboard: DashboardPayload): SectionKe
 // own, so it's hidden separately when nothing inside it is reachable.
 function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
     const showSettings = canApprove(dashboard.me);
-    const showTickets = canUseTickets(dashboard.me);
     document.querySelectorAll<HTMLElement>('[data-nav-section]').forEach((el) => {
         const section = el.dataset.navSection as SectionKey;
         el.classList.toggle('hidden', !canOpenSection(section, dashboard.me));
@@ -169,9 +168,6 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
     document.querySelectorAll<HTMLElement>('[data-settings-menu]').forEach((el) => {
         el.classList.toggle('hidden', !showSettings);
     });
-    const mobileDock = document.getElementById('mobile-dock');
-    mobileDock?.classList.toggle('grid-cols-4', showTickets);
-    mobileDock?.classList.toggle('grid-cols-3', !showTickets);
 }
 
 const WORKBENCH_QUERY_PARAMS = [

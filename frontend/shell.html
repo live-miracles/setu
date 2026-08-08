@@ -45,22 +45,6 @@
       </div>
 
       <div id="desktop-nav" class="navbar-center hidden items-center gap-1 md:flex">
-        <button type="button" data-nav-section="home" class="btn btn-ghost btn-sm gap-1.5">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="size-4"
-            aria-hidden="true">
-            <path d="M4 11.5 12 4l8 7.5" />
-            <path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />
-          </svg>
-          Home
-        </button>
         <button type="button" data-nav-section="programs" class="btn btn-ghost btn-sm gap-1.5">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -191,25 +175,9 @@
 
     <nav
       id="mobile-dock"
-      class="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 gap-1 border-t border-base-300 bg-base-100 px-2 py-2 shadow-lg md:hidden"
+      class="fixed inset-x-0 bottom-0 z-40 flex justify-center gap-1 border-t border-base-300 bg-base-100 px-2 py-2 shadow-lg md:hidden"
       aria-label="Primary navigation">
-      <button type="button" data-nav-section="home" class="btn btn-ghost btn-sm h-14 flex-col gap-1 px-1">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="size-4"
-          aria-hidden="true">
-          <path d="M4 11.5 12 4l8 7.5" />
-          <path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />
-        </svg>
-        <span class="text-xs leading-none">Home</span>
-      </button>
-      <button type="button" data-nav-section="programs" class="btn btn-ghost btn-sm h-14 flex-col gap-1 px-1">
+      <button type="button" data-nav-section="programs" class="btn btn-ghost btn-sm h-14 min-w-24 max-w-32 flex-1 flex-col gap-1 px-1">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -227,7 +195,7 @@
         </svg>
         <span class="text-xs leading-none">Programs</span>
       </button>
-      <button type="button" data-nav-section="inventory" class="btn btn-ghost btn-sm h-14 flex-col gap-1 px-1">
+      <button type="button" data-nav-section="inventory" class="btn btn-ghost btn-sm h-14 min-w-24 max-w-32 flex-1 flex-col gap-1 px-1">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -244,7 +212,7 @@
         </svg>
         <span class="text-xs leading-none">Inventory</span>
       </button>
-      <button type="button" data-nav-section="tickets" class="btn btn-ghost btn-sm h-14 flex-col gap-1 px-1">
+      <button type="button" data-nav-section="tickets" class="btn btn-ghost btn-sm h-14 min-w-24 max-w-32 flex-1 flex-col gap-1 px-1">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"

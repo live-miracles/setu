@@ -2,12 +2,11 @@ import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { escapeHtml, formatRosterSchedule, formatTimeOfDay } from '../ui/format';
+import { escapeHtml, formatRosterSchedule } from '../ui/format';
 import { icon } from '../ui/icons';
 import { canApprove } from '../workflows';
 
 const SHIFT_NAME_OTHER = 'Other';
-
 const CREATE_SHIFT_MODAL_ID = 'create-shift-modal';
 const OPEN_SHIFT_MODAL_BTN_ID = 'open-create-shift-modal';
 const CANCEL_SHIFT_MODAL_BTN_ID = 'cancel-create-shift-modal';
@@ -15,640 +14,84 @@ const CREATE_SHIFT_FORM_ID = 'create-shift-form';
 const SHIFT_NAME_PRESET_SELECT_ID = 'shift-name-preset';
 const SHIFT_NAME_CUSTOM_WRAP_ID = 'shift-name-custom-wrap';
 const SHIFT_NAME_CUSTOM_INPUT_ID = 'shift-name-custom';
-
-const CALENDAR_PREV_BTN_ID = 'roster-cal-prev';
-const CALENDAR_NEXT_BTN_ID = 'roster-cal-next';
-const CALENDAR_LABEL_ID = 'roster-cal-label';
-const CALENDAR_GRID_ID = 'roster-cal-grid';
-const CALENDAR_VIEW_MONTH_BTN_ID = 'roster-cal-view-month';
-const CALENDAR_VIEW_WEEK_BTN_ID = 'roster-cal-view-week';
-const CALENDAR_WEEK_GRID_ID = 'roster-cal-week-grid';
-const SHIFT_POPUP_ID = 'roster-shift-popup';
 const CREATE_SHIFT_MODAL_TITLE_ID = 'create-shift-modal-title';
 const CREATE_SHIFT_SUBMIT_BTN_ID = 'create-shift-submit';
 
-type CalendarMode = 'month' | 'week';
-
-const CALENDAR_MODE_STORAGE_KEY = 'setu.roster.calendarMode';
-
-function loadStoredCalendarMode(): CalendarMode {
-    const stored = localStorage.getItem(CALENDAR_MODE_STORAGE_KEY);
-    return stored === 'week' ? 'week' : 'month';
-}
-
-function storeCalendarMode(mode: CalendarMode): void {
-    localStorage.setItem(CALENDAR_MODE_STORAGE_KEY, mode);
-}
-
-const WEEKDAY_SHORT_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-// The week time-grid is sized to the day's full 24h regardless of pixel
-// height (see fitCalendarToViewport) - blocks are positioned by percentage
-// of the day, with this as a floor so a short shift stays readable.
-const MIN_WEEK_BLOCK_HEIGHT_PX = 18;
-
-// Grid lines/labels every 2h rather than every hour - plenty for reading a
-// shift's start/end at a glance once the grid no longer scrolls, and a
-// denser 24-line grid would crowd a shorter viewport.
-const WEEK_GRID_LINE_HOURS = 2;
-
-// Fallback bottom gap if #app-content's own padding can't be read (see
-// calendarBottomReserve) - the grid content is let to stretch down to just
-// short of the viewport bottom, so the card fills the remaining page height
-// instead of leaving a dead gap under a fixed-size grid.
-const CALENDAR_BOTTOM_GAP_FALLBACK_PX = 24;
-const CALENDAR_MIN_CONTENT_HEIGHT_PX = 320;
-
-let calendarResizeHandler: (() => void) | null = null;
-let shiftPopupTeardown: (() => void) | null = null;
-
-// A day's shift, after roster date ranges are expanded one entry per date and
-// blank times default to the full day (00:00-24:00). Rosters that land on
-// the same date with the same name and time window collapse into a single
-// block, one shared entry per assignee - `entries` keeps the underlying
-// roster rows behind that block so the detail popup can list/edit/delete
-// each one individually.
-interface ShiftBlock {
-    name: string;
-    startTime: string;
-    endTime: string;
-    userNames: string[];
-    entries: RosterDTO[];
-}
-
-// Cycled by a hash of the shift name so the same name always lands on the
-// same color across the calendar, without maintaining an explicit map.
-const SHIFT_BLOCK_PALETTE = [
-    'bg-primary/15 text-primary',
-    'bg-secondary/15 text-secondary',
-    'bg-accent/15 text-accent',
-    'bg-info/15 text-info',
-    'bg-success/15 text-success',
-    'bg-warning/15 text-warning',
-];
-
-// Same order/length as SHIFT_BLOCK_PALETTE so a shift's popup dot always
-// matches its box color.
-const SHIFT_DOT_PALETTE = [
-    'bg-primary',
-    'bg-secondary',
-    'bg-accent',
-    'bg-info',
-    'bg-success',
-    'bg-warning',
-];
-
-function shiftNameHash(name: string): number {
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-    return hash;
-}
-
-function shiftBlockClass(name: string): string {
-    return SHIFT_BLOCK_PALETTE[shiftNameHash(name) % SHIFT_BLOCK_PALETTE.length];
-}
-
-function shiftDotClass(name: string): string {
-    return SHIFT_DOT_PALETTE[shiftNameHash(name) % SHIFT_DOT_PALETTE.length];
-}
-
-// Parses a 'YYYY-MM-DD' string into a local-midnight Date. Never round-trip
-// through toISOString/UTC parsing here - that shifts the calendar date by a
-// day for viewers west of UTC.
-function parseDateOnly(dateStr: string): Date | null {
-    const parts = (dateStr || '').split('-');
-    if (parts.length !== 3) return null;
-    const [y, m, d] = parts.map(Number);
-    if (!y || !m || !d) return null;
-    return new Date(y, m - 1, d);
-}
-
-function toDateKey(d: Date): string {
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${month}-${day}`;
-}
-
-function eachDateKeyInRange(startDate: string, endDate: string): string[] {
-    const start = parseDateOnly(startDate);
-    const end = parseDateOnly(endDate);
-    if (!start || !end) return [];
-    const dates: string[] = [];
-    const cursor = new Date(start);
-    while (cursor <= end) {
-        dates.push(toDateKey(cursor));
-        cursor.setDate(cursor.getDate() + 1);
-    }
-    return dates;
-}
-
-function addShiftBlockOnDate(
-    byDate: Map<string, Map<string, ShiftBlock>>,
-    date: string,
-    roster: RosterDTO,
-    userName: string,
-    startTime: string,
-    endTime: string,
-): void {
-    const key = `${roster.Name}|${startTime}|${endTime}`;
-    let dayBlocks = byDate.get(date);
-    if (!dayBlocks) {
-        dayBlocks = new Map();
-        byDate.set(date, dayBlocks);
-    }
-    let block = dayBlocks.get(key);
-    if (!block) {
-        block = { name: roster.Name, startTime, endTime, userNames: [], entries: [] };
-        dayBlocks.set(key, block);
-    }
-    if (block.userNames.indexOf(userName) === -1) block.userNames.push(userName);
-    block.entries.push(roster);
-}
-
-function nextDateKey(date: string): string {
-    const d = parseDateOnly(date);
-    if (!d) return date;
-    d.setDate(d.getDate() + 1);
-    return toDateKey(d);
-}
-
-function buildShiftBlocksByDate(rosters: RosterDTO[]): Map<string, ShiftBlock[]> {
-    const byDate = new Map<string, Map<string, ShiftBlock>>();
-    rosters.forEach((roster) => {
-        const startTime = roster.StartTime || '00:00';
-        const endTime = roster.EndTime || '24:00';
-        const userName = roster.UserId ? roster.userName : 'Unassigned';
-        // endTime <= startTime means the shift crosses midnight - split it
-        // into what's left of the start day and the run into the next one,
-        // rather than rendering a single block with an inverted time range.
-        // Both halves keep the same underlying roster entry (with its real,
-        // un-split StartTime/EndTime) for the detail popup/edit form.
-        const overnight = minutesOfDay(endTime) <= minutesOfDay(startTime);
-        eachDateKeyInRange(roster.StartDate, roster.EndDate).forEach((date) => {
-            if (overnight) {
-                addShiftBlockOnDate(byDate, date, roster, userName, startTime, '24:00');
-                addShiftBlockOnDate(byDate, nextDateKey(date), roster, userName, '00:00', endTime);
-            } else {
-                addShiftBlockOnDate(byDate, date, roster, userName, startTime, endTime);
-            }
-        });
-    });
-
-    const result = new Map<string, ShiftBlock[]>();
-    byDate.forEach((dayBlocks, date) => {
-        result.set(
-            date,
-            Array.from(dayBlocks.values()).sort(
-                (a, b) => a.startTime.localeCompare(b.startTime) || a.name.localeCompare(b.name),
-            ),
-        );
-    });
-    return result;
-}
-
-function monthLabel(year: number, month: number): string {
-    return new Date(year, month, 1).toLocaleDateString(undefined, {
-        month: 'long',
-        year: 'numeric',
-    });
-}
-
-function startOfWeek(d: Date): Date {
-    const start = new Date(d);
-    start.setDate(start.getDate() - start.getDay());
-    return start;
-}
-
-function formatShortDate(d: Date): string {
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function weekRangeLabel(weekStart: Date): string {
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    return `${formatShortDate(weekStart)} – ${formatShortDate(weekEnd)}, ${weekEnd.getFullYear()}`;
-}
-
-// Assigns each rendered ShiftBlock a fresh DOM-attribute id so a click on it
-// can be traced back to the block object - reset once per calendarGrid()
-// call, so ids stay valid for exactly the DOM they were rendered into.
-let shiftBlockRegistry = new Map<string, ShiftBlock>();
-let shiftBlockIdSeq = 0;
-
-function registerShiftBlock(block: ShiftBlock): string {
-    const id = 'sb' + shiftBlockIdSeq++;
-    shiftBlockRegistry.set(id, block);
-    return id;
-}
-
-function renderDayCell(
-    cursor: Date,
-    shiftsByDate: Map<string, ShiftBlock[]>,
-    dim: boolean,
-    todayKey: string,
-): string {
-    const dateKey = toDateKey(cursor);
-    const isToday = dateKey === todayKey;
-    const blocks = shiftsByDate.get(dateKey) || [];
-    return `
-      <div class="h-full overflow-y-auto rounded-box border border-base-200 p-1.5 ${dim ? 'bg-base-200/40' : 'bg-base-100'}">
-        <div class="text-xs font-medium ${
-            isToday
-                ? 'flex size-5 items-center justify-center rounded-full bg-primary text-primary-content'
-                : dim
-                  ? 'text-base-content/30'
-                  : 'text-base-content/70'
-        }">${cursor.getDate()}</div>
-        <div class="mt-1 space-y-1">
-          ${blocks
-              .map(
-                  (b) => `
-            <div class="cursor-pointer rounded px-1.5 py-1 text-[11px] leading-tight transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}">
-              <div class="truncate"><span class="font-semibold">${escapeHtml(b.name)}</span> <span class="opacity-80">${formatTimeOfDay(b.startTime)}–${formatTimeOfDay(b.endTime)}</span></div>
-              <div class="truncate">${escapeHtml(b.userNames.join(', '))}</div>
-            </div>`,
-              )
-              .join('')}
-        </div>
-      </div>`;
-}
-
-function renderCalendarWeekHeader(cells: string[]): string {
-    return `
-    <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase text-base-content/50">
-      ${WEEKDAY_SHORT_NAMES.map((d) => `<div class="py-1">${d}</div>`).join('')}
-    </div>
-    <div class="grid grid-cols-7 grid-rows-6 gap-1">${cells.join('')}</div>`;
-}
-
-function renderMonthGrid(
-    shiftsByDate: Map<string, ShiftBlock[]>,
-    year: number,
-    month: number,
-): string {
-    const gridStart = new Date(year, month, 1);
-    gridStart.setDate(gridStart.getDate() - gridStart.getDay());
-    const todayKey = toDateKey(new Date());
-
-    const cells: string[] = [];
-    const cursor = new Date(gridStart);
-    for (let i = 0; i < 42; i++) {
-        cells.push(renderDayCell(cursor, shiftsByDate, cursor.getMonth() !== month, todayKey));
-        cursor.setDate(cursor.getDate() + 1);
-    }
-    return renderCalendarWeekHeader(cells);
-}
-
-function minutesOfDay(time: string): number {
-    const [h, m] = time.split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
-}
-
-function formatHourLabel(hour: number): string {
-    return new Date(2000, 0, 1, hour, 0).toLocaleTimeString(undefined, { hour: 'numeric' });
-}
-
-interface PositionedShiftBlock {
-    block: ShiftBlock;
-    topPct: number;
-    heightPct: number;
-    col: number;
-    cols: number;
-}
-
-const MINUTES_PER_DAY = 24 * 60;
-
-// Greedy column assignment (the classic calendar-event-layout sweep): each
-// block reuses the first column whose last event has already ended, so
-// blocks that never overlap end up sharing column 0 at full width, and
-// `cols` only grows for genuine same-time overlaps.
-function layoutDayBlocks(blocks: ShiftBlock[]): PositionedShiftBlock[] {
-    const sorted = [...blocks].sort(
-        (a, b) => minutesOfDay(a.startTime) - minutesOfDay(b.startTime),
+function renderRosterTable(rosters: RosterDTO[], canSchedule: boolean): string {
+    const sortedRosters = [...rosters].sort(
+        (a, b) =>
+            a.StartDate.localeCompare(b.StartDate) ||
+            (a.StartTime || '00:00').localeCompare(b.StartTime || '00:00') ||
+            a.Name.localeCompare(b.Name) ||
+            a.userName.localeCompare(b.userName),
     );
-    const columnEnds: number[] = [];
-    const positioned: PositionedShiftBlock[] = sorted.map((block) => {
-        const start = minutesOfDay(block.startTime);
-        const end = Math.max(minutesOfDay(block.endTime), start + 15);
-        let col = columnEnds.findIndex((endMinute) => endMinute <= start);
-        if (col === -1) {
-            col = columnEnds.length;
-            columnEnds.push(end);
-        } else {
-            columnEnds[col] = end;
-        }
-        return {
-            block,
-            topPct: (start / MINUTES_PER_DAY) * 100,
-            heightPct: ((end - start) / MINUTES_PER_DAY) * 100,
-            col,
-            cols: 0,
-        };
-    });
-    const totalCols = Math.max(1, columnEnds.length);
-    positioned.forEach((p) => (p.cols = totalCols));
-    return positioned;
-}
 
-// Blank start/end times default to 00:00-24:00 (see buildShiftBlocksByDate) -
-// that full-day span belongs in the all-day row, not stretched down the
-// entire hour grid crowding out the day's actual timed shifts.
-function isAllDayShiftBlock(b: ShiftBlock): boolean {
-    return b.startTime === '00:00' && b.endTime === '24:00';
-}
-
-function renderWeekGrid(shiftsByDate: Map<string, ShiftBlock[]>, weekStart: Date): string {
-    const todayKey = toDateKey(new Date());
-    const days: Date[] = [];
-    const cursor = new Date(weekStart);
-    for (let i = 0; i < 7; i++) {
-        days.push(new Date(cursor));
-        cursor.setDate(cursor.getDate() + 1);
-    }
-
-    const dayHeaders = days
-        .map((d) => {
-            const isToday = toDateKey(d) === todayKey;
-            return `
-        <div class="border-l border-base-200 py-1.5 text-center">
-          <div class="text-xs font-semibold uppercase text-base-content/50">${WEEKDAY_SHORT_NAMES[d.getDay()]}</div>
-          <div class="mt-0.5 text-sm font-medium ${isToday ? 'mx-auto flex size-6 items-center justify-center rounded-full bg-primary text-primary-content' : ''}">${d.getDate()}</div>
-        </div>`;
-        })
-        .join('');
-
-    const gridLineCount = 24 / WEEK_GRID_LINE_HOURS;
-    const hourGutter = Array.from({ length: gridLineCount }, (_, i) => {
-        const hour = i * WEEK_GRID_LINE_HOURS;
-        return `
-        <div class="relative flex-1 border-t border-base-200 text-right">
-          <span class="absolute right-1 -top-2 text-[10px] text-base-content/40">${formatHourLabel(hour)}</span>
-        </div>`;
-    }).join('');
-
-    const allDayByDate = days.map((d) =>
-        (shiftsByDate.get(toDateKey(d)) || []).filter(isAllDayShiftBlock),
-    );
-    const allDayRow = allDayByDate.some((blocks) => blocks.length > 0)
-        ? `
-    <div class="flex border-b border-base-300">
-      <div class="w-12 shrink-0"></div>
-      <div class="grid flex-1 grid-cols-7 gap-px">
-        ${allDayByDate
-            .map(
-                (blocks) => `
-          <div class="space-y-0.5 border-l border-base-200 p-1">
-            ${blocks
-                .map(
-                    (b) => `
-              <div class="cursor-pointer truncate rounded px-1.5 py-0.5 text-[11px] font-medium transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}">${escapeHtml(b.name)}${b.userNames.length ? ' · ' + escapeHtml(b.userNames.join(', ')) : ''}</div>`,
-                )
-                .join('')}
-          </div>`,
-            )
-            .join('')}
-      </div>
-    </div>`
-        : '';
-
-    const now = new Date();
-    const nowTopPct = ((now.getHours() * 60 + now.getMinutes()) / MINUTES_PER_DAY) * 100;
-
-    const dayColumns = days
-        .map((d) => {
-            const blocks = (shiftsByDate.get(toDateKey(d)) || []).filter(
-                (b) => !isAllDayShiftBlock(b),
-            );
-            const positioned = layoutDayBlocks(blocks);
-            const gridLines = Array.from(
-                { length: gridLineCount },
-                () => `<div class="flex-1 border-t border-base-200"></div>`,
-            ).join('');
-            const blockEls = positioned
-                .map(({ block: b, topPct, heightPct, col, cols }) => {
-                    const leftPct = (col / cols) * 100;
-                    const widthPct = 100 / cols;
-                    return `
-              <div class="absolute cursor-pointer overflow-hidden rounded px-1.5 py-1 text-[11px] leading-tight transition hover:brightness-95 ${shiftBlockClass(b.name)}" data-shift-block-id="${registerShiftBlock(b)}" style="top:${topPct}%; height:max(${heightPct}%, ${MIN_WEEK_BLOCK_HEIGHT_PX}px); left:calc(${leftPct}% + 2px); width:calc(${widthPct}% - 4px);">
-                <div class="truncate font-semibold">${escapeHtml(b.name)}</div>
-                <div class="truncate opacity-80">${formatTimeOfDay(b.startTime)}–${formatTimeOfDay(b.endTime)}</div>
-                <div class="truncate">${escapeHtml(b.userNames.join(', '))}</div>
-              </div>`;
-                })
-                .join('');
-            // The current-time line, Google Calendar-style: a dot at the
-            // column's left edge and a line spanning just that one day, not
-            // the whole week.
-            const nowIndicator =
-                toDateKey(d) === todayKey
-                    ? `<div class="pointer-events-none absolute inset-x-0 z-10 flex items-center" style="top:${nowTopPct}%">
-                  <span class="-ml-1 size-2 shrink-0 rounded-full bg-error"></span>
-                  <span class="h-px w-full bg-error"></span>
-                </div>`
-                    : '';
-            return `<div class="relative flex flex-col border-l border-base-200">${gridLines}${blockEls}${nowIndicator}</div>`;
-        })
-        .join('');
-
-    return `
-    <div class="flex border-b border-base-300">
-      <div class="w-12 shrink-0"></div>
-      <div class="grid flex-1 grid-cols-7">${dayHeaders}</div>
-    </div>
-    ${allDayRow}
-    <div id="${CALENDAR_WEEK_GRID_ID}" class="flex">
-      <div class="flex w-12 shrink-0 flex-col">${hourGutter}</div>
-      <div class="grid flex-1 auto-rows-fr grid-cols-7">${dayColumns}</div>
-    </div>`;
-}
-
-// Stretches the calendar's grid content down to just short of the viewport
-// bottom, so both month rows (grid-rows-6) and the week view's 24h column
-// grow to fill the page instead of leaving a dead gap or forcing a scroll.
-// #app-content already reserves bottom space of its own (pb-24 for the
-// mobile dock, sm:pb-10 on desktop) - reused as the gap below the calendar
-// instead of adding a second one, or the two would stack and push the page
-// taller than the viewport.
-function calendarBottomReserve(): number {
-    const mainEl = document.getElementById('app-content');
-    const paddingBottom = mainEl ? parseFloat(getComputedStyle(mainEl).paddingBottom) : NaN;
-    return Number.isFinite(paddingBottom) ? paddingBottom : CALENDAR_BOTTOM_GAP_FALLBACK_PX;
-}
-
-function fitCalendarToViewport(): void {
-    const gridEl = document.getElementById(CALENDAR_GRID_ID);
-    if (!gridEl) return;
-    // Week mode may have an all-day row before the week grid, so it's looked
-    // up by id rather than assumed to be a fixed child index.
-    const weekGrid = document.getElementById(CALENDAR_WEEK_GRID_ID);
-    const content = weekGrid || (gridEl.lastElementChild as HTMLElement | null);
-    if (!content) return;
-
-    // The card's own bottom padding/border sits below the grid content and
-    // above #app-content's padding - measured live (card bottom minus content
-    // bottom) rather than hardcoded, so it stays right if the card's padding
-    // ever changes. It's a fixed offset regardless of content's own height,
-    // so it's safe to read even mid-resize.
-    const cardEl = gridEl.closest('.card') as HTMLElement | null;
-    const cardBottomChrome = cardEl
-        ? cardEl.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom
-        : 0;
-
-    const available = Math.max(
-        CALENDAR_MIN_CONTENT_HEIGHT_PX,
-        window.innerHeight -
-            content.getBoundingClientRect().top -
-            cardBottomChrome -
-            calendarBottomReserve(),
-    );
-    content.style.height = `${available}px`;
-}
-
-function calendarLabel(anchor: Date, mode: CalendarMode): string {
-    return mode === 'month'
-        ? monthLabel(anchor.getFullYear(), anchor.getMonth())
-        : weekRangeLabel(startOfWeek(anchor));
-}
-
-function calendarGrid(
-    shiftsByDate: Map<string, ShiftBlock[]>,
-    anchor: Date,
-    mode: CalendarMode,
-): string {
-    // Rebuilding the grid replaces every element the old registry's ids
-    // pointed to, so it starts clean each time rather than growing forever.
-    shiftBlockRegistry = new Map();
-    shiftBlockIdSeq = 0;
-    return mode === 'month'
-        ? renderMonthGrid(shiftsByDate, anchor.getFullYear(), anchor.getMonth())
-        : renderWeekGrid(shiftsByDate, startOfWeek(anchor));
-}
-
-function renderCalendarCard(
-    shiftsByDate: Map<string, ShiftBlock[]>,
-    anchor: Date,
-    mode: CalendarMode,
-    canSchedule: boolean,
-): string {
     return `
     <div class="card border border-base-300 bg-base-100 shadow">
       <div class="card-body gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex flex-wrap items-center gap-2">
-            <h2 class="card-title text-base">${icon('calendar', 'size-5 text-primary')} Shift calendar</h2>
-            ${canSchedule ? `<button type="button" id="${OPEN_SHIFT_MODAL_BTN_ID}" class="btn btn-primary btn-sm btn-square" aria-label="Schedule a shift">${icon('plus', 'size-4')}</button>` : ''}
-          </div>
-          <div class="flex flex-wrap items-center gap-3">
-            <div role="tablist" class="tabs tabs-box tabs-sm">
-              <button id="${CALENDAR_VIEW_MONTH_BTN_ID}" type="button" role="tab" class="tab ${mode === 'month' ? 'tab-active' : ''}">Month</button>
-              <button id="${CALENDAR_VIEW_WEEK_BTN_ID}" type="button" role="tab" class="tab ${mode === 'week' ? 'tab-active' : ''}">Week</button>
-            </div>
-            <div class="flex items-center gap-2">
-              <button id="${CALENDAR_PREV_BTN_ID}" type="button" class="btn btn-ghost btn-xs" aria-label="Previous">${icon('chevronLeft', 'size-4')}</button>
-              <span id="${CALENDAR_LABEL_ID}" class="min-w-36 text-center text-sm font-medium">${calendarLabel(anchor, mode)}</span>
-              <button id="${CALENDAR_NEXT_BTN_ID}" type="button" class="btn btn-ghost btn-xs" aria-label="Next">${icon('chevronRight', 'size-4')}</button>
-            </div>
-          </div>
+          <h2 class="card-title text-base">Roster</h2>
+          ${canSchedule ? `<button type="button" id="${OPEN_SHIFT_MODAL_BTN_ID}" class="btn btn-primary btn-sm">${icon('plus', 'size-4')} Schedule a shift</button>` : ''}
         </div>
-        <div id="${CALENDAR_GRID_ID}">${calendarGrid(shiftsByDate, anchor, mode)}</div>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead><tr>
+              <th>Date</th><th>Shift</th><th>Time</th><th>Assignee</th>
+              ${canSchedule ? '<th class="text-right">Actions</th>' : ''}
+            </tr></thead>
+            <tbody>
+              ${
+                  sortedRosters.length
+                      ? sortedRosters
+                            .map((roster) => {
+                                const schedule = formatRosterSchedule(roster);
+                                const [date, time] = schedule.split(' · ');
+                                return `<tr>
+                    <td class="whitespace-nowrap">${escapeHtml(date)}</td>
+                    <td class="font-medium">${escapeHtml(roster.Name)}</td>
+                    <td class="whitespace-nowrap text-sm text-base-content/70">${escapeHtml(time || 'All day')}</td>
+                    <td>${escapeHtml(roster.UserId ? roster.userName : 'Unassigned')}</td>
+                    ${
+                        canSchedule
+                            ? `<td class="whitespace-nowrap text-right">
+                      <button type="button" class="btn btn-ghost btn-xs" data-roster-edit="${escapeHtml(roster.Id)}">${icon('edit', 'size-3.5')} Edit</button>
+                      <button type="button" class="btn btn-ghost btn-xs text-error" data-roster-delete="${escapeHtml(roster.Id)}">${icon('trash', 'size-3.5')} Delete</button>
+                    </td>`
+                            : ''
+                    }
+                  </tr>`;
+                            })
+                            .join('')
+                      : `<tr><td colspan="${canSchedule ? 5 : 4}" class="py-10 text-center text-base-content/60">No roster entries yet.</td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>`;
 }
 
-function closeShiftPopup(): void {
-    document.getElementById(SHIFT_POPUP_ID)?.remove();
-    if (shiftPopupTeardown) {
-        shiftPopupTeardown();
-        shiftPopupTeardown = null;
-    }
-}
-
-// Clamps the popup to the viewport rather than letting it run off-screen:
-// prefers opening to the right of the clicked block, falls back to the
-// left, and slides vertically to stay fully in view - the same idea as
-// Google Calendar's event popover, without the anchor-side flip animation.
-function positionShiftPopup(anchorEl: HTMLElement, popup: HTMLElement): void {
-    const margin = 8;
-    const anchorRect = anchorEl.getBoundingClientRect();
-    const popupRect = popup.getBoundingClientRect();
-
-    let left = anchorRect.right + margin;
-    if (left + popupRect.width > window.innerWidth - margin) {
-        left = anchorRect.left - popupRect.width - margin;
-    }
-    left = Math.min(
-        Math.max(margin, left),
-        Math.max(margin, window.innerWidth - popupRect.width - margin),
-    );
-
-    let top = Math.min(anchorRect.top, window.innerHeight - popupRect.height - margin);
-    top = Math.max(margin, top);
-
-    popup.style.left = `${left}px`;
-    popup.style.top = `${top}px`;
-}
-
-function renderShiftPopupContent(block: ShiftBlock): string {
-    return `
-    <div class="flex items-center gap-2 border-b border-base-200 px-3 py-2.5">
-      <span class="size-2.5 shrink-0 rounded-full ${shiftDotClass(block.name)}"></span>
-      <h3 class="min-w-0 flex-1 truncate text-sm font-semibold">${escapeHtml(block.name)}</h3>
-      <button type="button" class="btn btn-ghost btn-xs" data-shift-popup-close aria-label="Close">✕</button>
-    </div>
-    <div class="max-h-96 space-y-2 overflow-y-auto p-2">
-      ${block.entries
-          .map(
-              (entry) => `
-        <div class="rounded-lg border border-base-200 p-2.5">
-          <div class="truncate text-sm font-medium">${escapeHtml(entry.UserId ? entry.userName : 'Unassigned')}</div>
-          <div class="mt-0.5 text-xs text-base-content/60">${formatRosterSchedule(entry)}</div>
-          <div class="mt-2 flex justify-end gap-1">
-            <button type="button" class="btn btn-ghost btn-xs" data-shift-edit="${entry.Id}">${icon('edit', 'size-3.5')} Edit</button>
-            <button type="button" class="btn btn-ghost btn-xs text-error" data-shift-delete="${entry.Id}">${icon('trash', 'size-3.5')} Delete</button>
-          </div>
-        </div>`,
-          )
-          .join('')}
-    </div>`;
-}
-
-function openShiftPopup(
-    anchorEl: HTMLElement,
-    block: ShiftBlock,
-    openEditShiftModal: (roster: RosterDTO) => void,
+function wireRosterTable(
+    rosters: RosterDTO[],
+    openEditShiftModal: ((roster: RosterDTO) => void) | null,
 ): void {
-    closeShiftPopup();
-
-    const popup = document.createElement('div');
-    popup.id = SHIFT_POPUP_ID;
-    popup.className =
-        'fixed z-50 w-80 max-w-[calc(100vw-1rem)] rounded-box border border-base-300 bg-base-100 shadow-xl';
-    popup.innerHTML = renderShiftPopupContent(block);
-    document.body.appendChild(popup);
-    positionShiftPopup(anchorEl, popup);
-
-    popup.querySelector('[data-shift-popup-close]')?.addEventListener('click', closeShiftPopup);
-
-    popup.querySelectorAll<HTMLButtonElement>('[data-shift-edit]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const entry = block.entries.find((e) => e.Id === btn.dataset.shiftEdit);
-            closeShiftPopup();
-            if (entry) openEditShiftModal(entry);
+    document.querySelectorAll<HTMLButtonElement>('[data-roster-edit]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const roster = rosters.find((entry) => entry.Id === button.dataset.rosterEdit);
+            if (roster && openEditShiftModal) openEditShiftModal(roster);
         });
     });
 
-    popup.querySelectorAll<HTMLButtonElement>('[data-shift-delete]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-            const entry = block.entries.find((e) => e.Id === btn.dataset.shiftDelete);
-            if (!entry) return;
-            const who = entry.UserId ? entry.userName : 'this assignee';
-            if (!confirm(`Delete the "${entry.Name}" shift for ${who}? This can't be undone.`)) {
+    document.querySelectorAll<HTMLButtonElement>('[data-roster-delete]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const roster = rosters.find((entry) => entry.Id === button.dataset.rosterDelete);
+            if (!roster) return;
+            const who = roster.UserId ? roster.userName : 'this assignee';
+            if (!confirm(`Delete the "${roster.Name}" shift for ${who}? This can't be undone.`))
                 return;
-            }
             try {
                 showSavingBadge(true);
-                await api.deleteRoster(entry.Id, generateRequestId());
-                closeShiftPopup();
+                await api.deleteRoster(roster.Id, generateRequestId());
                 await refreshDashboard();
             } catch (err) {
                 showErrorAlert(err);
@@ -657,135 +100,30 @@ function openShiftPopup(
             }
         });
     });
-
-    const onDocClick = (e: MouseEvent): void => {
-        if (!popup.contains(e.target as Node)) closeShiftPopup();
-    };
-    const onKeyDown = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') closeShiftPopup();
-    };
-    // Deferred so the same click that opened the popup (already bubbling up
-    // to document) doesn't immediately close it again.
-    setTimeout(() => document.addEventListener('click', onDocClick), 0);
-    document.addEventListener('keydown', onKeyDown);
-    shiftPopupTeardown = () => {
-        document.removeEventListener('click', onDocClick);
-        document.removeEventListener('keydown', onKeyDown);
-    };
-}
-
-function wireCalendar(
-    shiftsByDate: Map<string, ShiftBlock[]>,
-    openEditShiftModal: ((roster: RosterDTO) => void) | null,
-    initialMode: CalendarMode,
-): void {
-    const today = new Date();
-    const state: { anchor: Date; mode: CalendarMode } = {
-        anchor: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
-        mode: initialMode,
-    };
-
-    const rerender = (): void => {
-        // The block a popup was anchored to won't survive the innerHTML
-        // rebuild below - close it now rather than leave it pointing at
-        // detached DOM.
-        closeShiftPopup();
-        const label = document.getElementById(CALENDAR_LABEL_ID);
-        const grid = document.getElementById(CALENDAR_GRID_ID);
-        if (label) label.textContent = calendarLabel(state.anchor, state.mode);
-        if (grid) grid.innerHTML = calendarGrid(shiftsByDate, state.anchor, state.mode);
-        document
-            .getElementById(CALENDAR_VIEW_MONTH_BTN_ID)
-            ?.classList.toggle('tab-active', state.mode === 'month');
-        document
-            .getElementById(CALENDAR_VIEW_WEEK_BTN_ID)
-            ?.classList.toggle('tab-active', state.mode === 'week');
-        fitCalendarToViewport();
-    };
-
-    if (openEditShiftModal) {
-        document.getElementById(CALENDAR_GRID_ID)?.addEventListener('click', (e) => {
-            const target = (e.target as HTMLElement).closest(
-                '[data-shift-block-id]',
-            ) as HTMLElement | null;
-            if (!target) return;
-            const block = shiftBlockRegistry.get(target.dataset.shiftBlockId || '');
-            if (block) openShiftPopup(target, block, openEditShiftModal);
-        });
-    }
-
-    document.getElementById(CALENDAR_PREV_BTN_ID)?.addEventListener('click', () => {
-        if (state.mode === 'month') {
-            state.anchor.setDate(1);
-            state.anchor.setMonth(state.anchor.getMonth() - 1);
-        } else {
-            state.anchor.setDate(state.anchor.getDate() - 7);
-        }
-        rerender();
-    });
-    document.getElementById(CALENDAR_NEXT_BTN_ID)?.addEventListener('click', () => {
-        if (state.mode === 'month') {
-            state.anchor.setDate(1);
-            state.anchor.setMonth(state.anchor.getMonth() + 1);
-        } else {
-            state.anchor.setDate(state.anchor.getDate() + 7);
-        }
-        rerender();
-    });
-    document.getElementById(CALENDAR_VIEW_MONTH_BTN_ID)?.addEventListener('click', () => {
-        state.mode = 'month';
-        storeCalendarMode(state.mode);
-        rerender();
-    });
-    document.getElementById(CALENDAR_VIEW_WEEK_BTN_ID)?.addEventListener('click', () => {
-        state.mode = 'week';
-        storeCalendarMode(state.mode);
-        rerender();
-    });
-
-    // Re-fit on window resize - the previous section's listener is removed
-    // first since renderRoster/wireCalendar reruns on every nav to Roster,
-    // and old DOM (removed by the innerHTML replace) can't clean itself up.
-    if (calendarResizeHandler) window.removeEventListener('resize', calendarResizeHandler);
-    calendarResizeHandler = () => {
-        closeShiftPopup();
-        fitCalendarToViewport();
-    };
-    window.addEventListener('resize', calendarResizeHandler);
-
-    fitCalendarToViewport();
 }
 
 export async function renderRoster(
     container: HTMLElement,
     dashboard: DashboardPayload,
 ): Promise<void> {
-    // The popup lives outside `container` (see openShiftPopup), so replacing
-    // this section's markup below wouldn't otherwise take it with it.
-    closeShiftPopup();
-
     const canSchedule = canApprove(dashboard.me);
     const users = canSchedule ? await api.listUsers() : [];
-    const shiftsByDate = buildShiftBlocksByDate(dashboard.upcomingRosters);
-    const today = new Date();
-    const mode = loadStoredCalendarMode();
 
     container.innerHTML = `
     <section class="space-y-6">
-      ${renderCalendarCard(shiftsByDate, today, mode, canSchedule)}
+      ${renderRosterTable(dashboard.upcomingRosters, canSchedule)}
     </section>
-    ${canSchedule ? renderCreateShiftModal(users, dashboard.shiftPresets) : ''}
-  `;
+    ${canSchedule ? renderCreateShiftModal(users, dashboard.shiftPresets) : ''}`;
 
     const openEditShiftModal = canSchedule ? wireCreateShiftForm() : null;
-    wireCalendar(shiftsByDate, openEditShiftModal, mode);
+    wireRosterTable(dashboard.upcomingRosters, openEditShiftModal);
 }
 
 function renderCreateShiftModal(users: UserDTO[], shiftPresets: ShiftPreset[]): string {
     return `
     <dialog id="${CREATE_SHIFT_MODAL_ID}" class="modal">
       <div class="modal-box w-11/12 max-w-3xl">
-        <h3 id="${CREATE_SHIFT_MODAL_TITLE_ID}" class="text-lg font-bold flex items-center gap-2">${icon('plus', 'size-5 text-primary')} Schedule a shift</h3>
+        <h3 id="${CREATE_SHIFT_MODAL_TITLE_ID}" class="flex items-center gap-2 text-lg font-bold">${icon('plus', 'size-5 text-primary')} Schedule a shift</h3>
         <form id="${CREATE_SHIFT_FORM_ID}" class="mt-4">
           <fieldset class="fieldset">
             <div class="grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
@@ -797,7 +135,7 @@ function renderCreateShiftModal(users: UserDTO[], shiftPresets: ShiftPreset[]): 
                       .sort((a, b) => a.Name.localeCompare(b.Name))
                       .map(
                           (u) =>
-                              `<option value="${u.Email}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`,
+                              `<option value="${escapeHtml(u.Email)}">${escapeHtml(u.Name)} (${escapeHtml(u.Email)})</option>`,
                       )
                       .join('')}
                 </select>
@@ -821,22 +159,10 @@ function renderCreateShiftModal(users: UserDTO[], shiftPresets: ShiftPreset[]): 
               </div>
             </div>
             <div class="grid gap-3 sm:grid-cols-4">
-              <div>
-                <label class="label" for="shift-start-date">Start date</label>
-                <input id="shift-start-date" name="startDate" type="date" class="input w-full" required />
-              </div>
-              <div>
-                <label class="label" for="shift-end-date">End date</label>
-                <input id="shift-end-date" name="endDate" type="date" class="input w-full" required />
-              </div>
-              <div>
-                <label class="label" for="shift-start-time">Start time <span class="text-base-content/50">(optional)</span></label>
-                <input id="shift-start-time" name="startTime" type="time" class="input w-full" />
-              </div>
-              <div>
-                <label class="label" for="shift-end-time">End time <span class="text-base-content/50">(optional)</span></label>
-                <input id="shift-end-time" name="endTime" type="time" class="input w-full" />
-              </div>
+              <div><label class="label" for="shift-start-date">Start date</label><input id="shift-start-date" name="startDate" type="date" class="input w-full" required /></div>
+              <div><label class="label" for="shift-end-date">End date</label><input id="shift-end-date" name="endDate" type="date" class="input w-full" required /></div>
+              <div><label class="label" for="shift-start-time">Start time <span class="text-base-content/50">(optional)</span></label><input id="shift-start-time" name="startTime" type="time" class="input w-full" /></div>
+              <div><label class="label" for="shift-end-time">End time <span class="text-base-content/50">(optional)</span></label><input id="shift-end-time" name="endTime" type="time" class="input w-full" /></div>
             </div>
           </fieldset>
           <div class="modal-action">
@@ -864,9 +190,6 @@ function wireCreateShiftForm(): (roster: RosterDTO) => void {
     const endTimeInput = document.getElementById('shift-end-time') as HTMLInputElement;
     const startDateInput = document.getElementById('shift-start-date') as HTMLInputElement;
     const endDateInput = document.getElementById('shift-end-date') as HTMLInputElement;
-
-    // Tracks which shift is being edited, if any - null means the form will
-    // create a new shift on submit rather than update an existing one.
     let editingId: string | null = null;
 
     const setCreateMode = (): void => {
@@ -875,9 +198,6 @@ function wireCreateShiftForm(): (roster: RosterDTO) => void {
         submitBtn.textContent = 'Create shift';
     };
 
-    // Keeps the end date picker from ever landing before the start date -
-    // bumping the end date up to match rather than leaving it invalid when
-    // the start date moves past it.
     const syncEndDateMin = (): void => {
         endDateInput.min = startDateInput.value;
         if (
@@ -895,9 +215,6 @@ function wireCreateShiftForm(): (roster: RosterDTO) => void {
         customWrap.classList.toggle('hidden', !isOther);
         customInput.required = isOther;
     };
-    // Picking a preset fills in its default clock-in/out so a recurring
-    // shift doesn't need the same times retyped every time - presets (with
-    // their default times) are managed on the Others settings page.
     const prefillDefaultTimes = (): void => {
         if (presetSelect.value === SHIFT_NAME_OTHER) return;
         const selected = presetSelect.selectedOptions[0];
@@ -924,24 +241,22 @@ function wireCreateShiftForm(): (roster: RosterDTO) => void {
         e.preventDefault();
         const data = new FormData(form);
         const preset = String(data.get('shiftNamePreset'));
-        const shiftName =
-            preset === SHIFT_NAME_OTHER ? String(data.get('shiftNameCustom') || '').trim() : preset;
         const input = {
             startDate: String(data.get('startDate')),
             endDate: String(data.get('endDate')),
             startTime: String(data.get('startTime') || ''),
             endTime: String(data.get('endTime') || ''),
-            name: shiftName,
+            name:
+                preset === SHIFT_NAME_OTHER
+                    ? String(data.get('shiftNameCustom') || '').trim()
+                    : preset,
             userId: String(data.get('userId')),
         };
 
         try {
             showSavingBadge(true);
-            if (editingId) {
-                await api.updateRoster(editingId, input, generateRequestId());
-            } else {
-                await api.createRoster(input, generateRequestId());
-            }
+            if (editingId) await api.updateRoster(editingId, input, generateRequestId());
+            else await api.createRoster(input, generateRequestId());
             modal.close();
             await refreshDashboard();
         } catch (err) {
@@ -955,20 +270,16 @@ function wireCreateShiftForm(): (roster: RosterDTO) => void {
         editingId = roster.Id;
         modalTitle.innerHTML = `${icon('edit', 'size-5 text-primary')} Edit shift`;
         submitBtn.textContent = 'Save changes';
-
         assigneeSelect.value = roster.UserId;
-
         const matchesPreset = Array.from(presetSelect.options).some((o) => o.value === roster.Name);
         presetSelect.value = matchesPreset ? roster.Name : SHIFT_NAME_OTHER;
         customInput.value = matchesPreset ? '' : roster.Name;
         syncCustomNameVisibility();
-
         startDateInput.value = roster.StartDate;
         endDateInput.value = roster.EndDate;
         syncEndDateMin();
         startTimeInput.value = roster.StartTime;
         endTimeInput.value = roster.EndTime;
-
         modal.showModal();
     };
 }
