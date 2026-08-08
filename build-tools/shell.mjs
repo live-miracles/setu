@@ -95,7 +95,10 @@ export function esbuildOptions(mode) {
     const optimized = mode !== 'dev';
     return {
         entryPoints: [
-            path.join(root, mode === 'prod' ? 'frontend/src/main.ts' : 'frontend/src/dev.ts'),
+            path.join(
+                root,
+                mode === 'prod' ? 'frontend/src/react/main.tsx' : 'frontend/src/react/dev-main.tsx',
+            ),
         ],
         bundle: true,
         // Everything runs inside one <script> in an Apps Script iframe, so

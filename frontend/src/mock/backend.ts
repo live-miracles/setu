@@ -1,4 +1,3 @@
-import { refreshDashboard } from '../router';
 import {
     canApprove,
     canTransitionInventoryRequest,
@@ -1836,7 +1835,7 @@ function mockRunner(
         return;
     }
     mockData.currentUserId = email;
-    refreshDashboard();
+    window.location.reload();
 };
 
 (window as any).googleMock = {

@@ -10,15 +10,6 @@ function todayDateOnly(): string {
     return `${d.getFullYear()}-${month}-${day}`;
 }
 
-function todayDisplayParts(): { day: string; weekday: string; monthYear: string } {
-    const now = new Date();
-    return {
-        day: String(now.getDate()).padStart(2, '0'),
-        weekday: now.toLocaleDateString(undefined, { weekday: 'long' }),
-        monthYear: now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
-    };
-}
-
 function rosterTimeLabel(roster: RosterDTO): string {
     const start = roster.StartTime || 'All day';
     const end = roster.EndTime ? `–${roster.EndTime}` : '';
@@ -31,7 +22,6 @@ export async function renderHome(
 ): Promise<void> {
     const showRoster = canApprove(dashboard.me);
     const showTickets = canUseTickets(dashboard.me);
-    const date = todayDisplayParts();
     const today = todayDateOnly();
 
     const todayRosters = dashboard.upcomingRosters.filter(
@@ -60,16 +50,6 @@ export async function renderHome(
         (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime),
     )[0];
 
-    const attentionCount =
-        awaitingApproval +
-        programsAwaitingApproval +
-        overdueRequests +
-        lowStockItems.length +
-        (showTickets ? openTickets.length : 0);
-    const headline =
-        attentionCount > 0
-            ? `${attentionCount} item${attentionCount === 1 ? '' : 's'} need attention.`
-            : 'Today’s operations are clear.';
     const operationalSummary = [
         showRoster
             ? `${todayRosters.length} shift${todayRosters.length === 1 ? '' : 's'} today`
@@ -83,12 +63,7 @@ export async function renderHome(
     container.innerHTML = `
     <section class="home-page space-y-10">
       <header class="home-signature">
-        <div class="home-signature-date">
-          <div class="home-date-kicker">${escapeHtml(date.weekday)} · ${escapeHtml(date.monthYear)}</div>
-          <div class="home-signature-day" aria-hidden="true">${date.day}</div>
-        </div>
         <div class="home-signature-copy">
-          <h1>${escapeHtml(headline)}</h1>
           <p class="home-summary">${escapeHtml(operationalSummary)}</p>
         </div>
       </header>
