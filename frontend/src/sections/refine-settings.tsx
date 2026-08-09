@@ -230,6 +230,10 @@ function FieldSet({
     const [busy, setBusy] = useState(false);
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (!event.currentTarget.checkValidity()) {
+            event.currentTarget.reportValidity();
+            return;
+        }
         setBusy(true);
         try {
             const data = new FormData(event.currentTarget);
@@ -241,7 +245,7 @@ function FieldSet({
         }
     }
     return (
-        <form onSubmit={submit}>
+        <form noValidate onSubmit={submit}>
             {config.fields.map((field, index) => (
                 <Form.Item label={field.label} required={index === 0} key={field.field}>
                     <Input
@@ -270,10 +274,11 @@ function Editor({
     onClose: () => void;
     onSaved: (values: Record<string, string>) => Promise<void>;
 }) {
+    const resourceName = config.addLabel.replace(/^Add /, '');
     return (
         <Modal
             open
-            title={row ? 'Edit' : config.addLabel}
+            title={row ? `Edit ${resourceName}` : config.addLabel}
             onCancel={onClose}
             footer={null}
             destroyOnHidden>

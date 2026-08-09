@@ -78,6 +78,27 @@ export function formatDateTime(iso: string): string {
     });
 }
 
+export function formatProgramSessionSchedule(startIso: string, endIso: string): string {
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return [formatDateTime(startIso), formatDateTime(endIso)].filter(Boolean).join(' – ');
+    }
+
+    const dateLabel = (date: Date) => `${MONTH_SHORT_NAMES[date.getMonth()]} ${date.getDate()}`;
+    const startTime = formatTimeOfDay(
+        `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
+    );
+    const endTime = formatTimeOfDay(
+        `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`,
+    );
+
+    if (start.toDateString() === end.toDateString()) {
+        return `${startTime} - ${endTime}, ${dateLabel(start)}`;
+    }
+    return `${startTime}, ${dateLabel(start)} - ${endTime}, ${dateLabel(end)}`;
+}
+
 export function formatProgramDateRange(sessions: ProgramSession[]): string {
     const dates = sessions
         .flatMap((session) => [session.StartDateTime, session.EndDateTime])

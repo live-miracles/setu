@@ -182,7 +182,7 @@ const EXTRA_APPROVED_PROGRAM_SESSIONS: MockLegacyProgramSession[] =
             {
                 Id: 'session-' + request.DisplayId,
                 Name: 'Main session',
-                Type: request.Type,
+                Type: ['Live', 'Dry Run', 'Recording'][index % 3],
                 RequestId: request.Id,
                 StartDateTime: mockAddDays(8 + index) + 'T09:00:00.000Z',
                 EndDateTime: mockAddDays(8 + index) + 'T11:00:00.000Z',
@@ -192,7 +192,7 @@ const EXTRA_APPROVED_PROGRAM_SESSIONS: MockLegacyProgramSession[] =
             sessions.push({
                 Id: 'session-' + request.DisplayId + '-prep',
                 Name: 'Prep session',
-                Type: 'Setup',
+                Type: 'Dry Run',
                 RequestId: request.Id,
                 StartDateTime: mockAddDays(8 + index) + 'T07:30:00.000Z',
                 EndDateTime: mockAddDays(8 + index) + 'T08:30:00.000Z',
@@ -507,7 +507,7 @@ const mockData = {
         {
             Id: 'session-2',
             Name: 'Sound check',
-            Type: 'Setup',
+            Type: 'Dry Run',
             RequestId: 'program-1',
             StartDateTime: mockAddDays(2) + 'T05:30:00.000Z',
             EndDateTime: mockAddDays(2) + 'T06:30:00.000Z',
@@ -523,7 +523,7 @@ const mockData = {
         {
             Id: 'session-4',
             Name: 'Mic check',
-            Type: 'Setup',
+            Type: 'Dry Run',
             RequestId: 'program-2',
             StartDateTime: mockAddDays(4) + 'T08:15:00.000Z',
             EndDateTime: mockAddDays(4) + 'T08:45:00.000Z',
@@ -531,7 +531,7 @@ const mockData = {
         {
             Id: 'session-5',
             Name: 'Orientation',
-            Type: 'Webinar',
+            Type: 'Live',
             RequestId: 'program-3',
             StartDateTime: mockAddDays(6) + 'T12:00:00.000Z',
             EndDateTime: mockAddDays(6) + 'T13:30:00.000Z',
@@ -547,7 +547,7 @@ const mockData = {
         {
             Id: 'session-7',
             Name: 'Rehearsal',
-            Type: 'Dry run',
+            Type: 'Dry Run',
             RequestId: 'program-4',
             StartDateTime: mockAddDays(1) + 'T14:00:00.000Z',
             EndDateTime: mockAddDays(1) + 'T16:00:00.000Z',
@@ -555,7 +555,7 @@ const mockData = {
         {
             Id: 'session-8',
             Name: 'Review',
-            Type: 'Meeting',
+            Type: 'Live',
             RequestId: 'program-5',
             StartDateTime: mockAddDays(-2) + 'T10:00:00.000Z',
             EndDateTime: mockAddDays(-2) + 'T11:00:00.000Z',
@@ -563,7 +563,7 @@ const mockData = {
         {
             Id: 'session-9',
             Name: 'Walkthrough',
-            Type: 'Visit',
+            Type: 'Live',
             RequestId: 'program-6',
             StartDateTime: mockAddDays(3) + 'T11:00:00.000Z',
             EndDateTime: mockAddDays(3) + 'T12:00:00.000Z',
@@ -579,7 +579,7 @@ const mockData = {
         {
             Id: 'session-11',
             Name: 'Edit notes review',
-            Type: 'Meeting',
+            Type: 'Live',
             RequestId: 'program-7',
             StartDateTime: mockAddDays(5) + 'T11:00:00.000Z',
             EndDateTime: mockAddDays(5) + 'T11:45:00.000Z',
@@ -595,7 +595,7 @@ const mockData = {
         {
             Id: 'session-13',
             Name: 'Stage setup',
-            Type: 'Setup',
+            Type: 'Dry Run',
             RequestId: 'program-8',
             StartDateTime: mockAddDays(7) + 'T12:30:00.000Z',
             EndDateTime: mockAddDays(7) + 'T13:15:00.000Z',

@@ -43,7 +43,12 @@ import {
 import { WORKBENCH_SEARCH_QUERY_PARAM, WORKBENCH_VIEW_QUERY_PARAM } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { formatDateTime, formatProgramDateRange, formatRosterSchedule } from '../ui/format';
+import {
+    formatDateTime,
+    formatProgramDateRange,
+    formatProgramSessionSchedule,
+    formatRosterSchedule,
+} from '../ui/format';
 import { roleLabel } from '../ui/styles';
 import {
     canApprove,
@@ -71,6 +76,42 @@ function formatProgramName(language: string, type: string, title: string): strin
     return [language, type.toLowerCase() === OTHER_PROGRAM_TYPE.toLowerCase() ? '' : type, title]
         .filter(Boolean)
         .join(' ');
+}
+
+function formatDateTimeLocal(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession {
+    const draftDate = new Date();
+    let startDate = new Date(draftDate);
+    let endDate = new Date(draftDate);
+
+    if (sessions.length) {
+        const lastSession = sessions.reduce((latest, session) =>
+            new Date(session.EndDateTime).getTime() > new Date(latest.EndDateTime).getTime()
+                ? session
+                : latest,
+        );
+        const lastStart = new Date(lastSession.StartDateTime);
+        const lastEnd = new Date(lastSession.EndDateTime);
+        startDate = new Date(lastEnd);
+        startDate.setDate(startDate.getDate() + 1);
+        startDate.setHours(lastStart.getHours(), lastStart.getMinutes(), 0, 0);
+        endDate = new Date(startDate);
+        endDate.setHours(lastEnd.getHours(), lastEnd.getMinutes(), 0, 0);
+    } else {
+        startDate.setHours(13, 0, 0, 0);
+        endDate.setHours(14, 0, 0, 0);
+    }
+
+    return {
+        Name: '',
+        Type: '',
+        StartDateTime: formatDateTimeLocal(startDate),
+        EndDateTime: formatDateTimeLocal(endDate),
+    };
 }
 
 function workflowActionIcon(
@@ -137,6 +178,27 @@ function Submit({ label = 'Save', busy }: { label?: string; busy?: boolean }) {
         </Button>
     );
 }
+
+function SaveFooter({
+    label,
+    busy,
+    errorMessage,
+}: {
+    label: string;
+    busy?: boolean;
+    errorMessage?: string;
+}) {
+    return (
+        <div className="flex items-center gap-2">
+            <Submit label={label} busy={busy} />
+            {errorMessage && (
+                <Typography.Text type="danger" className="text-sm">
+                    {errorMessage}
+                </Typography.Text>
+            )}
+        </div>
+    );
+}
 function Modal({
     title,
     children,
@@ -188,17 +250,29 @@ export function ActionConfirmation({
 }
 function useSave(action: () => Promise<unknown>, close?: () => void) {
     const [busy, setBusy] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
     return {
         busy,
+        errorMessage,
         run: async (event?: FormEvent) => {
             event?.preventDefault();
+            if (event) {
+                const form = event.currentTarget as HTMLFormElement;
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return false;
+                }
+            }
+            setErrorMessage('');
             setBusy(true);
             try {
                 await action();
                 close?.();
                 await refreshDashboard();
+                return true;
             } catch (e) {
-                error(e);
+                setErrorMessage(e instanceof Error ? e.message : String(e));
+                return false;
             } finally {
                 setBusy(false);
             }
@@ -340,6 +414,7 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                 <form
                     id={registration ? 'registration-form' : 'profile-form'}
                     className="grid gap-3 sm:grid-cols-2"
+                    noValidate
                     onSubmit={save.run}>
                     <TextField name="name" label="Name" value={me.Name} required />
                     <AntForm.Item label="Department" required>
@@ -372,7 +447,11 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                         </div>
                     )}
                     <div className="sm:col-span-2">
-                        <Submit label={registration ? 'Get started' : 'Save'} busy={save.busy} />
+                        <SaveFooter
+                            label={registration ? 'Get started' : 'Save'}
+                            busy={save.busy}
+                            errorMessage={save.errorMessage}
+                        />
                     </div>
                 </form>
             </Card>
@@ -412,7 +491,7 @@ function UserForm({
     }, close);
     return (
         <Modal title={user ? 'Edit user' : 'Add user'} close={close}>
-            <form id="refine-user-form" className="grid gap-3" onSubmit={save.run}>
+            <form id="refine-user-form" className="grid gap-3" noValidate onSubmit={save.run}>
                 {!user && <TextField name="email" label="Email" type="email" required />}
                 <TextField name="name" label="Name" value={user?.Name} required />
                 <AntForm.Item label="Role" required>
@@ -452,7 +531,11 @@ function UserForm({
                 />
                 <TextField name="whatsapp" label="WhatsApp" value={user?.Whatsapp} required />
                 <div>
-                    <Submit label={user ? 'Save' : 'Add'} busy={save.busy} />
+                    <SaveFooter
+                        label={user ? 'Save' : 'Add'}
+                        busy={save.busy}
+                        errorMessage={save.errorMessage}
+                    />
                 </div>
             </form>
         </Modal>
@@ -497,6 +580,8 @@ function Users({ dashboard }: Props) {
                         rowKey="Email"
                         dataSource={filteredUsers}
                         pagination={false}
+                        className="users-table"
+                        scroll={{ x: 'max-content' }}
                         columns={[
                             {
                                 title: 'Name',
@@ -608,7 +693,7 @@ function Roster({ dashboard }: Props) {
                     setCreating(false);
                     setEditing(undefined);
                 }}>
-                <form id="refine-roster-form" className="grid gap-3" onSubmit={save.run}>
+                <form id="refine-roster-form" className="grid gap-3" noValidate onSubmit={save.run}>
                     <TextField name="name" label="Shift" value={row?.Name} required />
                     <AntForm.Item label="Assignee" required>
                         <input type="hidden" name="userId" value={userId} required />
@@ -645,7 +730,11 @@ function Roster({ dashboard }: Props) {
                     />
                     <TextField name="endTime" label="End time" type="time" value={row?.EndTime} />
                     <div>
-                        <Submit label={row ? 'Save' : 'Schedule'} busy={save.busy} />
+                        <SaveFooter
+                            label={row ? 'Save' : 'Add'}
+                            busy={save.busy}
+                            errorMessage={save.errorMessage}
+                        />
                     </div>
                 </form>
             </Modal>
@@ -984,9 +1073,9 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 <form
                     id="refine-request-form"
                     className="grid gap-3 sm:grid-cols-2"
+                    noValidate
                     onSubmit={async (e) => {
-                        await save.run(e);
-                        back();
+                        if (await save.run(e)) back();
                     }}>
                     <TextField
                         name="name"
@@ -1063,7 +1152,11 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                         </>
                     )}
                     <div className="sm:col-span-2">
-                        <Submit label="Save draft" busy={save.busy} />
+                        <SaveFooter
+                            label="Save"
+                            busy={save.busy}
+                            errorMessage={save.errorMessage}
+                        />
                     </div>
                 </form>
             </Card>
@@ -1085,14 +1178,12 @@ function ProgramDetail({
     const [sessions, setSessions] = useState<ProgramSession[]>(request.sessions);
     const [sessionIndex, setSessionIndex] = useState<number | null>(null);
     const [sessionOpen, setSessionOpen] = useState(false);
+    const [sessionTypeError, setSessionTypeError] = useState(false);
     const [pendingAction, setPendingAction] = useState<ProgramRequestAction | null>(null);
     const [pendingDeleteSessionIndex, setPendingDeleteSessionIndex] = useState<number | null>(null);
-    const [sessionDraft, setSessionDraft] = useState<ProgramSession>({
-        Name: '',
-        Type: dashboard.sessionTypes[0]?.Name || '',
-        StartDateTime: '',
-        EndDateTime: '',
-    });
+    const [sessionDraft, setSessionDraft] = useState<ProgramSession>(() =>
+        defaultSessionDraft(request.sessions),
+    );
     const [users, setUsers] = useState<UserDTO[]>([]);
     useEffect(() => {
         if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
@@ -1165,27 +1256,30 @@ function ProgramDetail({
     );
     const editSession = (index: number | null) => {
         setSessionIndex(index);
-        setSessionDraft(
-            index === null
-                ? {
-                      Name: '',
-                      Type: dashboard.sessionTypes[0]?.Name || '',
-                      StartDateTime: '',
-                      EndDateTime: '',
-                  }
-                : { ...sessions[index] },
-        );
+        setSessionTypeError(false);
+        setSessionDraft(index === null ? defaultSessionDraft(sessions) : { ...sessions[index] });
         setSessionOpen(true);
     };
     const saveSession = async (event: FormEvent) => {
         event.preventDefault();
-        if (
-            !sessionDraft.Type ||
-            !sessionDraft.StartDateTime ||
-            !sessionDraft.EndDateTime ||
-            new Date(sessionDraft.EndDateTime) <= new Date(sessionDraft.StartDateTime)
-        )
+        const form = event.currentTarget as HTMLFormElement;
+        if (!sessionDraft.Type) {
+            setSessionTypeError(true);
             return;
+        }
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        if (new Date(sessionDraft.EndDateTime) <= new Date(sessionDraft.StartDateTime)) {
+            const endInput = form.elements.namedItem('endDateTime') as HTMLInputElement | null;
+            endInput?.setCustomValidity('The end date must be after the start date.');
+            endInput?.reportValidity();
+            return;
+        }
+        const endInput = form.elements.namedItem('endDateTime') as HTMLInputElement | null;
+        endInput?.setCustomValidity('');
+        setSessionTypeError(false);
         const nextSessions =
             sessionIndex === null
                 ? [...sessions, sessionDraft]
@@ -1223,23 +1317,17 @@ function ProgramDetail({
     }));
     const sessionColumns = [
         {
+            title: 'Schedule',
+            key: 'schedule',
+            render: (_value: unknown, session: ProgramSession) =>
+                formatProgramSessionSchedule(session.StartDateTime, session.EndDateTime),
+        },
+        { title: 'Type', dataIndex: 'Type', key: 'Type' },
+        {
             title: 'Title',
             dataIndex: 'Name',
             key: 'Name',
             render: (value: string) => value || 'Untitled',
-        },
-        { title: 'Type', dataIndex: 'Type', key: 'Type' },
-        {
-            title: 'Start',
-            dataIndex: 'StartDateTime',
-            key: 'StartDateTime',
-            render: (value: string) => formatDateTime(value),
-        },
-        {
-            title: 'End',
-            dataIndex: 'EndDateTime',
-            key: 'EndDateTime',
-            render: (value: string) => formatDateTime(value),
         },
         {
             title: 'Actions',
@@ -1278,7 +1366,7 @@ function ProgramDetail({
                     icon={(action) => workflowActionIcon(action as ProgramRequestAction)}
                 />
             }>
-            <div className="min-w-0">
+            <div className="detail-main min-w-0">
                 <Card
                     title="Details"
                     action={
@@ -1305,8 +1393,6 @@ function ProgramDetail({
                         ]}
                     />
                 </Card>
-            </div>
-            <div className="min-w-0 overflow-hidden">
                 <Card
                     title="Sessions"
                     action={
@@ -1326,7 +1412,8 @@ function ProgramDetail({
                                 columns={sessionColumns}
                                 dataSource={sessionRows}
                                 pagination={false}
-                                scroll={{ x: 640 }}
+                                className="sessions-table"
+                                scroll={{ x: 'max-content' }}
                             />
                         </div>
                     ) : (
@@ -1334,7 +1421,7 @@ function ProgramDetail({
                     )}
                 </Card>
             </div>
-            <div className="xl:col-span-2">
+            <div className="detail-activity">
                 <Activity comments={request.comments || []} requestId={request.Id} />
             </div>
             {pendingAction && (
@@ -1363,7 +1450,7 @@ function ProgramDetail({
             )}
             {editing && (
                 <Modal title="Edit program" close={() => setEditing(false)}>
-                    <form className="grid gap-3" onSubmit={save.run}>
+                    <form className="grid gap-3" noValidate onSubmit={save.run}>
                         <TextField
                             name="name"
                             label="Program title"
@@ -1449,7 +1536,11 @@ function ProgramDetail({
                             value={values.Participants}
                         />
                         <div>
-                            <Submit label="Save changes" busy={save.busy} />
+                            <SaveFooter
+                                label="Save"
+                                busy={save.busy}
+                                errorMessage={save.errorMessage}
+                            />
                         </div>
                     </form>
                 </Modal>
@@ -1465,6 +1556,8 @@ function ProgramDetail({
                         draft={sessionDraft}
                         setDraft={setSessionDraft}
                         types={dashboard.sessionTypes}
+                        typeError={sessionTypeError}
+                        clearTypeError={() => setSessionTypeError(false)}
                         onSubmit={saveSession}
                     />
                 </Modal>
@@ -1477,23 +1570,33 @@ function SessionForm({
     draft,
     setDraft,
     types,
+    typeError,
+    clearTypeError,
     onSubmit,
 }: {
     draft: ProgramSession;
     setDraft: (value: ProgramSession) => void;
     types: SessionType[];
+    typeError: boolean;
+    clearTypeError: () => void;
     onSubmit: (event: FormEvent) => void;
 }) {
     const update = (key: keyof ProgramSession, value: string) =>
         setDraft({ ...draft, [key]: value });
     return (
-        <form className="grid gap-3" onSubmit={onSubmit}>
+        <form className="grid gap-3" noValidate onSubmit={onSubmit}>
             <AntForm.Item label="Session type" required>
                 <Select
                     value={draft.Type}
-                    onChange={(value) => update('Type', value)}
+                    onChange={(value) => {
+                        update('Type', value);
+                        clearTypeError();
+                    }}
+                    status={typeError ? 'error' : undefined}
                     style={{ width: '100%' }}>
-                    <Select.Option value="">Select type</Select.Option>
+                    <Select.Option value="" disabled>
+                        Select type
+                    </Select.Option>
                     {types.map((t) => (
                         <Select.Option key={t.Id} value={t.Name}>
                             {t.Name}
@@ -1506,6 +1609,7 @@ function SessionForm({
             </AntForm.Item>
             <AntForm.Item label="Start" required>
                 <Input
+                    name="startDateTime"
                     type="datetime-local"
                     value={draft.StartDateTime ? draft.StartDateTime.slice(0, 16) : ''}
                     onChange={(e) => update('StartDateTime', e.target.value)}
@@ -1514,14 +1618,18 @@ function SessionForm({
             </AntForm.Item>
             <AntForm.Item label="End" required>
                 <Input
+                    name="endDateTime"
                     type="datetime-local"
                     value={draft.EndDateTime ? draft.EndDateTime.slice(0, 16) : ''}
-                    onChange={(e) => update('EndDateTime', e.target.value)}
+                    onChange={(e) => {
+                        e.currentTarget.setCustomValidity('');
+                        update('EndDateTime', e.target.value);
+                    }}
                     required
                 />
             </AntForm.Item>
             <div>
-                <Submit label="Save session" />
+                <Submit label="Save" />
             </div>
         </form>
     );
@@ -1544,25 +1652,29 @@ function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: 
         }
     };
     return (
-        <Card title="Activity">
-            <div className="space-y-3">
-                {comments.length ? (
-                    comments.map((c) => (
-                        <div
-                            className="border-b border-base-200 pb-2 text-sm last:border-0"
-                            key={c.Id}>
-                            <div className="font-medium">
-                                {c.userName}{' '}
-                                <span className="ml-2 text-xs font-normal text-base-content/50">
-                                    {formatDateTime(c.Timestamp)}
-                                </span>
+        <div className="activity-card">
+            <Card title="Activity">
+                <div className="activity-comments space-y-3">
+                    {comments.length ? (
+                        comments.map((c) => (
+                            <div
+                                className="border-b border-base-200 pb-2 text-sm last:border-0"
+                                key={c.Id}>
+                                <div className="font-medium">
+                                    {c.userName}{' '}
+                                    <span className="ml-2 text-xs font-normal text-base-content/50">
+                                        {formatDateTime(c.Timestamp)}
+                                    </span>
+                                </div>
+                                <p className="whitespace-pre-wrap text-base-content/70">
+                                    {c.Message}
+                                </p>
                             </div>
-                            <p className="whitespace-pre-wrap text-base-content/70">{c.Message}</p>
-                        </div>
-                    ))
-                ) : (
-                    <Empty>No activity yet.</Empty>
-                )}
+                        ))
+                    ) : (
+                        <Empty>No activity yet.</Empty>
+                    )}
+                </div>
                 <form className="flex gap-2" onSubmit={submit}>
                     <Input
                         size="small"
@@ -1574,8 +1686,8 @@ function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: 
                         Send
                     </Button>
                 </form>
-            </div>
-        </Card>
+            </Card>
+        </div>
     );
 }
 
@@ -1602,8 +1714,8 @@ function DetailLayout({
     children: ReactNode;
 }) {
     return (
-        <Page title={title} action={action}>
-            <div className="grid gap-5 xl:grid-cols-2">{children}</div>
+        <Page title={title} action={action} className="detail-page">
+            <div className="detail-layout grid gap-5">{children}</div>
         </Page>
     );
 }
@@ -1647,6 +1759,7 @@ function InventoryDetail({
     const [pendingDeleteItemIndex, setPendingDeleteItemIndex] = useState<number | null>(null);
     const [itemIndex, setItemIndex] = useState<number | null>(null);
     const [itemOpen, setItemOpen] = useState(false);
+    const [itemError, setItemError] = useState('');
     const [items, setItems] = useState<InventoryItemDTO[]>(
         request.items.map((item) => ({ ...item })),
     );
@@ -1668,6 +1781,7 @@ function InventoryDetail({
         setValues((current) => ({ ...current, [key]: value }));
     const persistItems = async (nextItems: InventoryItemDTO[]) => {
         try {
+            setItemError('');
             showSavingBadge(true);
             await api.updateInventoryRequest(
                 request.Id,
@@ -1690,7 +1804,7 @@ function InventoryDetail({
             setItems(nextItems);
             await refreshDashboard();
         } catch (e) {
-            error(e);
+            setItemError(e instanceof Error ? e.message : String(e));
         } finally {
             showSavingBadge(false);
         }
@@ -1720,6 +1834,7 @@ function InventoryDetail({
     );
     const editItem = (index: number | null) => {
         setItemIndex(index);
+        setItemError('');
         setItemDraft(
             index === null
                 ? {
@@ -1737,11 +1852,22 @@ function InventoryDetail({
     };
     const saveItem = async (event: FormEvent) => {
         event.preventDefault();
-        if (!itemDraft.InventoryTypeId || itemDraft.Quantity <= 0) return;
+        if (!itemDraft.InventoryTypeId) {
+            setItemError('Select an inventory type.');
+            return;
+        }
+        if (itemDraft.Quantity <= 0) {
+            setItemError('Quantity must be greater than zero.');
+            return;
+        }
         const type = dashboard.inventoryTypes.find(
             (entry) => entry.Id === itemDraft.InventoryTypeId,
         );
-        if (!type) return;
+        if (!type) {
+            setItemError('Select a valid inventory type.');
+            return;
+        }
+        setItemError('');
         const nextItem = {
             ...itemDraft,
             itemName: type.Name,
@@ -1796,32 +1922,32 @@ function InventoryDetail({
                     icon={(action) => workflowActionIcon(action as InventoryRequestAction)}
                 />
             }>
-            <Card
-                title="Details"
-                action={
-                    editable && (
-                        <Button
-                            type="primary"
-                            icon={<EditOutlined />}
-                            onClick={() => setEditing(true)}>
-                            Edit
-                        </Button>
-                    )
-                }>
-                <DetailFields
-                    fields={[
-                        ['Status', <Tag key="status">{request.Status}</Tag>],
-                        ['Request name', values.Name],
-                        ['Start date', values.StartDate],
-                        ['End date', values.EndDate],
-                        ['Department', request.departmentName || 'None'],
-                        ['Lead email', values.LeadEmail],
-                        ['Requested by', request.userName || 'Unknown'],
-                        ['Participants', values.Participants || 'None'],
-                    ]}
-                />
-            </Card>
-            <div className="min-w-0 overflow-hidden">
+            <div className="detail-main min-w-0">
+                <Card
+                    title="Details"
+                    action={
+                        editable && (
+                            <Button
+                                type="primary"
+                                icon={<EditOutlined />}
+                                onClick={() => setEditing(true)}>
+                                Edit
+                            </Button>
+                        )
+                    }>
+                    <DetailFields
+                        fields={[
+                            ['Status', <Tag key="status">{request.Status}</Tag>],
+                            ['Request name', values.Name],
+                            ['Start date', values.StartDate],
+                            ['End date', values.EndDate],
+                            ['Department', request.departmentName || 'None'],
+                            ['Lead email', values.LeadEmail],
+                            ['Requested by', request.userName || 'Unknown'],
+                            ['Participants', values.Participants || 'None'],
+                        ]}
+                    />
+                </Card>
                 <Card
                     title="Requested items"
                     action={
@@ -1879,7 +2005,8 @@ function InventoryDetail({
                                             ) : null,
                                     },
                                 ]}
-                                scroll={{ x: 560 }}
+                                className="inventory-items-table"
+                                scroll={{ x: 'max-content' }}
                             />
                         </div>
                     ) : (
@@ -1887,12 +2014,12 @@ function InventoryDetail({
                     )}
                 </Card>
             </div>
-            <div className="xl:col-span-2">
+            <div className="detail-activity">
                 <Activity comments={request.comments || []} requestId={request.Id} />
             </div>
             {editing && (
                 <Modal title="Edit inventory request" close={() => setEditing(false)}>
-                    <form className="grid gap-3" onSubmit={save.run}>
+                    <form className="grid gap-3" noValidate onSubmit={save.run}>
                         <TextField
                             name="name"
                             label="Request name"
@@ -1930,7 +2057,11 @@ function InventoryDetail({
                             onChange={(e) => update('Participants', e.target.value)}
                         />
                         <div>
-                            <Submit label="Save changes" busy={save.busy} />
+                            <SaveFooter
+                                label="Save"
+                                busy={save.busy}
+                                errorMessage={save.errorMessage}
+                            />
                         </div>
                     </form>
                 </Modal>
@@ -1942,7 +2073,7 @@ function InventoryDetail({
                         setItemOpen(false);
                         setItemIndex(null);
                     }}>
-                    <form className="grid gap-3" onSubmit={saveItem}>
+                    <form className="grid gap-3" noValidate onSubmit={saveItem}>
                         <AntForm.Item label="Inventory type" required>
                             <Select
                                 value={itemDraft.InventoryTypeId}
@@ -1990,7 +2121,7 @@ function InventoryDetail({
                             </Select>
                         </AntForm.Item>
                         <div>
-                            <Submit label="Save item" />
+                            <SaveFooter label="Save" errorMessage={itemError} />
                         </div>
                     </form>
                 </Modal>
@@ -2060,33 +2191,38 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                     icon={(action) => workflowActionIcon(action as TicketAction)}
                 />
             }>
-            <Card
-                title="Details"
-                action={
-                    <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)}>
-                        Edit
-                    </Button>
-                }>
-                <DetailFields
-                    fields={[
-                        ['Status', <Tag key="status">{ticket.Status}</Tag>],
-                        ['Title', values.Title],
-                        ['Assigned to', ticket.assigneeName || 'Unassigned'],
-                    ]}
-                />
-                <div className="mt-4 sm:col-span-2">
-                    <dt className="text-xs font-semibold text-base-content/50">Description</dt>
-                    <dd className="mt-1 whitespace-pre-wrap text-sm">
-                        {values.Description || 'No description.'}
-                    </dd>
-                </div>
-            </Card>
-            <div className="xl:col-span-2">
+            <div className="detail-main min-w-0">
+                <Card
+                    title="Details"
+                    action={
+                        <Button
+                            type="primary"
+                            icon={<EditOutlined />}
+                            onClick={() => setEditing(true)}>
+                            Edit
+                        </Button>
+                    }>
+                    <DetailFields
+                        fields={[
+                            ['Status', <Tag key="status">{ticket.Status}</Tag>],
+                            ['Title', values.Title],
+                            ['Assigned to', ticket.assigneeName || 'Unassigned'],
+                        ]}
+                    />
+                    <div className="mt-4 sm:col-span-2">
+                        <dt className="text-xs font-semibold text-base-content/50">Description</dt>
+                        <dd className="mt-1 whitespace-pre-wrap text-sm">
+                            {values.Description || 'No description.'}
+                        </dd>
+                    </div>
+                </Card>
+            </div>
+            <div className="detail-activity">
                 <Activity comments={ticket.comments || []} requestId={ticket.Id} />
             </div>
             {editing && (
                 <Modal title="Edit ticket" close={() => setEditing(false)}>
-                    <form className="grid gap-3" onSubmit={save.run}>
+                    <form className="grid gap-3" noValidate onSubmit={save.run}>
                         <TextField
                             name="title"
                             label="Title"
@@ -2104,7 +2240,11 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                             />
                         </AntForm.Item>
                         <div>
-                            <Submit label="Save changes" busy={save.busy} />
+                            <SaveFooter
+                                label="Save"
+                                busy={save.busy}
+                                errorMessage={save.errorMessage}
+                            />
                         </div>
                     </form>
                 </Modal>

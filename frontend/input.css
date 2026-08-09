@@ -71,7 +71,8 @@ body {
 
 .app-content {
     flex: 1 1 auto;
-    width: 100vw;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     min-height: 0;
     overflow: auto;
@@ -79,7 +80,7 @@ body {
 }
 
 .app-content.app-content-edge {
-    max-width: 100vw;
+    max-width: 100%;
 }
 
 .app-mobile-menu {
@@ -201,6 +202,97 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.detail-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+}
+
+.detail-page {
+    height: calc(100vh - 4rem);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.detail-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.detail-activity {
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    align-self: stretch;
+}
+
+.activity-card,
+.activity-card > .ant-card {
+    height: 100%;
+    min-height: 0;
+}
+
+.activity-card > .ant-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.activity-card > .ant-card > .ant-card-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.activity-comments {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-inline-end: 0.25rem;
+}
+
+.activity-card form {
+    flex: 0 0 auto;
+    margin-top: 1rem;
+}
+
+@media (max-width: 1023px) {
+    .detail-page {
+        height: auto;
+        min-height: 0;
+    }
+
+    .detail-layout {
+        display: block;
+    }
+
+    .detail-main {
+        gap: 1rem;
+    }
+
+    .sessions-table .ant-table-cell,
+    .inventory-items-table .ant-table-cell,
+    .users-table .ant-table-cell {
+        padding-inline: 0.5rem;
+    }
+
+    .detail-activity {
+        margin-top: 1rem;
+    }
+
+    .activity-card,
+    .activity-card > .ant-card {
+        height: auto;
+    }
+
+    .activity-comments {
+        overflow: visible;
+    }
+}
+
 .antd-list-button {
     height: auto;
     padding: 0.65rem 0;
@@ -272,6 +364,23 @@ body {
         padding: 1rem;
     }
 
+    .detail-page {
+        height: auto;
+        min-height: 0;
+    }
+
+    .detail-layout {
+        display: block;
+    }
+
+    .detail-main {
+        gap: 1rem;
+    }
+
+    .detail-activity {
+        margin-top: 1rem;
+    }
+
     .antd-page-heading {
         flex-wrap: wrap;
     }
@@ -302,6 +411,10 @@ body {
     .app-content:not(.app-content-edge) .ant-table-wrapper {
         max-width: 100%;
         overflow-x: auto;
+    }
+
+    .app-content {
+        overflow-x: hidden;
     }
 
     .antd-stat-grid,
