@@ -5,6 +5,8 @@
     --font-sans: 'Avenir Next', Avenir, 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
     --font-serif: Georgia, 'Times New Roman', ui-serif, serif;
     --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+    --color-error: #b85c62;
+    --color-error-content: #fffaf0;
 }
 
 :root {
@@ -25,6 +27,116 @@ body {
     background: var(--setu-paper);
     color: var(--setu-ink);
     font-family: var(--font-sans);
+}
+
+.roster-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.roster-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: var(--setu-ink);
+    font-size: 0.82rem;
+}
+
+.roster-table th,
+.roster-table td {
+    min-width: 8.5rem;
+    padding: 0.45rem 0.5rem;
+    border-right: 1px solid var(--setu-line);
+    border-bottom: 1px solid var(--setu-line);
+    vertical-align: top;
+}
+
+.roster-table thead th {
+    background: var(--setu-surface);
+    font-weight: 700;
+    text-align: center;
+}
+
+.roster-table .roster-date-header,
+.roster-table .roster-date-cell {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: 1%;
+    min-width: max-content;
+    background: var(--setu-surface);
+    text-align: left;
+}
+
+.roster-table .roster-date-header {
+    z-index: 2;
+}
+
+.roster-table .roster-date-cell {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.roster-table .roster-lane-header {
+    padding-top: 0.25rem;
+    padding-bottom: 0.35rem;
+    color: color-mix(in srgb, var(--setu-ink) 68%, transparent);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.roster-table .roster-empty-cell {
+    height: 3.2rem;
+    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+}
+
+.roster-table .roster-shift-cell {
+    min-width: 8.5rem;
+    height: 1px;
+    padding: 0.3rem;
+    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+}
+
+.roster-shift-block {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 3.2rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.2rem;
+    border: 1px solid color-mix(in srgb, var(--setu-ink) 18%, transparent);
+    border-radius: 0.4rem;
+    padding: 0.45rem 0.5rem;
+    background: var(--setu-surface);
+    color: var(--setu-ink);
+    cursor: pointer;
+    text-align: left;
+    transition:
+        border-color 120ms ease,
+        box-shadow 120ms ease,
+        transform 120ms ease;
+}
+
+.roster-shift-block:hover,
+.roster-shift-block:focus-visible {
+    border-color: var(--setu-ink);
+    box-shadow: 0 0.15rem 0.4rem color-mix(in srgb, var(--setu-ink) 14%, transparent);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.roster-shift-name {
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.roster-shift-time {
+    color: color-mix(in srgb, var(--setu-ink) 72%, transparent);
+    font-size: 0.75rem;
+    line-height: 1.2;
 }
 
 .app-layout {

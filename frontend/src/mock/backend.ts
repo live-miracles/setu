@@ -604,13 +604,13 @@ const mockData = {
     ] as MockLegacyProgramSession[],
     rosters: [
         {
-            // Same day/name/time as roster-2 below - the calendar merges the
-            // two into one block listing both assignees. Times match the
-            // Morning shift preset.
+            // Same name/time as roster-2 below, but assigned to a different
+            // volunteer. The two-day range also overlaps roster-4 for Sam on
+            // the second day. Times match the Morning shift preset.
             Id: 'roster-1',
             Name: 'Morning',
             StartDate: mockAddDays(1),
-            EndDate: mockAddDays(1),
+            EndDate: mockAddDays(2),
             StartTime: '04:00',
             EndTime: '13:30',
             UserId: 'sam@example.com',
@@ -619,7 +619,7 @@ const mockData = {
             Id: 'roster-2',
             Name: 'Morning',
             StartDate: mockAddDays(1),
-            EndDate: mockAddDays(1),
+            EndDate: mockAddDays(2),
             StartTime: '04:00',
             EndTime: '13:30',
             UserId: 'ana@example.com',
@@ -636,7 +636,8 @@ const mockData = {
             UserId: 'vic@example.com',
         },
         {
-            // Times match the Night shift preset.
+            // Times match the Night shift preset. This overlaps roster-1 for
+            // Sam on mockAddDays(2), forcing a second volunteer lane.
             Id: 'roster-4',
             Name: 'Night',
             StartDate: mockAddDays(2),
@@ -648,24 +649,36 @@ const mockData = {
         {
             // No start/end time set - the calendar treats this as an
             // all-day 00:00-24:00 block, matching the Day shift preset
-            // (also always full-day).
+            // (also always full-day). This spans two dates for Ana.
             Id: 'roster-5',
             Name: 'Day',
             StartDate: mockAddDays(4),
-            EndDate: mockAddDays(4),
+            EndDate: mockAddDays(5),
             StartTime: '',
             EndTime: '',
             UserId: 'ana@example.com',
         },
         {
             // Custom name (not a preset) with its end time left blank -
-            // defaults to 24:00.
+            // defaults to 24:00. This spans three dates for Vic and overlaps
+            // roster-7 on its final two dates.
             Id: 'roster-6',
             Name: 'Overnight standby',
             StartDate: mockAddDays(5),
-            EndDate: mockAddDays(6),
+            EndDate: mockAddDays(7),
             StartTime: '20:00',
             EndTime: '',
+            UserId: 'vic@example.com',
+        },
+        {
+            // Same volunteer and overlapping dates as roster-6, so Vic gets
+            // two lanes in the compact table.
+            Id: 'roster-7',
+            Name: 'Event setup',
+            StartDate: mockAddDays(6),
+            EndDate: mockAddDays(7),
+            StartTime: '10:00',
+            EndTime: '18:00',
             UserId: 'vic@example.com',
         },
     ] as Roster[],

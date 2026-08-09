@@ -49,6 +49,7 @@ import {
     formatProgramSessionSchedule,
     formatRosterSchedule,
 } from '../ui/format';
+import { buildRosterTableModel, formatRosterTableTimes } from '../ui/roster-table';
 import { roleLabel } from '../ui/styles';
 import {
     canApprove,
@@ -81,6 +82,11 @@ function formatProgramName(language: string, type: string, title: string): strin
 function formatDateTimeLocal(date: Date): string {
     const pad = (value: number) => String(value).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatLocalDateOnly(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession {
@@ -660,6 +666,8 @@ function Roster({ dashboard }: Props) {
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<RosterDTO | null>(null);
     const [users, setUsers] = useState<UserDTO[]>([]);
+    const todayIso = formatLocalDateOnly(new Date());
+    const rosterTable = buildRosterTableModel(dashboard.upcomingRosters, todayIso);
     useEffect(() => {
         if (canEdit) api.listUsers().then(setUsers).catch(error);
     }, [canEdit]);
@@ -729,12 +737,25 @@ function Roster({ dashboard }: Props) {
                         value={row?.StartTime}
                     />
                     <TextField name="endTime" label="End time" type="time" value={row?.EndTime} />
-                    <div>
+                    <div className="flex items-center justify-between gap-3">
                         <SaveFooter
                             label={row ? 'Save' : 'Add'}
                             busy={save.busy}
                             errorMessage={save.errorMessage}
                         />
+                        {row && (
+                            <Button
+                                type="primary"
+                                danger
+                                htmlType="button"
+                                icon={<DeleteOutlined />}
+                                onClick={() => {
+                                    setEditing(undefined);
+                                    setDeleting(row);
+                                }}>
+                                Delete
+                            </Button>
+                        )}
                     </div>
                 </form>
             </Modal>
@@ -754,51 +775,100 @@ function Roster({ dashboard }: Props) {
                 )
             }>
             <Card title="Upcoming shifts">
-                {dashboard.upcomingRosters.length ? (
-                    <Table
-                        rowKey="Id"
-                        dataSource={dashboard.upcomingRosters}
-                        pagination={false}
-                        columns={[
-                            {
-                                title: 'Shift',
-                                dataIndex: 'Name',
-                                render: (value: string) => (
-                                    <Typography.Text strong>{value}</Typography.Text>
-                                ),
-                            },
-                            {
-                                title: 'Schedule',
-                                render: (_: unknown, row: RosterDTO) => formatRosterSchedule(row),
-                            },
-                            {
-                                title: 'Assignee',
-                                dataIndex: 'userName',
-                                render: (value: string) => value || 'Unassigned',
-                            },
-                            {
-                                title: '',
-                                key: 'actions',
-                                align: 'right' as const,
-                                render: (_: unknown, row: RosterDTO) =>
-                                    canEdit ? (
-                                        <Space>
-                                            <Button
-                                                type="text"
-                                                icon={<EditOutlined />}
-                                                onClick={() => setEditing(row)}
-                                            />
-                                            <Button
-                                                type="text"
-                                                danger
-                                                icon={<DeleteOutlined />}
-                                                onClick={() => setDeleting(row)}
-                                            />
-                                        </Space>
-                                    ) : null,
-                            },
-                        ]}
-                    />
+                {rosterTable.rows.length ? (
+                    <div className="roster-table-scroll">
+                        <table className="roster-table">
+                            <thead>
+                                <tr>
+                                    <th rowSpan={2} scope="col" className="roster-date-header">
+                                        Date
+                                    </th>
+                                    {rosterTable.volunteers.map((volunteer) => (
+                                        <th
+                                            key={volunteer.userId}
+                                            scope="colgroup"
+                                            colSpan={volunteer.lanes.length}
+                                            className="roster-volunteer-header">
+                                            {volunteer.name}
+                                        </th>
+                                    ))}
+                                </tr>
+                                <tr>
+                                    {rosterTable.volunteers.flatMap((volunteer) =>
+                                        volunteer.lanes.map((_, laneIndex) => (
+                                            <th
+                                                key={`${volunteer.userId}-${laneIndex}`}
+                                                scope="col"
+                                                className="roster-lane-header">
+                                                {volunteer.lanes.length > 1
+                                                    ? `Shift ${laneIndex + 1}`
+                                                    : 'Shift'}
+                                            </th>
+                                        )),
+                                    )}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rosterTable.rows.map((row, rowIndex) => (
+                                    <tr key={row.isoDate}>
+                                        <th scope="row" className="roster-date-cell">
+                                            {row.label}
+                                        </th>
+                                        {rosterTable.volunteers.flatMap((volunteer) =>
+                                            volunteer.lanes.map((lane, laneIndex) => {
+                                                const shift = lane.shifts.find(
+                                                    (candidate) =>
+                                                        candidate.startIndex === rowIndex,
+                                                );
+                                                const coveredByEarlierShift = lane.shifts.some(
+                                                    (candidate) =>
+                                                        candidate.startIndex < rowIndex &&
+                                                        candidate.endIndex >= rowIndex,
+                                                );
+                                                if (coveredByEarlierShift) return [];
+                                                if (!shift) {
+                                                    return (
+                                                        <td
+                                                            key={`${volunteer.userId}-${laneIndex}-${row.isoDate}`}
+                                                            className="roster-empty-cell"
+                                                        />
+                                                    );
+                                                }
+                                                const timing = formatRosterTableTimes(shift.roster);
+                                                const dateRange =
+                                                    shift.roster.StartDate === shift.roster.EndDate
+                                                        ? row.label
+                                                        : `${shift.roster.StartDate} – ${shift.roster.EndDate}`;
+                                                return (
+                                                    <td
+                                                        key={`${volunteer.userId}-${laneIndex}-${row.isoDate}`}
+                                                        rowSpan={
+                                                            shift.endIndex - shift.startIndex + 1
+                                                        }
+                                                        className="roster-shift-cell">
+                                                        <button
+                                                            type="button"
+                                                            className="roster-shift-block"
+                                                            onClick={() => setEditing(shift.roster)}
+                                                            aria-label={`Edit ${shift.roster.Name} for ${volunteer.name}, ${dateRange}${timing ? `, ${timing}` : ''}`}>
+                                                            <span className="roster-shift-name">
+                                                                {shift.roster.Name}
+                                                            </span>
+                                                            {timing && (
+                                                                <span className="roster-shift-time">
+                                                                    {timing}
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    </td>
+                                                );
+                                            }),
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 ) : (
                     <Empty>No shifts scheduled.</Empty>
                 )}
