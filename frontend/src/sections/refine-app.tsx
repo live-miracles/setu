@@ -13,18 +13,11 @@ import {
     Typography,
 } from 'antd';
 import {
-    CalendarOutlined,
     DeleteOutlined,
     EditOutlined,
-    CheckOutlined,
-    CloseOutlined,
-    CopyOutlined,
     PhoneOutlined,
     PlusOutlined,
     SearchOutlined,
-    SendOutlined,
-    StopOutlined,
-    RollbackOutlined,
     WhatsAppOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
@@ -62,6 +55,7 @@ import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
     getLocalDateFromSession,
+    getProgramRequestActions,
     shiftProgramSessions,
 } from '../ui/program-actions';
 import {
@@ -131,19 +125,6 @@ function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession {
         StartDateTime: formatDateTimeLocal(startDate),
         EndDateTime: formatDateTimeLocal(endDate),
     };
-}
-
-function workflowActionIcon(
-    action: ProgramRequestAction | InventoryRequestAction | TicketAction,
-): ReactNode {
-    if (action === 'submit') return <SendOutlined />;
-    if (action === 'approve') return <CheckOutlined />;
-    if (action === 'issue') return <CheckOutlined />;
-    if (action === 'return') return <RollbackOutlined />;
-    if (action === 'reject') return <CloseOutlined />;
-    if (action === 'assign') return <CheckOutlined />;
-    if (action === 'reopen') return <RollbackOutlined />;
-    return <StopOutlined />;
 }
 
 function Page({
@@ -588,9 +569,10 @@ function Users({ dashboard }: Props) {
                     <Button
                         type="primary"
                         icon={<PlusOutlined />}
-                        onClick={() => setCreating(true)}>
-                        Add
-                    </Button>
+                        onClick={() => setCreating(true)}
+                        aria-label="Add user"
+                        title="Add user"
+                    />
                 )
             }>
             <Card title="Users" action={<Tag>{shown.length}</Tag>}>
@@ -816,9 +798,10 @@ function Roster({ dashboard }: Props) {
                                 onClick={() => {
                                     setEditing(undefined);
                                     setDeleting(row);
-                                }}>
-                                Delete
-                            </Button>
+                                }}
+                                aria-label="Delete shift"
+                                title="Delete shift"
+                            />
                         )}
                     </div>
                 </form>
@@ -834,9 +817,10 @@ function Roster({ dashboard }: Props) {
                     <Button
                         type="primary"
                         icon={<PlusOutlined />}
-                        onClick={() => setCreating(true)}>
-                        Add
-                    </Button>
+                        onClick={() => setCreating(true)}
+                        aria-label="Add shift"
+                        title="Add shift"
+                    />
                 )
             }>
             <>
@@ -1103,9 +1087,13 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             title={title}
             headingContent={boardFilters}
             action={
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-                    New
-                </Button>
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setCreating(true)}
+                    aria-label={`Add ${title.toLowerCase()}`}
+                    title={`Add ${title.toLowerCase()}`}
+                />
             }>
             <div className="antd-board">
                 {statuses.map((status) => {
@@ -1635,16 +1623,7 @@ function ProgramDetail({
     };
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
-    const actions: ProgramRequestAction[] =
-        request.Status === 'draft' && owner
-            ? ['submit', ...(canApprove(dashboard.me) ? ['cancel' as ProgramRequestAction] : [])]
-            : canApprove(dashboard.me)
-              ? request.Status === 'submitted'
-                  ? ['approve', 'reject']
-                  : request.Status === 'approved'
-                    ? ['cancel']
-                    : []
-              : [];
+    const actions = getProgramRequestActions(request, dashboard.me);
     const sessionRows = sessions.map((session, index) => ({
         ...session,
         key: `${session.StartDateTime}-${index}`,
@@ -1695,7 +1674,6 @@ function ProgramDetail({
             action={
                 <Space wrap>
                     <Button
-                        icon={<CopyOutlined />}
                         aria-label="Duplicate program"
                         title="Duplicate program"
                         onClick={duplicate}>
@@ -1703,7 +1681,6 @@ function ProgramDetail({
                     </Button>
                     {sessions.length > 0 && canRescheduleProgram(request, dashboard.me) && (
                         <Button
-                            icon={<CalendarOutlined />}
                             onClick={() => {
                                 setRescheduleDate(
                                     getLocalDateFromSession(sessions[0].StartDateTime),
@@ -1716,7 +1693,6 @@ function ProgramDetail({
                     <WorkflowActions
                         actions={actions}
                         onAction={(action) => setPendingAction(action as ProgramRequestAction)}
-                        icon={(action) => workflowActionIcon(action as ProgramRequestAction)}
                     />
                 </Space>
             }>
@@ -1728,9 +1704,10 @@ function ProgramDetail({
                             <Button
                                 type="primary"
                                 icon={<EditOutlined />}
-                                onClick={() => setEditing(true)}>
-                                Edit
-                            </Button>
+                                onClick={() => setEditing(true)}
+                                aria-label="Edit program"
+                                title="Edit program"
+                            />
                         )
                     }>
                     <DetailFields
@@ -1754,9 +1731,10 @@ function ProgramDetail({
                             <Button
                                 type="primary"
                                 icon={<PlusOutlined />}
-                                onClick={() => editSession(null)}>
-                                Add
-                            </Button>
+                                onClick={() => editSession(null)}
+                                aria-label="Add session"
+                                title="Add session"
+                            />
                         )
                     }>
                     {sessions.length ? (
@@ -2107,11 +2085,9 @@ function DetailLayout({
 function WorkflowActions({
     actions,
     onAction,
-    icon,
 }: {
     actions: string[];
     onAction: (action: string) => void;
-    icon?: (action: string) => ReactNode;
 }) {
     return (
         <Space wrap>
@@ -2119,7 +2095,6 @@ function WorkflowActions({
                 <Button
                     type="primary"
                     key={action}
-                    icon={icon?.(action)}
                     onClick={() => onAction(action)}>
                     {action}
                 </Button>
@@ -2325,7 +2300,6 @@ function InventoryDetail({
                 <WorkflowActions
                     actions={actions}
                     onAction={(action) => setPendingAction(action as InventoryRequestAction)}
-                    icon={(action) => workflowActionIcon(action as InventoryRequestAction)}
                 />
             }>
             <div className="detail-main min-w-0">
@@ -2336,9 +2310,10 @@ function InventoryDetail({
                             <Button
                                 type="primary"
                                 icon={<EditOutlined />}
-                                onClick={() => setEditing(true)}>
-                                Edit
-                            </Button>
+                                onClick={() => setEditing(true)}
+                                aria-label="Edit request"
+                                title="Edit request"
+                            />
                         )
                     }>
                     <DetailFields
@@ -2370,9 +2345,10 @@ function InventoryDetail({
                                 <Button
                                     type="primary"
                                     icon={<PlusOutlined />}
-                                    onClick={() => editItem(null)}>
-                                    Add
-                                </Button>
+                                    onClick={() => editItem(null)}
+                                    aria-label="Add item"
+                                    title="Add item"
+                                />
                             </Space>
                         )
                     }>
@@ -2665,7 +2641,6 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                 <WorkflowActions
                     actions={actions}
                     onAction={(action) => setPendingAction(action as TicketAction)}
-                    icon={(action) => workflowActionIcon(action as TicketAction)}
                 />
             }>
             <div className="detail-main min-w-0">
@@ -2675,9 +2650,10 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                         <Button
                             type="primary"
                             icon={<EditOutlined />}
-                            onClick={() => setEditing(true)}>
-                            Edit
-                        </Button>
+                            onClick={() => setEditing(true)}
+                            aria-label="Edit ticket"
+                            title="Edit ticket"
+                        />
                     }>
                     <DetailFields
                         fields={[

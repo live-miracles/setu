@@ -780,7 +780,6 @@ const mockData = {
         { Id: 'program-type-webinar', Name: 'Webinar', Color: '#f0d36b' },
         { Id: 'program-type-meeting', Name: 'Meeting', Color: '#b7bec8' },
         { Id: 'program-type-visit', Name: 'Visit', Color: '#8ac7a0' },
-        { Id: 'program-type-other', Name: 'Other', Color: '' },
     ] as ProgramType[],
     programLanguages: [
         { Id: 'program-language-english', Name: 'English' },
