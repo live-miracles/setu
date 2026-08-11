@@ -754,7 +754,6 @@ const mockData = {
     ] as CommentRecord[],
     homeContent: {
         Guidelines: 'Please return equipment within 24 hours of your shoot ending.',
-        NotificationEmail: 'email@domain.com',
     } as HomeContent,
     shiftPresets: [
         {
@@ -1094,7 +1093,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     updateHomeContent: (input: UpdateHomeContentInput) => {
         mockData.homeContent = {
             Guidelines: input.guidelines || '',
-            NotificationEmail: input.notificationEmail || 'email@domain.com',
         };
         return mockData.homeContent;
     },

@@ -492,9 +492,6 @@ function readHomeContent(): HomeContent {
     const settingsById = indexBy(Tables.Settings.readAll(), (s) => s.Id);
     return {
         Guidelines: settingsById['Guidelines'] ? settingsById['Guidelines'].Value : '',
-        NotificationEmail: settingsById['NotificationEmail']
-            ? settingsById['NotificationEmail'].Value
-            : 'email@domain.com',
     };
 }
 
@@ -515,7 +512,6 @@ function updateHomeContent(input: UpdateHomeContentInput): HomeContent {
     requireAdmin();
     return withLock(() => {
         upsertSetting('Guidelines', input.guidelines || '');
-        upsertSetting('NotificationEmail', input.notificationEmail || 'email@domain.com');
         return readHomeContent();
     });
 }

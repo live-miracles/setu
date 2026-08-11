@@ -94,6 +94,7 @@ All pushing/deploying happens in CI (see below) — nothing here needs `clasp` i
     - `ALLOWED_EMAIL_DOMAIN` — your organisation's Google Workspace email domain (e.g. `example.org`). Anyone signing in with a Google account on that domain self-registers on first visit with the least privileged role — see "Access" below.
     - `BOOTSTRAP_ADMIN_EMAIL` — the lowercase Google account email of the first administrator. That email must also be on `ALLOWED_EMAIL_DOMAIN`; it's granted the `admin` role on first sign-in instead of `user`.
     - `IMAGES_DRIVE_FOLDER_ID` — the ID of a Drive folder the deploying account already has edit access to, where request photos get uploaded.
+    - `NOTIFICATION_EMAIL` — optional email address used as the sender and recipient for app notification emails. If it is missing or empty, notification emails are disabled.
 7. **Push the first version tag** (e.g. `git tag v0.1.0 && git push origin v0.1.0`), or run the workflow manually from the Actions tab, to build and push the real code to the deployment from step 3.
 8. **Run the one-time setup functions.** In the Apps Script editor, select and run (once each, in this order):
     - `setupSheets` — idempotently creates all the tabs (one per table plus `Counters`) with their headers.
@@ -157,7 +158,7 @@ This rewrite deliberately trades a few things for staying free and simple, appro
 
 - **Locking:** one coarse `LockService` mutex per mutation instead of Postgres row-level locking. Every create/action function wraps its _entire_ read-modify-write sequence in one lock (see `SheetTable.ts`'s `withLock`) — this specifically avoids the race multi-lang-qa's reference pattern has, where only the final write was locked.
 - **Idempotency:** a `CacheService`-backed dedupe check (`Dedupe.ts`) instead of a formal ledger table — good enough to survive double-taps and network retries, not a durable audit trail.
-- **Notifications:** email (`MailApp`) only. If `MailApp.sendEmail` throws, the failure is logged to the `FailedEmails` tab and execution continues rather than retrying.
+- **Notifications:** optional email notifications configured with the `NOTIFICATION_EMAIL` Script Property. If configured email sending fails, the failure is logged to the `FailedEmails` tab and execution continues rather than retrying.
 - **Images:** native `DriveApp` uploads (see `Images.ts`) with "anyone with the link" view access, rather than signed URLs — the closest equivalent without Storage-style signed links.
 - **Audit trail:** every status change on an inventory request, program request or ticket is narrated as a plain comment authored by whoever performed it (see `Comments.ts`), rather than a separate immutable audit table.
 

@@ -449,7 +449,6 @@ function SettingsResourcePage({
 
 function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
     const [savingGuidelines, setSavingGuidelines] = useState(false);
-    const [savingEmail, setSavingEmail] = useState(false);
 
     async function saveGuidelines(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -458,7 +457,6 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
             const data = new FormData(event.currentTarget);
             await api.updateHomeContent({
                 guidelines: String(data.get('guidelines') || ''),
-                notificationEmail: dashboard.homeContent.NotificationEmail,
             });
             await refreshDashboard();
         } catch (error) {
@@ -468,22 +466,6 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
         }
     }
 
-    async function saveEmail(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        setSavingEmail(true);
-        try {
-            const data = new FormData(event.currentTarget);
-            await api.updateHomeContent({
-                guidelines: dashboard.homeContent.Guidelines,
-                notificationEmail: String(data.get('notificationEmail') || ''),
-            });
-            await refreshDashboard();
-        } catch (error) {
-            showErrorAlert(error);
-        } finally {
-            setSavingEmail(false);
-        }
-    }
     return (
         <section className="antd-page">
             <div className="antd-page-heading">
@@ -504,22 +486,6 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                         />
                     </Form.Item>
                     <Button type="primary" htmlType="submit" loading={savingGuidelines}>
-                        Save
-                    </Button>
-                </form>
-            </Card>
-            <Card title="Notification email">
-                <form onSubmit={saveEmail}>
-                    <Form.Item
-                        label="Email address"
-                        extra="Used for notification emails sent by the app.">
-                        <Input
-                            name="notificationEmail"
-                            type="email"
-                            defaultValue={dashboard.homeContent.NotificationEmail}
-                        />
-                    </Form.Item>
-                    <Button type="primary" htmlType="submit" loading={savingEmail}>
                         Save
                     </Button>
                 </form>

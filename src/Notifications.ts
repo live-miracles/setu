@@ -61,6 +61,5 @@ function sendNotificationEmail(
 }
 
 function notificationFromEmail(): string {
-    const setting = Tables.Settings.findById('NotificationEmail');
-    return (setting && setting.Value) || 'email@domain.com';
+    return (PropertiesService.getScriptProperties().getProperty('NOTIFICATION_EMAIL') || '').trim();
 }

@@ -202,7 +202,6 @@ interface SettingRow {
 
 interface HomeContent {
     Guidelines: string;
-    NotificationEmail: string;
 }
 
 interface FailedEmail {
@@ -446,7 +445,6 @@ interface UpdateTicketInput {
 
 interface UpdateHomeContentInput {
     guidelines: string;
-    notificationEmail: string;
 }
 
 interface CreateShiftPresetInput {
