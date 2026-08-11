@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
+import { Button, Card, Checkbox, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
@@ -178,10 +178,13 @@ const RESOURCES: Record<string, ResourceConfig> = {
         title: 'Program types',
         addLabel: 'Add program type',
         emptyMessage: 'No program types configured yet.',
-        fields: [{ field: 'Name', label: 'Name' }],
+        fields: [
+            { field: 'Name', label: 'Name' },
+            { field: 'Color', label: 'Color', type: 'color' },
+        ],
         rows: (d) => d.programTypes,
-        create: (v) => api.createProgramType({ name: v.Name }, requestId()),
-        update: (id, v) => api.updateProgramType(id, { name: v.Name }, requestId()),
+        create: (v) => api.createProgramType({ name: v.Name, color: v.Color }, requestId()),
+        update: (id, v) => api.updateProgramType(id, { name: v.Name, color: v.Color }, requestId()),
         remove: (id) => api.deleteProgramType(id, requestId()),
     },
     'program-languages': {
@@ -237,7 +240,13 @@ function FieldSet({
         setBusy(true);
         try {
             const data = new FormData(event.currentTarget);
-            await onSubmit(Object.fromEntries(config.fields.map((f) => [f.field, value(data, f)])));
+            const values = Object.fromEntries(config.fields.map((f) => [f.field, value(data, f)]));
+            config.fields
+                .filter((field) => field.type === 'color' && data.get(`${field.field}Enabled`) !== 'on')
+                .forEach((field) => {
+                    values[field.field] = '';
+                });
+            await onSubmit(values);
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -248,12 +257,27 @@ function FieldSet({
         <form noValidate onSubmit={submit}>
             {config.fields.map((field, index) => (
                 <Form.Item label={field.label} required={index === 0} key={field.field}>
-                    <Input
-                        name={field.field}
-                        type={field.type || 'text'}
-                        required={index === 0}
-                        defaultValue={inputValue(field, row?.[field.field])}
-                    />
+                    {field.type === 'color' ? (
+                        <Space>
+                            <Input
+                                name={field.field}
+                                type="color"
+                                defaultValue={inputValue(field, row?.[field.field]) || '#ffffff'}
+                            />
+                            <Checkbox
+                                name={`${field.field}Enabled`}
+                                defaultChecked={Boolean(row?.[field.field])}>
+                                Use color
+                            </Checkbox>
+                        </Space>
+                    ) : (
+                        <Input
+                            name={field.field}
+                            type={field.type || 'text'}
+                            required={index === 0}
+                            defaultValue={inputValue(field, row?.[field.field])}
+                        />
+                    )}
                 </Form.Item>
             ))}
             <Button type="primary" htmlType="submit" loading={busy}>
@@ -344,10 +368,27 @@ function SettingsResourcePage({
             title: field.label,
             dataIndex: field.field,
             key: field.field,
-            render: (value: unknown) =>
-                field.type === 'datetime-local'
+            render: (value: unknown) => {
+                if (field.type === 'color') {
+                    const color = String(value || '').trim();
+                    const validColor = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color);
+                    return validColor ? (
+                        <Space size="small">
+                            <span
+                                className="settings-color-swatch"
+                                style={{ backgroundColor: color }}
+                                aria-hidden="true"
+                            />
+                            <span style={{ color }}>{color}</span>
+                        </Space>
+                    ) : (
+                        <span className="text-xs opacity-60">No color</span>
+                    );
+                }
+                return field.type === 'datetime-local'
                     ? formatDateTime(String(value || ''))
-                    : String(value ?? ''),
+                    : String(value ?? '');
+            },
         })),
         {
             title: 'Actions',

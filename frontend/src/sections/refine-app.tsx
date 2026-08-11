@@ -53,6 +53,7 @@ import {
     formatRosterTableTimes,
     getShiftPresetTimes,
 } from '../ui/roster-table';
+import { buildCalendarTableModel } from '../ui/calendar-table';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import {
@@ -148,23 +149,27 @@ function Page({
     headingContent,
     action,
     className,
+    hideHeading = false,
     children,
 }: {
     title: string;
     headingContent?: ReactNode;
     action?: ReactNode;
     className?: string;
+    hideHeading?: boolean;
     children: ReactNode;
 }) {
     return (
         <section className={`antd-page${className ? ` ${className}` : ''}`}>
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>{title}</Typography.Title>
+            {!hideHeading && (
+                <div className="antd-page-heading">
+                    <div>
+                        <Typography.Title level={2}>{title}</Typography.Title>
+                    </div>
+                    {headingContent}
+                    {action}
                 </div>
-                {headingContent}
-                {action}
-            </div>
+            )}
             {children}
         </section>
     );
@@ -930,6 +935,73 @@ function Roster({ dashboard }: Props) {
                 />
             )}
             {(creating || editing) && <Form row={editing} />}
+        </Page>
+    );
+}
+
+function Calendar({ dashboard }: Props) {
+    const todayIso = formatLocalDateOnly(new Date());
+    const calendar = buildCalendarTableModel(
+        dashboard.programRequests,
+        dashboard.places,
+        dashboard.programTypes,
+        todayIso,
+    );
+    return (
+        <Page title="Calendar" className="calendar-page" hideHeading>
+            {calendar.rows.length ? (
+                <div className="calendar-table-scroll">
+                    <table className="calendar-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" className="calendar-date-header">
+                                    Date
+                                </th>
+                                {calendar.places.map((place) => (
+                                    <th key={place.Id} scope="col" className="calendar-place-header">
+                                        {place.Name}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {calendar.rows.map((row) => (
+                                <tr key={row.isoDate} className={row.isoDate === todayIso ? 'calendar-today-row' : ''}>
+                                    <th scope="row" className="calendar-date-cell">
+                                        {row.label}
+                                    </th>
+                                    {row.places.map((place) => (
+                                        <td key={`${row.isoDate}-${place.placeId}`} className="calendar-place-cell">
+                                            {place.blocks.map((block) => (
+                                                <button
+                                                    key={block.programId}
+                                                    type="button"
+                                                    className="calendar-program-block"
+                                                    style={{
+                                                        backgroundColor: block.color
+                                                            ? `${block.color}26`
+                                                            : undefined,
+                                                    }}
+                                                    onClick={() => navigateToProgram(block.programId)}
+                                                    aria-label={`Open ${block.title}`}>
+                                                    <span className="calendar-program-title">{block.title}</span>
+                                                    {block.sessions.map((session) => (
+                                                        <span key={`${session.startDateTime}-${session.label}`} className="calendar-session-line">
+                                                            {session.label}
+                                                        </span>
+                                                    ))}
+                                                </button>
+                                            ))}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <Empty>No approved programs scheduled.</Empty>
+            )}
         </Page>
     );
 }
@@ -2747,6 +2819,7 @@ export function renderRefineApp(
     else if (section === 'profile') page = <Profile dashboard={dashboard} />;
     else if (section === 'users') page = <Users dashboard={dashboard} />;
     else if (section === 'roster') page = <Roster dashboard={dashboard} />;
+    else if (section === 'calendar') page = <Calendar dashboard={dashboard} />;
     else if (['inventory', 'programs', 'tickets'].includes(section)) {
         const detail =
             Boolean(
