@@ -12,6 +12,7 @@ export const ROUTER_CONFIG: RouterConfig = {
         roster: (c, d) => renderRefineApp('roster', c, d),
         inventory: (c, d) => renderRefineApp('inventory', c, d),
         programs: (c, d) => renderRefineApp('programs', c, d),
+        calendar: (c, d) => renderRefineApp('calendar', c, d),
         tickets: (c, d) => renderRefineApp('tickets', c, d),
         profile: (c, d) => renderRefineApp('profile', c, d),
         users: (c, d) => renderRefineApp('users', c, d),

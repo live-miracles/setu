@@ -106,6 +106,132 @@ body {
     background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
 }
 
+.calendar-page {
+    height: calc(100vh - 4rem);
+    min-height: 0;
+    overflow: hidden;
+}
+
+.calendar-table-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow: auto;
+}
+
+.calendar-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: var(--setu-ink);
+    font-size: 0.82rem;
+}
+
+.calendar-table th,
+.calendar-table td {
+    min-width: 12rem;
+    padding: 0.45rem 0.5rem;
+    border-right: 1px solid var(--setu-line);
+    border-bottom: 1px solid var(--setu-line);
+    vertical-align: top;
+}
+
+.calendar-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--setu-surface);
+    font-weight: 700;
+    text-align: center;
+}
+
+.calendar-table .calendar-date-header,
+.calendar-table .calendar-date-cell {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: 1%;
+    min-width: max-content;
+    background: var(--setu-surface);
+    text-align: left;
+}
+
+.calendar-table .calendar-date-header {
+    z-index: 2;
+}
+
+.calendar-table .calendar-date-cell {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.calendar-table .calendar-place-cell {
+    width: 12rem;
+    min-width: 12rem;
+    max-width: 12rem;
+    padding-inline: 0;
+    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+}
+
+.calendar-table .calendar-place-header {
+    width: 12rem;
+    min-width: 12rem;
+    max-width: 12rem;
+    overflow-wrap: anywhere;
+}
+
+.calendar-table .calendar-today-row > th,
+.calendar-table .calendar-today-row > td {
+    background: color-mix(in srgb, #b9dfbd 35%, var(--setu-paper));
+}
+
+.calendar-table .calendar-today-row > .calendar-date-cell {
+    background: color-mix(in srgb, #b9dfbd 45%, var(--setu-surface));
+}
+
+.calendar-program-block {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 0.4rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    border-top: 1px solid color-mix(in srgb, var(--setu-ink) 18%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--setu-ink) 18%, transparent);
+    border-radius: 0;
+    padding: 0.45rem 0.25rem;
+    background: var(--setu-surface);
+    color: var(--setu-ink);
+    cursor: pointer;
+    text-align: left;
+}
+
+.calendar-program-block:last-child {
+    margin-bottom: 0;
+}
+
+.calendar-program-block:hover,
+.calendar-program-block:focus-visible {
+    border-color: var(--setu-ink);
+    box-shadow: 0 0.15rem 0.4rem color-mix(in srgb, var(--setu-ink) 14%, transparent);
+    outline: none;
+}
+
+.calendar-program-title {
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.calendar-session-line {
+    color: color-mix(in srgb, var(--setu-ink) 72%, transparent);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
 .roster-shift-block {
     display: flex;
     width: 100%;
@@ -426,6 +552,14 @@ body {
     justify-content: space-between;
     padding: 0.65rem 0;
     border-bottom: 1px solid var(--setu-line);
+}
+
+.settings-color-swatch {
+    display: inline-block;
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 1px solid color-mix(in srgb, var(--setu-ink) 22%, transparent);
+    border-radius: 999px;
 }
 
 @media (max-width: 767px) {

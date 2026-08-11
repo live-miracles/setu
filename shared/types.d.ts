@@ -171,6 +171,7 @@ interface ShiftPreset {
 interface ProgramType {
     Id: string;
     Name: string;
+    Color: string;
 }
 
 interface ProgramLanguage {
@@ -455,6 +456,7 @@ interface CreateShiftPresetInput {
 
 interface CreateNamedOptionInput {
     name: string;
+    color?: string;
 }
 
 interface CreateBlockInput {

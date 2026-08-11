@@ -775,12 +775,12 @@ const mockData = {
         { Id: 'shift-preset-5', Name: 'Vacation', DefaultStartTime: '', DefaultEndTime: '' },
     ] as ShiftPreset[],
     programTypes: [
-        { Id: 'program-type-livestream', Name: 'Livestream' },
-        { Id: 'program-type-recording', Name: 'Recording' },
-        { Id: 'program-type-webinar', Name: 'Webinar' },
-        { Id: 'program-type-meeting', Name: 'Meeting' },
-        { Id: 'program-type-visit', Name: 'Visit' },
-        { Id: 'program-type-other', Name: 'Other' },
+        { Id: 'program-type-livestream', Name: 'Livestream', Color: '#8bb8e8' },
+        { Id: 'program-type-recording', Name: 'Recording', Color: '#f2ad72' },
+        { Id: 'program-type-webinar', Name: 'Webinar', Color: '#f0d36b' },
+        { Id: 'program-type-meeting', Name: 'Meeting', Color: '#b7bec8' },
+        { Id: 'program-type-visit', Name: 'Visit', Color: '#8ac7a0' },
+        { Id: 'program-type-other', Name: 'Other', Color: '' },
     ] as ProgramType[],
     programLanguages: [
         { Id: 'program-language-english', Name: 'English' },
@@ -1122,7 +1122,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
 
     listProgramTypes: () => [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
     createProgramType: (input: CreateNamedOptionInput) => {
-        const created: ProgramType = { Id: mockUuid(), Name: input.name };
+        const created: ProgramType = { Id: mockUuid(), Name: input.name, Color: input.color || '' };
         mockData.programTypes.push(created);
         return created;
     },
@@ -1130,6 +1130,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const option = mockData.programTypes.find((item) => item.Id === id);
         if (!option) throw new Error('not_found');
         option.Name = input.name;
+        option.Color = input.color || '';
         return option;
     },
     deleteProgramType: (id: string) => {

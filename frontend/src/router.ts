@@ -27,6 +27,7 @@ type SectionKey =
     | 'roster'
     | 'inventory'
     | 'programs'
+    | 'calendar'
     | 'tickets'
     | 'profile'
     | 'users'

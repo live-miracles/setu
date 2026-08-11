@@ -231,12 +231,12 @@ function deleteShiftPreset(id: string, requestId: string): void {
 }
 
 const DEFAULT_PROGRAM_TYPES: ProgramType[] = [
-    { Id: 'program-type-livestream', Name: 'Livestream' },
-    { Id: 'program-type-recording', Name: 'Recording' },
-    { Id: 'program-type-webinar', Name: 'Webinar' },
-    { Id: 'program-type-meeting', Name: 'Meeting' },
-    { Id: 'program-type-visit', Name: 'Visit' },
-    { Id: 'program-type-other', Name: 'Other' },
+    { Id: 'program-type-livestream', Name: 'Livestream', Color: '' },
+    { Id: 'program-type-recording', Name: 'Recording', Color: '' },
+    { Id: 'program-type-webinar', Name: 'Webinar', Color: '' },
+    { Id: 'program-type-meeting', Name: 'Meeting', Color: '' },
+    { Id: 'program-type-visit', Name: 'Visit', Color: '' },
+    { Id: 'program-type-other', Name: 'Other', Color: '' },
 ];
 
 const DEFAULT_PROGRAM_LANGUAGES: ProgramLanguage[] = [
@@ -334,13 +334,20 @@ function listProgramTypes(): ProgramType[] {
 }
 
 function createProgramType(input: CreateNamedOptionInput, requestId: string): ProgramType {
-    return createNamedOption(
-        'programTypes',
-        DEFAULT_PROGRAM_TYPES,
-        input,
-        requestId,
-        'program-type',
-    );
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('program-type:create', requestId, () => {
+        const created: ProgramType = {
+            Id: Utilities.getUuid(),
+            Name: name,
+            Color: String(input.color || '').trim(),
+        };
+        const options = readProgramTypes();
+        options.push(created);
+        writeNamedOptions('programTypes', options);
+        return created;
+    });
+    return result;
 }
 
 function updateProgramType(
@@ -348,14 +355,18 @@ function updateProgramType(
     input: CreateNamedOptionInput,
     requestId: string,
 ): ProgramType {
-    return updateNamedOption(
-        'programTypes',
-        DEFAULT_PROGRAM_TYPES,
-        id,
-        input,
-        requestId,
-        'program-type',
-    );
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('program-type:update', requestId, () => {
+        const options = readProgramTypes();
+        const existing = options.find((option) => option.Id === id);
+        if (!existing) throw new ValidationError('not_found');
+        existing.Name = name;
+        existing.Color = String(input.color || '').trim();
+        writeNamedOptions('programTypes', options);
+        return existing;
+    });
+    return result;
 }
 
 function deleteProgramType(id: string, requestId: string): void {

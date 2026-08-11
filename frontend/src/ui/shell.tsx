@@ -1,6 +1,7 @@
 import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
 import {
     AppstoreOutlined,
+    CalendarOutlined,
     InboxOutlined,
     SettingOutlined,
     ToolOutlined,
@@ -62,6 +63,11 @@ function Shell() {
                                 label: <span data-nav-section="programs">Programs</span>,
                             },
                             {
+                                key: 'calendar',
+                                icon: <CalendarOutlined />,
+                                label: <span data-nav-section="calendar">Calendar</span>,
+                            },
+                            {
                                 key: 'inventory',
                                 icon: <InboxOutlined />,
                                 label: <span data-nav-section="inventory">Inventory</span>,
@@ -108,6 +114,11 @@ function Shell() {
                             key: 'programs',
                             icon: <AppstoreOutlined />,
                             label: <span data-nav-section="programs">Programs</span>,
+                        },
+                        {
+                            key: 'calendar',
+                            icon: <CalendarOutlined />,
+                            label: <span data-nav-section="calendar">Calendar</span>,
                         },
                         {
                             key: 'inventory',

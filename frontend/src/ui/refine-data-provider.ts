@@ -82,7 +82,8 @@ export const appsScriptDataProvider = {
                         },
                         id,
                     ),
-                'program-types': () => api.createProgramType({ name: value.Name }, id),
+                'program-types': () =>
+                    api.createProgramType({ name: value.Name, color: value.Color || '' }, id),
                 'program-languages': () => api.createProgramLanguage({ name: value.Name }, id),
                 'session-types': () => api.createSessionType({ name: value.Name }, id),
             } as Record<string, () => Promise<any>>
@@ -140,7 +141,11 @@ export const appsScriptDataProvider = {
                         generateRequestId(),
                     ),
                 'program-types': () =>
-                    api.updateProgramType(String(id), { name: value.Name }, generateRequestId()),
+                    api.updateProgramType(
+                        String(id),
+                        { name: value.Name, color: value.Color || '' },
+                        generateRequestId(),
+                    ),
                 'program-languages': () =>
                     api.updateProgramLanguage(
                         String(id),
