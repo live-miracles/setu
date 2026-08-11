@@ -1380,6 +1380,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const actorId = mockData.currentUserId;
 
         if (action === 'submit') {
+            if (mockParseInventoryItems(request.ItemsJson).length === 0) {
+                throw new Error('At least one item is required.');
+            }
             request.Status = 'submitted';
             mockInsertActionComment(
                 'inventory',
@@ -1603,6 +1606,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const actorId = mockData.currentUserId;
 
         if (action === 'submit') {
+            if (mockParseProgramSessions(request.SessionsJson).length === 0) {
+                throw new Error('At least one session is required.');
+            }
             if (!canApprove(mockToUserDTO(mockCurrentUser()))) {
                 const sessions = mockParseProgramSessions(request.SessionsJson);
                 const blockingBlock = mockData.blocks

@@ -28,14 +28,11 @@ import {
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import {
-    navigateToInventoryCreate,
     navigateToInventoryRequest,
     navigateToInventoryRequests,
     navigateToProgram,
-    navigateToProgramCreate,
     navigateToPrograms,
     navigateToTicket,
-    navigateToTicketCreate,
     navigateToTickets,
     refreshDashboard,
     replaceWorkbenchUrl,
@@ -55,6 +52,7 @@ import {
     getShiftPresetTimes,
 } from '../ui/roster-table';
 import { roleLabel } from '../ui/styles';
+import { createRecordDestination } from '../ui/create-record';
 import {
     canApprove,
     canManageConfig,
@@ -258,7 +256,7 @@ export function ActionConfirmation({
         </Modal>
     );
 }
-function useSave(action: () => Promise<unknown>, close?: () => void) {
+function useSave<T>(action: () => Promise<T>, close?: () => void) {
     const [busy, setBusy] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     return {
@@ -276,13 +274,13 @@ function useSave(action: () => Promise<unknown>, close?: () => void) {
             setErrorMessage('');
             setBusy(true);
             try {
-                await action();
+                const result = await action();
                 close?.();
                 await refreshDashboard();
-                return true;
+                return result;
             } catch (e) {
                 setErrorMessage(e instanceof Error ? e.message : String(e));
-                return false;
+                return null;
             } finally {
                 setBusy(false);
             }
@@ -313,7 +311,8 @@ function TextField({
             <Input
                 name={name}
                 type={type}
-                defaultValue={value ?? ''}
+                value={onChange ? (value ?? '') : undefined}
+                defaultValue={onChange ? undefined : (value ?? '')}
                 required={required}
                 pattern={pattern}
                 title={title}
@@ -326,6 +325,10 @@ function TextField({
 const INTERNATIONAL_PHONE_PATTERN = '\\+[1-9][0-9]{7,14}';
 const INTERNATIONAL_PHONE_TITLE =
     'Enter a valid phone number with country code using digits only, for example +919000000000.';
+const PARTICIPANTS_EMAIL_PATTERN =
+    '[^\\s@,]+@[^\\s@,]+\\.[^\\s@,]+(?:\\s*,\\s*[^\\s@,]+@[^\\s@,]+\\.[^\\s@,]+)*';
+const PARTICIPANTS_EMAIL_TITLE =
+    'Enter valid email addresses separated by commas, for example person@example.com, other@example.com.';
 function isValidInternationalPhone(phone: string): boolean {
     return /^\+[1-9]\d{7,14}$/.test(phone);
 }
@@ -936,6 +939,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     const [view, setView] = useState(
         params.get(WORKBENCH_VIEW_QUERY_PARAM) || (isProgram ? 'active' : 'all'),
     );
+    const [creating, setCreating] = useState(false);
     const statuses = isInventory
         ? [
               'draft',
@@ -956,11 +960,6 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             : isProgram
               ? navigateToProgram(id)
               : navigateToTicket(id);
-    const create = isInventory
-        ? navigateToInventoryCreate
-        : isProgram
-          ? navigateToProgramCreate
-          : navigateToTicketCreate;
     const title = isInventory ? 'Inventory' : isProgram ? 'Programs' : 'Tickets';
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
@@ -1022,7 +1021,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             title={title}
             headingContent={boardFilters}
             action={
-                <Button type="primary" icon={<PlusOutlined />} onClick={create}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
                     New
                 </Button>
             }>
@@ -1100,6 +1099,13 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 })}
             </div>
             {!filteredRows.length && <Empty>No matching records.</Empty>}
+            {creating && (
+                <Modal
+                    title={`New ${isInventory ? 'inventory request' : isProgram ? 'program request' : 'ticket'}`}
+                    close={() => setCreating(false)}>
+                    <CreateRecord kind={kind} dashboard={dashboard} />
+                </Modal>
+            )}
         </Page>
     );
 }
@@ -1109,161 +1115,230 @@ function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
 }
 
 function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
-    const [inventoryTypeId, setInventoryTypeId] = useState('');
+    const [users, setUsers] = useState<UserDTO[]>([]);
+    const [language, setLanguage] = useState(dashboard.programLanguages[0]?.Name || '');
     const [placeId, setPlaceId] = useState('');
+    const [requestedBy, setRequestedBy] = useState(dashboard.me.Email);
+    const [departmentId, setDepartmentId] = useState(dashboard.me.DepartmentId);
+    const initialLeadEmail =
+        dashboard.departments.find((department) => department.Id === dashboard.me.DepartmentId)
+            ?.LeadEmail || '';
+    const [leadEmail, setLeadEmail] = useState(initialLeadEmail);
     const [programType, setProgramType] = useState(
         dashboard.programTypes[0]?.Name || OTHER_PROGRAM_TYPE,
     );
-    const back =
-        kind === 'inventory'
-            ? navigateToInventoryRequests
-            : kind === 'programs'
-              ? navigateToPrograms
-              : navigateToTickets;
-    const save = useSave(async () => {
+    useEffect(() => {
+        if ((kind === 'programs' || kind === 'inventory') && canApprove(dashboard.me)) {
+            api.listUsers().then(setUsers).catch(error);
+        }
+    }, [dashboard.me, kind]);
+    const leadEmailForDepartment = (id: string) =>
+        dashboard.departments.find((department) => department.Id === id)?.LeadEmail || '';
+    const selectDepartment = (id: string) => {
+        setDepartmentId(id);
+        setLeadEmail(leadEmailForDepartment(id));
+    };
+    const selectRequester = (email: string) => {
+        setRequestedBy(email);
+        const requester = users.find((user) => user.Email === email);
+        if (requester) selectDepartment(requester.DepartmentId);
+    };
+    const save = useSave(async (): Promise<{ Id: string }> => {
         const d = new FormData(document.getElementById('refine-request-form') as HTMLFormElement);
         const name = String(d.get('name') || '');
         if (kind === 'tickets')
-            await api.createTicket(
+            return api.createTicket(
                 { title: name, description: String(d.get('description') || '') },
                 generateRequestId(),
             );
-        else if (kind === 'inventory')
-            await api.createInventoryRequest(
+        if (kind === 'inventory')
+            return api.createInventoryRequest(
                 {
                     name,
-                    userId: dashboard.me.Email,
+                    userId: requestedBy,
                     startDate: String(d.get('startDate')),
                     endDate: String(d.get('endDate')),
-                    items: [
-                        {
-                            inventoryTypeId: String(d.get('inventoryTypeId')),
-                            quantity: Number(d.get('quantity') || 1),
-                        },
-                    ],
+                    items: [],
                     imageId: '',
-                    departmentId: dashboard.me.DepartmentId,
-                    leadEmail: dashboard.me.Email,
-                    participants: '',
+                    departmentId,
+                    leadEmail: String(d.get('leadEmail') || leadEmail),
+                    participants: String(d.get('participants') || ''),
                 },
                 generateRequestId(),
             );
-        else
-            await api.createProgramRequest(
-                {
-                    name,
-                    language: String(d.get('language') || 'English'),
-                    type: programType,
-                    userId: dashboard.me.Email,
-                    placeId: String(d.get('placeId') || ''),
-                    sessions: [],
-                    departmentId: dashboard.me.DepartmentId,
-                    leadEmail: dashboard.me.Email,
-                    participants: '',
-                },
-                generateRequestId(),
-            );
+        return api.createProgramRequest(
+            {
+                name,
+                language: String(d.get('language') || ''),
+                type: programType,
+                userId: requestedBy,
+                placeId: String(d.get('placeId') || ''),
+                sessions: [],
+                departmentId,
+                leadEmail: String(d.get('leadEmail') || ''),
+                participants: String(d.get('participants') || ''),
+            },
+            generateRequestId(),
+        );
     });
     return (
-        <Page
-            title={`New ${kind === 'tickets' ? 'ticket' : kind === 'programs' ? 'program request' : 'inventory request'}`}
-            action={
-                <Button type="link" onClick={back}>
-                    Cancel
-                </Button>
-            }>
-            <Card title="Request details">
-                <form
-                    id="refine-request-form"
-                    className="grid gap-3 sm:grid-cols-2"
-                    noValidate
-                    onSubmit={async (e) => {
-                        if (await save.run(e)) back();
-                    }}>
+        <form
+            id="refine-request-form"
+            className="grid gap-3"
+            noValidate
+            onSubmit={async (e) => {
+                const created = await save.run(e);
+                if (!created) return;
+                const id = createRecordDestination(kind, created.Id);
+                if (kind === 'programs') navigateToProgram(id);
+                else if (kind === 'inventory') navigateToInventoryRequest(id);
+                else navigateToTicket(id);
+            }}>
+            {kind !== 'programs' && (
+                <TextField name="name" label={kind === 'tickets' ? 'Title' : 'Name'} required />
+            )}
+            {kind === 'tickets' && <TextField name="description" label="Description" />}
+            {kind === 'inventory' && (
+                <>
+                    <TextField name="startDate" label="Start date" type="date" required />
+                    <TextField name="endDate" label="End date" type="date" required />
+                    {canApprove(dashboard.me) && (
+                        <AntForm.Item label="Requested by" required>
+                            <input type="hidden" name="userId" value={requestedBy} required />
+                            <Select
+                                value={requestedBy}
+                                onChange={selectRequester}
+                                style={{ width: '100%' }}>
+                                {users.map((user) => (
+                                    <Select.Option key={user.Email} value={user.Email}>
+                                        {user.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                    )}
+                    <AntForm.Item label="Department" required>
+                        <input type="hidden" name="departmentId" value={departmentId} required />
+                        <Select
+                            value={departmentId}
+                            onChange={selectDepartment}
+                            style={{ width: '100%' }}>
+                            {dashboard.departments.map((department) => (
+                                <Select.Option key={department.Id} value={department.Id}>
+                                    {department.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
+                    <TextField
+                        name="leadEmail"
+                        label="Lead email"
+                        type="email"
+                        value={leadEmail}
+                        required
+                        onChange={(event) => setLeadEmail(event.target.value)}
+                    />
+                    <TextField
+                        name="participants"
+                        label="Participants (emails, comma-separated)"
+                        pattern={PARTICIPANTS_EMAIL_PATTERN}
+                        title={PARTICIPANTS_EMAIL_TITLE}
+                    />
+                </>
+            )}
+            {kind === 'programs' && (
+                <>
+                    <AntForm.Item label="Language" required>
+                        <input type="hidden" name="language" value={language} required />
+                        <Select
+                            value={language || undefined}
+                            onChange={setLanguage}
+                            style={{ width: '100%' }}
+                            placeholder="Select language">
+                            {dashboard.programLanguages.map((language) => (
+                                <Select.Option key={language.Id} value={language.Name}>
+                                    {language.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
+                    <AntForm.Item label="Type" required>
+                        <input type="hidden" name="type" value={programType} />
+                        <Select
+                            value={programType}
+                            onChange={setProgramType}
+                            style={{ width: '100%' }}>
+                            {programTypeOptions(dashboard.programTypes).map((type) => (
+                                <Select.Option key={type} value={type}>
+                                    {type}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
                     <TextField
                         name="name"
-                        label={kind === 'tickets' ? 'Title' : 'Name'}
-                        required={kind !== 'programs' || programType === OTHER_PROGRAM_TYPE}
+                        label="Program title"
+                        required={programType === OTHER_PROGRAM_TYPE}
                     />
-                    <TextField name="description" label="Description" />
-                    {kind === 'inventory' && (
-                        <>
-                            <TextField name="startDate" label="Start date" type="date" required />
-                            <TextField name="endDate" label="End date" type="date" required />
-                            <AntForm.Item label="Inventory type" required>
-                                <input
-                                    type="hidden"
-                                    name="inventoryTypeId"
-                                    value={inventoryTypeId}
-                                />
-                                <Select
-                                    value={inventoryTypeId}
-                                    onChange={setInventoryTypeId}
-                                    style={{ width: '100%' }}>
-                                    <Select.Option value="">Select equipment</Select.Option>
-                                    {dashboard.inventoryTypes.map((t) => (
-                                        <Select.Option key={t.Id} value={t.Id}>
-                                            {t.Name}
-                                        </Select.Option>
-                                    ))}
-                                </Select>
-                            </AntForm.Item>
-                            <TextField
-                                name="quantity"
-                                label="Quantity"
-                                type="number"
-                                value={1}
-                                required
-                            />
-                        </>
+                    <AntForm.Item label="Place">
+                        <input type="hidden" name="placeId" value={placeId} />
+                        <Select value={placeId} onChange={setPlaceId} style={{ width: '100%' }}>
+                            <Select.Option value="">No place</Select.Option>
+                            {dashboard.places.map((p) => (
+                                <Select.Option key={p.Id} value={p.Id}>
+                                    {p.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
+                    {canApprove(dashboard.me) && (
+                        <AntForm.Item label="Requested by" required>
+                            <input type="hidden" name="userId" value={requestedBy} required />
+                            <Select
+                                value={requestedBy}
+                                onChange={selectRequester}
+                                style={{ width: '100%' }}>
+                                {users.map((user) => (
+                                    <Select.Option key={user.Email} value={user.Email}>
+                                        {user.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
                     )}
-                    {kind === 'programs' && (
-                        <>
-                            <TextField
-                                name="language"
-                                label="Language"
-                                value={dashboard.programLanguages[0]?.Name || 'English'}
-                                required
-                            />
-                            <AntForm.Item label="Program type" required>
-                                <input type="hidden" name="type" value={programType} />
-                                <Select
-                                    value={programType}
-                                    onChange={setProgramType}
-                                    style={{ width: '100%' }}>
-                                    {programTypeOptions(dashboard.programTypes).map((type) => (
-                                        <Select.Option key={type} value={type}>
-                                            {type}
-                                        </Select.Option>
-                                    ))}
-                                </Select>
-                            </AntForm.Item>
-                            <AntForm.Item label="Place">
-                                <input type="hidden" name="placeId" value={placeId} />
-                                <Select
-                                    value={placeId}
-                                    onChange={setPlaceId}
-                                    style={{ width: '100%' }}>
-                                    <Select.Option value="">No place</Select.Option>
-                                    {dashboard.places.map((p) => (
-                                        <Select.Option key={p.Id} value={p.Id}>
-                                            {p.Name}
-                                        </Select.Option>
-                                    ))}
-                                </Select>
-                            </AntForm.Item>
-                        </>
-                    )}
-                    <div className="sm:col-span-2">
-                        <SaveFooter
-                            label="Save"
-                            busy={save.busy}
-                            errorMessage={save.errorMessage}
-                        />
-                    </div>
-                </form>
-            </Card>
-        </Page>
+                    <AntForm.Item label="Department" required>
+                        <input type="hidden" name="departmentId" value={departmentId} required />
+                        <Select
+                            value={departmentId}
+                            onChange={selectDepartment}
+                            style={{ width: '100%' }}>
+                            {dashboard.departments.map((department) => (
+                                <Select.Option key={department.Id} value={department.Id}>
+                                    {department.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
+                    <TextField
+                        name="leadEmail"
+                        label="Lead email"
+                        type="email"
+                        value={leadEmail}
+                        required
+                        onChange={(event) => setLeadEmail(event.target.value)}
+                    />
+                    <TextField
+                        name="participants"
+                        label="Participants (emails, comma-separated)"
+                        pattern={PARTICIPANTS_EMAIL_PATTERN}
+                        title={PARTICIPANTS_EMAIL_TITLE}
+                    />
+                </>
+            )}
+            <div>
+                <SaveFooter label="Save" busy={save.busy} errorMessage={save.errorMessage} />
+            </div>
+        </form>
     );
 }
 
@@ -1288,9 +1363,6 @@ function ProgramDetail({
         defaultSessionDraft(request.sessions),
     );
     const [users, setUsers] = useState<UserDTO[]>([]);
-    useEffect(() => {
-        if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
-    }, [dashboard.me]);
     const [values, setValues] = useState({
         Name: request.Name,
         Language: request.Language,
@@ -1301,6 +1373,9 @@ function ProgramDetail({
         Participants: request.participants.join(', '),
         UserId: request.UserId,
     });
+    useEffect(() => {
+        if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
+    }, [dashboard.me]);
     const persistSessions = async (nextSessions: ProgramSession[]) => {
         try {
             showSavingBadge(true);
@@ -1554,17 +1629,25 @@ function ProgramDetail({
             {editing && (
                 <Modal title="Edit program" close={() => setEditing(false)}>
                     <form className="grid gap-3" noValidate onSubmit={save.run}>
+                        <AntForm.Item label="Language" required>
+                            <input type="hidden" name="language" value={values.Language} required />
+                            <Select
+                                value={values.Language || undefined}
+                                onChange={(value) => update('Language', value)}
+                                style={{ width: '100%' }}
+                                placeholder="Select language">
+                                {dashboard.programLanguages.map((language) => (
+                                    <Select.Option key={language.Id} value={language.Name}>
+                                        {language.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
                         <TextField
                             name="name"
                             label="Program title"
                             value={values.Name}
                             required={values.Type === OTHER_PROGRAM_TYPE}
-                        />
-                        <TextField
-                            name="language"
-                            label="Language"
-                            value={values.Language}
-                            required
                         />
                         <AntForm.Item label="Type" required>
                             <input type="hidden" name="type" value={values.Type} />
@@ -1630,6 +1713,7 @@ function ProgramDetail({
                         <TextField
                             name="leadEmail"
                             label="Lead email"
+                            type="email"
                             value={values.LeadEmail}
                             required
                         />
@@ -1637,6 +1721,8 @@ function ProgramDetail({
                             name="participants"
                             label="Participants (emails, comma-separated)"
                             value={values.Participants}
+                            pattern={PARTICIPANTS_EMAIL_PATTERN}
+                            title={PARTICIPANTS_EMAIL_TITLE}
                         />
                         <div>
                             <SaveFooter
@@ -1880,6 +1966,10 @@ function InventoryDetail({
         Participants: request.participants.join(', '),
         UserId: request.UserId,
     });
+    const [users, setUsers] = useState<UserDTO[]>([]);
+    useEffect(() => {
+        if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
+    }, [dashboard.me]);
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
     const persistItems = async (nextItems: InventoryItemDTO[]) => {
@@ -2146,9 +2236,43 @@ function InventoryDetail({
                             required
                             onChange={(e) => update('EndDate', e.target.value)}
                         />
+                        {canApprove(dashboard.me) && (
+                            <AntForm.Item label="Requested by" required>
+                                <input type="hidden" name="userId" value={values.UserId} required />
+                                <Select
+                                    value={values.UserId}
+                                    onChange={(value) => update('UserId', value)}
+                                    style={{ width: '100%' }}>
+                                    {users.map((user) => (
+                                        <Select.Option key={user.Email} value={user.Email}>
+                                            {user.Name}
+                                        </Select.Option>
+                                    ))}
+                                </Select>
+                            </AntForm.Item>
+                        )}
+                        <AntForm.Item label="Department" required>
+                            <input
+                                type="hidden"
+                                name="departmentId"
+                                value={values.DepartmentId}
+                                required
+                            />
+                            <Select
+                                value={values.DepartmentId}
+                                onChange={(value) => update('DepartmentId', value)}
+                                style={{ width: '100%' }}>
+                                {dashboard.departments.map((department) => (
+                                    <Select.Option key={department.Id} value={department.Id}>
+                                        {department.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
                         <TextField
                             name="leadEmail"
                             label="Lead email"
+                            type="email"
                             value={values.LeadEmail}
                             required
                             onChange={(e) => update('LeadEmail', e.target.value)}
@@ -2157,6 +2281,8 @@ function InventoryDetail({
                             name="participants"
                             label="Participants (emails, comma-separated)"
                             value={values.Participants}
+                            pattern={PARTICIPANTS_EMAIL_PATTERN}
+                            title={PARTICIPANTS_EMAIL_TITLE}
                             onChange={(e) => update('Participants', e.target.value)}
                         />
                         <div>

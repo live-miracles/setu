@@ -212,9 +212,7 @@ function createInventoryRequest(
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
         throw new ValidationError('endDate must be on or after startDate.');
     }
-    if (!input.items || input.items.length === 0)
-        throw new ValidationError('At least one item is required.');
-    const lines = input.items.map((line) => {
+    const lines = (input.items || []).map((line) => {
         if (!(line.quantity > 0)) throw new ValidationError('quantity_must_be_positive');
         const inventoryType = Tables.InventoryTypes.findById(line.inventoryTypeId);
         if (!inventoryType) throw new ValidationError('inventory_type_not_found');
@@ -284,9 +282,7 @@ function updateInventoryRequest(
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
         throw new ValidationError('endDate must be on or after startDate.');
     }
-    if (!input.items || input.items.length === 0)
-        throw new ValidationError('At least one item is required.');
-    const lines = input.items.map((line) => {
+    const lines = (input.items || []).map((line) => {
         if (!(line.quantity > 0)) throw new ValidationError('quantity_must_be_positive');
         const inventoryType = Tables.InventoryTypes.findById(line.inventoryTypeId);
         if (!inventoryType) throw new ValidationError('inventory_type_not_found');
@@ -376,6 +372,9 @@ function performInventoryRequestAction(
                     request.UserId === actor.Email || participants.indexOf(actor.Email) !== -1;
                 if (!isOwner || request.Status !== 'draft')
                     throw new ValidationError('invalid_transition');
+                if (parseInventoryItemsJson(request.ItemsJson).length === 0) {
+                    throw new ValidationError('At least one item is required.');
+                }
                 computedStatus = 'submitted';
                 Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
                 insertActionComment(

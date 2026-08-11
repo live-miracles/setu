@@ -56,9 +56,7 @@ function cleanSessionField(session: ProgramSessionInput, field: string): string 
 }
 
 function cleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
-    if (!input || input.length === 0)
-        throw new ValidationError('At least one session is required.');
-    return input.map((session) => {
+    return (input || []).map((session) => {
         const sessionType = cleanSessionField(session, 'type');
         const startDateTime = cleanSessionField(session, 'startDateTime');
         const endDateTime = cleanSessionField(session, 'endDateTime');
@@ -397,6 +395,9 @@ function performProgramRequestAction(
                     request.UserId === actor.Email || participants.indexOf(actor.Email) !== -1;
                 if (!isOwner || request.Status !== 'draft')
                     throw new ValidationError('invalid_transition');
+                if (parseProgramSessionsJson(request.SessionsJson).length === 0) {
+                    throw new ValidationError('At least one session is required.');
+                }
                 if (!canApprove(actor)) assertProgramSessionsNotBlockedForUser(request);
                 computedStatus = 'submitted';
                 Tables.ProgramRequests.updateById(requestId, { Status: computedStatus });

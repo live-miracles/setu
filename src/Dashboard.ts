@@ -16,7 +16,7 @@ function getDashboard(): DashboardPayload {
 
     // The roster is admin/approver-only (see listRosters in Roster.ts), so
     // everyone else gets an empty list and Home drops its shift cards.
-    const todayIso = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+    const todayIso = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
     const upcomingRosters = canApprove(actor)
         ? Tables.Rosters.findWhere((r) => r.StartDate >= todayIso)
               .sort((a, b) => (a.StartDate + a.StartTime).localeCompare(b.StartDate + b.StartTime))
