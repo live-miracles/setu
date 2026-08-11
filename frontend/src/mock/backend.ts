@@ -1322,12 +1322,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             ),
         };
         mockData.inventoryRequests.push(created);
-        mockInsertActionComment(
-            'inventory',
-            created.Id,
-            mockData.currentUserId,
-            mockCurrentUser().Name + ' saved this draft.',
-        );
         return mockBuildInventoryRequestDTO(created);
     },
     updateInventoryRequest: (id: string, input: UpdateInventoryRequestInput) => {
@@ -1358,12 +1352,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 Quantity: line.quantity,
                 Condition: line.condition || '',
             })),
-        );
-        mockInsertActionComment(
-            'inventory',
-            id,
-            mockData.currentUserId,
-            actor.Name + ' updated this request.',
         );
         return mockBuildInventoryRequestDTO(request);
     },
@@ -1538,12 +1526,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             SessionsJson: mockProgramSessionsJson(sessions),
         };
         mockData.programRequests.push(created);
-        mockInsertActionComment(
-            'program',
-            created.Id,
-            mockData.currentUserId,
-            mockCurrentUser().Name + ' saved this draft.',
-        );
         return mockBuildProgramRequestDTO(created);
     },
     updateProgramRequest: (id: string, input: UpdateProgramRequestInput) => {
@@ -1586,12 +1568,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         request.LeadEmail = leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');
         request.SessionsJson = mockProgramSessionsJson(sessions);
-        mockInsertActionComment(
-            'program',
-            id,
-            mockData.currentUserId,
-            actor.Name + ' updated this request.',
-        );
         return mockBuildProgramRequestDTO(request);
     },
     performProgramRequestAction: (
@@ -1709,12 +1685,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             AssigneeId: '',
         };
         mockData.tickets.push(created);
-        mockInsertActionComment(
-            'ticket',
-            created.Id,
-            mockData.currentUserId,
-            mockCurrentUser().Name + ' reported this ticket.',
-        );
         return mockBuildTicketDTO(created);
     },
     updateTicket: (id: string, input: UpdateTicketInput) => {
@@ -1724,18 +1694,8 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const ticket = mockData.tickets.find((item) => item.Id === id);
         if (!ticket) throw new Error('ticket_not_found');
         if (!input.title.trim()) throw new Error('Title is required.');
-        const changed =
-            ticket.Title !== input.title || ticket.Description !== (input.description || '');
         ticket.Title = input.title;
         ticket.Description = input.description || '';
-        if (changed) {
-            mockInsertActionComment(
-                'ticket',
-                id,
-                mockData.currentUserId,
-                mockCurrentUser().Name + ' updated this ticket.',
-            );
-        }
         return mockBuildTicketDTO(ticket);
     },
     performTicketAction: (ticketId: string, action: TicketAction, assigneeId: string | null) => {

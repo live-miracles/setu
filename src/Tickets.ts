@@ -89,20 +89,14 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
             Status: 'unassigned',
             AssigneeId: '',
         });
-        const comment = insertActionComment(
-            'ticket',
-            created.Id,
-            actor.Email,
-            actor.Name + ' reported this ticket.',
-        );
-        return { ticket: created, comment };
+        return { ticket: created };
     });
-    const { ticket, comment } = result;
+    const { ticket } = result;
 
     return buildTicketDTO(
         ticket,
         indexBy([actor], (u) => u.Email),
-        { [ticket.Id]: [comment] },
+        {},
     );
 }
 
@@ -118,23 +112,13 @@ function updateTicket(id: string, input: UpdateTicketInput, requestId: string): 
             Title: title,
             Description: description,
         });
-        const comment =
-            ticket.Title === title && ticket.Description === description
-                ? null
-                : insertActionComment(
-                      'ticket',
-                      id,
-                      actor.Email,
-                      actor.Name + ' updated this ticket.',
-                  );
-        return { ticket: updated, comment };
+        return { ticket: updated };
     });
 
-    const comments = result.comment ? { [id]: [result.comment] } : {};
     return buildTicketDTO(
         result.ticket,
         indexBy([actor], (u) => u.Email),
-        comments,
+        {},
     );
 }
 

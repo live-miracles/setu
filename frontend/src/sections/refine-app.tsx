@@ -13,10 +13,12 @@ import {
     Typography,
 } from 'antd';
 import {
+    CalendarOutlined,
     DeleteOutlined,
     EditOutlined,
     CheckOutlined,
     CloseOutlined,
+    CopyOutlined,
     PhoneOutlined,
     PlusOutlined,
     SearchOutlined,
@@ -53,6 +55,12 @@ import {
 } from '../ui/roster-table';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
+import {
+    buildDuplicateProgramInput,
+    canRescheduleProgram,
+    getLocalDateFromSession,
+    shiftProgramSessions,
+} from '../ui/program-actions';
 import {
     canApprove,
     canManageConfig,
@@ -1044,14 +1052,18 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                         <Space direction="vertical" size={2}>
                                             {isProgram ? (
                                                 <>
-                                                    <Typography.Text strong>
-                                                        {`PRG-${row.DisplayId}`} ·{' '}
-                                                        {formatProgramName(
-                                                            row.Language,
-                                                            row.Type,
-                                                            row.Name,
-                                                        ) || 'Unnamed program'}
-                                                    </Typography.Text>
+                                                    <div>
+                                                        <Typography.Text type="secondary">
+                                                            {`PRG-${row.DisplayId}`} ·{' '}
+                                                        </Typography.Text>
+                                                        <Typography.Text strong>
+                                                            {formatProgramName(
+                                                                row.Language,
+                                                                row.Type,
+                                                                row.Name,
+                                                            ) || 'Unnamed program'}
+                                                        </Typography.Text>
+                                                    </div>
                                                     <Typography.Text type="secondary">
                                                         {formatProgramDateRange(row.sessions || [])}
                                                     </Typography.Text>
@@ -1067,20 +1079,43 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                                         )?.ShortName || '—'}
                                                     </Typography.Text>
                                                 </>
+                                            ) : isInventory ? (
+                                                <>
+                                                    <div>
+                                                        <Typography.Text type="secondary">
+                                                            {`REQ-${row.DisplayId}`} ·{' '}
+                                                        </Typography.Text>
+                                                        <Typography.Text strong>
+                                                            {row.Name || 'Unnamed request'}
+                                                        </Typography.Text>
+                                                    </div>
+                                                    <Typography.Text type="secondary">
+                                                        {row.StartDate} - {row.EndDate}
+                                                    </Typography.Text>
+                                                    <Typography.Text type="secondary">
+                                                        {row.userName || 'Unknown requester'} |{' '}
+                                                        {dashboard.departments.find(
+                                                            (department) =>
+                                                                department.Id ===
+                                                                dashboard.users.find(
+                                                                    (user) =>
+                                                                        user.Email === row.UserId,
+                                                                )?.DepartmentId,
+                                                        )?.ShortName || '—'}
+                                                    </Typography.Text>
+                                                </>
                                             ) : (
                                                 <>
+                                                    <div>
+                                                        <Typography.Text type="secondary">
+                                                            {`TKT-${row.DisplayId}`} ·{' '}
+                                                        </Typography.Text>
+                                                        <Typography.Text strong>
+                                                            {row.Title || 'Untitled ticket'}
+                                                        </Typography.Text>
+                                                    </div>
                                                     <Typography.Text type="secondary">
-                                                        {isInventory
-                                                            ? `REQ-${row.DisplayId}`
-                                                            : `TKT-${row.DisplayId}`}
-                                                    </Typography.Text>
-                                                    <Typography.Text strong>
-                                                        {isInventory ? row.Name : row.Title}
-                                                    </Typography.Text>
-                                                    <Typography.Text type="secondary">
-                                                        {isInventory
-                                                            ? row.userName
-                                                            : row.assigneeName || 'Unassigned'}
+                                                        {row.assigneeName || 'Unassigned'}
                                                     </Typography.Text>
                                                 </>
                                             )}
@@ -1356,11 +1391,15 @@ function ProgramDetail({
     const [sessions, setSessions] = useState<ProgramSession[]>(request.sessions);
     const [sessionIndex, setSessionIndex] = useState<number | null>(null);
     const [sessionOpen, setSessionOpen] = useState(false);
+    const [rescheduling, setRescheduling] = useState(false);
     const [sessionTypeError, setSessionTypeError] = useState(false);
     const [pendingAction, setPendingAction] = useState<ProgramRequestAction | null>(null);
     const [pendingDeleteSessionIndex, setPendingDeleteSessionIndex] = useState<number | null>(null);
     const [sessionDraft, setSessionDraft] = useState<ProgramSession>(() =>
         defaultSessionDraft(request.sessions),
+    );
+    const [rescheduleDate, setRescheduleDate] = useState(() =>
+        request.sessions.length ? getLocalDateFromSession(request.sessions[0].StartDateTime) : '',
     );
     const [users, setUsers] = useState<UserDTO[]>([]);
     const [values, setValues] = useState({
@@ -1431,6 +1470,49 @@ function ProgramDetail({
             );
         },
         () => setEditing(false),
+    );
+    const duplicate = async () => {
+        try {
+            showSavingBadge(true);
+            const created = await api.createProgramRequest(
+                buildDuplicateProgramInput(request, dashboard.me.Email),
+                generateRequestId(),
+            );
+            await refreshDashboard();
+            navigateToProgram(created.Id);
+        } catch (e) {
+            error(e);
+        } finally {
+            showSavingBadge(false);
+        }
+    };
+    const rescheduleSave = useSave(
+        async () => {
+            if (!rescheduleDate) throw new Error('Select a new first session date.');
+            const nextSessions = shiftProgramSessions(sessions, rescheduleDate);
+            await api.updateProgramRequest(
+                request.Id,
+                {
+                    name: values.Name,
+                    language: values.Language,
+                    type: values.Type,
+                    userId: values.UserId,
+                    placeId: values.PlaceId,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    sessions: nextSessions.map((s) => ({
+                        name: s.Name,
+                        type: s.Type,
+                        startDateTime: s.StartDateTime,
+                        endDateTime: s.EndDateTime,
+                    })),
+                },
+                generateRequestId(),
+            );
+            setSessions(nextSessions);
+        },
+        () => setRescheduling(false),
     );
     const editSession = (index: number | null) => {
         setSessionIndex(index);
@@ -1533,16 +1615,36 @@ function ProgramDetail({
     ];
     return (
         <DetailLayout
-            title={
-                formatProgramName(request.Language, request.Type, request.Name) ||
-                `PRG-${request.DisplayId}`
-            }
+            title={`PRG-${request.DisplayId} · ${
+                formatProgramName(request.Language, request.Type, request.Name) || 'Unnamed program'
+            }`}
             action={
-                <WorkflowActions
-                    actions={actions}
-                    onAction={(action) => setPendingAction(action as ProgramRequestAction)}
-                    icon={(action) => workflowActionIcon(action as ProgramRequestAction)}
-                />
+                <Space wrap>
+                    <Button
+                        icon={<CopyOutlined />}
+                        aria-label="Duplicate program"
+                        title="Duplicate program"
+                        onClick={duplicate}>
+                        Duplicate
+                    </Button>
+                    {sessions.length > 0 && canRescheduleProgram(request, dashboard.me) && (
+                        <Button
+                            icon={<CalendarOutlined />}
+                            onClick={() => {
+                                setRescheduleDate(
+                                    getLocalDateFromSession(sessions[0].StartDateTime),
+                                );
+                                setRescheduling(true);
+                            }}>
+                            Reschedule
+                        </Button>
+                    )}
+                    <WorkflowActions
+                        actions={actions}
+                        onAction={(action) => setPendingAction(action as ProgramRequestAction)}
+                        icon={(action) => workflowActionIcon(action as ProgramRequestAction)}
+                    />
+                </Space>
             }>
             <div className="detail-main min-w-0">
                 <Card
@@ -1731,6 +1833,25 @@ function ProgramDetail({
                                 errorMessage={save.errorMessage}
                             />
                         </div>
+                    </form>
+                </Modal>
+            )}
+            {rescheduling && (
+                <Modal title="Reschedule program" close={() => setRescheduling(false)}>
+                    <form className="grid gap-3" noValidate onSubmit={rescheduleSave.run}>
+                        <TextField
+                            name="firstSessionDate"
+                            label="First session date"
+                            type="date"
+                            value={rescheduleDate}
+                            required
+                            onChange={(event) => setRescheduleDate(event.target.value)}
+                        />
+                        <SaveFooter
+                            label="Save"
+                            busy={rescheduleSave.busy}
+                            errorMessage={rescheduleSave.errorMessage}
+                        />
                     </form>
                 </Modal>
             )}
@@ -2107,7 +2228,7 @@ function InventoryDetail({
         .filter((action) => (action === 'submit' ? owner : canApprove(dashboard.me)));
     return (
         <DetailLayout
-            title={request.Name || `REQ-${request.DisplayId}`}
+            title={`REQ-${request.DisplayId} · ${request.Name || 'Unnamed request'}`}
             action={
                 <WorkflowActions
                     actions={actions}
@@ -2412,7 +2533,7 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
     };
     return (
         <DetailLayout
-            title={ticket.Title || `TKT-${ticket.DisplayId}`}
+            title={`TKT-${ticket.DisplayId} · ${ticket.Title || 'Untitled ticket'}`}
             action={
                 <WorkflowActions
                     actions={actions}

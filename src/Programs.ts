@@ -279,16 +279,9 @@ function createProgramRequest(
             Participants: formatParticipants(participants),
             SessionsJson: stringifyProgramSessions(sessionLines),
         });
-        const comment = insertActionComment(
-            'program',
-            created.Id,
-            actor.Email,
-            actor.Name + ' saved this draft.',
-            false,
-        );
-        return { request: created, comment };
+        return { request: created };
     });
-    const { request, comment } = result;
+    const { request } = result;
 
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     return buildProgramRequestDTO(
@@ -296,7 +289,7 @@ function createProgramRequest(
         placesById,
         indexBy([actor], (u) => u.Email),
         { [department.Id]: department },
-        { [request.Id]: [comment] },
+        {},
     );
 }
 
@@ -351,14 +344,7 @@ function updateProgramRequest(
             Participants: formatParticipants(participants),
             SessionsJson: stringifyProgramSessions(sessionLines),
         });
-        const comment = insertActionComment(
-            'program',
-            id,
-            actor.Email,
-            actor.Name + ' updated this request.',
-            false,
-        );
-        return { request: updated, comment };
+        return { request: updated };
     });
 
     return buildProgramRequestDTO(
@@ -366,7 +352,7 @@ function updateProgramRequest(
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        { [id]: [result.comment] },
+        {},
     );
 }
 

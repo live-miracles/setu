@@ -248,16 +248,9 @@ function createInventoryRequest(
             Participants: formatParticipants(participants),
             ItemsJson: stringifyInventoryItems(items),
         });
-        const comment = insertActionComment(
-            'inventory',
-            created.Id,
-            actor.Email,
-            actor.Name + ' saved this draft.',
-            false,
-        );
-        return { request: created, comment };
+        return { request: created };
     });
-    const { request, comment } = result;
+    const { request } = result;
 
     const inventoryTypesById = indexBy(Tables.InventoryTypes.readAll(), (t) => t.Id);
     return buildInventoryRequestDTO(
@@ -265,7 +258,7 @@ function createInventoryRequest(
         inventoryTypesById,
         indexBy([actor], (u) => u.Email),
         { [department.Id]: department },
-        { [request.Id]: [comment] },
+        {},
     );
 }
 
@@ -326,14 +319,7 @@ function updateInventoryRequest(
                 })),
             ),
         });
-        const comment = insertActionComment(
-            'inventory',
-            id,
-            actor.Email,
-            actor.Name + ' updated this request.',
-            false,
-        );
-        return { request: updated, comment };
+        return { request: updated };
     });
 
     return buildInventoryRequestDTO(
@@ -341,7 +327,7 @@ function updateInventoryRequest(
         indexBy(Tables.InventoryTypes.readAll(), (type) => type.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        { [id]: [result.comment] },
+        {},
     );
 }
 
