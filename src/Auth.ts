@@ -65,8 +65,8 @@ function canViewRequest(user: User, requesterId: string, participants: string[])
 
 // The `Users` sheet is keyed by email (see SheetTable.ts's keyColumn) and
 // doubles as the allowlist, but unlike an invite flow there is no separate
-// approval step: anyone signing in with a Google account on
-// ALLOWED_EMAIL_DOMAIN self-registers on first call with the least
+// approval step: anyone signing in with a Google account on one of the
+// ALLOWED_EMAIL_DOMAINS self-registers on first call with the least
 // privileged role (`user` — own requests only), matching
 // the source app's domain-based auto-registration. There is also no
 // per-user disable switch — revoking access is entirely a matter of the
@@ -86,9 +86,13 @@ function getCurrentActor(): User {
     if (existing) return existing;
 
     const props = PropertiesService.getScriptProperties();
-    const allowedDomain = (props.getProperty('ALLOWED_EMAIL_DOMAIN') || '').toLowerCase();
+    const allowedDomains = (props.getProperty('ALLOWED_EMAIL_DOMAINS') ||
+        props.getProperty('ALLOWED_EMAIL_DOMAIN') || '')
+        .split(',')
+        .map((domain) => domain.trim().toLowerCase())
+        .filter(Boolean);
     const emailDomain = email.split('@')[1] || '';
-    if (!allowedDomain || emailDomain !== allowedDomain) {
+    if (!allowedDomains.includes(emailDomain)) {
         throw new AuthenticationError(
             'Your Google account is not registered for this app. Ask an administrator.',
         );
