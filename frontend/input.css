@@ -31,7 +31,20 @@ body {
 
 .roster-table-scroll {
     width: 100%;
-    overflow-x: auto;
+    max-height: calc(100vh - 9rem);
+    overflow: auto;
+}
+
+.roster-page {
+    height: calc(100vh - 4rem);
+    min-height: 0;
+    overflow: hidden;
+}
+
+.roster-page .roster-table-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
 }
 
 .roster-table {
@@ -53,6 +66,9 @@ body {
 }
 
 .roster-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     background: var(--setu-surface);
     font-weight: 700;
     text-align: center;
@@ -76,14 +92,6 @@ body {
 .roster-table .roster-date-cell {
     font-weight: 600;
     white-space: nowrap;
-}
-
-.roster-table .roster-lane-header {
-    padding-top: 0.25rem;
-    padding-bottom: 0.35rem;
-    color: color-mix(in srgb, var(--setu-ink) 68%, transparent);
-    font-size: 0.72rem;
-    font-weight: 600;
 }
 
 .roster-table .roster-empty-cell {
@@ -140,7 +148,9 @@ body {
 }
 
 .app-layout {
+    height: 100vh;
     min-height: 100vh;
+    overflow: hidden;
     background: var(--setu-paper);
 }
 
@@ -517,6 +527,10 @@ body {
     }
 
     .antd-page-board {
+        height: calc(100vh - 8rem);
+    }
+
+    .roster-page {
         height: calc(100vh - 8rem);
     }
 

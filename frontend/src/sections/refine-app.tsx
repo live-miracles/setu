@@ -49,7 +49,11 @@ import {
     formatProgramSessionSchedule,
     formatRosterSchedule,
 } from '../ui/format';
-import { buildRosterTableModel, formatRosterTableTimes } from '../ui/roster-table';
+import {
+    buildRosterTableModel,
+    formatRosterTableTimes,
+    getShiftPresetTimes,
+} from '../ui/roster-table';
 import { roleLabel } from '../ui/styles';
 import {
     canApprove,
@@ -673,6 +677,19 @@ function Roster({ dashboard }: Props) {
     }, [canEdit]);
     const Form = ({ row }: { row?: RosterDTO }) => {
         const [userId, setUserId] = useState(row?.UserId || '');
+        const initialPreset = dashboard.shiftPresets.find((preset) => preset.Name === row?.Name);
+        const [presetId, setPresetId] = useState(initialPreset?.Id || '');
+        const [startTime, setStartTime] = useState(
+            row?.StartTime || initialPreset?.DefaultStartTime || '',
+        );
+        const [endTime, setEndTime] = useState(row?.EndTime || initialPreset?.DefaultEndTime || '');
+        const selectPreset = (nextPresetId: string) => {
+            setPresetId(nextPresetId);
+            const times = getShiftPresetTimes(dashboard.shiftPresets, nextPresetId);
+            if (!times) return;
+            setStartTime(times.startTime);
+            setEndTime(times.endTime);
+        };
         const save = useSave(
             async () => {
                 const d = new FormData(
@@ -702,7 +719,27 @@ function Roster({ dashboard }: Props) {
                     setEditing(undefined);
                 }}>
                 <form id="refine-roster-form" className="grid gap-3" noValidate onSubmit={save.run}>
-                    <TextField name="name" label="Shift" value={row?.Name} required />
+                    <AntForm.Item label="Shift" required>
+                        <input
+                            type="hidden"
+                            name="name"
+                            value={
+                                dashboard.shiftPresets.find((preset) => preset.Id === presetId)
+                                    ?.Name || ''
+                            }
+                            required
+                        />
+                        <Select value={presetId} onChange={selectPreset} style={{ width: '100%' }}>
+                            <Select.Option value="" disabled>
+                                Select a shift
+                            </Select.Option>
+                            {dashboard.shiftPresets.map((preset) => (
+                                <Select.Option key={preset.Id} value={preset.Id}>
+                                    {preset.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
                     <AntForm.Item label="Assignee" required>
                         <input type="hidden" name="userId" value={userId} required />
                         <Select value={userId} onChange={setUserId} style={{ width: '100%' }}>
@@ -730,13 +767,22 @@ function Roster({ dashboard }: Props) {
                         value={row?.EndDate}
                         required
                     />
-                    <TextField
-                        name="startTime"
-                        label="Start time"
-                        type="time"
-                        value={row?.StartTime}
-                    />
-                    <TextField name="endTime" label="End time" type="time" value={row?.EndTime} />
+                    <AntForm.Item label="Start time" className="antd-form-item">
+                        <Input
+                            name="startTime"
+                            type="time"
+                            value={startTime}
+                            onChange={(event) => setStartTime(event.target.value)}
+                        />
+                    </AntForm.Item>
+                    <AntForm.Item label="End time" className="antd-form-item">
+                        <Input
+                            name="endTime"
+                            type="time"
+                            value={endTime}
+                            onChange={(event) => setEndTime(event.target.value)}
+                        />
+                    </AntForm.Item>
                     <div className="flex items-center justify-between gap-3">
                         <SaveFooter
                             label={row ? 'Save' : 'Add'}
@@ -764,6 +810,7 @@ function Roster({ dashboard }: Props) {
     return (
         <Page
             title="Roster"
+            className="roster-page"
             action={
                 canEdit && (
                     <Button
@@ -774,13 +821,13 @@ function Roster({ dashboard }: Props) {
                     </Button>
                 )
             }>
-            <Card title="Upcoming shifts">
+            <>
                 {rosterTable.rows.length ? (
                     <div className="roster-table-scroll">
                         <table className="roster-table">
                             <thead>
                                 <tr>
-                                    <th rowSpan={2} scope="col" className="roster-date-header">
+                                    <th scope="col" className="roster-date-header">
                                         Date
                                     </th>
                                     {rosterTable.volunteers.map((volunteer) => (
@@ -792,20 +839,6 @@ function Roster({ dashboard }: Props) {
                                             {volunteer.name}
                                         </th>
                                     ))}
-                                </tr>
-                                <tr>
-                                    {rosterTable.volunteers.flatMap((volunteer) =>
-                                        volunteer.lanes.map((_, laneIndex) => (
-                                            <th
-                                                key={`${volunteer.userId}-${laneIndex}`}
-                                                scope="col"
-                                                className="roster-lane-header">
-                                                {volunteer.lanes.length > 1
-                                                    ? `Shift ${laneIndex + 1}`
-                                                    : 'Shift'}
-                                            </th>
-                                        )),
-                                    )}
                                 </tr>
                             </thead>
                             <tbody>
@@ -872,7 +905,7 @@ function Roster({ dashboard }: Props) {
                 ) : (
                     <Empty>No shifts scheduled.</Empty>
                 )}
-            </Card>
+            </>
             {deleting && (
                 <ActionConfirmation
                     action="delete"

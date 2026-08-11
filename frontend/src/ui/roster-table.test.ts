@@ -2,6 +2,7 @@ import {
     buildRosterTableModel,
     formatRosterTableDate,
     formatRosterTableTimes,
+    getShiftPresetTimes,
 } from './roster-table';
 
 function assert(condition: boolean, message: string): void {
@@ -52,5 +53,13 @@ export function runRosterTableAssertions(): void {
     assert(
         formatRosterTableTimes(roster({ StartTime: '', EndTime: '' })) === '',
         'blank timing should be omitted',
+    );
+    const presetTimes = getShiftPresetTimes(
+        [{ Id: 'morning', Name: 'Morning', DefaultStartTime: '04:00', DefaultEndTime: '13:30' }],
+        'morning',
+    );
+    assert(
+        presetTimes?.startTime === '04:00' && presetTimes.endTime === '13:30',
+        'preset selection should provide default times',
     );
 }

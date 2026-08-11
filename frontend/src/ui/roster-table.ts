@@ -69,6 +69,14 @@ export function formatRosterTableTimes(roster: RosterDTO): string {
     return start && end ? `${start} – ${end}` : start || end;
 }
 
+export function getShiftPresetTimes(
+    presets: ShiftPreset[],
+    presetId: string,
+): { startTime: string; endTime: string } | null {
+    const preset = presets.find((candidate) => candidate.Id === presetId);
+    return preset ? { startTime: preset.DefaultStartTime, endTime: preset.DefaultEndTime } : null;
+}
+
 function shiftSortValue(roster: RosterDTO): string {
     return `${roster.StartDate}T${roster.StartTime || '00:00'}|${roster.EndDate}T${roster.EndTime || '24:00'}|${roster.Name}|${roster.Id}`;
 }
