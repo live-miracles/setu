@@ -63,14 +63,10 @@ function canViewRequest(user: User, requesterId: string, participants: string[])
     );
 }
 
-// The `Users` sheet is keyed by email (see SheetTable.ts's keyColumn) and
-// doubles as the allowlist, but unlike an invite flow there is no separate
-// approval step: anyone signing in with a Google account on one of the
-// ALLOWED_EMAIL_DOMAINS self-registers on first call with the least
-// privileged role (`user` — own requests only), matching
-// the source app's domain-based auto-registration. There is also no
-// per-user disable switch — revoking access is entirely a matter of the
-// underlying Google account/domain membership, not a flag in this sheet.
+// The Apps Script deployment controls which Google Workspace accounts can
+// reach the app. Those accounts self-register on first call with the least
+// privileged role (`user` — own requests only). There is no separate invite
+// or per-user disable flow; revoking access is handled by Google Workspace.
 // The row is created with an empty Phone and placeholder Name — the
 // frontend shows a mandatory registration form (gated on Phone being unset)
 // until the user fills in their own details, via updateOwnProfile.
@@ -86,18 +82,6 @@ function getCurrentActor(): User {
     if (existing) return existing;
 
     const props = PropertiesService.getScriptProperties();
-    const allowedDomains = (props.getProperty('ALLOWED_EMAIL_DOMAINS') ||
-        props.getProperty('ALLOWED_EMAIL_DOMAIN') || '')
-        .split(',')
-        .map((domain) => domain.trim().toLowerCase())
-        .filter(Boolean);
-    const emailDomain = email.split('@')[1] || '';
-    if (!allowedDomains.includes(emailDomain)) {
-        throw new AuthenticationError(
-            'Your Google account is not registered for this app. Ask an administrator.',
-        );
-    }
-
     const bootstrapEmail = (props.getProperty('BOOTSTRAP_ADMIN_EMAIL') || '').toLowerCase();
     const isBootstrapAdmin = Boolean(bootstrapEmail) && email === bootstrapEmail;
 

@@ -55,7 +55,6 @@ Add these GitHub Actions secrets:
 Set these Apps Script properties:
 
 - `SPREADSHEET_ID` — the app’s Google Sheet ID.
-- `ALLOWED_EMAIL_DOMAINS` — comma-separated Workspace domains allowed to sign in, for example `example.com,example.org`.
 - `BOOTSTRAP_ADMIN_EMAIL` — first administrator’s email address.
 - `IMAGES_DRIVE_FOLDER_ID` — Drive folder ID for request images.
 - `NOTIFICATION_EMAIL` — optional address used for notifications.
@@ -83,7 +82,7 @@ The demo has no access to the production Google Sheet.
 
 ## Access and roles
 
-Users sign in with an account from `ALLOWED_EMAIL_DOMAIN`. New users are registered automatically. The account configured in `BOOTSTRAP_ADMIN_EMAIL` receives the `admin` role on first sign-in.
+Users sign in through the Google Workspace restriction configured on the Apps Script deployment. New users are registered automatically. The account configured in `BOOTSTRAP_ADMIN_EMAIL` receives the `admin` role on first sign-in.
 
 | Role | Access |
 | --- | --- |

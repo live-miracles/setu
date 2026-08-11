@@ -6,18 +6,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = readFileSync(path.join(root, 'src/Auth.ts'), 'utf8');
 
-assert.match(
-    source,
-    /ALLOWED_EMAIL_DOMAINS/,
-    'auth should read the plural allowed-domains property',
-);
-assert.match(
-    source,
-    /\.split\(['"]*,['"]\)/,
-    'auth should parse comma-separated domains',
-);
-assert.match(
+assert.doesNotMatch(
     source,
     /ALLOWED_EMAIL_DOMAIN/,
-    'auth should retain the singular property as a migration fallback',
+    'auth should rely on the Google deployment boundary instead of manual domain parsing',
 );
