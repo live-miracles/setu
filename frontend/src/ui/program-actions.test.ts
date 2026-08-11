@@ -1,6 +1,7 @@
 import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
+    getProgramRequestActions,
     getLocalDateFromSession,
     shiftProgramSessions,
 } from './program-actions';
@@ -91,6 +92,24 @@ export function runProgramActionAssertions(): void {
     assert(
         !canRescheduleProgram({ ...source, Status: 'draft' }, user('user', 'other@example.com')),
         'non-owners should not reschedule another users draft',
+    );
+
+    assert(
+        getProgramRequestActions({ ...source, Status: 'draft' }, user('admin')).join(',') ===
+            'submit,cancel',
+        'admins should see submit and cancel for draft programs',
+    );
+    assert(
+        getProgramRequestActions({ ...source, Status: 'submitted' }, user('approver')).join(',') ===
+            'approve,reject,cancel',
+        'approvers should see every valid action for submitted programs',
+    );
+    assert(
+        getProgramRequestActions(
+            { ...source, Status: 'draft' },
+            user('user', 'other@example.com'),
+        ).join(',') === '',
+        'users should not see actions for another users draft',
     );
 
     assert(

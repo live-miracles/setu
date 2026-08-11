@@ -1,3 +1,5 @@
+import { canApprove, canTransitionProgramRequest } from '../workflows';
+
 function localDateToDayNumber(date: string): number {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
     if (!match) throw new Error('A valid date is required.');
@@ -51,6 +53,19 @@ export function buildDuplicateProgramInput(
 export function canRescheduleProgram(request: ProgramRequestDTO, me: UserDTO): boolean {
     const isOwner = request.UserId === me.Email || request.participants.includes(me.Email);
     return me.Role === 'admin' || me.Role === 'approver' || (request.Status === 'draft' && isOwner);
+}
+
+export function getProgramRequestActions(
+    request: ProgramRequestDTO,
+    me: UserDTO,
+): ProgramRequestAction[] {
+    if (canApprove(me)) {
+        return (['submit', 'approve', 'reject', 'cancel'] as ProgramRequestAction[]).filter(
+            (action) => canTransitionProgramRequest(request.Status, action),
+        );
+    }
+    const isOwner = request.UserId === me.Email || request.participants.includes(me.Email);
+    return request.Status === 'draft' && isOwner ? ['submit'] : [];
 }
 
 export function getLocalDateFromSession(startDateTime: string): string {

@@ -379,7 +379,7 @@ function performProgramRequestAction(
                 const participants = parseParticipants(request.Participants);
                 const isOwner =
                     request.UserId === actor.Email || participants.indexOf(actor.Email) !== -1;
-                if (!isOwner || request.Status !== 'draft')
+                if ((!isOwner && !canApprove(actor)) || request.Status !== 'draft')
                     throw new ValidationError('invalid_transition');
                 if (parseProgramSessionsJson(request.SessionsJson).length === 0) {
                     throw new ValidationError('At least one session is required.');
