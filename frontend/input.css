@@ -201,8 +201,8 @@ body {
     padding: 0;
 }
 
-.app-content.app-content-edge {
-    max-width: 100%;
+.app-content.app-content-settings {
+    max-width: 50rem;
 }
 
 .app-mobile-menu {

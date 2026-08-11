@@ -119,10 +119,9 @@ export async function renderCurrentSection(): Promise<void> {
     const isEdgeToEdge = isWorkbenchBrowse || isWorkbenchDetail;
     container.classList.toggle('app-content-home', isHome);
     container.classList.toggle('app-content-edge', isEdgeToEdge);
+    container.classList.toggle('app-content-settings', isSettingsSection);
     container.classList.toggle('mx-auto', !isHome && !isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge && !isSettingsSection);
-    container.classList.toggle('max-w-[50rem]', isSettingsSection);
-    container.classList.toggle('max-w-[100rem]', isEdgeToEdge);
     unmountRefinePage(container);
     await sections[sectionKey](container, dashboard);
     toggleRoleNavVisibility(dashboard);
