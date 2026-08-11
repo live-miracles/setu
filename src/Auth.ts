@@ -72,18 +72,16 @@ function canViewRequest(user: User, requesterId: string, participants: string[])
 // until the user fills in their own details, via updateOwnProfile.
 function getCurrentActor(): User {
     const email = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+    const ownerEmail = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
     if (!email) {
         throw new AuthenticationError(
             'Could not determine your Google account. Make sure you are signed in.',
         );
     }
 
+    const isScriptOwner = Boolean(ownerEmail) && email === ownerEmail;
     const existing = Tables.Users.findById(email);
-    if (existing) return existing;
-
-    const props = PropertiesService.getScriptProperties();
-    const bootstrapEmail = (props.getProperty('BOOTSTRAP_ADMIN_EMAIL') || '').toLowerCase();
-    const isBootstrapAdmin = Boolean(bootstrapEmail) && email === bootstrapEmail;
+    if (existing) return isScriptOwner ? Object.assign({}, existing, { Role: 'admin' }) : existing;
 
     return withLock(() => {
         const alreadyCreated = Tables.Users.findById(email);
@@ -91,7 +89,7 @@ function getCurrentActor(): User {
         return Tables.Users.insert({
             Email: email,
             Name: email.split('@')[0],
-            Role: isBootstrapAdmin ? 'admin' : DEFAULT_USER_ROLE,
+            Role: isScriptOwner ? 'admin' : DEFAULT_USER_ROLE,
             DepartmentId: '',
             Phone: '',
             Whatsapp: '',

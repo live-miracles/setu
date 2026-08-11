@@ -11,3 +11,13 @@ assert.doesNotMatch(
     /ALLOWED_EMAIL_DOMAIN/,
     'auth should rely on the Google deployment boundary instead of manual domain parsing',
 );
+assert.match(
+    source,
+    /Session\.getEffectiveUser\(\)\.getEmail\(\)/,
+    'auth should identify the script owner through the effective user',
+);
+assert.doesNotMatch(
+    source,
+    /BOOTSTRAP_ADMIN_EMAIL/,
+    'auth should not require a bootstrap admin property',
+);

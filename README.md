@@ -43,7 +43,7 @@ Deployment is handled by GitHub Actions. Create the following resources first:
 
 1. A Google Sheet for app data.
 2. A Google Apps Script project.
-3. A web-app deployment that executes as the deploying account.
+3. A web-app deployment that executes as the deploying account. The deploying account is always treated as an administrator.
 4. A Google Drive folder for uploaded request images.
 
 Add these GitHub Actions secrets:
@@ -55,7 +55,6 @@ Add these GitHub Actions secrets:
 Set these Apps Script properties:
 
 - `SPREADSHEET_ID` — the app’s Google Sheet ID.
-- `BOOTSTRAP_ADMIN_EMAIL` — first administrator’s email address.
 - `IMAGES_DRIVE_FOLDER_ID` — Drive folder ID for request images.
 - `NOTIFICATION_EMAIL` — optional address used for notifications.
 
@@ -82,7 +81,7 @@ The demo has no access to the production Google Sheet.
 
 ## Access and roles
 
-Users sign in through the Google Workspace restriction configured on the Apps Script deployment. New users are registered automatically. The account configured in `BOOTSTRAP_ADMIN_EMAIL` receives the `admin` role on first sign-in.
+Users sign in through the Google Workspace restriction configured on the Apps Script deployment. New users are registered automatically. The deploying account always receives the `admin` role; other users receive the `user` role until an administrator changes it.
 
 | Role | Access |
 | --- | --- |
