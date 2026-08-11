@@ -56,6 +56,8 @@ import {
 import { buildCalendarTableModel } from '../ui/calendar-table';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
+import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
+import { QrScanner } from '../ui/qr-scanner';
 import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
@@ -2141,6 +2143,7 @@ function InventoryDetail({
     const [pendingDeleteItemIndex, setPendingDeleteItemIndex] = useState<number | null>(null);
     const [itemIndex, setItemIndex] = useState<number | null>(null);
     const [itemOpen, setItemOpen] = useState(false);
+    const [scanOpen, setScanOpen] = useState(false);
     const [itemError, setItemError] = useState('');
     const [items, setItems] = useState<InventoryItemDTO[]>(
         request.items.map((item) => ({ ...item })),
@@ -2165,7 +2168,7 @@ function InventoryDetail({
     }, [dashboard.me]);
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
-    const persistItems = async (nextItems: InventoryItemDTO[]) => {
+    const persistItems = async (nextItems: InventoryItemDTO[]): Promise<boolean> => {
         try {
             setItemError('');
             showSavingBadge(true);
@@ -2189,11 +2192,28 @@ function InventoryDetail({
             );
             setItems(nextItems);
             await refreshDashboard();
+            return true;
         } catch (e) {
             setItemError(e instanceof Error ? e.message : String(e));
+            return false;
         } finally {
             showSavingBadge(false);
         }
+    };
+    const scanInventoryType = async (decodedValue: string) => {
+        const inventoryType = findInventoryTypeByQrValue(dashboard.inventoryTypes, decodedValue);
+        if (!inventoryType) {
+            setItemError('Inventory type not found for this QR code.');
+            return;
+        }
+        const saved = await persistItems(
+            addScannedInventoryItem(items, inventoryType.Id).map((item) =>
+                item.InventoryTypeId === inventoryType.Id && !item.itemName
+                    ? { ...item, itemName: inventoryType.Name }
+                    : item,
+            ),
+        );
+        if (saved) setScanOpen(false);
     };
     const save = useSave(
         async () => {
@@ -2338,12 +2358,22 @@ function InventoryDetail({
                     title="Requested items"
                     action={
                         editable && (
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={() => editItem(null)}>
-                                Add
-                            </Button>
+                            <Space>
+                                <Button
+                                    type="primary"
+                                    onClick={() => {
+                                        setItemError('');
+                                        setScanOpen(true);
+                                    }}>
+                                    Scan
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={() => editItem(null)}>
+                                    Add
+                                </Button>
+                            </Space>
                         )
                     }>
                     {items.length ? (
@@ -2353,8 +2383,20 @@ function InventoryDetail({
                                 pagination={false}
                                 dataSource={items}
                                 columns={[
-                                    { title: 'Item', dataIndex: 'itemName', key: 'itemName' },
-                                    { title: 'Quantity', dataIndex: 'Quantity', key: 'Quantity' },
+                                    {
+                                        title: 'Item',
+                                        key: 'item',
+                                        render: (_value: unknown, item: InventoryItemDTO) => (
+                                            <Space size={6}>
+                                                <Typography.Text type="secondary">
+                                                    {item.Quantity}×
+                                                </Typography.Text>
+                                                <Typography.Text strong>
+                                                    {item.itemName || 'Unknown item'}
+                                                </Typography.Text>
+                                            </Space>
+                                        ),
+                                    },
                                     {
                                         title: 'Condition',
                                         dataIndex: 'Condition',
@@ -2486,6 +2528,19 @@ function InventoryDetail({
                             />
                         </div>
                     </form>
+                </Modal>
+            )}
+            {scanOpen && (
+                <Modal
+                    title="Scan inventory type"
+                    close={() => {
+                        setScanOpen(false);
+                        setItemError('');
+                    }}>
+                    <div className="grid gap-3">
+                        <QrScanner onScan={scanInventoryType} onError={setItemError} />
+                        {itemError && <Typography.Text type="danger">{itemError}</Typography.Text>}
+                    </div>
                 </Modal>
             )}
             {itemOpen && (

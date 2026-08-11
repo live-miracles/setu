@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Button, Card, Checkbox, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+    DeleteOutlined,
+    DownloadOutlined,
+    EditOutlined,
+    PlusOutlined,
+    SearchOutlined,
+} from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
@@ -8,6 +14,7 @@ import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
 import { stockLevelClass } from '../ui/styles';
+import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
 import { ActionConfirmation } from './refine-app';
 
 type Field = { field: string; label: string; type?: string };
@@ -363,6 +370,44 @@ function SettingsResourcePage({
             showSavingBadge(false);
         }
     }
+    async function downloadInventoryTypeQr(row: Row) {
+        try {
+            const QRCode = (await import('qrcode')).default;
+            const qrDataUrl = await QRCode.toDataURL(String(row.Id), {
+                margin: 2,
+                width: 256,
+            });
+            const image = new Image();
+            image.src = qrDataUrl;
+            await new Promise<void>((resolve, reject) => {
+                image.onload = () => resolve();
+                image.onerror = () => reject(new Error('Unable to prepare QR code image.'));
+            });
+            const label = inventoryTypeQrLabel(String(row.Name || 'Inventory type'));
+            const canvas = document.createElement('canvas');
+            const labelHeight = 36;
+            canvas.width = 256;
+            canvas.height = 256 + labelHeight;
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('Unable to prepare QR code image.');
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0, 256, 256);
+            context.fillStyle = '#333333';
+            context.font = '12px sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(label, canvas.width / 2, 256 + labelHeight / 2);
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = inventoryTypeQrFilename(row as InventoryTypeDTO);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (error) {
+            showErrorAlert(error);
+        }
+    }
     const columns = [
         ...config.fields.map((field) => ({
             title: field.label,
@@ -396,6 +441,15 @@ function SettingsResourcePage({
             align: 'right' as const,
             render: (_: unknown, row: Row) => (
                 <Space>
+                    {config.kind === 'inventory-type' && (
+                        <Button
+                            type="text"
+                            icon={<DownloadOutlined />}
+                            onClick={() => void downloadInventoryTypeQr(row)}
+                            aria-label="Download QR code"
+                            title="Download QR code"
+                        />
+                    )}
                     <Button
                         type="text"
                         icon={<EditOutlined />}
