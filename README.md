@@ -95,4 +95,3 @@ Everyone can create equipment and program requests and comment on requests they 
 ## Current limitations
 
 - Participants and images can only be added when a request is created.
-- Action confirmations currently use browser prompts instead of custom modals.
