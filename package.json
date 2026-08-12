@@ -7,6 +7,7 @@
     "scripts": {
         "dev": "node build-tools/dev.mjs",
         "build": "node build-tools/build.mjs",
+        "build:backend": "node build-tools/build-backend.mjs",
         "pages": "node build-tools/pages.mjs",
         "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json",
         "format": "prettier --write .",
