@@ -60,14 +60,24 @@ Set these Apps Script properties:
 
 After configuration, run `setupSheets` and `installTriggers` once from the Apps Script editor.
 
+### Email notifications and triggers
+
+Email notifications are sent synchronously when comments or related request updates create a notification. The app uses `GmailApp` first and falls back to `MailApp`. The configured `NOTIFICATION_EMAIL` is used as the notification sender/address, while the request owner, lead, and participants receive the message. Duplicate notifications are suppressed for six hours. Failed sends are recorded in the `FailedEmails` sheet; they are not retried by a scheduled job.
+
+The deployment workflow only builds, pushes, and deploys the Apps Script code. It does not create Apps Script triggers. Run `installTriggers` manually once in the Apps Script editor after the first deployment. This installs the daily `dailyOverdueScan` trigger, which runs once per day at approximately 3 AM in the script time zone. It currently scans overdue inventory requests and does not send email.
+
+No hourly trigger is required for the current email notifications. If scheduled emails are added in the future, the corresponding time-driven trigger must be added to `installTriggers` and the installer must be run manually again.
+
 ## Deployment
 
-Push a version tag to deploy the app:
+Create a new version and push its tag to deploy the app:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+npm version patch        # or minor / major
+git push origin master --follow-tags
 ```
+
+`npm version` updates `package.json` and `package-lock.json`, creates a release commit, and creates the corresponding `v*` Git tag. The deployment workflow runs when that tag is pushed.
 
 The deployment workflow type-checks, builds, pushes the Apps Script files, and updates the existing deployment. It can also be run manually from GitHub Actions.
 
