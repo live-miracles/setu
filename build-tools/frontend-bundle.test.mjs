@@ -8,3 +8,5 @@ const script = html.slice(
 );
 
 assert.doesNotMatch(script, /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/);
+assert.equal(script.includes('<!--'), false);
+assert.equal(script.includes('-->'), false);

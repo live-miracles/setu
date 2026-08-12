@@ -44,10 +44,15 @@ const inlineSafe = (text, tag) => text.replaceAll(`</${tag}`, `<\\/${tag}`);
 // inside an HTML script block, even though Node's parser accepts them. Escape
 // them after bundling so Apps Script receives browser-valid JavaScript.
 const browserSafe = (text) =>
-    text.replace(
-        /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
-        (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
-    );
+    text
+        // Prevent the HTML parser from entering escaped-script mode while
+        // Apps Script serves this bundle inside an inline <script> element.
+        .replaceAll('<!--', '\\x3c!--')
+        .replaceAll('-->', '--\\x3e')
+        .replace(
+            /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
+            (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+        );
 
 writeFileSync(
     path.join(root, 'src/Stylesheet.html'),
