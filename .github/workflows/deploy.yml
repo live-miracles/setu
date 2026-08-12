@@ -37,13 +37,19 @@ jobs:
               run: |
                   printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
                   chmod 600 ~/.clasprc.json
-                  printf '{"scriptId":"%s","rootDir":"src"}\n' "$APPS_SCRIPT_ID" > .clasp.json
+                  printf '{"scriptId":"%s","rootDir":"src","scriptExtensions":["ts"]}\n' "$APPS_SCRIPT_ID" > .clasp.json
 
             - name: Type check
               run: npm run typecheck
 
             - name: Build
               run: npm run build
+
+            - name: Verify Apps Script files
+              run: |
+                  FILE_STATUS=$(npx clasp --json show-file-status)
+                  echo "$FILE_STATUS"
+                  FILE_STATUS="$FILE_STATUS" node -e "const data = JSON.parse(process.env.FILE_STATUS); const files = data.filesToPush || []; for (const required of ['Code.ts', 'appsscript.json', 'Index.html']) { if (!files.some(file => file.endsWith(required))) throw new Error('Missing required Apps Script file: ' + required); }"
 
             - name: Deploy Apps Script
               env:
