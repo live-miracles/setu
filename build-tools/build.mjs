@@ -39,13 +39,23 @@ try {
 // strings), so this is safe to apply blindly.
 const inlineSafe = (text, tag) => text.replaceAll(`</${tag}`, `<\\/${tag}`);
 
+// Some QR/barcode dependencies contain ASCII control characters in string
+// literals. Browsers reject those raw characters when this bundle is served
+// inside an HTML script block, even though Node's parser accepts them. Escape
+// them after bundling so Apps Script receives browser-valid JavaScript.
+const browserSafe = (text) =>
+    text.replace(
+        /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
+        (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+    );
+
 writeFileSync(
     path.join(root, 'src/Stylesheet.html'),
     `<style>\n${inlineSafe(css, 'style')}\n</style>\n`,
 );
 writeFileSync(
     path.join(root, 'src/JavaScript.html'),
-    `<script>\n${inlineSafe(js, 'script')}</script>\n`,
+    `<script>\n${browserSafe(inlineSafe(js, 'script'))}</script>\n`,
 );
 writeFileSync(path.join(root, 'src/Index.html'), renderProdShell());
 
