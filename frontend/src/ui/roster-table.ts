@@ -2,6 +2,7 @@ import { formatTimeOfDay } from './format';
 
 export interface RosterTableShift {
     roster: RosterDTO;
+    color: string;
     startIndex: number;
     endIndex: number;
     laneIndex: number;
@@ -69,12 +70,18 @@ export function formatRosterTableTimes(roster: RosterDTO): string {
     return start && end ? `${start} – ${end}` : start || end;
 }
 
-export function getShiftPresetTimes(
-    presets: ShiftPreset[],
-    presetId: string,
+export function getShiftTypeTimes(
+    shiftTypes: ShiftType[],
+    shiftTypeId: string,
 ): { startTime: string; endTime: string } | null {
-    const preset = presets.find((candidate) => candidate.Id === presetId);
-    return preset ? { startTime: preset.DefaultStartTime, endTime: preset.DefaultEndTime } : null;
+    const shiftType = shiftTypes.find((candidate) => candidate.Id === shiftTypeId);
+    return shiftType
+        ? { startTime: shiftType.DefaultStartTime, endTime: shiftType.DefaultEndTime }
+        : null;
+}
+
+function isValidColor(value: string): boolean {
+    return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
 }
 
 function shiftSortValue(roster: RosterDTO): string {
@@ -85,7 +92,11 @@ function rangesOverlap(first: RosterTableShift, secondStart: number, secondEnd: 
     return secondStart <= first.endIndex && secondEnd >= first.startIndex;
 }
 
-export function buildRosterTableModel(rosters: RosterDTO[], todayIso: string): RosterTableModel {
+export function buildRosterTableModel(
+    rosters: RosterDTO[],
+    shiftTypes: ShiftType[],
+    todayIso: string,
+): RosterTableModel {
     const today = parseDateOnly(todayIso);
     if (!today) return { rows: [], volunteers: [] };
 
@@ -99,6 +110,13 @@ export function buildRosterTableModel(rosters: RosterDTO[], todayIso: string): R
         .filter((entry): entry is { roster: RosterDTO; start: Date; end: Date } => entry !== null);
 
     if (!eligible.length) return { rows: [], volunteers: [] };
+
+    const shiftColors = new Map(
+        shiftTypes.map((shiftType) => [
+            shiftType.Name.toLowerCase(),
+            isValidColor(shiftType.Color || '') ? shiftType.Color.trim() : '',
+        ]),
+    );
 
     const lastDate = eligible.reduce(
         (latest, entry) => (entry.end > latest ? entry.end : latest),
@@ -142,6 +160,7 @@ export function buildRosterTableModel(rosters: RosterDTO[], todayIso: string): R
                         laneIndex === -1 ? lanes.push({ shifts: [] }) - 1 : laneIndex;
                     lanes[selectedLane].shifts.push({
                         roster: entry.roster,
+                        color: shiftColors.get(entry.roster.Name.toLowerCase()) || '',
                         startIndex,
                         endIndex,
                         laneIndex: selectedLane,

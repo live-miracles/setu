@@ -311,6 +311,7 @@ function updateInventoryRequest(
             DepartmentId: department.Id,
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
+            ImageId: input.imageId === undefined ? request.ImageId : input.imageId,
             ItemsJson: stringifyInventoryItems(
                 lines.map((line) => ({
                     InventoryTypeId: line.inventoryType.Id,

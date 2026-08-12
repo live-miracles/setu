@@ -1,5 +1,17 @@
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Checkbox, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
+import {
+    Button,
+    Card,
+    Checkbox,
+    Empty,
+    Form,
+    Input,
+    Modal,
+    Space,
+    Table,
+    Tag,
+    Typography,
+} from 'antd';
 import {
     DeleteOutlined,
     DownloadOutlined,
@@ -146,37 +158,40 @@ const RESOURCES: Record<string, ResourceConfig> = {
             ),
         remove: (id) => api.deleteBlock(id, requestId()),
     },
-    'shift-presets': {
-        kind: 'shift-preset',
-        title: 'Shift presets',
-        addLabel: 'Add shift preset',
-        emptyMessage: 'No shift presets yet.',
+    'shift-types': {
+        kind: 'shift-type',
+        title: 'Shift types',
+        addLabel: 'Add shift type',
+        emptyMessage: 'No shift types yet.',
         fields: [
             { field: 'Name', label: 'Name' },
             { field: 'DefaultStartTime', label: 'Start time', type: 'time' },
             { field: 'DefaultEndTime', label: 'End time', type: 'time' },
+            { field: 'Color', label: 'Color', type: 'color' },
         ],
-        rows: (d) => d.shiftPresets,
+        rows: (d) => d.shiftTypes,
         create: (v) =>
-            api.createShiftPreset(
+            api.createShiftType(
                 {
                     name: v.Name,
                     defaultStartTime: v.DefaultStartTime,
                     defaultEndTime: v.DefaultEndTime,
+                    color: v.Color,
                 },
                 requestId(),
             ),
         update: (id, v) =>
-            api.updateShiftPreset(
+            api.updateShiftType(
                 id,
                 {
                     name: v.Name,
                     defaultStartTime: v.DefaultStartTime,
                     defaultEndTime: v.DefaultEndTime,
+                    color: v.Color,
                 },
                 requestId(),
             ),
-        remove: (id) => api.deleteShiftPreset(id, requestId()),
+        remove: (id) => api.deleteShiftType(id, requestId()),
     },
     'program-types': {
         kind: 'program-type',
@@ -247,7 +262,9 @@ function FieldSet({
             const data = new FormData(event.currentTarget);
             const values = Object.fromEntries(config.fields.map((f) => [f.field, value(data, f)]));
             config.fields
-                .filter((field) => field.type === 'color' && data.get(`${field.field}Enabled`) !== 'on')
+                .filter(
+                    (field) => field.type === 'color' && data.get(`${field.field}Enabled`) !== 'on',
+                )
                 .forEach((field) => {
                     values[field.field] = '';
                 });
@@ -602,16 +619,16 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                     </Button>
                 </form>
             </Card>
-            {(
-                ['shift-presets', 'program-types', 'program-languages', 'session-types'] as const
-            ).map((key) => (
-                <SettingsResourcePage
-                    key={key}
-                    config={RESOURCES[key]}
-                    dashboard={dashboard}
-                    compact
-                />
-            ))}
+            {(['shift-types', 'program-types', 'program-languages', 'session-types'] as const).map(
+                (key) => (
+                    <SettingsResourcePage
+                        key={key}
+                        config={RESOURCES[key]}
+                        dashboard={dashboard}
+                        compact
+                    />
+                ),
+            )}
         </section>
     );
 }

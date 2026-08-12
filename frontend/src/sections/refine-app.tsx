@@ -1,4 +1,11 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import {
+    useEffect,
+    useRef,
+    useState,
+    type ChangeEvent,
+    type FormEvent,
+    type ReactNode,
+} from 'react';
 import {
     Button,
     Card as AntCard,
@@ -18,6 +25,7 @@ import {
     PhoneOutlined,
     PlusOutlined,
     SearchOutlined,
+    UploadOutlined,
     WhatsAppOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
@@ -44,12 +52,13 @@ import {
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
-    getShiftPresetTimes,
+    getShiftTypeTimes,
 } from '../ui/roster-table';
 import { buildCalendarTableModel } from '../ui/calendar-table';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
+import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
 import { QrScanner } from '../ui/qr-scanner';
 import {
     buildDuplicateProgramInput,
@@ -693,21 +702,29 @@ function Roster({ dashboard }: Props) {
     const [deleting, setDeleting] = useState<RosterDTO | null>(null);
     const [users, setUsers] = useState<UserDTO[]>([]);
     const todayIso = formatLocalDateOnly(new Date());
-    const rosterTable = buildRosterTableModel(dashboard.upcomingRosters, todayIso);
+    const rosterTable = buildRosterTableModel(
+        dashboard.upcomingRosters,
+        dashboard.shiftTypes,
+        todayIso,
+    );
     useEffect(() => {
         if (canEdit) api.listUsers().then(setUsers).catch(error);
     }, [canEdit]);
     const Form = ({ row }: { row?: RosterDTO }) => {
         const [userId, setUserId] = useState(row?.UserId || '');
-        const initialPreset = dashboard.shiftPresets.find((preset) => preset.Name === row?.Name);
-        const [presetId, setPresetId] = useState(initialPreset?.Id || '');
-        const [startTime, setStartTime] = useState(
-            row?.StartTime || initialPreset?.DefaultStartTime || '',
+        const initialShiftType = dashboard.shiftTypes.find(
+            (shiftType) => shiftType.Name === row?.Name,
         );
-        const [endTime, setEndTime] = useState(row?.EndTime || initialPreset?.DefaultEndTime || '');
-        const selectPreset = (nextPresetId: string) => {
-            setPresetId(nextPresetId);
-            const times = getShiftPresetTimes(dashboard.shiftPresets, nextPresetId);
+        const [shiftTypeId, setShiftTypeId] = useState(initialShiftType?.Id || '');
+        const [startTime, setStartTime] = useState(
+            row?.StartTime || initialShiftType?.DefaultStartTime || '',
+        );
+        const [endTime, setEndTime] = useState(
+            row?.EndTime || initialShiftType?.DefaultEndTime || '',
+        );
+        const selectShiftType = (nextShiftTypeId: string) => {
+            setShiftTypeId(nextShiftTypeId);
+            const times = getShiftTypeTimes(dashboard.shiftTypes, nextShiftTypeId);
             if (!times) return;
             setStartTime(times.startTime);
             setEndTime(times.endTime);
@@ -746,18 +763,22 @@ function Roster({ dashboard }: Props) {
                             type="hidden"
                             name="name"
                             value={
-                                dashboard.shiftPresets.find((preset) => preset.Id === presetId)
-                                    ?.Name || ''
+                                dashboard.shiftTypes.find(
+                                    (shiftType) => shiftType.Id === shiftTypeId,
+                                )?.Name || ''
                             }
                             required
                         />
-                        <Select value={presetId} onChange={selectPreset} style={{ width: '100%' }}>
+                        <Select
+                            value={shiftTypeId}
+                            onChange={selectShiftType}
+                            style={{ width: '100%' }}>
                             <Select.Option value="" disabled>
                                 Select a shift
                             </Select.Option>
-                            {dashboard.shiftPresets.map((preset) => (
-                                <Select.Option key={preset.Id} value={preset.Id}>
-                                    {preset.Name}
+                            {dashboard.shiftTypes.map((shiftType) => (
+                                <Select.Option key={shiftType.Id} value={shiftType.Id}>
+                                    {shiftType.Name}
                                 </Select.Option>
                             ))}
                         </Select>
@@ -906,6 +927,11 @@ function Roster({ dashboard }: Props) {
                                                         <button
                                                             type="button"
                                                             className="roster-shift-block"
+                                                            style={{
+                                                                backgroundColor: shift.color
+                                                                    ? `${shift.color}26`
+                                                                    : undefined,
+                                                            }}
                                                             onClick={() => setEditing(shift.roster)}
                                                             aria-label={`Edit ${shift.roster.Name} for ${volunteer.name}, ${dateRange}${timing ? `, ${timing}` : ''}`}>
                                                             <span className="roster-shift-name">
@@ -966,7 +992,10 @@ function Calendar({ dashboard }: Props) {
                                     Date
                                 </th>
                                 {calendar.places.map((place) => (
-                                    <th key={place.Id} scope="col" className="calendar-place-header">
+                                    <th
+                                        key={place.Id}
+                                        scope="col"
+                                        className="calendar-place-header">
                                         {place.Name}
                                     </th>
                                 ))}
@@ -974,12 +1003,18 @@ function Calendar({ dashboard }: Props) {
                         </thead>
                         <tbody>
                             {calendar.rows.map((row) => (
-                                <tr key={row.isoDate} className={row.isoDate === todayIso ? 'calendar-today-row' : ''}>
+                                <tr
+                                    key={row.isoDate}
+                                    className={
+                                        row.isoDate === todayIso ? 'calendar-today-row' : ''
+                                    }>
                                     <th scope="row" className="calendar-date-cell">
                                         {row.label}
                                     </th>
                                     {row.places.map((place) => (
-                                        <td key={`${row.isoDate}-${place.placeId}`} className="calendar-place-cell">
+                                        <td
+                                            key={`${row.isoDate}-${place.placeId}`}
+                                            className="calendar-place-cell">
                                             {place.blocks.map((block) => (
                                                 <button
                                                     key={block.programId}
@@ -990,11 +1025,17 @@ function Calendar({ dashboard }: Props) {
                                                             ? `${block.color}26`
                                                             : undefined,
                                                     }}
-                                                    onClick={() => navigateToProgram(block.programId)}
+                                                    onClick={() =>
+                                                        navigateToProgram(block.programId)
+                                                    }
                                                     aria-label={`Open ${block.title}`}>
-                                                    <span className="calendar-program-title">{block.title}</span>
+                                                    <span className="calendar-program-title">
+                                                        {block.title}
+                                                    </span>
                                                     {block.sessions.map((session) => (
-                                                        <span key={`${session.startDateTime}-${session.label}`} className="calendar-session-line">
+                                                        <span
+                                                            key={`${session.startDateTime}-${session.label}`}
+                                                            className="calendar-session-line">
                                                             {session.label}
                                                         </span>
                                                     ))}
@@ -2050,9 +2091,7 @@ function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: 
                                         {formatDateTime(c.Timestamp)}
                                     </span>
                                 </div>
-                                <p className="whitespace-pre-wrap text-black/70">
-                                    {c.Message}
-                                </p>
+                                <p className="whitespace-pre-wrap text-black/70">{c.Message}</p>
                             </div>
                         ))
                     ) : (
@@ -2114,10 +2153,7 @@ function WorkflowActions({
     return (
         <Space wrap>
             {actions.map((action) => (
-                <Button
-                    type="primary"
-                    key={action}
-                    onClick={() => onAction(action)}>
+                <Button type="primary" key={action} onClick={() => onAction(action)}>
                     {action}
                 </Button>
             ))}
@@ -2142,6 +2178,9 @@ function InventoryDetail({
     const [itemOpen, setItemOpen] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [itemError, setItemError] = useState('');
+    const [imageId, setImageId] = useState(request.ImageId || '');
+    const [imageUploading, setImageUploading] = useState(false);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const [items, setItems] = useState<InventoryItemDTO[]>(
         request.items.map((item) => ({ ...item })),
     );
@@ -2284,6 +2323,47 @@ function InventoryDetail({
         setItemIndex(null);
         setItemOpen(false);
         await persistItems(nextItems);
+    };
+    const uploadRequestImage = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        try {
+            setImageUploading(true);
+            showSavingBadge(true);
+            const prepared = await prepareInventoryImage(file);
+            const nextImageId = await api.uploadImage(
+                prepared.base64Data,
+                prepared.fileName,
+                prepared.mimeType,
+            );
+            await api.updateInventoryRequest(
+                request.Id,
+                {
+                    name: values.Name,
+                    userId: values.UserId,
+                    startDate: values.StartDate,
+                    endDate: values.EndDate,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    imageId: nextImageId,
+                    items: items.map((item) => ({
+                        inventoryTypeId: item.InventoryTypeId,
+                        quantity: item.Quantity,
+                        condition: item.Condition,
+                    })),
+                },
+                generateRequestId(),
+            );
+            setImageId(nextImageId);
+            await refreshDashboard();
+        } catch (e) {
+            error(e);
+        } finally {
+            setImageUploading(false);
+            showSavingBadge(false);
+        }
     };
     const perform = async (action: InventoryRequestAction) => {
         try {
@@ -2438,6 +2518,41 @@ function InventoryDetail({
                     ) : (
                         <Empty>No items added.</Empty>
                     )}
+                </Card>
+                <Card
+                    title="Image"
+                    action={
+                        editable && (
+                            <>
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={uploadRequestImage}
+                                />
+                                <Button
+                                    type="primary"
+                                    icon={<UploadOutlined />}
+                                    loading={imageUploading}
+                                    onClick={() => imageInputRef.current?.click()}
+                                    aria-label={imageId ? 'Replace image' : 'Add image'}
+                                    title={imageId ? 'Replace image' : 'Add image'}
+                                />
+                            </>
+                        )
+                    }>
+                    <div className="inventory-request-image-frame">
+                        {imageUrlForDriveId(imageId) ? (
+                            <img
+                                src={imageUrlForDriveId(imageId)}
+                                alt="Inventory request"
+                                className="inventory-request-image"
+                            />
+                        ) : (
+                            <Typography.Text type="secondary">No image added.</Typography.Text>
+                        )}
+                    </div>
                 </Card>
             </div>
             <div className="detail-activity">

@@ -13,12 +13,20 @@ export const appsScriptDataProvider = {
             places: () => api.listPlaces(),
             'inventory-types': () => api.listInventoryTypes(),
             blocks: () => api.listBlocks(),
-            'shift-presets': () => api.listShiftPresets(),
-            'program-types': () => api.listProgramTypes(),
-            'program-languages': () => api.listProgramLanguages(),
-            'session-types': () => api.listSessionTypes(),
         };
-        const data = await (lists[resource] || (() => Promise.resolve([])))();
+        let data: unknown[];
+        if (lists[resource]) {
+            data = await lists[resource]();
+        } else {
+            const settings = await api.getSettings();
+            const settingsLists: Record<string, () => unknown[]> = {
+                'shift-types': () => settings.shiftTypes,
+                'program-types': () => settings.programTypes,
+                'program-languages': () => settings.programLanguages,
+                'session-types': () => settings.sessionTypes,
+            };
+            data = (settingsLists[resource] || (() => []))();
+        }
         return {
             data: data.map((row) => ({
                 ...(row as Record<string, unknown>),
@@ -73,12 +81,13 @@ export const appsScriptDataProvider = {
                         },
                         id,
                     ),
-                'shift-presets': () =>
-                    api.createShiftPreset(
+                'shift-types': () =>
+                    api.createShiftType(
                         {
                             name: value.Name,
                             defaultStartTime: value.DefaultStartTime,
                             defaultEndTime: value.DefaultEndTime,
+                            color: value.Color || '',
                         },
                         id,
                     ),
@@ -130,13 +139,14 @@ export const appsScriptDataProvider = {
                         },
                         generateRequestId(),
                     ),
-                'shift-presets': () =>
-                    api.updateShiftPreset(
+                'shift-types': () =>
+                    api.updateShiftType(
                         String(id),
                         {
                             name: value.Name,
                             defaultStartTime: value.DefaultStartTime,
                             defaultEndTime: value.DefaultEndTime,
+                            color: value.Color || '',
                         },
                         generateRequestId(),
                     ),
@@ -167,7 +177,7 @@ export const appsScriptDataProvider = {
                 places: () => api.deletePlace(String(id), generateRequestId()),
                 'inventory-types': () => api.deleteInventoryType(String(id), generateRequestId()),
                 blocks: () => api.deleteBlock(String(id), generateRequestId()),
-                'shift-presets': () => api.deleteShiftPreset(String(id), generateRequestId()),
+                'shift-types': () => api.deleteShiftType(String(id), generateRequestId()),
                 'program-types': () => api.deleteProgramType(String(id), generateRequestId()),
                 'program-languages': () =>
                     api.deleteProgramLanguage(String(id), generateRequestId()),

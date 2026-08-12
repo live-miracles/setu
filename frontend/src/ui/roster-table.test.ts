@@ -2,7 +2,7 @@ import {
     buildRosterTableModel,
     formatRosterTableDate,
     formatRosterTableTimes,
-    getShiftPresetTimes,
+    getShiftTypeTimes,
 } from './roster-table';
 
 function assert(condition: boolean, message: string): void {
@@ -34,6 +34,7 @@ export function runRosterTableAssertions(): void {
             }),
             roster({ Id: 'later', Name: 'Later', StartDate: '2026-08-05', EndDate: '2026-08-05' }),
         ],
+        [],
         '2026-08-02',
     );
 
@@ -54,12 +55,53 @@ export function runRosterTableAssertions(): void {
         formatRosterTableTimes(roster({ StartTime: '', EndTime: '' })) === '',
         'blank timing should be omitted',
     );
-    const presetTimes = getShiftPresetTimes(
-        [{ Id: 'morning', Name: 'Morning', DefaultStartTime: '04:00', DefaultEndTime: '13:30' }],
+    const shiftTypeTimes = getShiftTypeTimes(
+        [
+            {
+                Id: 'morning',
+                Name: 'Morning',
+                Color: '',
+                DefaultStartTime: '04:00',
+                DefaultEndTime: '13:30',
+            },
+        ],
         'morning',
     );
     assert(
-        presetTimes?.startTime === '04:00' && presetTimes.endTime === '13:30',
-        'preset selection should provide default times',
+        shiftTypeTimes?.startTime === '04:00' && shiftTypeTimes.endTime === '13:30',
+        'shift type selection should provide default times',
+    );
+
+    const coloredModel = buildRosterTableModel(
+        [
+            roster({ Id: 'colored', Name: 'Morning Shift' }),
+            roster({
+                Id: 'uncolored',
+                Name: 'Unconfigured Shift',
+                StartDate: '2026-08-03',
+                EndDate: '2026-08-03',
+            }),
+        ],
+        [
+            {
+                Id: 'morning-shift',
+                Name: 'morning shift',
+                Color: '#7cc9a4',
+                DefaultStartTime: '',
+                DefaultEndTime: '',
+            },
+        ],
+        '2026-08-02',
+    );
+    const shifts = coloredModel.volunteers.flatMap((volunteer) =>
+        volunteer.lanes.flatMap((lane) => lane.shifts),
+    );
+    assert(
+        shifts.find((shift) => shift.roster.Id === 'colored')?.color === '#7cc9a4',
+        'roster color should resolve case-insensitively',
+    );
+    assert(
+        shifts.find((shift) => shift.roster.Id === 'uncolored')?.color === '',
+        'unconfigured roster color should be empty',
     );
 }

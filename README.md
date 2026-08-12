@@ -83,12 +83,12 @@ The demo has no access to the production Google Sheet.
 
 Users sign in through the Google Workspace restriction configured on the Apps Script deployment. New users are registered automatically. The deploying account always receives the `admin` role; other users receive the `user` role until an administrator changes it.
 
-| Role | Access |
-| --- | --- |
-| `admin` | Everything, including settings and role management |
+| Role       | Access                                                            |
+| ---------- | ----------------------------------------------------------------- |
+| `admin`    | Everything, including settings and role management                |
 | `approver` | All requests, approvals, tickets, scheduling, and read-only users |
-| `viewer` | All requests and standard app sections except Roster |
-| `user` | Own and participant requests; no Roster or Tickets |
+| `viewer`   | All requests and standard app sections except Roster              |
+| `user`     | Own and participant requests; no Roster or Tickets                |
 
 Everyone can create equipment and program requests and comment on requests they can see. Participants can be external email addresses and do not need a Setu account.
 

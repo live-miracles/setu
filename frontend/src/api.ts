@@ -50,22 +50,19 @@ export const api: AsyncApi = {
     getHomeContent: (...args) => callBackend('getHomeContent', ...args),
     updateHomeContent: (...args) => callBackend('updateHomeContent', ...args),
 
-    listShiftPresets: (...args) => callBackend('listShiftPresets', ...args),
-    createShiftPreset: (...args) => callBackend('createShiftPreset', ...args),
-    updateShiftPreset: (...args) => callBackend('updateShiftPreset', ...args),
-    deleteShiftPreset: (...args) => callBackend('deleteShiftPreset', ...args),
+    getSettings: (...args) => callBackend('getSettings', ...args),
+    createShiftType: (...args) => callBackend('createShiftType', ...args),
+    updateShiftType: (...args) => callBackend('updateShiftType', ...args),
+    deleteShiftType: (...args) => callBackend('deleteShiftType', ...args),
 
-    listProgramTypes: (...args) => callBackend('listProgramTypes', ...args),
     createProgramType: (...args) => callBackend('createProgramType', ...args),
     updateProgramType: (...args) => callBackend('updateProgramType', ...args),
     deleteProgramType: (...args) => callBackend('deleteProgramType', ...args),
 
-    listProgramLanguages: (...args) => callBackend('listProgramLanguages', ...args),
     createProgramLanguage: (...args) => callBackend('createProgramLanguage', ...args),
     updateProgramLanguage: (...args) => callBackend('updateProgramLanguage', ...args),
     deleteProgramLanguage: (...args) => callBackend('deleteProgramLanguage', ...args),
 
-    listSessionTypes: (...args) => callBackend('listSessionTypes', ...args),
     createSessionType: (...args) => callBackend('createSessionType', ...args),
     updateSessionType: (...args) => callBackend('updateSessionType', ...args),
     deleteSessionType: (...args) => callBackend('deleteSessionType', ...args),

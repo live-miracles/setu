@@ -5,7 +5,7 @@
 // access to under the 'drive.file' scope in appsscript.json — created by
 // (or shared with edit access to) the same Google account that deploys the
 // web app.
-const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 50 * 1024;
 
 function getImagesDriveFolderId(): string {

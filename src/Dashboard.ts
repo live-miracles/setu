@@ -76,11 +76,8 @@ function getDashboard(): DashboardPayload {
               .map((ticket) => buildTicketDTO(ticket, usersByEmail, commentsByRequestId))
         : [];
 
-    const homeContent = readHomeContent();
-    const shiftPresets = readShiftPresets().sort((a, b) => a.Name.localeCompare(b.Name));
-    const programTypes = readProgramTypes().sort((a, b) => a.Name.localeCompare(b.Name));
-    const programLanguages = readProgramLanguages().sort((a, b) => a.Name.localeCompare(b.Name));
-    const sessionTypes = readSessionTypes().sort((a, b) => a.Name.localeCompare(b.Name));
+    const settings = getSettings();
+    const homeContent: HomeContent = { Guidelines: settings.guidelines };
     const blocks = canApprove(actor)
         ? Tables.Blocks.readAll().sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime))
         : [];
@@ -103,10 +100,10 @@ function getDashboard(): DashboardPayload {
         programRequests,
         tickets,
         homeContent,
-        shiftPresets,
-        programTypes,
-        programLanguages,
-        sessionTypes,
+        shiftTypes: settings.shiftTypes,
+        programTypes: settings.programTypes,
+        programLanguages: settings.programLanguages,
+        sessionTypes: settings.sessionTypes,
         blocks,
         failedEmailCount,
     };

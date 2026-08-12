@@ -821,7 +821,7 @@ const mockData = {
         {
             // Same name/time as roster-2 below, but assigned to a different
             // volunteer. The two-day range also overlaps roster-4 for Sam on
-            // the second day. Times match the Morning shift preset.
+            // the second day. Times match the Morning shift type.
             Id: 'roster-1',
             Name: 'Morning',
             StartDate: mockAddDays(1),
@@ -841,7 +841,7 @@ const mockData = {
         },
         {
             // Multi-day range - appears on the calendar every day from
-            // start to end. Times match the Evening shift preset.
+            // start to end. Times match the Evening shift type.
             Id: 'roster-3',
             Name: 'Evening',
             StartDate: mockAddDays(1),
@@ -851,7 +851,7 @@ const mockData = {
             UserId: 'vic@example.com',
         },
         {
-            // Times match the Night shift preset. This overlaps roster-1 for
+            // Times match the Night shift type. This overlaps roster-1 for
             // Sam on mockAddDays(2), forcing a second volunteer lane.
             Id: 'roster-4',
             Name: 'Night',
@@ -863,7 +863,7 @@ const mockData = {
         },
         {
             // No start/end time set - the calendar treats this as an
-            // all-day 00:00-24:00 block, matching the Day shift preset
+            // all-day 00:00-24:00 block, matching the Day shift type
             // (also always full-day). This spans two dates for Ana.
             Id: 'roster-5',
             Name: 'Day',
@@ -970,25 +970,39 @@ const mockData = {
     homeContent: {
         Guidelines: 'Please return equipment within 24 hours of your shoot ending.',
     } as HomeContent,
-    shiftPresets: [
+    shiftTypes: [
         {
-            Id: 'shift-preset-1',
+            Id: 'shift-type-1',
             Name: 'Morning',
+            Color: '#8bb8e8',
             DefaultStartTime: '04:00',
             DefaultEndTime: '13:30',
         },
         {
-            Id: 'shift-preset-2',
+            Id: 'shift-type-2',
             Name: 'Evening',
+            Color: '#f2ad72',
             DefaultStartTime: '13:30',
             DefaultEndTime: '22:00',
         },
-        { Id: 'shift-preset-3', Name: 'Night', DefaultStartTime: '22:00', DefaultEndTime: '04:00' },
+        {
+            Id: 'shift-type-3',
+            Name: 'Night',
+            Color: '#b7bec8',
+            DefaultStartTime: '22:00',
+            DefaultEndTime: '04:00',
+        },
         // Blank times mean the full day - see the Roster.StartTime/EndTime
         // comment in shared/types.d.ts and isAllDayShiftBlock in roster.ts.
-        { Id: 'shift-preset-4', Name: 'Day', DefaultStartTime: '', DefaultEndTime: '' },
-        { Id: 'shift-preset-5', Name: 'Vacation', DefaultStartTime: '', DefaultEndTime: '' },
-    ] as ShiftPreset[],
+        { Id: 'shift-type-4', Name: 'Day', Color: '', DefaultStartTime: '', DefaultEndTime: '' },
+        {
+            Id: 'shift-type-5',
+            Name: 'Vacation',
+            Color: '',
+            DefaultStartTime: '',
+            DefaultEndTime: '',
+        },
+    ] as ShiftType[],
     programTypes: [
         { Id: 'program-type-livestream', Name: 'Livestream', Color: '#8bb8e8' },
         { Id: 'program-type-recording', Name: 'Recording', Color: '#f2ad72' },
@@ -1214,7 +1228,7 @@ function mockBuildDashboard(): DashboardPayload {
             ? mockData.tickets.map(mockBuildTicketDTO)
             : [],
         homeContent: mockData.homeContent,
-        shiftPresets: [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
+        shiftTypes: [...mockData.shiftTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
         programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
         programLanguages: [...mockData.programLanguages].sort((a, b) =>
             a.Name.localeCompare(b.Name),
@@ -1315,27 +1329,37 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return mockData.homeContent;
     },
 
-    listShiftPresets: () => [...mockData.shiftPresets].sort((a, b) => a.Name.localeCompare(b.Name)),
-    createShiftPreset: (input: CreateShiftPresetInput) => {
-        const created: ShiftPreset = {
+    getSettings: () => ({
+        guidelines: mockData.homeContent.Guidelines,
+        shiftTypes: [...mockData.shiftTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+        programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+        programLanguages: [...mockData.programLanguages].sort((a, b) =>
+            a.Name.localeCompare(b.Name),
+        ),
+        sessionTypes: [...mockData.sessionTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
+    }),
+    createShiftType: (input: CreateShiftTypeInput) => {
+        const created: ShiftType = {
             Id: mockUuid(),
             Name: input.name,
+            Color: input.color || '',
             DefaultStartTime: input.defaultStartTime || '',
             DefaultEndTime: input.defaultEndTime || '',
         };
-        mockData.shiftPresets.push(created);
+        mockData.shiftTypes.push(created);
         return created;
     },
-    updateShiftPreset: (id: string, input: CreateShiftPresetInput) => {
-        const preset = mockData.shiftPresets.find((p) => p.Id === id);
-        if (!preset) throw new Error('not_found');
-        preset.Name = input.name;
-        preset.DefaultStartTime = input.defaultStartTime || '';
-        preset.DefaultEndTime = input.defaultEndTime || '';
-        return preset;
+    updateShiftType: (id: string, input: CreateShiftTypeInput) => {
+        const shiftType = mockData.shiftTypes.find((item) => item.Id === id);
+        if (!shiftType) throw new Error('not_found');
+        shiftType.Name = input.name;
+        shiftType.Color = input.color || '';
+        shiftType.DefaultStartTime = input.defaultStartTime || '';
+        shiftType.DefaultEndTime = input.defaultEndTime || '';
+        return shiftType;
     },
-    deleteShiftPreset: (id: string) => {
-        mockData.shiftPresets = mockData.shiftPresets.filter((p) => p.Id !== id);
+    deleteShiftType: (id: string) => {
+        mockData.shiftTypes = mockData.shiftTypes.filter((item) => item.Id !== id);
     },
 
     listProgramTypes: () => [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
@@ -1565,6 +1589,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         request.DepartmentId = input.departmentId;
         request.LeadEmail = input.leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');
+        if (input.imageId !== undefined) request.ImageId = input.imageId;
         request.ItemsJson = mockInventoryItemsJson(
             input.items.map((line) => ({
                 InventoryTypeId: line.inventoryTypeId,

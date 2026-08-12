@@ -157,13 +157,13 @@ interface CommentRecord {
     Message: string;
 }
 
-// A named shift with default clock-in/out times, so scheduling a roster
-// entry can prefill Start time/End time once a preset is picked instead of
-// requiring both every time. See listShiftPresets/createShiftPreset in
-// Admin.ts and the shift-name select in roster.ts.
-interface ShiftPreset {
+// A named shift with default clock-in/out times and an optional color, so
+// scheduling a roster entry can prefill times and the roster can use the
+// configured color. See Admin.ts and the shift-name select in roster.ts.
+interface ShiftType {
     Id: string;
     Name: string;
+    Color: string;
     DefaultStartTime: string;
     DefaultEndTime: string;
 }
@@ -203,6 +203,14 @@ interface SettingRow {
 
 interface HomeContent {
     Guidelines: string;
+}
+
+interface SettingsPayload {
+    guidelines: string;
+    shiftTypes: ShiftType[];
+    programTypes: ProgramType[];
+    programLanguages: ProgramLanguage[];
+    sessionTypes: SessionType[];
 }
 
 interface FailedEmail {
@@ -305,7 +313,7 @@ interface DashboardPayload {
     programRequests: ProgramRequestDTO[];
     tickets: TicketDTO[];
     homeContent: HomeContent;
-    shiftPresets: ShiftPreset[];
+    shiftTypes: ShiftType[];
     programTypes: ProgramType[];
     programLanguages: ProgramLanguage[];
     sessionTypes: SessionType[];
@@ -388,6 +396,7 @@ interface UpdateInventoryRequestInput {
     departmentId: string;
     leadEmail: string;
     participants: string;
+    imageId?: string;
 }
 
 interface InventoryItemInput {
@@ -448,10 +457,11 @@ interface UpdateHomeContentInput {
     guidelines: string;
 }
 
-interface CreateShiftPresetInput {
+interface CreateShiftTypeInput {
     name: string;
     defaultStartTime: string;
     defaultEndTime: string;
+    color: string;
 }
 
 interface CreateNamedOptionInput {
@@ -495,17 +505,15 @@ interface Api {
     getHomeContent(): HomeContent;
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;
 
-    listShiftPresets(): ShiftPreset[];
-    createShiftPreset(input: CreateShiftPresetInput, requestId: string): ShiftPreset;
-    updateShiftPreset(id: string, input: CreateShiftPresetInput, requestId: string): ShiftPreset;
-    deleteShiftPreset(id: string, requestId: string): void;
+    getSettings(): SettingsPayload;
+    createShiftType(input: CreateShiftTypeInput, requestId: string): ShiftType;
+    updateShiftType(id: string, input: CreateShiftTypeInput, requestId: string): ShiftType;
+    deleteShiftType(id: string, requestId: string): void;
 
-    listProgramTypes(): ProgramType[];
     createProgramType(input: CreateNamedOptionInput, requestId: string): ProgramType;
     updateProgramType(id: string, input: CreateNamedOptionInput, requestId: string): ProgramType;
     deleteProgramType(id: string, requestId: string): void;
 
-    listProgramLanguages(): ProgramLanguage[];
     createProgramLanguage(input: CreateNamedOptionInput, requestId: string): ProgramLanguage;
     updateProgramLanguage(
         id: string,
@@ -514,7 +522,6 @@ interface Api {
     ): ProgramLanguage;
     deleteProgramLanguage(id: string, requestId: string): void;
 
-    listSessionTypes(): SessionType[];
     createSessionType(input: CreateNamedOptionInput, requestId: string): SessionType;
     updateSessionType(id: string, input: CreateNamedOptionInput, requestId: string): SessionType;
     deleteSessionType(id: string, requestId: string): void;

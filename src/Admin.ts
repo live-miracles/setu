@@ -171,69 +171,62 @@ function deletePlace(id: string, requestId: string): void {
     });
 }
 
-// Shift presets have no dedicated tab; they are a JSON-encoded array in one
-// Settings row (Id 'shiftPresets').
-function readShiftPresets(): ShiftPreset[] {
-    const setting = Tables.Settings.findById('shiftPresets');
+// Shift types and the other reusable options have no dedicated tabs; they are
+// JSON-encoded arrays in the Settings key-value table.
+function readShiftTypes(): ShiftType[] {
+    const setting = Tables.Settings.findById('shiftTypes');
     if (!setting || !setting.Value) return [];
     try {
-        return JSON.parse(setting.Value) as ShiftPreset[];
+        return JSON.parse(setting.Value) as ShiftType[];
     } catch (err) {
         return [];
     }
 }
 
-function writeShiftPresets(presets: ShiftPreset[]): void {
-    upsertSetting('shiftPresets', JSON.stringify(presets));
+function writeShiftTypes(shiftTypes: ShiftType[]): void {
+    upsertSetting('shiftTypes', JSON.stringify(shiftTypes));
 }
 
-function listShiftPresets(): ShiftPreset[] {
-    requireUser();
-    return readShiftPresets().sort((a, b) => a.Name.localeCompare(b.Name));
-}
-
-function createShiftPreset(input: CreateShiftPresetInput, requestId: string): ShiftPreset {
+function createShiftType(input: CreateShiftTypeInput, requestId: string): ShiftType {
     requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result } = withLockedDedupe('shift-preset:create', requestId, () => {
-        const created: ShiftPreset = {
+    const { result } = withLockedDedupe('shift-type:create', requestId, () => {
+        const created: ShiftType = {
             Id: Utilities.getUuid(),
             Name: name,
+            Color: String(input.color || '').trim(),
             DefaultStartTime: input.defaultStartTime || '',
             DefaultEndTime: input.defaultEndTime || '',
         };
-        const presets = readShiftPresets();
-        presets.push(created);
-        writeShiftPresets(presets);
+        const shiftTypes = readShiftTypes();
+        shiftTypes.push(created);
+        writeShiftTypes(shiftTypes);
         return created;
     });
     return result;
 }
 
-function updateShiftPreset(
-    id: string,
-    input: CreateShiftPresetInput,
-    requestId: string,
-): ShiftPreset {
+function updateShiftType(id: string, input: CreateShiftTypeInput, requestId: string): ShiftType {
     requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result } = withLockedDedupe('shift-preset:update', requestId, () => {
-        const presets = readShiftPresets();
-        const existing = presets.find((p) => p.Id === id);
+    const { result } = withLockedDedupe('shift-type:update', requestId, () => {
+        const shiftTypes = readShiftTypes();
+        const existing = shiftTypes.find((shiftType) => shiftType.Id === id);
         if (!existing) throw new ValidationError('not_found');
         existing.Name = name;
+        existing.Color = String(input.color || '').trim();
         existing.DefaultStartTime = input.defaultStartTime || '';
         existing.DefaultEndTime = input.defaultEndTime || '';
-        writeShiftPresets(presets);
+        writeShiftTypes(shiftTypes);
         return existing;
     });
     return result;
 }
 
-function deleteShiftPreset(id: string, requestId: string): void {
+function deleteShiftType(id: string, requestId: string): void {
     requireAdmin();
-    withLockedDedupe('shift-preset:delete', requestId, () => {
-        writeShiftPresets(readShiftPresets().filter((p) => p.Id !== id));
+    withLockedDedupe('shift-type:delete', requestId, () => {
+        writeShiftTypes(readShiftTypes().filter((shiftType) => shiftType.Id !== id));
         return null;
     });
 }
@@ -461,6 +454,18 @@ function updateSessionType(
 
 function deleteSessionType(id: string, requestId: string): void {
     deleteNamedOption('sessionTypes', DEFAULT_SESSION_TYPES, id, requestId, 'session-type');
+}
+
+function getSettings(): SettingsPayload {
+    requireUser();
+    const settings = readHomeContent();
+    return {
+        guidelines: settings.Guidelines,
+        shiftTypes: readShiftTypes().sort((a, b) => a.Name.localeCompare(b.Name)),
+        programTypes: readProgramTypes().sort((a, b) => a.Name.localeCompare(b.Name)),
+        programLanguages: readProgramLanguages().sort((a, b) => a.Name.localeCompare(b.Name)),
+        sessionTypes: readSessionTypes().sort((a, b) => a.Name.localeCompare(b.Name)),
+    };
 }
 
 function cleanBlockInput(input: CreateBlockInput): Omit<Block, 'Id'> {
