@@ -13,11 +13,12 @@ import { refreshDashboard } from '../router';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
-import { stockLevelClass } from '../ui/styles';
+import { stockLevelTextClass } from '../ui/styles';
 import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
+import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { ActionConfirmation } from './refine-app';
 
-type Field = { field: string; label: string; type?: string };
+type Field = { field: string; label: string; type?: string; hiddenInTable?: boolean };
 type Row = Record<string, any>;
 
 interface ResourceConfig {
@@ -30,7 +31,6 @@ interface ResourceConfig {
     create: (values: Record<string, string>) => Promise<unknown>;
     update: (id: string, values: Record<string, string>) => Promise<unknown>;
     remove: (id: string) => Promise<unknown>;
-    accessory?: (row: Row) => string;
 }
 
 const requestId = () => generateRequestId();
@@ -80,7 +80,12 @@ const RESOURCES: Record<string, ResourceConfig> = {
         fields: [
             { field: 'Name', label: 'Name' },
             { field: 'Description', label: 'Description' },
-            { field: 'TotalQuantity', label: 'Total quantity', type: 'number' },
+            {
+                field: 'TotalQuantity',
+                label: 'Total quantity',
+                type: 'number',
+                hiddenInTable: true,
+            },
         ],
         rows: (d) => d.inventoryTypes,
         create: (v) =>
@@ -105,13 +110,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 requestId(),
             ),
         remove: (id) => api.deleteInventoryType(id, requestId()),
-        accessory: (row) => {
-            const s = stockLevelClass(
-                Number(row.availableQuantity || 0),
-                Number(row.TotalQuantity || 0),
-            );
-            return `<span class="text-xs ${s.text}">Available <strong>${row.availableQuantity || 0}/${row.TotalQuantity || 0}</strong></span>`;
-        },
     },
     blocks: {
         kind: 'block',
@@ -409,32 +407,51 @@ function SettingsResourcePage({
         }
     }
     const columns = [
-        ...config.fields.map((field) => ({
-            title: field.label,
-            dataIndex: field.field,
-            key: field.field,
-            render: (value: unknown) => {
-                if (field.type === 'color') {
-                    const color = String(value || '').trim();
-                    const validColor = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color);
-                    return validColor ? (
-                        <Space size="small">
-                            <span
-                                className="settings-color-swatch"
-                                style={{ backgroundColor: color }}
-                                aria-hidden="true"
-                            />
-                            <span style={{ color }}>{color}</span>
-                        </Space>
-                    ) : (
-                        <span className="text-xs opacity-60">No color</span>
-                    );
-                }
-                return field.type === 'datetime-local'
-                    ? formatDateTime(String(value || ''))
-                    : String(value ?? '');
-            },
-        })),
+        ...config.fields
+            .filter((field) => !field.hiddenInTable)
+            .map((field) => ({
+                title: field.label,
+                dataIndex: field.field,
+                key: field.field,
+                render: (value: unknown) => {
+                    if (field.type === 'color') {
+                        const color = String(value || '').trim();
+                        const validColor = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color);
+                        return validColor ? (
+                            <Space size="small">
+                                <span
+                                    className="settings-color-swatch"
+                                    style={{ backgroundColor: color }}
+                                    aria-hidden="true"
+                                />
+                                <span style={{ color }}>{color}</span>
+                            </Space>
+                        ) : (
+                            <span className="text-xs opacity-60">No color</span>
+                        );
+                    }
+                    return field.type === 'datetime-local'
+                        ? formatDateTime(String(value || ''))
+                        : String(value ?? '');
+                },
+            })),
+        ...(config.kind === 'inventory-type'
+            ? [
+                  {
+                      title: 'Available',
+                      key: 'available',
+                      render: (_: unknown, row: Row) => {
+                          const available = Number(row.availableQuantity ?? 0);
+                          const total = Number(row.TotalQuantity ?? 0);
+                          return (
+                              <span className={stockLevelTextClass(available, total)}>
+                                  <strong>{formatInventoryAvailability(available, total)}</strong>
+                              </span>
+                          );
+                      },
+                  },
+              ]
+            : []),
         {
             title: 'Actions',
             key: 'actions',

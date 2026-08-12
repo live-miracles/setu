@@ -60,6 +60,14 @@ function updateUser(userId: string, patch: UpdateUserInput): UserDTO {
     return toUserDTO(updated);
 }
 
+function deleteUser(userId: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('user:delete', requestId, () => {
+        Tables.Users.deleteById(userId);
+        return null;
+    });
+}
+
 // Also doubles as the registration-completion call: the frontend shows a
 // mandatory registration form (gated on Phone being unset) instead of the
 // app on first sign-in, and submitting it hits this same endpoint. Phone is

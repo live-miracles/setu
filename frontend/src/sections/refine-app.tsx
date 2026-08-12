@@ -387,7 +387,7 @@ function Home({ dashboard }: Props) {
             </div>
             {dashboard.homeContent.Guidelines && (
                 <Card title="Guidelines">
-                    <p className="whitespace-pre-wrap text-sm text-base-content/75">
+                    <p className="whitespace-pre-wrap text-sm text-black/75">
                         {dashboard.homeContent.Guidelines}
                     </p>
                 </Card>
@@ -451,7 +451,7 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                     />
                     <TextField name="whatsapp" label="WhatsApp" value={me.Whatsapp} required />
                     {!registration && (
-                        <div className="text-sm text-base-content/60 sm:col-span-2">
+                        <div className="text-sm text-black/60 sm:col-span-2">
                             {me.Email} · <Tag color="blue">{roleLabel(me.Role)}</Tag>
                         </div>
                     )}
@@ -552,6 +552,7 @@ function UserForm({
 }
 function Users({ dashboard }: Props) {
     const [editing, setEditing] = useState<UserDTO | undefined>();
+    const [deleting, setDeleting] = useState<UserDTO | null>(null);
     const [creating, setCreating] = useState(false);
     const [search, setSearch] = useState('');
     const shown = dashboard.users;
@@ -636,12 +637,21 @@ function Users({ dashboard }: Props) {
                                 align: 'right' as const,
                                 render: (_: unknown, user: UserDTO) =>
                                     canManageConfig(dashboard.me) ? (
-                                        <Button
-                                            type="text"
-                                            icon={<EditOutlined />}
-                                            onClick={() => setEditing(user)}
-                                            aria-label="Edit"
-                                        />
+                                        <Space>
+                                            <Button
+                                                type="text"
+                                                icon={<EditOutlined />}
+                                                onClick={() => setEditing(user)}
+                                                aria-label="Edit"
+                                            />
+                                            <Button
+                                                type="text"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={() => setDeleting(user)}
+                                                aria-label="Delete"
+                                            />
+                                        </Space>
                                     ) : null,
                             },
                         ]}
@@ -650,6 +660,18 @@ function Users({ dashboard }: Props) {
                     <Empty>No users yet.</Empty>
                 )}
             </Card>
+            {deleting && (
+                <ActionConfirmation
+                    action="delete"
+                    description={`Are you sure you want to delete ${deleting.Name}?`}
+                    onCancel={() => setDeleting(null)}
+                    onConfirm={async () => {
+                        await api.deleteUser(deleting.Email, generateRequestId());
+                        setDeleting(null);
+                        await refreshDashboard();
+                    }}
+                />
+            )}
             {(creating || editing) && (
                 <UserForm
                     dashboard={dashboard}
@@ -2020,15 +2042,15 @@ function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: 
                     {comments.length ? (
                         comments.map((c) => (
                             <div
-                                className="border-b border-base-200 pb-2 text-sm last:border-0"
+                                className="border-b border-gray-200 pb-2 text-sm last:border-0"
                                 key={c.Id}>
                                 <div className="font-medium">
                                     {c.userName}{' '}
-                                    <span className="ml-2 text-xs font-normal text-base-content/50">
+                                    <span className="ml-2 text-xs font-normal text-black/50">
                                         {formatDateTime(c.Timestamp)}
                                     </span>
                                 </div>
-                                <p className="whitespace-pre-wrap text-base-content/70">
+                                <p className="whitespace-pre-wrap text-black/70">
                                     {c.Message}
                                 </p>
                             </div>
@@ -2058,7 +2080,7 @@ function DetailFields({ fields }: { fields: Array<[label: string, value: ReactNo
         <div className="grid gap-4 sm:grid-cols-2">
             {fields.map(([label, value]) => (
                 <div key={label} className="flex min-w-0 items-baseline gap-2">
-                    <dt className="shrink-0 text-xs font-semibold text-base-content/50">{label}</dt>
+                    <dt className="shrink-0 text-xs font-semibold text-black/50">{label}</dt>
                     <dd className="min-w-0 break-words text-sm">{value}</dd>
                 </div>
             ))}
@@ -2663,7 +2685,7 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                         ]}
                     />
                     <div className="mt-4 sm:col-span-2">
-                        <dt className="text-xs font-semibold text-base-content/50">Description</dt>
+                        <dt className="text-xs font-semibold text-black/50">Description</dt>
                         <dd className="mt-1 whitespace-pre-wrap text-sm">
                             {values.Description || 'No description.'}
                         </dd>
@@ -2782,17 +2804,17 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                 <Card title="Details">
                     <dl className="grid gap-3 text-sm sm:grid-cols-2">
                         <div>
-                            <dt className="text-xs text-base-content/50">Status</dt>
+                            <dt className="text-xs text-black/50">Status</dt>
                             <dd>
                                 <Tag>{row.Status}</Tag>
                             </dd>
                         </div>
                         <div>
-                            <dt className="text-xs text-base-content/50">Requested by</dt>
+                            <dt className="text-xs text-black/50">Requested by</dt>
                             <dd>{row.userName || row.assigneeName || '—'}</dd>
                         </div>
                         <div className="sm:col-span-2">
-                            <dt className="text-xs text-base-content/50">Description</dt>
+                            <dt className="text-xs text-black/50">Description</dt>
                             <dd className="whitespace-pre-wrap">
                                 {row.Description || 'No description.'}
                             </dd>

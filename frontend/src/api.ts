@@ -34,6 +34,7 @@ export const api: AsyncApi = {
     listUsers: (...args) => callBackend('listUsers', ...args),
     createUser: (...args) => callBackend('createUser', ...args),
     updateUser: (...args) => callBackend('updateUser', ...args),
+    deleteUser: (...args) => callBackend('deleteUser', ...args),
     updateOwnProfile: (...args) => callBackend('updateOwnProfile', ...args),
 
     listDepartments: (...args) => callBackend('listDepartments', ...args),

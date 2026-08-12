@@ -1255,6 +1255,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (patch.whatsapp !== undefined) user.Whatsapp = patch.whatsapp;
         return mockToUserDTO(user);
     },
+    deleteUser: (userId: string) => {
+        const index = mockData.users.findIndex((u) => u.Email === userId);
+        if (index !== -1) mockData.users.splice(index, 1);
+    },
     updateOwnProfile: (patch: UpdateOwnProfileInput) => {
         const user = mockCurrentUser();
         if (patch.name !== undefined) user.Name = patch.name;

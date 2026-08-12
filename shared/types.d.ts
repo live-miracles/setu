@@ -479,6 +479,7 @@ interface Api {
     listUsers(): UserDTO[];
     createUser(input: CreateUserInput, requestId: string): UserDTO;
     updateUser(userId: string, patch: UpdateUserInput): UserDTO;
+    deleteUser(userId: string, requestId: string): void;
     updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO;
 
     listDepartments(): Department[];
