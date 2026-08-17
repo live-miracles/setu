@@ -18,7 +18,7 @@ Browser → Apps Script web app → Google Sheets
                               └→ MailApp
 ```
 
-The backend lives in `src/`. The frontend lives in `frontend/` and is bundled into the HTML files served by Apps Script. Shared types are in `shared/types.d.ts`.
+The backend lives in `src/`. The frontend lives in `frontend/`; its production assets are published to GitHub Pages while Apps Script serves the HTML shell and provides `google.script.run`. Shared types are in `shared/types.d.ts`.
 
 ## Local development
 
@@ -33,7 +33,7 @@ Useful commands:
 
 ```bash
 npm run typecheck   # Type-check backend and frontend
-npm run build       # Build Apps Script HTML files
+npm run build       # Build the Apps Script HTML shell and validate production JS
 npm run pages       # Build the public demo site
 ```
 

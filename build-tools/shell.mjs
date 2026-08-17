@@ -1,7 +1,7 @@
 // Shared pieces of the three builds. `npm run build` (build.mjs) emits the
-// three files Apps Script serves; `npm run dev` (dev.mjs) emits a plain
-// static page for the local server; `npm run pages` (pages.mjs) emits the
-// public demo site CI publishes to gh-pages. All three render
+// Apps Script HTML shell; `npm run dev` (dev.mjs) emits a plain static page
+// for the local server; `npm run pages` (pages.mjs) emits the public demo and
+// production assets CI publishes to gh-pages. All three render
 // frontend/shell.html — one copy of the page chrome, rather than a template
 // per target that has to be kept identical by hand.
 import { execFileSync } from 'node:child_process';
@@ -14,13 +14,9 @@ export const distDir = path.join(root, 'frontend/dist');
 /** What CI publishes to the gh-pages branch — see build-tools/pages.mjs. */
 export const siteDir = path.join(root, 'site');
 
-export const browserSafe = (text) =>
-    text.replace(
-        /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
-        (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
-    );
-
 const TITLE = 'Setu';
+const PACKAGE_VERSION = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+const PROD_ASSET_BASE = 'https://live-miracles.github.io/setu/prod';
 
 /**
  * The dev tab icon, inlined as a data URI. Dev serves a top-level document,
@@ -49,13 +45,13 @@ export function renderShell({ title, favicon, head, body }) {
         .replace('<!--#BODY#-->', body);
 }
 
-/** The page Apps Script serves — CSS and JS are included as local HTML files. */
+/** The page Apps Script serves — assets are hosted on GitHub Pages. */
 export function renderProdShell() {
     return renderShell({
         title: TITLE,
         favicon: '',
-        head: "<?!= include('Stylesheet'); ?>",
-        body: "<?!= include('JavaScript'); ?>",
+        head: `<link rel="stylesheet" href="${PROD_ASSET_BASE}/app.css?v=${PACKAGE_VERSION}" />`,
+        body: `<script src="${PROD_ASSET_BASE}/app.js?v=${PACKAGE_VERSION}"></script>`,
     });
 }
 
@@ -92,8 +88,8 @@ export function renderDemoShell() {
  *     deployed bundle cannot contain mock data no matter what. `demo` is the
  *     mock entry point built to production settings: that is the whole point
  *     of it, a real build of the real UI with nothing behind it.
- *   output — prod returns the bundle in memory for inline HTML; dev and demo
- *     write files a server hands out.
+ *   output — prod is validated in memory; dev, demo, and the public production
+ *     asset build write files a server or GitHub Pages hands out.
  *
  * @param {'dev' | 'demo' | 'prod'} mode
  */
@@ -104,8 +100,8 @@ export function esbuildOptions(mode) {
             path.join(root, mode === 'prod' ? 'frontend/src/main.ts' : 'frontend/src/dev.ts'),
         ],
         bundle: true,
-        // Everything runs inside one <script> in an Apps Script iframe, so
-        // the bundle must declare nothing and leak nothing to global scope.
+        // The bundle runs as one external script in an Apps Script iframe, so
+        // it must declare nothing and leak nothing to global scope.
         format: 'iife',
         target: 'es2019',
         charset: 'utf8',

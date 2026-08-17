@@ -27,8 +27,19 @@ mkdirSync(siteDir, { recursive: true });
 console.log('Bundling frontend TypeScript (mock backend)...');
 await esbuild.build(esbuildOptions('demo'));
 
-console.log('Compiling Tailwind CSS...');
+console.log('Compiling Tailwind CSS (demo)...');
 compileCss(path.join(siteDir, 'app.css'));
+
+const productionAssetDir = path.join(siteDir, 'prod');
+mkdirSync(productionAssetDir, { recursive: true });
+console.log('Bundling frontend TypeScript (Apps Script production)...');
+await esbuild.build({
+    ...esbuildOptions('prod'),
+    write: true,
+    outfile: path.join(productionAssetDir, 'app.js'),
+});
+console.log('Compiling Tailwind CSS (Apps Script production)...');
+compileCss(path.join(productionAssetDir, 'app.css'));
 
 cpSync(path.join(root, 'frontend/icons'), path.join(siteDir, 'icons'), { recursive: true });
 writeFileSync(path.join(siteDir, 'index.html'), renderDemoShell());
