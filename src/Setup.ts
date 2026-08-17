@@ -5,6 +5,14 @@
 function setupSheets(): void {
     const ss = SpreadsheetApp.openById(getSpreadsheetId());
 
+    // Create the complete table topology before migrations inspect any table.
+    // This matters on a fresh spreadsheet: migration helpers read related
+    // tables (for example Users and Settings) before they can safely migrate
+    // request data or remove obsolete settings.
+    Object.values(Tables).forEach((table) => {
+        ensureTabWithHeaders(ss, table.tabName, table.headers as string[]);
+    });
+
     migrateUsersTimezoneColumn(ss);
     migrateInventoryRequestImageColumns(ss);
     migrateCommentsRequestIdColumn(ss);
@@ -12,10 +20,6 @@ function setupSheets(): void {
     migrateRequestsDepartmentLeadColumns(ss, 'InventoryRequests');
     migrateRequestsDepartmentLeadColumns(ss, 'ProgramRequests');
     removeObsoleteHomeSettings();
-
-    Object.values(Tables).forEach((table) => {
-        ensureTabWithHeaders(ss, table.tabName, table.headers as string[]);
-    });
 
     removeDefaultSheetIfEmpty(ss);
 }
