@@ -12,7 +12,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
-import { root, esbuildOptions, renderProdShell, compileCss } from './shell.mjs';
+import { root, browserSafe, esbuildOptions, renderProdShell, compileCss } from './shell.mjs';
 
 console.log('Bundling frontend TypeScript...');
 const result = await esbuild.build(esbuildOptions('prod'));
@@ -31,28 +31,7 @@ try {
     rmSync(scratch, { recursive: true, force: true });
 }
 
-// Both files are inlined into an HTML document, where the first literal
-// `</script`/`</style` ends the block no matter what the surrounding JS or
-// CSS syntax says — so a source file containing the string '</script>' would
-// silently truncate the page. `<\/` is an equivalent escape in every context
-// the sequence can legitimately appear in (JS strings and regexes, CSS
-// strings), so this is safe to apply blindly.
 const inlineSafe = (text, tag) => text.replaceAll(`</${tag}`, `<\\/${tag}`);
-
-// Some QR/barcode dependencies contain ASCII control characters in string
-// literals. Browsers reject those raw characters when this bundle is served
-// inside an HTML script block, even though Node's parser accepts them. Escape
-// them after bundling so Apps Script receives browser-valid JavaScript.
-const browserSafe = (text) =>
-    text
-        // Prevent the HTML parser from entering escaped-script mode while
-        // Apps Script serves this bundle inside an inline <script> element.
-        .replaceAll('<!--', '\\x3c!--')
-        .replaceAll('-->', '--\\x3e')
-        .replace(
-            /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
-            (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
-        );
 
 writeFileSync(
     path.join(root, 'src/Stylesheet.html'),
@@ -60,7 +39,9 @@ writeFileSync(
 );
 writeFileSync(
     path.join(root, 'src/JavaScript.html'),
-    `<script>\n${browserSafe(inlineSafe(js, 'script'))}</script>\n`,
+    `<script>\n${browserSafe(
+        inlineSafe(js, 'script').replaceAll('<!--', '\\x3c!--').replaceAll('-->', '--\\x3e'),
+    )}</script>\n`,
 );
 writeFileSync(path.join(root, 'src/Index.html'), renderProdShell());
 

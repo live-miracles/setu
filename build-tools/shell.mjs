@@ -14,6 +14,12 @@ export const distDir = path.join(root, 'frontend/dist');
 /** What CI publishes to the gh-pages branch — see build-tools/pages.mjs. */
 export const siteDir = path.join(root, 'site');
 
+export const browserSafe = (text) =>
+    text.replace(
+        /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
+        (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+    );
+
 const TITLE = 'Setu';
 
 /**
@@ -27,7 +33,7 @@ const TITLE = 'Setu';
  * iframe, so the browser tab belongs to Google's outer page and an icon in
  * this document is inert. doGet() sets the real one via setFaviconUrl().
  */
-function devFaviconTag() {
+export function devFaviconTag() {
     const png = readFileSync(path.join(root, 'frontend/icons/icon-64.png')).toString('base64');
     return `<link rel="icon" type="image/png" href="data:image/png;base64,${png}" />`;
 }
@@ -43,7 +49,7 @@ export function renderShell({ title, favicon, head, body }) {
         .replace('<!--#BODY#-->', body);
 }
 
-/** The page Apps Script serves — CSS and JS inlined via its own include(). */
+/** The page Apps Script serves — CSS and JS are included as local HTML files. */
 export function renderProdShell() {
     return renderShell({
         title: TITLE,
@@ -86,8 +92,8 @@ export function renderDemoShell() {
  *     deployed bundle cannot contain mock data no matter what. `demo` is the
  *     mock entry point built to production settings: that is the whole point
  *     of it, a real build of the real UI with nothing behind it.
- *   output — prod's bundle is inlined into src/JavaScript.html, so it comes
- *     back as a string; dev and demo write a file a server hands out.
+ *   output — prod returns the bundle in memory for inline HTML; dev and demo
+ *     write files a server hands out.
  *
  * @param {'dev' | 'demo' | 'prod'} mode
  */
