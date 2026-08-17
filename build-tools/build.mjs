@@ -40,7 +40,13 @@ writeFileSync(
 writeFileSync(
     path.join(root, 'src/JavaScript.html'),
     `<script>\n${browserSafe(
-        inlineSafe(js, 'script').replaceAll('<!--', '\\x3c!--').replaceAll('-->', '--\\x3e'),
+        // Apps Script uses `?>` to terminate template scriptlets. Keep that
+        // delimiter out of included third-party JavaScript, even though it is
+        // valid inside a client-side regex/string.
+        inlineSafe(js, 'script')
+            .replaceAll('<!--', '\\x3c!--')
+            .replaceAll('-->', '--\\x3e')
+            .replaceAll('?>', '?\\x3e'),
     )}</script>\n`,
 );
 writeFileSync(path.join(root, 'src/Index.html'), renderProdShell());
