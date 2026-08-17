@@ -27,8 +27,37 @@ function SheetTable<T extends Record<string, any>>(
     tabName: string,
     headers: (keyof T & string)[],
     keyColumn: keyof T & string = 'Id' as keyof T & string,
+    cacheName = '',
 ) {
     const keyCol = headers.indexOf(keyColumn) + 1;
+    const cacheKey = cacheName ? `setu:table:${cacheName}:${tabName}:v1` : '';
+
+    function cachedReadAll(): T[] | null {
+        if (!cacheKey) return null;
+        const raw = CacheService.getScriptCache().get(cacheKey);
+        if (!raw) return null;
+        try {
+            const rows = JSON.parse(raw);
+            return Array.isArray(rows) ? (rows as T[]) : null;
+        } catch (_err) {
+            return null;
+        }
+    }
+
+    function cacheRows(rows: T[]): void {
+        if (!cacheKey) return;
+        // Cache is an optimization only. If a dataset ever exceeds the cache
+        // service's per-entry limit, the sheet remains the source of truth.
+        try {
+            CacheService.getScriptCache().put(cacheKey, JSON.stringify(rows), 21600);
+        } catch (_err) {
+            // Ignore cache failures; the caller still has the fresh rows.
+        }
+    }
+
+    function clearCache(): void {
+        if (cacheKey) CacheService.getScriptCache().remove(cacheKey);
+    }
 
     function sheet(): GoogleAppsScript.Spreadsheet.Sheet {
         const sh = SpreadsheetApp.openById(getSpreadsheetId()).getSheetByName(tabName);
@@ -49,14 +78,21 @@ function SheetTable<T extends Record<string, any>>(
     }
 
     function readAll(): T[] {
+        const cached = cachedReadAll();
+        if (cached) return cached;
+
         const sh = sheet();
         const lastRow = sh.getLastRow();
-        if (lastRow < 2) return [];
-        return sh
-            .getRange(2, 1, lastRow - 1, headers.length)
-            .getValues()
-            .map(rowToObject)
-            .filter((o: any) => o[keyColumn] !== '' && o[keyColumn] != null);
+        const rows =
+            lastRow < 2
+                ? []
+                : sh
+                      .getRange(2, 1, lastRow - 1, headers.length)
+                      .getValues()
+                      .map(rowToObject)
+                      .filter((o: any) => o[keyColumn] !== '' && o[keyColumn] != null);
+        cacheRows(rows);
+        return rows;
     }
 
     function findRowIndexById(key: string): number {
@@ -71,6 +107,7 @@ function SheetTable<T extends Record<string, any>>(
     }
 
     function findById(key: string): T | null {
+        if (cacheKey) return readAll().find((row) => row[keyColumn] === key) || null;
         const rowIndex = findRowIndexById(key);
         if (rowIndex === -1) return null;
         return rowToObject(sheet().getRange(rowIndex, 1, 1, headers.length).getValues()[0]);
@@ -86,6 +123,7 @@ function SheetTable<T extends Record<string, any>>(
             (record as any)[keyColumn] = Utilities.getUuid();
         }
         sheet().appendRow(objectToRow(record));
+        clearCache();
         return record;
     }
 
@@ -100,6 +138,7 @@ function SheetTable<T extends Record<string, any>>(
         sheet()
             .getRange(rowIndex, 1, 1, headers.length)
             .setValues([objectToRow(updated)]);
+        clearCache();
         return updated;
     }
 
@@ -107,6 +146,7 @@ function SheetTable<T extends Record<string, any>>(
         const rowIndex = findRowIndexById(key);
         if (rowIndex === -1) return false;
         sheet().deleteRow(rowIndex);
+        clearCache();
         return true;
     }
 
@@ -122,16 +162,23 @@ function SheetTable<T extends Record<string, any>>(
         deleteById,
         findRowIndexById,
         sheet,
+        clearCache,
     };
 }
 
 const Tables = {
-    Departments: SheetTable<Department>('Departments', ['Id', 'Name', 'ShortName', 'LeadEmail']),
-    Places: SheetTable<Place>('Places', ['Id', 'Name']),
+    Departments: SheetTable<Department>(
+        'Departments',
+        ['Id', 'Name', 'ShortName', 'LeadEmail'],
+        'Id',
+        'reference-data',
+    ),
+    Places: SheetTable<Place>('Places', ['Id', 'Name'], 'Id', 'reference-data'),
     Users: SheetTable<User>(
         'Users',
         ['Email', 'Name', 'Role', 'DepartmentId', 'Phone', 'Whatsapp'],
         'Email',
+        'users',
     ),
     Rosters: SheetTable<Roster>('Rosters', [
         'Id',
@@ -142,14 +189,12 @@ const Tables = {
         'EndTime',
         'UserId',
     ]),
-    InventoryTypes: SheetTable<InventoryType>('InventoryTypes', [
+    InventoryTypes: SheetTable<InventoryType>(
+        'InventoryTypes',
+        ['Id', 'Name', 'Description', 'Requestable', 'ImageId', 'TotalQuantity'],
         'Id',
-        'Name',
-        'Description',
-        'Requestable',
-        'ImageId',
-        'TotalQuantity',
-    ]),
+        'reference-data',
+    ),
     InventoryRequests: SheetTable<InventoryRequest>('InventoryRequests', [
         'Id',
         'DisplayId',
@@ -193,7 +238,7 @@ const Tables = {
         'UserId',
         'Message',
     ]),
-    Settings: SheetTable<SettingRow>('Settings', ['Id', 'Value']),
+    Settings: SheetTable<SettingRow>('Settings', ['Id', 'Value'], 'Id', 'reference-data'),
     FailedEmails: SheetTable<FailedEmail>('FailedEmails', [
         'Id',
         'Timestamp',

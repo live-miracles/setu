@@ -2015,7 +2015,12 @@ function mockRunner(
                                 else console.error(err);
                             }
                         },
-                        300 + Math.random() * 500,
+                        // Keep the mock responsive, but make the initial
+                        // dashboard round trip visibly closer to production,
+                        // where it reads several Sheets-backed datasets.
+                        fnName === 'getDashboard'
+                            ? 900 + Math.random() * 600
+                            : 300 + Math.random() * 500,
                     );
             },
         },

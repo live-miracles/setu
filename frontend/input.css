@@ -327,6 +327,16 @@ body {
     padding: 0;
 }
 
+.app-loading {
+    display: flex;
+    min-height: 16rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-direction: column;
+    color: var(--setu-ink);
+}
+
 .app-content.app-content-settings {
     max-width: 50rem;
 }

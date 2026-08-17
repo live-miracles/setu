@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
+import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Spin, Typography } from 'antd';
 import {
     AppstoreOutlined,
     CalendarOutlined,
@@ -53,8 +53,10 @@ function Shell() {
                     </Button>
                     <Menu
                         id="desktop-nav"
+                        data-authenticated-nav
                         mode="horizontal"
                         className="app-main-menu"
+                        style={{ display: 'none' }}
                         selectedKeys={[selectedSection]}
                         items={[
                             {
@@ -89,6 +91,8 @@ function Shell() {
                                 className="app-settings-button"
                                 icon={<SettingOutlined />}
                                 data-settings-menu
+                                data-authenticated-nav
+                                style={{ display: 'none' }}
                                 aria-label="Settings">
                                 <span className="app-settings-label">Settings</span>
                             </Button>
@@ -98,16 +102,25 @@ function Shell() {
                             className="app-profile-button"
                             icon={<UserOutlined />}
                             data-nav-section="profile"
+                            data-authenticated-nav
+                            style={{ display: 'none' }}
                             aria-label="Profile">
                             <span id="nav-user-name" />
                         </Button>
                     </Space>
                 </Header>
-                <Content id="app-content" className="app-content" />
+                <Content id="app-content" className="app-content">
+                    <div className="app-loading" role="status" aria-live="polite">
+                        <Spin size="large" />
+                        <Typography.Text>Loading Setu…</Typography.Text>
+                    </div>
+                </Content>
                 <Menu
                     id="mobile-dock"
+                    data-authenticated-nav
                     mode="horizontal"
                     className="app-mobile-menu"
+                    style={{ display: 'none' }}
                     selectedKeys={[selectedSection]}
                     items={[
                         {

@@ -133,10 +133,9 @@ export async function renderCurrentSection(): Promise<void> {
 // tap into other sections while their profile (department, etc.) is still
 // unset.
 function toggleNavVisibility(show: boolean): void {
-    const desktopNav = document.getElementById('desktop-nav');
-    const mobileDock = document.getElementById('mobile-dock');
-    if (desktopNav) desktopNav.style.display = show ? '' : 'none';
-    if (mobileDock) mobileDock.style.display = show ? '' : 'none';
+    document.querySelectorAll<HTMLElement>('[data-authenticated-nav]').forEach((el) => {
+        el.style.display = show ? '' : 'none';
+    });
 }
 
 function renderNavIdentity(dashboard: DashboardPayload): void {
