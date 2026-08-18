@@ -20,6 +20,7 @@ import {
     Typography,
 } from 'antd';
 import {
+    CameraOutlined,
     DeleteOutlined,
     EditOutlined,
     PhoneOutlined,
@@ -2392,6 +2393,7 @@ function InventoryDetail({
     const [imageId, setImageId] = useState(request.ImageId || '');
     const [imageUploading, setImageUploading] = useState(false);
     const imageInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
     const [items, setItems] = useState<InventoryItemDTO[]>(
         request.items.map((item) => ({ ...item })),
     );
@@ -2647,12 +2649,14 @@ function InventoryDetail({
                             <Space>
                                 <Button
                                     type="primary"
+                                    icon={<CameraOutlined />}
                                     onClick={() => {
                                         setItemError('');
                                         setScanOpen(true);
-                                    }}>
-                                    Scan
-                                </Button>
+                                    }}
+                                    aria-label="Scan requested item"
+                                    title="Scan requested item"
+                                />
                                 <Button
                                     type="primary"
                                     icon={<PlusOutlined />}
@@ -2740,14 +2744,34 @@ function InventoryDetail({
                                     className="hidden"
                                     onChange={uploadRequestImage}
                                 />
-                                <Button
-                                    type="primary"
-                                    icon={<UploadOutlined />}
-                                    loading={imageUploading}
-                                    onClick={() => imageInputRef.current?.click()}
-                                    aria-label={imageId ? 'Replace image' : 'Add image'}
-                                    title={imageId ? 'Replace image' : 'Add image'}
+                                <input
+                                    ref={cameraInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={uploadRequestImage}
                                 />
+                                <Space>
+                                    <Button
+                                        type="primary"
+                                        icon={<UploadOutlined />}
+                                        loading={imageUploading}
+                                        onClick={() => imageInputRef.current?.click()}
+                                        aria-label={imageId ? 'Replace image' : 'Add image'}
+                                        title={imageId ? 'Replace image' : 'Add image'}
+                                    />
+                                    <Button
+                                        type="primary"
+                                        icon={<CameraOutlined />}
+                                        loading={imageUploading}
+                                        onClick={() => cameraInputRef.current?.click()}
+                                        aria-label={
+                                            imageId ? 'Replace image with camera' : 'Take photo'
+                                        }
+                                        title={imageId ? 'Replace image with camera' : 'Take photo'}
+                                    />
+                                </Space>
                             </>
                         )
                     }>

@@ -139,37 +139,30 @@ function Shell() {
                         <Typography.Text>Loading Setu…</Typography.Text>
                     </div>
                 </Content>
-                <Menu
+                <nav
                     id="mobile-dock"
                     data-authenticated-nav
-                    mode="horizontal"
                     className="app-mobile-menu"
                     style={{ display: 'none' }}
-                    selectedKeys={[selectedSection]}
-                    items={[
-                        {
-                            key: 'programs',
-                            icon: <AppstoreOutlined />,
-                            label: <span data-nav-section="programs">Programs</span>,
-                        },
-                        {
-                            key: 'calendar',
-                            icon: <CalendarOutlined />,
-                            label: <span data-nav-section="calendar">Calendar</span>,
-                        },
-                        {
-                            key: 'inventory',
-                            icon: <InboxOutlined />,
-                            label: <span data-nav-section="inventory">Inventory</span>,
-                        },
-                        {
-                            key: 'tickets',
-                            icon: <ToolOutlined />,
-                            label: <span data-nav-section="tickets">Tickets</span>,
-                        },
-                    ]}
-                    onClick={({ key }) => navigate(key)}
-                />
+                    aria-label="Main navigation">
+                    {[
+                        { key: 'programs', label: 'Programs', icon: <AppstoreOutlined /> },
+                        { key: 'calendar', label: 'Calendar', icon: <CalendarOutlined /> },
+                        { key: 'inventory', label: 'Inventory', icon: <InboxOutlined /> },
+                        { key: 'tickets', label: 'Tickets', icon: <ToolOutlined /> },
+                    ].map((item) => (
+                        <button
+                            key={item.key}
+                            type="button"
+                            className={`app-mobile-nav-item${
+                                selectedSection === item.key ? ' is-selected' : ''
+                            }`}
+                            onClick={() => navigate(item.key)}>
+                            {item.icon}
+                            <span>{item.label}</span>
+                        </button>
+                    ))}
+                </nav>
             </Layout>
         </AntApp>
     );

@@ -1,4 +1,4 @@
-import { encodeAvif, fitImageWithinBounds, imageUrlForDriveId } from './inventory-image';
+import { fitImageWithinBounds, imageUrlForDriveId } from './inventory-image';
 
 function assert(condition: boolean, message: string): void {
     if (!condition) throw new Error(message);
@@ -25,23 +25,4 @@ export function runInventoryImageAssertions(): void {
         imageUrlForDriveId('drive/id') === 'https://drive.google.com/uc?export=view&id=drive%2Fid',
         'Drive IDs should be URL encoded in preview URLs',
     );
-
-    const avifCanvas = {
-        toDataURL: (mimeType: string) => `data:${mimeType};base64,encoded`,
-    } as unknown as HTMLCanvasElement;
-    assert(
-        encodeAvif(avifCanvas).mimeType === 'image/avif',
-        'AVIF should be the only output format',
-    );
-
-    const unsupportedCanvas = {
-        toDataURL: () => 'data:image/png;base64,encoded',
-    } as unknown as HTMLCanvasElement;
-    let failed = false;
-    try {
-        encodeAvif(unsupportedCanvas);
-    } catch (error) {
-        failed = error instanceof Error && error.message.includes('AVIF');
-    }
-    assert(failed, 'AVIF-unavailable browsers should fail instead of using a fallback');
 }

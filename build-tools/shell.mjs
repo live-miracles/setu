@@ -40,9 +40,15 @@ export function devFaviconTag() {
 export function renderShell({ title, favicon, head, body }) {
     return readFileSync(path.join(root, 'frontend/shell.html'), 'utf8')
         .replaceAll('<!--#TITLE#-->', title)
-        .replace('<!--#FAVICON#-->', favicon)
-        .replace('<!--#HEAD#-->', head)
-        .replace('<!--#BODY#-->', body);
+        .replace('<!--#FAVICON#-->', () => favicon)
+        .replace('<!--#HEAD#-->', () => head)
+        .replace('<!--#BODY#-->', () => body);
+}
+
+function inlineScript(script) {
+    // Prevent a string inside the bundle from prematurely closing the HTML
+    // script element when the Apps Script/demo shell embeds the bundle.
+    return script.replace(/<\/script/gi, '<\\/script');
 }
 
 /** The page Apps Script serves — assets are hosted on GitHub Pages. */
@@ -55,6 +61,16 @@ export function renderProdShell() {
     });
 }
 
+/** The Apps Script page with assets embedded in Index.html. */
+export function renderInlineProdShell({ script, style }) {
+    return renderShell({
+        title: TITLE,
+        favicon: '',
+        head: `<style>${style}</style>`,
+        body: `<script>${inlineScript(script)}</script>`,
+    });
+}
+
 /** The page the local dev server serves out of frontend/dist. */
 export function renderDevShell() {
     return renderShell({
@@ -62,6 +78,16 @@ export function renderDevShell() {
         favicon: devFaviconTag(),
         head: '<link rel="stylesheet" href="app.css" />',
         body: '<script src="app.js"></script>',
+    });
+}
+
+/** The local dev page with the watcher outputs embedded in the response. */
+export function renderInlineDevShell({ script, style }) {
+    return renderShell({
+        title: TITLE,
+        favicon: devFaviconTag(),
+        head: `<style>${style}</style>`,
+        body: `<script>${inlineScript(script)}</script>`,
     });
 }
 
@@ -107,7 +133,7 @@ export function esbuildOptions(mode) {
         charset: 'utf8',
         logLevel: 'info',
         minify: optimized,
-        loader: { '.png': 'dataurl', '.avif': 'dataurl' },
+        loader: { '.png': 'dataurl', '.avif': 'dataurl', '.wasm': 'binary' },
         // Minified output still carries readable function names, so a stack
         // trace from the deployed app stays diagnosable. Costs ~1% of size.
         keepNames: optimized,

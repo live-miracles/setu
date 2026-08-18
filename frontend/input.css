@@ -873,7 +873,11 @@ body {
         padding-bottom: 4rem;
     }
 
-    .app-mobile-menu .ant-menu-item {
+    .app-mobile-nav-item {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--setu-ink);
         display: flex;
         flex: 1;
         flex-direction: column;
@@ -882,20 +886,25 @@ body {
         gap: 0.15rem;
         min-width: 0;
         height: 4rem;
-        margin-inline: 0;
         padding: 0.35rem 0;
         line-height: 1.2;
+        font: inherit;
+        cursor: pointer;
     }
 
-    .app-mobile-menu .ant-menu-item-icon {
+    .app-mobile-nav-item.is-selected {
+        color: var(--setu-primary);
+    }
+
+    .app-mobile-nav-item:focus-visible {
+        outline: 2px solid var(--setu-primary);
+        outline-offset: -2px;
+    }
+
+    .app-mobile-nav-item .anticon {
         flex: none;
         width: 1.15rem;
         height: 1.15rem;
-        margin-inline-end: 0 !important;
-    }
-
-    .app-mobile-menu .ant-menu-title-content {
-        margin-inline-start: 0 !important;
         line-height: 1.2;
     }
 

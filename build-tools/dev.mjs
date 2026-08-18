@@ -15,7 +15,7 @@ import {
     root,
     distDir,
     esbuildOptions,
-    renderDevShell,
+    renderInlineDevShell,
     TAILWIND_BIN,
     TAILWIND_ARGS,
 } from './shell.mjs';
@@ -55,7 +55,10 @@ const server = createServer((req, res) => {
     if (pathname === '/') {
         let page;
         try {
-            page = renderDevShell();
+            page = renderInlineDevShell({
+                script: readFileSync(path.join(distDir, 'app.js'), 'utf8'),
+                style: readFileSync(path.join(distDir, 'app.css'), 'utf8'),
+            });
         } catch (err) {
             // shell.html is a tracked source file rather than a build output,
             // so this is a genuine mistake worth showing in the tab instead of

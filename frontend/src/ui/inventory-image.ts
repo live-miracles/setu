@@ -1,6 +1,9 @@
+import encodeAvifWithWasm, { init as initAvifWithWasm } from '@jsquash/avif/encode';
+import avifWasm from '@jsquash/avif/codec/enc/avif_enc.wasm';
+
 const MAX_IMAGE_SIZE = 480;
 const AVIF_MIME_TYPE = 'image/avif';
-const AVIF_QUALITY = 0.72;
+let avifEncoderInitialization: Promise<void> | null = null;
 
 export function fitImageWithinBounds(
     width: number,
@@ -25,15 +28,34 @@ export function imageUrlForDriveId(imageId: string): string {
     return value ? `https://drive.google.com/uc?export=view&id=${encodeURIComponent(value)}` : '';
 }
 
-export function encodeAvif(canvas: HTMLCanvasElement): {
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    return btoa(binary);
+}
+
+async function encodeAvif(canvas: HTMLCanvasElement): Promise<{
     dataUrl: string;
     mimeType: typeof AVIF_MIME_TYPE;
-} {
-    const dataUrl = canvas.toDataURL(AVIF_MIME_TYPE, AVIF_QUALITY);
-    if (!dataUrl.startsWith(`data:${AVIF_MIME_TYPE};`)) {
-        throw new Error('This browser cannot encode images as AVIF.');
+}> {
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Unable to prepare the selected image.');
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    if (!avifEncoderInitialization) {
+        avifEncoderInitialization = initAvifWithWasm(
+            new WebAssembly.Module(avifWasm as unknown as BufferSource),
+        ).then(() => undefined);
     }
-    return { dataUrl, mimeType: AVIF_MIME_TYPE };
+    await avifEncoderInitialization;
+    const encoded = await encodeAvifWithWasm(imageData, { quality: 72 });
+    return {
+        dataUrl: `data:${AVIF_MIME_TYPE};base64,${arrayBufferToBase64(encoded)}`,
+        mimeType: AVIF_MIME_TYPE,
+    };
 }
 
 export function readImageFile(file: File): Promise<HTMLImageElement> {
@@ -72,7 +94,7 @@ export async function prepareInventoryImage(file: File): Promise<{
     if (!context) throw new Error('Unable to prepare the selected image.');
     context.drawImage(image, 0, 0, dimensions.width, dimensions.height);
 
-    const encoded = encodeAvif(canvas);
+    const encoded = await encodeAvif(canvas);
     const prefix = `data:${encoded.mimeType};base64,`;
     const base64Data = encoded.dataUrl.slice(prefix.length);
     const baseName = file.name.replace(/\.[^.]+$/, '') || 'inventory-image';
