@@ -1,6 +1,6 @@
 {
     "name": "setu",
-    "version": "0.2.10",
+    "version": "0.2.11",
     "description": "Setu — a Google Apps Script + Google Sheets internal ops app.",
     "private": true,
     "type": "module",
