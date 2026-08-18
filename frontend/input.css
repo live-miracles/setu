@@ -50,6 +50,22 @@ body {
     font-weight: 700;
 }
 
+.guidelines-markdown h1 {
+    font-size: 1.5rem;
+}
+
+.guidelines-markdown h2 {
+    font-size: 1.25rem;
+}
+
+.guidelines-markdown h3 {
+    font-size: 1.1rem;
+}
+
+.guidelines-markdown h4 {
+    font-size: 1rem;
+}
+
 .guidelines-markdown p,
 .guidelines-markdown ul,
 .guidelines-markdown ol,
@@ -104,6 +120,12 @@ body {
     max-width: 50rem;
     max-height: 24rem;
     overflow: auto;
+}
+
+.home-recent-comments .antd-list-button {
+    text-align: left;
+    justify-content: flex-start;
+    align-items: flex-start;
 }
 
 .roster-table-scroll {
