@@ -3,6 +3,7 @@ import {
     useRef,
     useState,
     type ChangeEvent,
+    type CSSProperties,
     type FormEvent,
     type ReactNode,
 } from 'react';
@@ -62,6 +63,8 @@ import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inven
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
 import { TableView } from '../ui/table-view';
 import { QrScanner } from '../ui/qr-scanner';
+import homeHeroImage from '../../assets/home-hero.avif';
+import homeHeroMobileImage from '../../assets/home-hero-mobile.avif';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -376,23 +379,23 @@ function Home({ dashboard }: Props) {
     };
     const summaryCards = [
         {
-            label: 'Pending programs',
+            label: 'Programs',
             count: pendingProgramRequests.length,
             onClick: navigateToPrograms,
         },
         {
-            label: 'Ongoing inventory',
+            label: 'Inventory',
             count: dashboard.inventoryRequests.length,
             onClick: navigateToInventoryRequests,
         },
         {
-            label: 'Recent comments',
+            label: 'Comments',
             count: dashboard.recentComments.length,
         },
         ...(canUseTickets(dashboard.me)
             ? [
                   {
-                      label: 'Ongoing tickets',
+                      label: 'Tickets',
                       count: ongoingTickets.length,
                       onClick: navigateToTickets,
                   },
@@ -417,20 +420,36 @@ function Home({ dashboard }: Props) {
     );
     return (
         <Page title="Home" hideHeading>
-            <div className="antd-stat-grid home-summary-grid">
-                {summaryCards.map((card) => (
-                    <AntCard
-                        key={card.label}
-                        className="home-summary-card"
-                        hoverable={Boolean(card.onClick)}
-                        onClick={card.onClick}>
-                        <Space direction="vertical" size={2}>
-                            <Typography.Text type="secondary">{card.label}</Typography.Text>
-                            <Typography.Title level={2}>{card.count}</Typography.Title>
-                        </Space>
-                    </AntCard>
-                ))}
-            </div>
+            <section
+                className="home-hero"
+                style={
+                    {
+                        backgroundImage: `url(${homeHeroImage})`,
+                        '--home-hero-mobile-image': `url(${homeHeroMobileImage})`,
+                    } as CSSProperties
+                }
+                aria-labelledby="home-hero-title">
+                <div className="home-hero-content">
+                    <Typography.Title id="home-hero-title" level={1}>
+                        Setu
+                    </Typography.Title>
+                    <Typography.Paragraph>Your operations, connected.</Typography.Paragraph>
+                </div>
+                <div className="antd-stat-grid home-summary-grid">
+                    {summaryCards.map((card) => (
+                        <AntCard
+                            key={card.label}
+                            className="home-summary-card"
+                            hoverable={Boolean(card.onClick)}
+                            onClick={card.onClick}>
+                            <Space size="small">
+                                <Typography.Text>{card.label}</Typography.Text>
+                                <Tag>{card.count}</Tag>
+                            </Space>
+                        </AntCard>
+                    ))}
+                </div>
+            </section>
             <div className="antd-two-column">
                 <Card title={null}>
                     {dashboard.homeContent.Guidelines ? (

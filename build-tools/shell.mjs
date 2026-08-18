@@ -107,7 +107,7 @@ export function esbuildOptions(mode) {
         charset: 'utf8',
         logLevel: 'info',
         minify: optimized,
-        loader: { '.png': 'dataurl' },
+        loader: { '.png': 'dataurl', '.avif': 'dataurl' },
         // Minified output still carries readable function names, so a stack
         // trace from the deployed app stays diagnosable. Costs ~1% of size.
         keepNames: optimized,
