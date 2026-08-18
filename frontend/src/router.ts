@@ -277,6 +277,10 @@ export function navigateToTickets(): void {
     navigateBackToWorkbench('tickets');
 }
 
+export function navigateToRoster(): void {
+    navigateTo('roster');
+}
+
 export function navigateToTicketCreate(): void {
     navigateTo('tickets', { mode: 'create', preserveWorkbench: true });
 }

@@ -100,6 +100,12 @@ body {
     background: none;
 }
 
+.home-recent-comments {
+    max-width: 50rem;
+    max-height: 24rem;
+    overflow: auto;
+}
+
 .roster-table-scroll {
     width: 100%;
     max-height: calc(100vh - 9rem);
@@ -163,6 +169,15 @@ body {
 .roster-table .roster-date-cell {
     font-weight: 600;
     white-space: nowrap;
+}
+
+.roster-table .roster-today-row > th,
+.roster-table .roster-today-row > td {
+    background: color-mix(in srgb, #b9dfbd 35%, var(--setu-paper));
+}
+
+.roster-table .roster-today-row > .roster-date-cell {
+    background: color-mix(in srgb, #b9dfbd 45%, var(--setu-surface));
 }
 
 .roster-table .roster-empty-cell {
@@ -537,6 +552,48 @@ body {
 
 .antd-stat-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.home-summary-grid {
+    position: relative;
+    isolation: isolate;
+    gap: 0.75rem;
+}
+
+.home-summary-grid::before,
+.home-summary-grid::after {
+    position: absolute;
+    z-index: -1;
+    content: '';
+    pointer-events: none;
+    filter: blur(0.25rem);
+}
+
+.home-summary-grid::before {
+    inset: -1rem 18% 0 -1rem;
+    background:
+        radial-gradient(circle at 15% 35%, rgb(185 223 189 / 65%), transparent 32%),
+        radial-gradient(circle at 78% 20%, rgb(139 184 232 / 45%), transparent 28%);
+}
+
+.home-summary-grid::after {
+    inset: 0 -1rem -1rem 42%;
+    background: radial-gradient(circle at 70% 70%, rgb(240 211 107 / 40%), transparent 34%);
+}
+
+.home-summary-card {
+    overflow: hidden;
+    border-color: color-mix(in srgb, var(--setu-line) 70%, transparent);
+    background: color-mix(in srgb, var(--setu-surface) 88%, transparent);
+    backdrop-filter: blur(0.35rem);
+}
+
+.home-summary-card .ant-card-body {
+    padding: 0.85rem 1rem;
+}
+
+.home-summary-card .ant-typography {
+    margin: 0;
 }
 
 .antd-two-column {

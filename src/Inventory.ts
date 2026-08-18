@@ -1,11 +1,10 @@
 const INVENTORY_REQUESTS_PAGE_SIZE = 20;
 
-// Outstanding (issued but not yet returned) quantity per inventory type —
+// Outstanding (issued but not yet closed) quantity per inventory type —
 // subtracted from TotalQuantity to derive availableQuantity on read, rather
 // than storing a mutable counter that could drift from the underlying
-// request rows. Returns are all-or-nothing per request (see the 'return'
-// branch below), so an item's full Quantity counts as outstanding exactly
-// while its request's Status is 'issued'. Damaged/missing returns aren't
+// request rows. An item's full Quantity counts as outstanding exactly while
+// its request's Status is 'issued'. Damaged/missing returns aren't
 // deducted here: an admin corrects TotalQuantity by hand when equipment is
 // permanently lost.
 function computeDeductionsByType(): Record<string, number> {
@@ -420,43 +419,6 @@ function performInventoryRequestAction(
                         actor.Email,
                         actor.Name + ' issued the equipment.' + (note ? ' ' + note : ''),
                     );
-                } else if (action === 'return') {
-                    if (request.Status !== 'issued' || !returnItems || returnItems.length === 0) {
-                        throw new ValidationError('invalid_transition_or_return_items');
-                    }
-                    const items = parseInventoryItemsJson(request.ItemsJson);
-                    if (returnItems.length !== items.length)
-                        throw new ValidationError('invalid_return_items');
-
-                    const inventoryTypesById = indexBy(
-                        Tables.InventoryTypes.readAll(),
-                        (t) => t.Id,
-                    );
-                    const summaries: string[] = [];
-                    returnItems.forEach((ret, index) => {
-                        const item = items[index];
-                        const type = inventoryTypesById[item.InventoryTypeId];
-                        item.Condition = ret.condition;
-                        summaries.push(
-                            item.Quantity +
-                                '× ' +
-                                (type ? type.Name : '') +
-                                ' (' +
-                                ret.condition +
-                                ')',
-                        );
-                    });
-                    computedStatus = 'returned';
-                    Tables.InventoryRequests.updateById(requestId, {
-                        Status: computedStatus,
-                        ItemsJson: stringifyInventoryItems(items),
-                    });
-                    insertActionComment(
-                        'inventory',
-                        requestId,
-                        actor.Email,
-                        actor.Name + ' returned ' + summaries.join(', ') + '.',
-                    );
                 } else if (action === 'cancel') {
                     if (['draft', 'submitted', 'approved'].indexOf(request.Status) === -1)
                         throw new ValidationError('invalid_transition');
@@ -469,8 +431,13 @@ function performInventoryRequestAction(
                         actor.Name + ' cancelled this request.' + (note ? ' ' + note : ''),
                     );
                 } else if (action === 'close') {
-                    if (['returned', 'rejected', 'cancelled'].indexOf(request.Status) === -1)
-                        throw new ValidationError('invalid_transition');
+                    if (['rejected', 'cancelled'].indexOf(request.Status) === -1) {
+                        if (request.Status !== 'issued')
+                            throw new ValidationError('invalid_transition');
+                        const items = parseInventoryItemsJson(request.ItemsJson);
+                        if (!items.length || items.some((item) => !item.Condition))
+                            throw new ValidationError('all_items_need_conditions');
+                    }
                     computedStatus = 'closed';
                     Tables.InventoryRequests.updateById(requestId, { Status: computedStatus });
                     insertActionComment(

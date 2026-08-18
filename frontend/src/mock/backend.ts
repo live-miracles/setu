@@ -536,7 +536,7 @@ const mockData = {
             UserId: 'sam@example.com',
             StartDate: mockAddDays(-7),
             EndDate: mockAddDays(-6),
-            Status: 'returned' as InventoryRequestStatus,
+            Status: 'issued' as InventoryRequestStatus,
             ImageId: '',
             DepartmentId: 'dep-1',
             LeadEmail: 'ana@example.com',
@@ -950,7 +950,7 @@ const mockData = {
             Timestamp: mockNowIso(),
             RequestId: 'req-4',
             UserId: 'admin@example.com',
-            Message: 'Alex Admin recorded the returned equipment.',
+            Message: 'Alex Admin recorded the equipment condition.',
         },
         {
             Id: 'comment-5',
@@ -1221,6 +1221,7 @@ function mockBuildDashboard(): DashboardPayload {
             : [],
         inventoryRequests: mockData.inventoryRequests
             .filter(mockCanViewRequest)
+            .filter((request) => ['closed', 'rejected', 'cancelled'].indexOf(request.Status) === -1)
             .map(mockBuildInventoryRequestDTO),
         programRequests: mockData.programRequests
             .filter(mockCanViewRequest)
@@ -1228,6 +1229,21 @@ function mockBuildDashboard(): DashboardPayload {
         tickets: canUseTickets(mockToUserDTO(mockCurrentUser()))
             ? mockData.tickets.map(mockBuildTicketDTO)
             : [],
+        recentComments: mockData.comments
+            .filter((comment) => {
+                const age = Date.now() - Date.parse(comment.Timestamp);
+                return age >= 0 && age <= 7 * 24 * 60 * 60 * 1000;
+            })
+            .map((comment) =>
+                Object.assign(mockBuildCommentDTO(comment), {
+                    requestKind: (comment.RequestId.startsWith('req-')
+                        ? 'inventory'
+                        : comment.RequestId.startsWith('ticket-')
+                          ? 'ticket'
+                          : 'program') as RecentCommentDTO['requestKind'],
+                }),
+            )
+            .sort((a, b) => b.Timestamp.localeCompare(a.Timestamp)),
         homeContent: mockData.homeContent,
         shiftTypes: [...mockData.shiftTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
         programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
@@ -1647,26 +1663,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 actorId,
                 actorName + ' issued the equipment.' + (note ? ' ' + note : ''),
             );
-        } else if (action === 'return' && returnItems) {
-            const summaries: string[] = [];
-            const items = mockParseInventoryItems(request.ItemsJson);
-            if (returnItems.length !== items.length) throw new Error('invalid_return_items');
-            returnItems.forEach((ret, index) => {
-                const item = items[index];
-                item.Condition = ret.condition;
-                const type = mockData.inventoryTypes.find((t) => t.Id === item.InventoryTypeId);
-                summaries.push(
-                    item.Quantity + '× ' + (type ? type.Name : '') + ' (' + ret.condition + ')',
-                );
-            });
-            request.ItemsJson = mockInventoryItemsJson(items);
-            request.Status = 'returned';
-            mockInsertActionComment(
-                'inventory',
-                requestId,
-                actorId,
-                actorName + ' returned ' + summaries.join(', ') + '.',
-            );
         } else if (action === 'cancel') {
             request.Status = 'cancelled';
             mockInsertActionComment(
@@ -1676,6 +1672,12 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 actorName + ' cancelled this request. ' + note,
             );
         } else if (action === 'close') {
+            if (request.Status === 'issued') {
+                const items = mockParseInventoryItems(request.ItemsJson);
+                if (!items.length || items.some((item) => !item.Condition)) {
+                    throw new Error('all_items_need_conditions');
+                }
+            }
             request.Status = 'closed';
             mockInsertActionComment(
                 'inventory',

@@ -104,7 +104,7 @@ export function buildRosterTableModel(
         .map((roster) => {
             const start = parseDateOnly(roster.StartDate);
             const end = parseDateOnly(roster.EndDate);
-            if (!start || !end || start > end || start < today) return null;
+            if (!start || !end || start > end || end < today) return null;
             return { roster, start, end };
         })
         .filter((entry): entry is { roster: RosterDTO; start: Date; end: Date } => entry !== null);
@@ -150,7 +150,7 @@ export function buildRosterTableModel(
                     shiftSortValue(first.roster).localeCompare(shiftSortValue(second.roster)),
                 )
                 .forEach((entry) => {
-                    const startIndex = rowIndexByDate.get(toIsoDate(entry.start));
+                    const startIndex = Math.max(0, rowIndexByDate.get(toIsoDate(entry.start)) ?? 0);
                     const endIndex = rowIndexByDate.get(toIsoDate(entry.end));
                     if (startIndex === undefined || endIndex === undefined) return;
                     const laneIndex = lanes.findIndex((lane) =>

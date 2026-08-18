@@ -9,8 +9,7 @@ const INVENTORY_REQUEST_TRANSITIONS: Record<InventoryRequestStatus, InventoryReq
     submitted: ['approve', 'reject', 'cancel'],
     approved: ['issue', 'cancel'],
     rejected: ['close'],
-    issued: ['return'],
-    returned: ['close'],
+    issued: ['close'],
     cancelled: ['close'],
     closed: [],
 };

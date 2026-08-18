@@ -18,19 +18,11 @@
 // 'user'.
 type UserRole = 'admin' | 'approver' | 'viewer' | 'user';
 type InventoryRequestStatus =
-    | 'draft'
-    | 'submitted'
-    | 'approved'
-    | 'rejected'
-    | 'issued'
-    | 'returned'
-    | 'cancelled'
-    | 'closed';
+    'draft' | 'submitted' | 'approved' | 'rejected' | 'issued' | 'cancelled' | 'closed';
 type ProgramRequestStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled';
 type ReturnCondition = 'returned' | 'damaged' | 'missing';
 type TicketStatus = 'unassigned' | 'pending' | 'closed';
-type InventoryRequestAction =
-    'submit' | 'approve' | 'reject' | 'issue' | 'return' | 'cancel' | 'close';
+type InventoryRequestAction = 'submit' | 'approve' | 'reject' | 'issue' | 'cancel' | 'close';
 type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel';
 type TicketAction = 'assign' | 'close' | 'reopen';
 
@@ -263,6 +255,10 @@ interface CommentDTO extends CommentRecord {
     userName: string;
 }
 
+interface RecentCommentDTO extends CommentDTO {
+    requestKind: 'inventory' | 'program' | 'ticket';
+}
+
 interface TicketDTO extends Ticket {
     assigneeName: string;
     comments: CommentDTO[];
@@ -312,6 +308,7 @@ interface DashboardPayload {
     inventoryRequests: InventoryRequestDTO[];
     programRequests: ProgramRequestDTO[];
     tickets: TicketDTO[];
+    recentComments: RecentCommentDTO[];
     homeContent: HomeContent;
     shiftTypes: ShiftType[];
     programTypes: ProgramType[];

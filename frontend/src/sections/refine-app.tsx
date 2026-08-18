@@ -35,6 +35,7 @@ import {
     navigateToInventoryRequests,
     navigateToProgram,
     navigateToPrograms,
+    navigateToRoster,
     navigateToTicket,
     navigateToTickets,
     refreshDashboard,
@@ -47,7 +48,7 @@ import {
     formatDateTime,
     formatProgramDateRange,
     formatProgramSessionSchedule,
-    formatRosterSchedule,
+    formatTimeOfDay,
 } from '../ui/format';
 import {
     buildRosterTableModel,
@@ -75,6 +76,7 @@ import {
     canManageConfig,
     canTransitionInventoryRequest,
     canTransitionTicket,
+    canUseTickets,
 } from '../workflows';
 
 type Props = { dashboard: DashboardPayload };
@@ -344,35 +346,189 @@ function isValidInternationalPhone(phone: string): boolean {
 }
 
 function Home({ dashboard }: Props) {
-    const cards = [
-        ['Inventory requests', dashboard.inventoryRequests.length, 'inventory'],
-        ['Program requests', dashboard.programRequests.length, 'programs'],
-        ['Tickets', dashboard.tickets.length, 'tickets'],
-        ['Upcoming shifts', dashboard.upcomingRosters.length, 'roster'],
+    const pendingProgramRequests = dashboard.programRequests.filter((request) =>
+        ['draft', 'submitted'].includes(request.Status),
+    );
+    const ongoingTickets = dashboard.tickets.filter((ticket) => ticket.Status !== 'closed');
+    const todayIso = formatLocalDateOnly(new Date());
+    const tomorrowDate = new Date();
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowIso = formatLocalDateOnly(tomorrowDate);
+    const shortDate = (dateIso: string) =>
+        new Date(`${dateIso}T00:00:00`).toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'short',
+        });
+    const shiftsForDate = (dateIso: string) =>
+        dashboard.upcomingRosters
+            .filter((roster) => roster.StartDate <= dateIso && roster.EndDate >= dateIso)
+            .sort((a, b) =>
+                `${a.StartTime}|${a.Name}|${a.userName}`.localeCompare(
+                    `${b.StartTime}|${b.Name}|${b.userName}`,
+                ),
+            );
+    const todayShifts = shiftsForDate(todayIso);
+    const tomorrowShifts = shiftsForDate(tomorrowIso);
+    const openComment = (comment: RecentCommentDTO) => {
+        if (comment.requestKind === 'inventory') navigateToInventoryRequest(comment.RequestId);
+        else if (comment.requestKind === 'program') navigateToProgram(comment.RequestId);
+        else navigateToTicket(comment.RequestId);
+    };
+    const summaryCards = [
+        {
+            label: 'Pending programs',
+            count: pendingProgramRequests.length,
+            onClick: navigateToPrograms,
+        },
+        {
+            label: 'Ongoing inventory',
+            count: dashboard.inventoryRequests.length,
+            onClick: navigateToInventoryRequests,
+        },
+        {
+            label: 'Recent comments',
+            count: dashboard.recentComments.length,
+        },
+        ...(canUseTickets(dashboard.me)
+            ? [
+                  {
+                      label: 'Ongoing tickets',
+                      count: ongoingTickets.length,
+                      onClick: navigateToTickets,
+                  },
+              ]
+            : []),
     ];
+    const sectionTitle = (title: string, count: number) => (
+        <Space size="small">
+            <span>{title}</span>
+            <Tag>{count}</Tag>
+        </Space>
+    );
+    const sectionAction = (title: string, onClick: () => void) => (
+        <Button
+            type="primary"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={onClick}
+            aria-label={`Open ${title}`}
+            title={`Open ${title}`}
+        />
+    );
     return (
-        <Page title="Home">
-            <div className="antd-stat-grid">
-                {cards.map(([label, count, section]) => (
+        <Page title="Home" hideHeading>
+            <div className="antd-stat-grid home-summary-grid">
+                {summaryCards.map((card) => (
                     <AntCard
-                        key={String(section)}
-                        hoverable
-                        onClick={() =>
-                            document
-                                .querySelector<HTMLElement>(`[data-nav-section="${section}"]`)
-                                ?.click()
-                        }>
+                        key={card.label}
+                        className="home-summary-card"
+                        hoverable={Boolean(card.onClick)}
+                        onClick={card.onClick}>
                         <Space direction="vertical" size={2}>
-                            <Typography.Text type="secondary">{label}</Typography.Text>
-                            <Typography.Title level={1}>{count}</Typography.Title>
-                            <Typography.Link>Open section →</Typography.Link>
+                            <Typography.Text type="secondary">{card.label}</Typography.Text>
+                            <Typography.Title level={2}>{card.count}</Typography.Title>
                         </Space>
                     </AntCard>
                 ))}
             </div>
             <div className="antd-two-column">
-                <Card title="Recent inventory requests">
-                    {dashboard.inventoryRequests.slice(0, 5).map((r) => (
+                <Card title={null}>
+                    {dashboard.homeContent.Guidelines ? (
+                        <div className="guidelines-markdown text-sm text-black/75">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {dashboard.homeContent.Guidelines}
+                            </ReactMarkdown>
+                        </div>
+                    ) : (
+                        <Empty />
+                    )}
+                </Card>
+                <Card title={null}>
+                    <Typography.Title level={5}>
+                        Today&apos;s shifts ({shortDate(todayIso)})
+                    </Typography.Title>
+                    {todayShifts.map((shift) => (
+                        <Button
+                            type="text"
+                            block
+                            className="antd-list-button"
+                            key={shift.Id}
+                            onClick={navigateToRoster}>
+                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                <Typography.Text strong>
+                                    {shift.Name} · {shift.userName || 'Unassigned'}
+                                </Typography.Text>
+                                <Typography.Text>
+                                    {[
+                                        formatTimeOfDay(shift.StartTime),
+                                        formatTimeOfDay(shift.EndTime),
+                                    ]
+                                        .filter(Boolean)
+                                        .join(' – ')}
+                                </Typography.Text>
+                            </Space>
+                        </Button>
+                    ))}
+                    {!todayShifts.length && <Empty />}
+                    <Typography.Title level={5}>
+                        Tomorrow&apos;s shifts ({shortDate(tomorrowIso)})
+                    </Typography.Title>
+                    {tomorrowShifts.map((shift) => (
+                        <Button
+                            type="text"
+                            block
+                            className="antd-list-button"
+                            key={shift.Id}
+                            onClick={navigateToRoster}>
+                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                <Typography.Text strong>
+                                    {shift.Name} · {shift.userName || 'Unassigned'}
+                                </Typography.Text>
+                                <Typography.Text>
+                                    {[
+                                        formatTimeOfDay(shift.StartTime),
+                                        formatTimeOfDay(shift.EndTime),
+                                    ]
+                                        .filter(Boolean)
+                                        .join(' – ')}
+                                </Typography.Text>
+                            </Space>
+                        </Button>
+                    ))}
+                    {!tomorrowShifts.length && <Empty />}
+                </Card>
+            </div>
+            <div className="antd-two-column">
+                <Card
+                    title={sectionTitle('Pending program requests', pendingProgramRequests.length)}
+                    action={sectionAction('Pending program requests', navigateToPrograms)}>
+                    {pendingProgramRequests.map((request) => (
+                        <Button
+                            type="text"
+                            block
+                            className="antd-list-button"
+                            key={request.Id}
+                            onClick={() => navigateToProgram(request.Id)}>
+                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                <Typography.Text strong>
+                                    REQ-{request.DisplayId} · {request.Name}
+                                </Typography.Text>
+                                <Tag>{request.Status}</Tag>
+                            </Space>
+                        </Button>
+                    ))}
+                    {!pendingProgramRequests.length && <Empty />}
+                </Card>
+                <Card
+                    title={sectionTitle(
+                        'Ongoing Inventory Requests',
+                        dashboard.inventoryRequests.length,
+                    )}
+                    action={sectionAction(
+                        'Ongoing Inventory Requests',
+                        navigateToInventoryRequests,
+                    )}>
+                    {dashboard.inventoryRequests.map((r) => (
                         <Button
                             type="text"
                             block
@@ -389,25 +545,57 @@ function Home({ dashboard }: Props) {
                     ))}
                     {!dashboard.inventoryRequests.length && <Empty />}
                 </Card>
-                <Card title="Upcoming roster">
-                    {dashboard.upcomingRosters.slice(0, 5).map((r) => (
-                        <div className="antd-list-row" key={r.Id}>
-                            <span className="font-medium">{r.Name}</span>
-                            <span>{formatRosterSchedule(r)}</span>
-                        </div>
-                    ))}
-                    {!dashboard.upcomingRosters.length && <Empty />}
-                </Card>
             </div>
-            {dashboard.homeContent.Guidelines && (
-                <Card title="Guidelines">
-                    <div className="guidelines-markdown text-sm text-black/75">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {dashboard.homeContent.Guidelines}
-                        </ReactMarkdown>
-                    </div>
+            <div className="antd-two-column">
+                <Card
+                    title={
+                        <Space size="small">
+                            <span>Recent comments</span>
+                            <Tag>{dashboard.recentComments.length}</Tag>
+                        </Space>
+                    }
+                    className="home-recent-comments">
+                    {dashboard.recentComments.map((comment) => (
+                        <Button
+                            type="text"
+                            block
+                            className="antd-list-button"
+                            key={comment.Id}
+                            onClick={() => openComment(comment)}>
+                            <div>
+                                <Typography.Text strong>{comment.userName}</Typography.Text>
+                                <Typography.Text type="secondary" className="ml-2">
+                                    {formatDateTime(comment.Timestamp)}
+                                </Typography.Text>
+                            </div>
+                            <div className="whitespace-pre-wrap text-sm">{comment.Message}</div>
+                        </Button>
+                    ))}
+                    {!dashboard.recentComments.length && <Empty />}
                 </Card>
-            )}
+                {canUseTickets(dashboard.me) && (
+                    <Card
+                        title={sectionTitle('Ongoing tickets', ongoingTickets.length)}
+                        action={sectionAction('Ongoing tickets', navigateToTickets)}>
+                        {ongoingTickets.map((ticket) => (
+                            <Button
+                                type="text"
+                                block
+                                className="antd-list-button"
+                                key={ticket.Id}
+                                onClick={() => navigateToTicket(ticket.Id)}>
+                                <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                    <Typography.Text strong>
+                                        TKT-{ticket.DisplayId} · {ticket.Title}
+                                    </Typography.Text>
+                                    <Tag>{ticket.Status}</Tag>
+                                </Space>
+                            </Button>
+                        ))}
+                        {!ongoingTickets.length && <Empty />}
+                    </Card>
+                )}
+            </div>
         </Page>
     );
 }
@@ -710,11 +898,14 @@ function Roster({ dashboard }: Props) {
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<RosterDTO | null>(null);
     const [users, setUsers] = useState<UserDTO[]>([]);
+    const rosterStartDate = new Date();
+    rosterStartDate.setDate(rosterStartDate.getDate() - 2);
+    const rosterStartIso = formatLocalDateOnly(rosterStartDate);
     const todayIso = formatLocalDateOnly(new Date());
     const rosterTable = buildRosterTableModel(
         dashboard.upcomingRosters,
         dashboard.shiftTypes,
-        todayIso,
+        rosterStartIso,
     );
     useEffect(() => {
         if (canEdit) api.listUsers().then(setUsers).catch(error);
@@ -897,7 +1088,11 @@ function Roster({ dashboard }: Props) {
                             </thead>
                             <tbody>
                                 {rosterTable.rows.map((row, rowIndex) => (
-                                    <tr key={row.isoDate}>
+                                    <tr
+                                        key={row.isoDate}
+                                        className={
+                                            row.isoDate === todayIso ? 'roster-today-row' : ''
+                                        }>
                                         <th scope="row" className="roster-date-cell">
                                             {row.label}
                                         </th>
@@ -1079,16 +1274,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     );
     const [creating, setCreating] = useState(false);
     const statuses = isInventory
-        ? [
-              'draft',
-              'submitted',
-              'approved',
-              'issued',
-              'returned',
-              'closed',
-              'rejected',
-              'cancelled',
-          ]
+        ? ['draft', 'submitted', 'approved', 'issued', 'closed', 'rejected', 'cancelled']
         : isProgram
           ? ['draft', 'submitted', 'approved', 'rejected', 'cancelled']
           : ['unassigned', 'pending', 'closed'];
@@ -2392,17 +2578,15 @@ function InventoryDetail({
         }
     };
     const actions = (
-        [
-            'submit',
-            'approve',
-            'reject',
-            'issue',
-            'return',
-            'close',
-            'cancel',
-        ] as InventoryRequestAction[]
+        ['submit', 'approve', 'reject', 'issue', 'close', 'cancel'] as InventoryRequestAction[]
     )
         .filter((action) => canTransitionInventoryRequest(request.Status, action))
+        .filter(
+            (action) =>
+                action !== 'close' ||
+                request.Status !== 'issued' ||
+                (items.length > 0 && items.every((item) => Boolean(item.Condition))),
+        )
         .filter((action) => (action === 'submit' ? owner : canApprove(dashboard.me)));
     return (
         <DetailLayout
