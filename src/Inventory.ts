@@ -217,7 +217,7 @@ function createInventoryRequest(
         const inventoryType = Tables.InventoryTypes.findById(line.inventoryTypeId);
         if (!inventoryType) throw new ValidationError('inventory_type_not_found');
         const condition = (line.condition || '') as ReturnCondition | '';
-        if (condition && ['good', 'damaged', 'missing'].indexOf(condition) === -1) {
+        if (condition && ['returned', 'damaged', 'missing'].indexOf(condition) === -1) {
             throw new ValidationError('invalid_return_condition');
         }
         return { inventoryType, quantity: line.quantity, condition };
@@ -280,7 +280,7 @@ function updateInventoryRequest(
         const inventoryType = Tables.InventoryTypes.findById(line.inventoryTypeId);
         if (!inventoryType) throw new ValidationError('inventory_type_not_found');
         const condition = (line.condition || '') as ReturnCondition | '';
-        if (condition && ['good', 'damaged', 'missing'].indexOf(condition) === -1) {
+        if (condition && ['returned', 'damaged', 'missing'].indexOf(condition) === -1) {
             throw new ValidationError('invalid_return_condition');
         }
         return { inventoryType, quantity: line.quantity, condition };

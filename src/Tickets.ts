@@ -13,7 +13,7 @@ function buildTicketDTO(
     });
 }
 
-// Tickets are hidden from the `user` role entirely (canUseTickets in
+// Tickets are hidden from viewer/user roles entirely (canUseTickets in
 // Auth.ts): no listing, no reporting, no being assigned one. Every entry
 // point below closes that off rather than relying on the frontend hiding
 // the section.

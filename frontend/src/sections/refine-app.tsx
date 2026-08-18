@@ -59,6 +59,7 @@ import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
+import { TableView } from '../ui/table-view';
 import { QrScanner } from '../ui/qr-scanner';
 import {
     buildDuplicateProgramInput,
@@ -169,14 +170,16 @@ function Page({
 function Card({
     title,
     action,
+    className,
     children,
 }: {
-    title: string;
+    title: ReactNode;
     action?: ReactNode;
+    className?: string;
     children: ReactNode;
 }) {
     return (
-        <AntCard title={title} extra={action}>
+        <AntCard title={title} extra={action} className={className}>
             {children}
         </AntCard>
     );
@@ -418,7 +421,6 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
         if (!isValidInternationalPhone(phone)) {
             throw new Error(INTERNATIONAL_PHONE_TITLE);
         }
-        if (!departmentIdValue) throw new Error('Department is required.');
         await api.updateOwnProfile({
             name: String(d.get('name')),
             departmentId: departmentIdValue,
@@ -428,15 +430,27 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
     });
     return (
         <Page title={registration ? 'Welcome' : 'Profile'}>
-            <Card title={registration ? 'Get started' : me.Name}>
+            <Card
+                title={
+                    registration ? (
+                        'Get started'
+                    ) : (
+                        <Space size="small" wrap>
+                            <Typography.Text strong>{me.Name}</Typography.Text>
+                            <Typography.Text type="secondary">{me.Email}</Typography.Text>
+                            <Tag color="blue">{roleLabel(me.Role)}</Tag>
+                        </Space>
+                    )
+                }
+                className="profile-form-card">
                 <form
                     id={registration ? 'registration-form' : 'profile-form'}
-                    className="grid gap-3 sm:grid-cols-2"
+                    className="grid gap-3"
                     noValidate
                     onSubmit={save.run}>
                     <TextField name="name" label="Name" value={me.Name} required />
-                    <AntForm.Item label="Department" required>
-                        <input type="hidden" name="departmentId" value={departmentId} required />
+                    <AntForm.Item label="Department">
+                        <input type="hidden" name="departmentId" value={departmentId} />
                         <Select
                             value={departmentId}
                             onChange={setDepartmentId}
@@ -459,12 +473,7 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                         title={INTERNATIONAL_PHONE_TITLE}
                     />
                     <TextField name="whatsapp" label="WhatsApp" value={me.Whatsapp} required />
-                    {!registration && (
-                        <div className="text-sm text-black/60 sm:col-span-2">
-                            {me.Email} · <Tag color="blue">{roleLabel(me.Role)}</Tag>
-                        </div>
-                    )}
-                    <div className="sm:col-span-2">
+                    <div>
                         <SaveFooter
                             label={registration ? 'Get started' : 'Save'}
                             busy={save.busy}
@@ -572,29 +581,25 @@ function Users({ dashboard }: Props) {
             .includes(search.toLowerCase()),
     );
     return (
-        <Page
-            title="Users"
-            action={
-                canManageConfig(dashboard.me) && (
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={() => setCreating(true)}
-                        aria-label="Add user"
-                        title="Add user"
-                    />
-                )
-            }>
-            <Card title="Users" action={<Tag>{shown.length}</Tag>}>
-                <div className="antd-table-search">
-                    <Input
-                        allowClear
-                        prefix={<SearchOutlined />}
-                        placeholder="Search users"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                    />
-                </div>
+        <Page title="Users" hideHeading>
+            <TableView
+                title="Users"
+                count={shown.length}
+                action={
+                    canManageConfig(dashboard.me) ? (
+                        <Button
+                            type="primary"
+                            size="small"
+                            icon={<PlusOutlined />}
+                            onClick={() => setCreating(true)}
+                            aria-label="Add user"
+                            title="Add user"
+                        />
+                    ) : null
+                }
+                searchValue={search}
+                onSearch={setSearch}
+                searchPlaceholder="Search users">
                 {filteredUsers.length ? (
                     <Table
                         rowKey="Email"
@@ -668,7 +673,7 @@ function Users({ dashboard }: Props) {
                 ) : (
                     <Empty>No users yet.</Empty>
                 )}
-            </Card>
+            </TableView>
             {deleting && (
                 <ActionConfirmation
                     action="delete"
@@ -2705,7 +2710,7 @@ function InventoryDetail({
                                 }
                                 style={{ width: '100%' }}>
                                 <Select.Option value="">Not specified</Select.Option>
-                                <Select.Option value="good">Good</Select.Option>
+                                <Select.Option value="returned">Returned</Select.Option>
                                 <Select.Option value="damaged">Damaged</Select.Option>
                                 <Select.Option value="missing">Missing</Select.Option>
                             </Select>

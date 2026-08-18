@@ -34,7 +34,7 @@ const items = [
     {
         InventoryTypeId: 'inventory-type-uuid-1',
         Quantity: 2,
-        Condition: 'good',
+        Condition: 'returned',
         itemName: 'Camera body',
     },
     { InventoryTypeId: 'other-type', Quantity: 1, Condition: '', itemName: 'Other' },
@@ -57,7 +57,7 @@ export function runInventoryQrAssertions(): void {
 
     const incremented = addScannedInventoryItem(items, 'inventory-type-uuid-1');
     assert(incremented[0].Quantity === 3, 'scanning an existing type should increment quantity');
-    assert(incremented[0].Condition === 'good', 'incrementing should preserve item condition');
+    assert(incremented[0].Condition === 'returned', 'incrementing should preserve item condition');
     assert(incremented[1].Quantity === 1, 'incrementing should preserve other items');
 
     const added = addScannedInventoryItem(items, 'inventory-type-uuid-2');

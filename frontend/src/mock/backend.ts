@@ -585,14 +585,14 @@ const mockData = {
             RequestId: 'req-4',
             InventoryTypeId: 'inv-1',
             Quantity: 1,
-            Condition: 'good' as ReturnCondition,
+            Condition: 'returned' as ReturnCondition,
         },
         {
             Id: 'reqitem-5',
             RequestId: 'req-5',
             InventoryTypeId: 'inv-2',
             Quantity: 1,
-            Condition: 'good' as ReturnCondition,
+            Condition: 'returned' as ReturnCondition,
         },
     ] as MockLegacyInventoryItem[],
     programRequests: [
@@ -1920,6 +1920,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return mockBuildTicketDTO(ticket);
     },
     createTicket: (input: CreateTicketInput) => {
+        if (!canUseTickets(mockToUserDTO(mockCurrentUser()))) {
+            throw new Error('Tickets are not available for your role.');
+        }
         const created: Ticket = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.ticket++,
@@ -1943,6 +1946,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         return mockBuildTicketDTO(ticket);
     },
     performTicketAction: (ticketId: string, action: TicketAction, assigneeId: string | null) => {
+        if (!canUseTickets(mockToUserDTO(mockCurrentUser()))) {
+            throw new Error('Tickets are not available for your role.');
+        }
         const ticket = mockData.tickets.find((t) => t.Id === ticketId)!;
         if (!canTransitionTicket(ticket.Status, action)) throw new Error('invalid_transition');
         const actorName = mockCurrentUser().Name;
@@ -1981,6 +1987,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
     addComment: (requestId: string, message: string) => {
         const isInventory = mockData.inventoryRequests.some((r) => r.Id === requestId);
         const isTicket = mockData.tickets.some((t) => t.Id === requestId);
+        if (isTicket && !canUseTickets(mockToUserDTO(mockCurrentUser()))) {
+            throw new Error('Tickets are not available for your role.');
+        }
         const created = mockInsertActionComment(
             isTicket ? 'ticket' : isInventory ? 'inventory' : 'program',
             requestId,

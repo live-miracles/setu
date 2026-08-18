@@ -341,6 +341,18 @@ body {
     max-width: 50rem;
 }
 
+.profile-form-card {
+    width: 100%;
+    max-width: 42rem;
+    margin-inline: auto;
+}
+
+.settings-form-card {
+    width: 100%;
+    max-width: 50rem;
+    margin-inline: auto;
+}
+
 .app-mobile-menu {
     display: none;
 }

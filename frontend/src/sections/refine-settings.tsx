@@ -1,24 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import {
-    Button,
-    Card,
-    Checkbox,
-    Empty,
-    Form,
-    Input,
-    Modal,
-    Space,
-    Table,
-    Tag,
-    Typography,
-} from 'antd';
-import {
-    DeleteOutlined,
-    DownloadOutlined,
-    EditOutlined,
-    PlusOutlined,
-    SearchOutlined,
-} from '@ant-design/icons';
+import { Button, Card, Checkbox, Empty, Form, Input, Modal, Space, Table } from 'antd';
+import { DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
@@ -27,6 +9,7 @@ import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
 import { stockLevelTextClass } from '../ui/styles';
 import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
+import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { ActionConfirmation } from './refine-app';
 
@@ -503,45 +486,22 @@ function SettingsResourcePage({
     ];
     return (
         <section className={compact ? 'antd-settings-compact' : 'antd-page'}>
-            {!compact && (
-                <div className="antd-page-heading">
-                    <div>
-                        <Typography.Title level={2}>{config.title}</Typography.Title>
-                    </div>
+            <TableView
+                title={config.title}
+                count={rows.length}
+                action={
                     <Button
                         type="primary"
+                        size="small"
                         icon={<PlusOutlined />}
-                        onClick={() => setCreating(true)}>
-                        Add
-                    </Button>
-                </div>
-            )}
-            <Card
-                title={config.title}
-                extra={
-                    compact ? (
-                        <Button
-                            type="primary"
-                            size="small"
-                            icon={<PlusOutlined />}
-                            onClick={() => setCreating(true)}>
-                            Add
-                        </Button>
-                    ) : (
-                        <Tag>{rows.length}</Tag>
-                    )
-                }>
-                {hasSearch && (
-                    <div className="antd-table-search">
-                        <Input
-                            allowClear
-                            prefix={<SearchOutlined />}
-                            placeholder={`Search ${config.title.toLowerCase()}`}
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                        />
-                    </div>
-                )}
+                        onClick={() => setCreating(true)}
+                        aria-label={`Add ${config.kind}`}
+                        title={`Add ${config.kind}`}
+                    />
+                }
+                searchValue={hasSearch ? search : undefined}
+                onSearch={hasSearch ? setSearch : undefined}
+                searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
                 <Table
                     rowKey="Id"
                     columns={columns}
@@ -549,7 +509,7 @@ function SettingsResourcePage({
                     locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
                     pagination={false}
                 />
-            </Card>
+            </TableView>
             {deleting && (
                 <ActionConfirmation
                     action="delete"
@@ -597,19 +557,12 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
 
     return (
         <section className="antd-page">
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>Other settings</Typography.Title>
-                    <Typography.Paragraph type="secondary">
-                        Guidelines and reusable options used throughout the app.
-                    </Typography.Paragraph>
-                </div>
-            </div>
-            <Card title="Guidelines">
+            <Card title="Guidelines" className="settings-form-card">
                 <form onSubmit={saveGuidelines}>
-                    <Form.Item label="Guidelines">
+                    <Form.Item>
                         <Input.TextArea
                             name="guidelines"
+                            aria-label="Guidelines"
                             rows={6}
                             defaultValue={dashboard.homeContent.Guidelines}
                         />

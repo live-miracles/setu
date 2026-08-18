@@ -70,8 +70,8 @@ export function canApprove(me: UserDTO): boolean {
     return me.Role === 'admin' || me.Role === 'approver';
 }
 
-// The ticket board is hidden from `user` outright, so the nav entry, the
-// Home stat and the assignee picker all gate on this.
+// The ticket board is restricted to admins and approvers, so the nav entry,
+// Home stat, and assignee picker all gate on this.
 export function canUseTickets(me: UserDTO): boolean {
-    return me.Role !== 'user';
+    return me.Role === 'admin' || me.Role === 'approver';
 }

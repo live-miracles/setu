@@ -46,11 +46,11 @@ function canViewAllRequests(user: User): boolean {
     return roleOf(user) !== 'user';
 }
 
-// Tickets are hidden from `user` outright — not scoped to their own, the
-// way requests are — so they can't list, report, be assigned or act on one.
-// A Ticket row has no reporter column to scope by anyway (see Tickets.ts).
+// Tickets are available only to admins and approvers. They are not scoped to
+// individual users, so viewer/user accounts cannot list, report, be assigned,
+// or act on tickets (see Tickets.ts).
 function canUseTickets(user: User): boolean {
-    return roleOf(user) !== 'user';
+    return canApprove(user);
 }
 
 // The read scope for a single inventory/program request. Roster shifts are

@@ -82,10 +82,10 @@ function getDashboard(): DashboardPayload {
         ? Tables.Blocks.readAll().sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime))
         : [];
 
-    // Only the Admin section surfaces this, so non-admins skip the read
-    // entirely rather than being handed a count they can't act on.
+    // Admins and approvers can monitor failed notifications; other roles skip
+    // the read entirely rather than receiving a count they cannot act on.
     const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const failedEmailCount = canManageConfig(actor)
+    const failedEmailCount = canApprove(actor)
         ? Tables.FailedEmails.findWhere((f) => f.Timestamp >= sevenDaysAgoIso).length
         : 0;
 

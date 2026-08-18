@@ -27,7 +27,7 @@ type InventoryRequestStatus =
     | 'cancelled'
     | 'closed';
 type ProgramRequestStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled';
-type ReturnCondition = 'good' | 'damaged' | 'missing';
+type ReturnCondition = 'returned' | 'damaged' | 'missing';
 type TicketStatus = 'unassigned' | 'pending' | 'closed';
 type InventoryRequestAction =
     'submit' | 'approve' | 'reject' | 'issue' | 'return' | 'cancel' | 'close';
