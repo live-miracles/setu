@@ -3,6 +3,7 @@ import {
     AppstoreOutlined,
     CalendarOutlined,
     InboxOutlined,
+    ReloadOutlined,
     SettingOutlined,
     ToolOutlined,
     UserOutlined,
@@ -10,6 +11,8 @@ import {
 import { createRoot } from 'react-dom/client';
 import { useEffect, useState } from 'react';
 import appLogo from '../../logo.png';
+import { refreshDashboard } from '../router';
+import { showErrorAlert } from './feedback';
 
 const { Header, Content } = Layout;
 
@@ -36,12 +39,25 @@ function sectionFromUrl(): string {
 
 function Shell() {
     const [selectedSection, setSelectedSection] = useState(sectionFromUrl);
+    const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
         const syncSelection = () => setSelectedSection(sectionFromUrl());
         window.addEventListener('setu:navigation', syncSelection);
         return () => window.removeEventListener('setu:navigation', syncSelection);
     }, []);
+
+    const refresh = async () => {
+        if (refreshing) return;
+        setRefreshing(true);
+        try {
+            await refreshDashboard();
+        } catch (err) {
+            showErrorAlert(err);
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     return (
         <AntApp>
@@ -107,6 +123,14 @@ function Shell() {
                             aria-label="Profile">
                             <span id="nav-user-name" />
                         </Button>
+                        <Button
+                            type="text"
+                            icon={<ReloadOutlined spin={refreshing} />}
+                            data-authenticated-nav
+                            onClick={() => void refresh()}
+                            aria-label="Refresh app"
+                            title="Refresh app"
+                        />
                     </Space>
                 </Header>
                 <Content id="app-content" className="app-content">

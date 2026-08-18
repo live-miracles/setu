@@ -3,7 +3,6 @@ import {
     useRef,
     useState,
     type ChangeEvent,
-    type CSSProperties,
     type FormEvent,
     type ReactNode,
 } from 'react';
@@ -64,7 +63,6 @@ import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image
 import { TableView } from '../ui/table-view';
 import { QrScanner } from '../ui/qr-scanner';
 import homeHeroImage from '../../assets/home-hero.avif';
-import homeHeroMobileImage from '../../assets/home-hero-mobile.avif';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -422,12 +420,7 @@ function Home({ dashboard }: Props) {
         <Page title="Home" hideHeading>
             <section
                 className="home-hero"
-                style={
-                    {
-                        backgroundImage: `url(${homeHeroImage})`,
-                        '--home-hero-mobile-image': `url(${homeHeroMobileImage})`,
-                    } as CSSProperties
-                }
+                style={{ backgroundImage: `url(${homeHeroImage})` }}
                 aria-labelledby="home-hero-title">
                 <div className="home-hero-content">
                     <Typography.Title id="home-hero-title" level={1}>
@@ -520,6 +513,7 @@ function Home({ dashboard }: Props) {
             <div className="antd-two-column">
                 <Card
                     title={sectionTitle('Pending program requests', pendingProgramRequests.length)}
+                    className="home-scroll-card"
                     action={sectionAction('Pending program requests', navigateToPrograms)}>
                     {pendingProgramRequests.map((request) => (
                         <Button
@@ -543,6 +537,7 @@ function Home({ dashboard }: Props) {
                         'Ongoing Inventory Requests',
                         dashboard.inventoryRequests.length,
                     )}
+                    className="home-scroll-card"
                     action={sectionAction(
                         'Ongoing Inventory Requests',
                         navigateToInventoryRequests,
@@ -573,7 +568,7 @@ function Home({ dashboard }: Props) {
                             <Tag>{dashboard.recentComments.length}</Tag>
                         </Space>
                     }
-                    className="home-recent-comments">
+                    className="home-scroll-card home-recent-comments">
                     {dashboard.recentComments.map((comment) => (
                         <Button
                             type="text"
@@ -587,7 +582,9 @@ function Home({ dashboard }: Props) {
                                     {formatDateTime(comment.Timestamp)}
                                 </Typography.Text>
                             </div>
-                            <div className="whitespace-pre-wrap text-sm">{comment.Message}</div>
+                            <div className="home-comment-message whitespace-pre-wrap text-sm">
+                                {comment.Message}
+                            </div>
                         </Button>
                     ))}
                     {!dashboard.recentComments.length && <Empty />}
@@ -595,6 +592,7 @@ function Home({ dashboard }: Props) {
                 {canUseTickets(dashboard.me) && (
                     <Card
                         title={sectionTitle('Ongoing tickets', ongoingTickets.length)}
+                        className="home-scroll-card"
                         action={sectionAction('Ongoing tickets', navigateToTickets)}>
                         {ongoingTickets.map((ticket) => (
                             <Button
@@ -1472,7 +1470,6 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                     );
                 })}
             </div>
-            {!filteredRows.length && <Empty>No matching records.</Empty>}
             {creating && (
                 <Modal
                     title={`New ${isInventory ? 'inventory request' : isProgram ? 'program request' : 'ticket'}`}

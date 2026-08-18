@@ -18,6 +18,10 @@ function mockNowIso(): string {
     return new Date().toISOString();
 }
 
+function mockMinutesAgoIso(minutes: number): string {
+    return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
 function mockUuid(): string {
     return 'mock-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
@@ -926,42 +930,42 @@ const mockData = {
     comments: [
         {
             Id: 'comment-1',
-            Timestamp: mockNowIso(),
+            Timestamp: mockMinutesAgoIso(12),
             RequestId: 'req-1',
             UserId: 'sam@example.com',
             Message: 'Sam User submitted this request.',
         },
         {
             Id: 'comment-2',
-            Timestamp: mockNowIso(),
+            Timestamp: mockMinutesAgoIso(48),
             RequestId: 'req-2',
             UserId: 'admin@example.com',
             Message: 'Alex Admin approved this request.',
         },
         {
             Id: 'comment-3',
-            Timestamp: mockNowIso(),
+            Timestamp: mockMinutesAgoIso(95),
             RequestId: 'req-3',
             UserId: 'admin@example.com',
             Message: 'Alex Admin issued this equipment.',
         },
         {
             Id: 'comment-4',
-            Timestamp: mockNowIso(),
+            Timestamp: mockMinutesAgoIso(180),
             RequestId: 'req-4',
             UserId: 'admin@example.com',
             Message: 'Alex Admin recorded the equipment condition.',
         },
         {
             Id: 'comment-5',
-            Timestamp: mockNowIso(),
+            Timestamp: mockMinutesAgoIso(360),
             RequestId: 'req-5',
             UserId: 'admin@example.com',
             Message: 'Alex Admin closed this request.',
         },
         {
             Id: 'comment-6',
-            Timestamp: mockNowIso(),
+            Timestamp: mockMinutesAgoIso(720),
             RequestId: 'ticket-2',
             UserId: 'ana@example.com',
             Message: 'Ana Approver assigned this ticket to Ana Approver.',

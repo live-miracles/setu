@@ -118,14 +118,34 @@ body {
 
 .home-recent-comments {
     max-width: 50rem;
+}
+
+.home-scroll-card {
+    display: flex;
     max-height: 24rem;
+    flex-direction: column;
+}
+
+.home-scroll-card > .ant-card-head {
+    flex: 0 0 auto;
+}
+
+.home-scroll-card > .ant-card-body {
+    min-height: 0;
     overflow: auto;
 }
 
 .home-recent-comments .antd-list-button {
+    flex-direction: column;
     text-align: left;
     justify-content: flex-start;
     align-items: flex-start;
+}
+
+.home-comment-message {
+    width: 100%;
+    margin-top: 0.2rem;
+    overflow-wrap: anywhere;
 }
 
 .roster-table-scroll {
@@ -801,9 +821,8 @@ body {
 
 @media (max-width: 767px) {
     .home-hero {
-        min-height: 22rem;
+        min-height: 12rem;
         background-position: 62% center;
-        background-image: var(--home-hero-mobile-image) !important;
     }
 
     .home-hero-content {
@@ -811,7 +830,7 @@ body {
     }
 
     .home-summary-grid {
-        padding: 0 1.25rem 1.25rem;
+        display: none;
     }
 
     .home-summary-card {
@@ -838,11 +857,20 @@ body {
     .app-mobile-menu {
         display: flex;
         justify-content: space-around;
-        position: sticky;
+        position: fixed;
+        right: 0;
         bottom: 0;
+        left: 0;
         z-index: 10;
+        box-sizing: border-box;
+        height: calc(4rem + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
         background: var(--setu-surface);
         border-top: 1px solid var(--setu-line);
+    }
+
+    .app-content {
+        padding-bottom: 4rem;
     }
 
     .app-mobile-menu .ant-menu-item {
