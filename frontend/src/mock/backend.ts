@@ -968,7 +968,8 @@ const mockData = {
         },
     ] as CommentRecord[],
     homeContent: {
-        Guidelines: 'Please return equipment within 24 hours of your shoot ending.',
+        Guidelines:
+            '## Quick guidelines\n\nPlease return equipment within 24 hours of your shoot ending.\n\n- Check the [inventory list](/?section=inventory) before requesting equipment.\n- Add a clear description and expected return time to each request.\n- Report damage promptly through the [tickets section](/?section=tickets).',
     } as HomeContent,
     shiftTypes: [
         {

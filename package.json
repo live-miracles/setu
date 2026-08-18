@@ -38,6 +38,8 @@
         "qrcode": "^1.5.4",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
-        "react-hook-form": "^7.85.0"
+        "react-hook-form": "^7.85.0",
+        "react-markdown": "^6.0.3",
+        "remark-gfm": "^1.0.0"
     }
 }

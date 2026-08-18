@@ -61,6 +61,8 @@ import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inven
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
 import { TableView } from '../ui/table-view';
 import { QrScanner } from '../ui/qr-scanner';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
@@ -399,9 +401,11 @@ function Home({ dashboard }: Props) {
             </div>
             {dashboard.homeContent.Guidelines && (
                 <Card title="Guidelines">
-                    <p className="whitespace-pre-wrap text-sm text-black/75">
-                        {dashboard.homeContent.Guidelines}
-                    </p>
+                    <div className="guidelines-markdown text-sm text-black/75">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {dashboard.homeContent.Guidelines}
+                        </ReactMarkdown>
+                    </div>
                 </Card>
             )}
         </Page>

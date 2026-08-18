@@ -29,6 +29,77 @@ body {
     font-family: var(--font-sans);
 }
 
+.guidelines-markdown {
+    color: color-mix(in srgb, var(--setu-ink) 75%, transparent);
+}
+
+.guidelines-markdown > :first-child {
+    margin-top: 0;
+}
+
+.guidelines-markdown > :last-child {
+    margin-bottom: 0;
+}
+
+.guidelines-markdown h1,
+.guidelines-markdown h2,
+.guidelines-markdown h3,
+.guidelines-markdown h4 {
+    margin: 1rem 0 0.45rem;
+    color: var(--setu-ink);
+    font-weight: 700;
+}
+
+.guidelines-markdown p,
+.guidelines-markdown ul,
+.guidelines-markdown ol,
+.guidelines-markdown blockquote,
+.guidelines-markdown pre {
+    margin: 0.65rem 0;
+}
+
+.guidelines-markdown ul,
+.guidelines-markdown ol {
+    padding-left: 1.4rem;
+}
+
+.guidelines-markdown ul {
+    list-style: disc;
+}
+
+.guidelines-markdown ol {
+    list-style: decimal;
+}
+
+.guidelines-markdown a {
+    color: #b84710;
+    text-decoration: underline;
+}
+
+.guidelines-markdown blockquote {
+    padding-left: 0.8rem;
+    border-left: 3px solid var(--setu-line);
+}
+
+.guidelines-markdown code {
+    padding: 0.1rem 0.25rem;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--setu-line) 45%, transparent);
+    font-family: var(--font-mono);
+}
+
+.guidelines-markdown pre {
+    padding: 0.75rem;
+    overflow-x: auto;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--setu-line) 35%, transparent);
+}
+
+.guidelines-markdown pre code {
+    padding: 0;
+    background: none;
+}
+
 .roster-table-scroll {
     width: 100%;
     max-height: calc(100vh - 9rem);
