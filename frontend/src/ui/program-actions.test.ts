@@ -111,6 +111,29 @@ export function runProgramActionAssertions(): void {
         ).join(',') === '',
         'users should not see actions for another users draft',
     );
+    assert(
+        !getProgramRequestActions({ ...source, Status: 'approved' }, user('approver')).includes(
+            'cancel',
+        ),
+        'approvers should not cancel approved programs whose sessions are past',
+    );
+    assert(
+        getProgramRequestActions(
+            {
+                ...source,
+                Status: 'approved',
+                sessions: [
+                    {
+                        ...source.sessions[0],
+                        StartDateTime: '2099-08-10T09:00',
+                        EndDateTime: '2099-08-10T10:30',
+                    },
+                ],
+            },
+            user('approver'),
+        ).includes('cancel'),
+        'approvers should cancel approved programs with a future session',
+    );
 
     assert(
         getLocalDateFromSession(source.sessions[0].StartDateTime) === '2026-08-10',

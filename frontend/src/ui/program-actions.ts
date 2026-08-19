@@ -55,13 +55,20 @@ export function canRescheduleProgram(request: ProgramRequestDTO, me: UserDTO): b
     return me.Role === 'admin' || me.Role === 'approver' || (request.Status === 'draft' && isOwner);
 }
 
+function canCancelProgram(request: ProgramRequestDTO): boolean {
+    if (request.Status !== 'approved' || !request.sessions.length) return true;
+    return request.sessions.some((session) => Date.parse(session.EndDateTime) >= Date.now());
+}
+
 export function getProgramRequestActions(
     request: ProgramRequestDTO,
     me: UserDTO,
 ): ProgramRequestAction[] {
     if (canApprove(me)) {
         return (['submit', 'approve', 'reject', 'cancel'] as ProgramRequestAction[]).filter(
-            (action) => canTransitionProgramRequest(request.Status, action),
+            (action) =>
+                canTransitionProgramRequest(request.Status, action) &&
+                (action !== 'cancel' || canCancelProgram(request)),
         );
     }
     const isOwner = request.UserId === me.Email || request.participants.includes(me.Email);
