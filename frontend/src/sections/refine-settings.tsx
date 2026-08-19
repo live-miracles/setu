@@ -333,6 +333,7 @@ function SettingsResourcePage({
     dashboard: DashboardPayload;
     compact?: boolean;
 }) {
+    const canEdit = dashboard.me.Role === 'admin';
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
@@ -467,19 +468,23 @@ function SettingsResourcePage({
                             title="Download QR code"
                         />
                     )}
-                    <Button
-                        type="text"
-                        icon={<EditOutlined />}
-                        onClick={() => setEditing(row)}
-                        aria-label="Edit"
-                    />
-                    <Button
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => setDeleting(row)}
-                        aria-label="Delete"
-                    />
+                    {canEdit && (
+                        <>
+                            <Button
+                                type="text"
+                                icon={<EditOutlined />}
+                                onClick={() => setEditing(row)}
+                                aria-label="Edit"
+                            />
+                            <Button
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => setDeleting(row)}
+                                aria-label="Delete"
+                            />
+                        </>
+                    )}
                 </Space>
             ),
         },
@@ -490,14 +495,16 @@ function SettingsResourcePage({
                 title={config.title}
                 count={rows.length}
                 action={
-                    <Button
-                        type="primary"
-                        size="small"
-                        icon={<PlusOutlined />}
-                        onClick={() => setCreating(true)}
-                        aria-label={`Add ${config.kind}`}
-                        title={`Add ${config.kind}`}
-                    />
+                    canEdit ? (
+                        <Button
+                            type="primary"
+                            size="small"
+                            icon={<PlusOutlined />}
+                            onClick={() => setCreating(true)}
+                            aria-label={`Add ${config.kind}`}
+                            title={`Add ${config.kind}`}
+                        />
+                    ) : null
                 }
                 searchValue={hasSearch ? search : undefined}
                 onSearch={hasSearch ? setSearch : undefined}
@@ -521,7 +528,7 @@ function SettingsResourcePage({
                     }}
                 />
             )}
-            {(creating || editing) && (
+            {canEdit && (creating || editing) && (
                 <Editor
                     config={config}
                     row={editing || undefined}
@@ -538,6 +545,7 @@ function SettingsResourcePage({
 
 function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
     const [savingGuidelines, setSavingGuidelines] = useState(false);
+    const canEdit = dashboard.me.Role === 'admin';
 
     async function saveGuidelines(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -567,9 +575,11 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                             defaultValue={dashboard.homeContent.Guidelines}
                         />
                     </Form.Item>
-                    <Button type="primary" htmlType="submit" loading={savingGuidelines}>
-                        Save
-                    </Button>
+                    {canEdit && (
+                        <Button type="primary" htmlType="submit" loading={savingGuidelines}>
+                            Save
+                        </Button>
+                    )}
                 </form>
             </Card>
             {(['shift-types', 'program-types', 'program-languages', 'session-types'] as const).map(

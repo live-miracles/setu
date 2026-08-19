@@ -12,7 +12,7 @@ import {
     WORKBENCH_VIEW_QUERY_PARAM,
 } from './config';
 import { getState, setState } from './state';
-import { canApprove, canManageConfig, canUseTickets } from './workflows';
+import { canApprove, canUseTickets } from './workflows';
 import { unmountRefinePage } from './ui/refine';
 
 // The routing core: it owns navigation, role gating and the nav chrome, but
@@ -212,7 +212,7 @@ function renderNavIdentity(dashboard: DashboardPayload): void {
 // Roster.ts, requireAdmin for the config writes, requireTicketAccess in
 // Tickets.ts).
 function canOpenSection(section: SectionKey, me: UserDTO): boolean {
-    if (CONFIG_SECTIONS.indexOf(section) !== -1) return canManageConfig(me);
+    if (CONFIG_SECTIONS.indexOf(section) !== -1) return canApprove(me);
     if (section === 'users' || section === 'roster' || section === 'blocks') return canApprove(me);
     if (section === 'tickets') return canUseTickets(me);
     return true;
@@ -236,7 +236,12 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
     const showSettings = canApprove(dashboard.me);
     document.querySelectorAll<HTMLElement>('[data-nav-section]').forEach((el) => {
         const section = el.dataset.navSection as SectionKey;
-        el.classList.toggle('hidden', !canOpenSection(section, dashboard.me));
+        const hidden = !canOpenSection(section, dashboard.me);
+        el.classList.toggle('hidden', hidden);
+        el.closest<HTMLElement>('.ant-menu-item, .ant-dropdown-menu-item')?.classList.toggle(
+            'hidden',
+            hidden,
+        );
     });
     document.querySelectorAll<HTMLElement>('[data-settings-menu]').forEach((el) => {
         el.classList.toggle('hidden', !showSettings);
