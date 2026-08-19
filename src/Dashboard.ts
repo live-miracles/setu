@@ -50,6 +50,7 @@ function getDashboard(): DashboardPayload {
             }),
         )
         .sort((a, b) => b.Timestamp.localeCompare(a.Timestamp));
+    recentComments.splice(50);
 
     // Both request lists are scoped to what the actor may see — a `user`
     // gets only their own and the ones they're a participant on (see
@@ -65,6 +66,7 @@ function getDashboard(): DashboardPayload {
                 usersByEmail,
                 departmentsById,
                 commentsByRequestId,
+                false,
             ),
         )
         .sort((a, b) =>
@@ -82,22 +84,22 @@ function getDashboard(): DashboardPayload {
                 usersByEmail,
                 departmentsById,
                 commentsByRequestId,
+                false,
+                false,
             ),
         )
         .sort((a, b) =>
             latestActivityAt(b.comments, b.DisplayId).localeCompare(
                 latestActivityAt(a.comments, a.DisplayId),
             ),
-        )
-        .slice(0, 250);
+        );
 
     // The whole ticket board is invisible to `user` (canUseTickets), so the
     // payload carries nothing for them to render a section from.
     const tickets = canUseTickets(actor)
         ? visibleTicketRows
               .sort((a, b) => b.DisplayId - a.DisplayId)
-              .slice(0, 250)
-              .map((ticket) => buildTicketDTO(ticket, usersByEmail, commentsByRequestId))
+              .map((ticket) => buildTicketDTO(ticket, usersByEmail, commentsByRequestId, false))
         : [];
 
     const settings = getSettings();

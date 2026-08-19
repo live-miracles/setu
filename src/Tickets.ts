@@ -4,12 +4,13 @@ function buildTicketDTO(
     ticket: Ticket,
     usersByEmail: Record<string, User>,
     commentsByRequestId: Record<string, CommentRecord[]> = {},
+    includeComments = true,
 ): TicketDTO {
     const assignee = ticket.AssigneeId ? usersByEmail[ticket.AssigneeId] : undefined;
     const comments = commentsFor(ticket.Id, commentsByRequestId, usersByEmail);
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
-        comments,
+        comments: includeComments ? comments : [],
     });
 }
 
@@ -38,7 +39,7 @@ function listTickets(page: number, query: TicketQuery = {}): Paginated<TicketDTO
     const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const statuses = query.statuses || [];
     const dtos = Tables.Tickets.readAll()
-        .map((t) => buildTicketDTO(t, usersByEmail, commentsByRequestId))
+        .map((t) => buildTicketDTO(t, usersByEmail, commentsByRequestId, false))
         .filter((ticket) => statuses.length === 0 || statuses.indexOf(ticket.Status) !== -1)
         .filter((ticket) => {
             if (!query.assigneeId) return true;
@@ -73,7 +74,8 @@ function getTicket(id: string): TicketDTO {
     return buildTicketDTO(
         ticket,
         indexBy(Tables.Users.readAll(), (user) => user.Email),
-        groupCommentsByRequestId(Tables.Comments.readAll()),
+        {},
+        false,
     );
 }
 

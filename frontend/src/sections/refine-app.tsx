@@ -48,7 +48,7 @@ import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import {
     formatDateTime,
-    formatProgramDateRange,
+    formatProgramDateRangeFromBounds,
     formatProgramSessionSchedule,
     formatTimeOfDay,
 } from '../ui/format';
@@ -58,7 +58,6 @@ import {
     getShiftTypeTimes,
 } from '../ui/roster-table';
 import { buildCalendarTableModel } from '../ui/calendar-table';
-import { availablePlacesForSessions } from '../ui/place-availability';
 import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
@@ -1224,16 +1223,58 @@ function Roster({ dashboard }: Props) {
 }
 
 function Calendar({ dashboard }: Props) {
+    const [month, setMonth] = useState(() => {
+        const today = new Date();
+        return new Date(today.getFullYear(), today.getMonth(), 1);
+    });
+    const [calendarData, setCalendarData] = useState<CalendarMonthPayload | null>(null);
+    const [loading, setLoading] = useState(false);
+    const year = month.getFullYear();
+    const monthNumber = month.getMonth() + 1;
     const todayIso = formatLocalDateOnly(new Date());
+    const monthStartIso = formatLocalDateOnly(month);
+    const monthEndIso = formatLocalDateOnly(new Date(year, monthNumber, 0));
+    useEffect(() => {
+        setLoading(true);
+        api.getCalendarMonth(year, monthNumber)
+            .then(setCalendarData)
+            .catch(error)
+            .finally(() => setLoading(false));
+    }, [year, monthNumber]);
+    const calendarPrograms = calendarData?.programs || [];
+    const calendarPlaces = calendarData?.places || dashboard.places;
     const calendar = buildCalendarTableModel(
-        dashboard.programRequests,
-        dashboard.places,
+        calendarPrograms,
+        calendarPlaces,
         dashboard.programTypes,
         todayIso,
+        monthStartIso,
+        monthEndIso,
     );
     return (
-        <Page title="Calendar" className="calendar-page" hideHeading>
-            {calendar.rows.length ? (
+        <Page
+            title="Calendar"
+            className="calendar-page"
+            headingContent={
+                <Space>
+                    <Button
+                        onClick={() => setMonth(new Date(year, month.getMonth() - 1, 1))}
+                        aria-label="Previous month">
+                        Previous
+                    </Button>
+                    <Typography.Text strong>
+                        {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                    </Typography.Text>
+                    <Button
+                        onClick={() => setMonth(new Date(year, month.getMonth() + 1, 1))}
+                        aria-label="Next month">
+                        Next
+                    </Button>
+                </Space>
+            }>
+            {loading ? (
+                <Typography.Text type="secondary">Loading calendar…</Typography.Text>
+            ) : calendar.rows.length ? (
                 <div className="calendar-table-scroll">
                     <table className="calendar-table">
                         <thead>
@@ -1343,10 +1384,8 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         const now = Date.now();
         if (kind === 'inventory')
             return !row.EndDate || new Date(`${row.EndDate}T23:59:59`).getTime() >= now;
-        const ends = (row.sessions || [])
-            .map((session: ProgramSession) => new Date(session.EndDateTime).getTime())
-            .filter(Number.isFinite);
-        return !ends.length || Math.max(...ends) >= now;
+        const end = new Date(row.sessionEnd || '').getTime();
+        return !Number.isFinite(end) || end >= now;
     };
     const matches = (row: any) => {
         const textMatch = matchesSearch(search, [JSON.stringify(row)]);
@@ -1430,7 +1469,10 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                                         </Typography.Text>
                                                     </div>
                                                     <Typography.Text type="secondary">
-                                                        {formatProgramDateRange(row.sessions || [])}
+                                                        {formatProgramDateRangeFromBounds(
+                                                            row.sessionStart,
+                                                            row.sessionEnd,
+                                                        )}
                                                     </Typography.Text>
                                                     <Typography.Text type="secondary">
                                                         {row.userName || 'Unknown requester'} |{' '}
@@ -1765,11 +1807,37 @@ function ProgramDetail({
         Participants: request.participants.join(', '),
         UserId: request.UserId,
     });
-    const availablePlaceOptions = availablePlacesForSessions(
-        dashboard.places,
-        dashboard.programRequests,
-        sessions,
-        request.Id,
+    const [availablePlaceIds, setAvailablePlaceIds] = useState<string[]>(
+        dashboard.places.map((place) => place.Id),
+    );
+    useEffect(() => {
+        api.getProgramRequest(request.Id)
+            .then((detail) => {
+                setSessions(detail.sessions);
+                setSessionDraft(defaultSessionDraft(detail.sessions));
+                setRescheduleDate(
+                    detail.sessions.length
+                        ? getLocalDateFromSession(detail.sessions[0].StartDateTime)
+                        : '',
+                );
+            })
+            .catch(error);
+    }, [request.Id]);
+    useEffect(() => {
+        api.getAvailablePlaces(
+            request.Id,
+            sessions.map((session) => ({
+                name: session.Name,
+                type: session.Type,
+                startDateTime: session.StartDateTime,
+                endDateTime: session.EndDateTime,
+            })),
+        )
+            .then((places) => setAvailablePlaceIds(places.map((place) => place.Id)))
+            .catch(error);
+    }, [request.Id, sessions]);
+    const availablePlaceOptions = dashboard.places.filter((place) =>
+        availablePlaceIds.includes(place.Id),
     );
     const placeOptions =
         values.PlaceId && !availablePlaceOptions.some((p) => p.Id === values.PlaceId)
@@ -2072,7 +2140,7 @@ function ProgramDetail({
                                 rowKey="key"
                                 columns={sessionColumns}
                                 dataSource={sessionRows}
-                                pagination={false}
+                                pagination={{ pageSize: 25, showSizeChanger: false }}
                                 className="sessions-table"
                                 scroll={{ x: 'max-content' }}
                             />
@@ -2083,7 +2151,7 @@ function ProgramDetail({
                 </Card>
             </div>
             <div className="detail-activity">
-                <Activity comments={request.comments || []} requestId={request.Id} />
+                <Activity requestId={request.Id} />
             </div>
             {pendingAction && (
                 <ActionConfirmation
@@ -2319,8 +2387,30 @@ function SessionForm({
     );
 }
 
-function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: string }) {
+function Activity({ requestId }: { requestId: string }) {
     const [comment, setComment] = useState('');
+    const [comments, setComments] = useState<CommentDTO[]>([]);
+    const [page, setPage] = useState(1);
+    const [totalComments, setTotalComments] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const loadComments = async (targetPage = 1) => {
+        setLoading(true);
+        try {
+            const result = await api.listComments(requestId, targetPage);
+            setComments((current) =>
+                targetPage === 1 ? result.items : [...result.items, ...current],
+            );
+            setPage(targetPage);
+            setTotalComments(result.totalCount);
+        } catch (e) {
+            error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+    useEffect(() => {
+        void loadComments();
+    }, [requestId]);
     const submit = async (event: FormEvent) => {
         event.preventDefault();
         if (!comment.trim()) return;
@@ -2328,7 +2418,7 @@ function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: 
             showSavingBadge(true);
             await api.addComment(requestId, comment.trim(), generateRequestId());
             setComment('');
-            await refreshDashboard();
+            await loadComments();
         } catch (e) {
             error(e);
         } finally {
@@ -2339,6 +2429,14 @@ function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: 
         <div className="activity-card">
             <Card title="Activity">
                 <div className="activity-comments space-y-3">
+                    {comments.length < totalComments && (
+                        <Button
+                            size="small"
+                            loading={loading}
+                            onClick={() => loadComments(page + 1)}>
+                            Load older comments
+                        </Button>
+                    )}
                     {comments.length ? (
                         comments.map((c) => (
                             <div
@@ -2353,6 +2451,8 @@ function Activity({ comments, requestId }: { comments: CommentDTO[]; requestId: 
                                 <p className="whitespace-pre-wrap text-black/70">{c.Message}</p>
                             </div>
                         ))
+                    ) : loading ? (
+                        <Typography.Text type="secondary">Loading activity…</Typography.Text>
                     ) : (
                         <Empty>No activity yet.</Empty>
                     )}
@@ -2958,7 +3058,7 @@ function InventoryDetail({
                 </Card>
             </div>
             <div className="detail-activity">
-                <Activity comments={request.comments || []} requestId={request.Id} />
+                <Activity requestId={request.Id} />
             </div>
             {editing && (
                 <Modal title="Edit inventory request" close={() => setEditing(false)}>
@@ -3212,7 +3312,7 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                 </Card>
             </div>
             <div className="detail-activity">
-                <Activity comments={ticket.comments || []} requestId={ticket.Id} />
+                <Activity requestId={ticket.Id} />
             </div>
             {editing && (
                 <Modal title="Edit ticket" close={() => setEditing(false)}>

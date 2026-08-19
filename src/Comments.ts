@@ -147,3 +147,30 @@ function addComment(requestId: string, message: string, dedupeRequestId: string)
         indexBy([actor], (u) => u.Email),
     );
 }
+
+function listComments(requestId: string, page: number): Paginated<CommentDTO> {
+    const actor = requireUser();
+    const owner = findRequestOwner(requestId);
+    if (!owner) throw new ValidationError('request_not_found');
+    if (
+        owner.kind === 'ticket'
+            ? !canUseTickets(actor)
+            : !canViewRequest(actor, owner.userId, owner.participants)
+    ) {
+        throw new AuthorizationError('You do not have access to this request.');
+    }
+    const usersByEmail = indexBy(Tables.Users.readAll(), (user) => user.Email);
+    const comments = Tables.Comments.readAll()
+        .filter((comment) => comment.RequestId === requestId)
+        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp));
+    const pageSize = 25;
+    const safePage = Math.max(1, Math.floor(page) || 1);
+    const end = comments.length - (safePage - 1) * pageSize;
+    const start = Math.max(0, end - pageSize);
+    return {
+        items: comments.slice(start, end).map((comment) => buildCommentDTO(comment, usersByEmail)),
+        page: safePage,
+        pageSize,
+        totalCount: comments.length,
+    };
+}

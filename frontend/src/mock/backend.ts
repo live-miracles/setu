@@ -1187,13 +1187,6 @@ function mockBuildCommentDTO(comment: CommentRecord): CommentDTO {
     return Object.assign({}, comment, { userName: user ? user.Name : '' });
 }
 
-function mockCommentsForRequest(requestId: string): CommentDTO[] {
-    return mockData.comments
-        .filter((c) => c.RequestId === requestId)
-        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp))
-        .map(mockBuildCommentDTO);
-}
-
 function mockInsertActionComment(
     _kind: 'inventory' | 'program' | 'ticket',
     requestId: string,
@@ -1223,7 +1216,7 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
         departmentName: department ? department.Name : '',
         participants: mockParseParticipants(request.Participants),
         items,
-        comments: mockCommentsForRequest(request.Id),
+        comments: [],
     });
 }
 
@@ -1234,13 +1227,18 @@ function mockBuildProgramRequestDTO(request: ProgramRequest): ProgramRequestDTO 
     const sessions = mockParseProgramSessions(request.SessionsJson).sort((a, b) =>
         a.StartDateTime.localeCompare(b.StartDateTime),
     );
+    const sessionDates = sessions
+        .flatMap((session) => [session.StartDateTime, session.EndDateTime])
+        .sort();
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         placeName: place ? place.Name : '',
         departmentName: department ? department.Name : '',
         participants: mockParseParticipants(request.Participants),
         sessions,
-        comments: mockCommentsForRequest(request.Id),
+        sessionStart: sessionDates[0] || '',
+        sessionEnd: sessionDates[sessionDates.length - 1] || '',
+        comments: [],
     });
 }
 
@@ -1248,7 +1246,7 @@ function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
     const assignee = mockData.users.find((u) => u.Email === ticket.AssigneeId);
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
-        comments: mockCommentsForRequest(ticket.Id),
+        comments: [],
     });
 }
 
@@ -1277,6 +1275,68 @@ function mockPaginate<T>(items: T[], page: number): Paginated<T> {
     };
 }
 
+function mockListComments(requestId: string, page: number): Paginated<CommentDTO> {
+    const comments = mockData.comments
+        .filter((comment) => comment.RequestId === requestId)
+        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp));
+    const pageSize = 25;
+    const safePage = Math.max(1, Math.floor(page) || 1);
+    const end = comments.length - (safePage - 1) * pageSize;
+    const start = Math.max(0, end - pageSize);
+    return {
+        items: comments.slice(start, end).map(mockBuildCommentDTO),
+        page: safePage,
+        pageSize,
+        totalCount: comments.length,
+    };
+}
+
+function mockGetCalendarMonth(year: number, month: number): CalendarMonthPayload {
+    const monthStart = Date.UTC(year, month - 1, 1);
+    const monthEnd = Date.UTC(year, month, 1);
+    const programs = mockData.programRequests
+        .filter((request) => request.Status === 'approved' && mockCanViewRequest(request))
+        .map((request) => {
+            const sessions = mockParseProgramSessions(request.SessionsJson).filter((session) => {
+                const start = Date.parse(session.StartDateTime);
+                const end = Date.parse(session.EndDateTime);
+                return start < monthEnd && end > monthStart;
+            });
+            if (!sessions.length) return null;
+            return Object.assign(mockBuildProgramRequestDTO(request), {
+                sessions,
+                comments: [] as CommentDTO[],
+            });
+        })
+        .filter((program): program is ProgramRequestDTO => Boolean(program));
+    return { places: mockData.places, programs };
+}
+
+function mockGetAvailablePlaces(requestId: string, sessions: ProgramSessionInput[]): Place[] {
+    return mockData.places.filter((place) => {
+        if (place.AllowOverlap || !sessions.length) return true;
+        return !mockData.programRequests
+            .filter(
+                (request) =>
+                    request.Id !== requestId &&
+                    request.Status === 'approved' &&
+                    request.PlaceId === place.Id,
+            )
+            .some((request) =>
+                mockParseProgramSessions(request.SessionsJson).some((other) =>
+                    sessions.some((session) => {
+                        const start = Date.parse(session.startDateTime);
+                        const end = Date.parse(session.endDateTime);
+                        const otherStart = Date.parse(other.StartDateTime);
+                        const otherEnd = Date.parse(other.EndDateTime);
+                        const buffer = 60 * 60 * 1000;
+                        return start < otherEnd + buffer && otherStart < end + buffer;
+                    }),
+                ),
+            );
+    });
+}
+
 function mockCompare(left: unknown, right: unknown, direction: SortDirection): number {
     const result = String(left || '').localeCompare(String(right || ''), undefined, {
         numeric: true,
@@ -1301,9 +1361,12 @@ function mockBuildDashboard(): DashboardPayload {
             .filter(mockCanViewRequest)
             .filter((request) => ['closed', 'rejected', 'cancelled'].indexOf(request.Status) === -1)
             .map(mockBuildInventoryRequestDTO),
-        programRequests: mockData.programRequests
-            .filter(mockCanViewRequest)
-            .map(mockBuildProgramRequestDTO),
+        programRequests: mockData.programRequests.filter(mockCanViewRequest).map((request) =>
+            Object.assign(mockBuildProgramRequestDTO(request), {
+                sessions: [] as ProgramSession[],
+                comments: [] as CommentDTO[],
+            }),
+        ),
         tickets: canUseTickets(mockToUserDTO(mockCurrentUser()))
             ? mockData.tickets.map(mockBuildTicketDTO)
             : [],
@@ -1321,7 +1384,8 @@ function mockBuildDashboard(): DashboardPayload {
                           : 'program') as RecentCommentDTO['requestKind'],
                 }),
             )
-            .sort((a, b) => b.Timestamp.localeCompare(a.Timestamp)),
+            .sort((a, b) => b.Timestamp.localeCompare(a.Timestamp))
+            .slice(0, 50),
         homeContent: mockData.homeContent,
         shiftTypes: [...mockData.shiftTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
         programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
@@ -1337,6 +1401,9 @@ function mockBuildDashboard(): DashboardPayload {
 const mockHandlers: Record<string, (...args: any[]) => any> = {
     whoAmI: () => mockToUserDTO(mockCurrentUser()),
     getDashboard: () => mockBuildDashboard(),
+    getCalendarMonth: (year: number, month: number) => mockGetCalendarMonth(year, month),
+    getAvailablePlaces: (requestId: string, sessions: ProgramSessionInput[]) =>
+        mockGetAvailablePlaces(requestId, sessions),
 
     listUsers: () => mockData.users.map(mockToUserDTO),
     createUser: (input: CreateUserInput) => {
@@ -1823,7 +1890,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             if (query.sortBy === 'name') return request.Name;
             if (query.sortBy === 'status') return request.Status;
             if (query.sortBy === 'place') return request.placeName;
-            if (query.sortBy === 'sessionStart') return request.sessions[0]?.StartDateTime || '';
+            if (query.sortBy === 'sessionStart') return request.sessionStart;
             if (query.sortBy === 'requester') return request.userName;
             return request.DisplayId;
         };
@@ -1835,6 +1902,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (!request || !mockCanViewRequest(request)) throw new Error('request_not_found');
         return mockBuildProgramRequestDTO(request);
     },
+    listComments: (requestId: string, page: number) => mockListComments(requestId, page),
     createProgramRequest: (input: CreateProgramRequestInput) => {
         const participants = mockParseParticipants(input.participants);
         const actor = mockCurrentUser();

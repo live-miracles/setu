@@ -107,6 +107,8 @@ export function buildCalendarTableModel(
     places: Place[],
     programTypes: ProgramType[],
     todayIso: string,
+    monthStartIso?: string,
+    monthEndIso?: string,
 ): CalendarTableModel {
     const today = parseDateOnly(todayIso);
     const sortedPlaces = [...places].sort((a, b) => a.Name.localeCompare(b.Name));
@@ -116,19 +118,24 @@ export function buildCalendarTableModel(
         programTypes.map((type) => [type.Name.toLowerCase(), type.Color || '']),
     );
     const approved = programs.filter((program) => program.Status === 'approved');
-    const upcomingSessions = approved.flatMap((program) =>
+    const visibleSessions = approved.flatMap((program) =>
         program.sessions.filter((session) => {
             const date = sessionDate(session);
-            return Boolean(date && date >= todayIso);
+            return Boolean(
+                date &&
+                (!monthStartIso || date >= monthStartIso) &&
+                (!monthEndIso || date <= monthEndIso) &&
+                (monthStartIso || date >= todayIso),
+            );
         }),
     );
-    if (!upcomingSessions.length) return { rows: [], places: sortedPlaces };
+    if (!visibleSessions.length) return { rows: [], places: sortedPlaces };
 
-    const lastDate = upcomingSessions.reduce((latest, session) => {
+    const lastDate = visibleSessions.reduce((latest, session) => {
         const date = sessionDate(session);
         return date && date > latest ? date : latest;
-    }, todayIso);
-    const firstDate = addDays(today, -2);
+    }, monthEndIso || todayIso);
+    const firstDate = monthStartIso ? parseDateOnly(monthStartIso)! : addDays(today, -2);
     const rows: CalendarTableRow[] = [];
     for (let date = firstDate; toIsoDate(date) <= lastDate; date = addDays(date, 1)) {
         const isoDate = toIsoDate(date);

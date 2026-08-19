@@ -124,3 +124,8 @@ export function formatProgramDateRange(sessions: ProgramSession[]): string {
         return `${start.day} ${start.month} - ${end.day} ${end.month}, ${end.year}`;
     return `${start.day} ${start.month}, ${start.year} - ${end.day} ${end.month}, ${end.year}`;
 }
+
+export function formatProgramDateRangeFromBounds(start: string, end: string): string {
+    if (!start || !end) return 'No dates scheduled';
+    return formatProgramDateRange([{ Name: '', Type: '', StartDateTime: start, EndDateTime: end }]);
+}

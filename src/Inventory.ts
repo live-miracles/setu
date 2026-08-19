@@ -41,6 +41,7 @@ function buildInventoryRequestDTO(
     usersByEmail: Record<string, User>,
     departmentsById: Record<string, Department>,
     commentsByRequestId: Record<string, CommentRecord[]>,
+    includeComments = true,
 ): InventoryRequestDTO {
     const items = parseInventoryItemsJson(request.ItemsJson).map((i) =>
         buildInventoryItemDTO(i, inventoryTypesById),
@@ -53,7 +54,7 @@ function buildInventoryRequestDTO(
         departmentName: department ? department.Name : '',
         participants: parseParticipants(request.Participants),
         items,
-        comments,
+        comments: includeComments ? comments : [],
     });
 }
 
@@ -141,6 +142,7 @@ function listInventoryRequests(
                 usersByEmail,
                 departmentsById,
                 commentsByRequestId,
+                false,
             ),
         )
         .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
@@ -194,7 +196,8 @@ function getInventoryRequest(id: string): InventoryRequestDTO {
         indexBy(Tables.InventoryTypes.readAll(), (type) => type.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        groupCommentsByRequestId(Tables.Comments.readAll()),
+        {},
+        false,
     );
 }
 

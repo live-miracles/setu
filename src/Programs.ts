@@ -93,6 +93,8 @@ function buildProgramRequestDTO(
     usersByEmail: Record<string, User>,
     departmentsById: Record<string, Department>,
     commentsByRequestId: Record<string, CommentRecord[]>,
+    includeComments = true,
+    includeSessions = true,
 ): ProgramRequestDTO {
     const place = placesById[request.PlaceId];
     const requester = usersByEmail[request.UserId];
@@ -101,13 +103,19 @@ function buildProgramRequestDTO(
     const sessions = parseProgramSessionsJson(request.SessionsJson)
         .slice()
         .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
+    const validSessionDates = sessions
+        .flatMap((session) => [session.StartDateTime, session.EndDateTime])
+        .filter((value) => !Number.isNaN(Date.parse(value)))
+        .sort();
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         placeName: place ? place.Name : '',
         departmentName: department ? department.Name : '',
         participants: parseParticipants(request.Participants),
-        sessions,
-        comments,
+        sessions: includeSessions ? sessions : [],
+        sessionStart: validSessionDates[0] || '',
+        sessionEnd: validSessionDates[validSessionDates.length - 1] || '',
+        comments: includeComments ? comments : [],
     });
 }
 
@@ -118,7 +126,7 @@ function programRequestSortValue(
     if (sortBy === 'name') return request.Name;
     if (sortBy === 'status') return request.Status;
     if (sortBy === 'place') return request.placeName;
-    if (sortBy === 'sessionStart') return request.sessions[0]?.StartDateTime || '';
+    if (sortBy === 'sessionStart') return request.sessionStart;
     if (sortBy === 'requester') return request.userName;
     return request.DisplayId;
 }
@@ -234,6 +242,8 @@ function listProgramRequests(
                 usersByEmail,
                 departmentsById,
                 commentsByRequestId,
+                false,
+                false,
             ),
         )
         .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
@@ -288,8 +298,73 @@ function getProgramRequest(id: string): ProgramRequestDTO {
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        groupCommentsByRequestId(Tables.Comments.readAll()),
+        {},
+        false,
     );
+}
+
+function getCalendarMonth(year: number, month: number): CalendarMonthPayload {
+    const actor = requireUser();
+    const places = Tables.Places.readAll();
+    const placesById = indexBy(places, (place) => place.Id);
+    const usersByEmail = indexBy(Tables.Users.readAll(), (user) => user.Email);
+    const departmentsById = indexBy(Tables.Departments.readAll(), (department) => department.Id);
+    const monthStart = new Date(Date.UTC(year, month - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, month, 1));
+    const programs = Tables.ProgramRequests.readAll()
+        .filter((request) => request.Status === 'approved')
+        .filter((request) =>
+            canViewRequest(actor, request.UserId, parseParticipants(request.Participants)),
+        )
+        .map((request) => {
+            const sessions = parseProgramSessionsJson(request.SessionsJson).filter((session) => {
+                const start = Date.parse(session.StartDateTime);
+                const end = Date.parse(session.EndDateTime);
+                return (
+                    !Number.isNaN(start) &&
+                    !Number.isNaN(end) &&
+                    start < monthEnd.getTime() &&
+                    end > monthStart.getTime()
+                );
+            });
+            if (!sessions.length) return null;
+            const dto = buildProgramRequestDTO(
+                request,
+                placesById,
+                usersByEmail,
+                departmentsById,
+                {},
+                false,
+            );
+            return Object.assign({}, dto, { sessions, comments: [] as CommentDTO[] });
+        })
+        .filter((program): program is ProgramRequestDTO => Boolean(program));
+    return { places, programs };
+}
+
+function getAvailablePlaces(requestId: string, inputSessions: ProgramSessionInput[]): Place[] {
+    requireUser();
+    const sessions = (inputSessions || []).map((session) => ({
+        Name: session.name || '',
+        Type: session.type || '',
+        StartDateTime: session.startDateTime || '',
+        EndDateTime: session.endDateTime || '',
+    }));
+    return Tables.Places.readAll().filter((place) => {
+        if (placeAllowsOverlap(place) || !sessions.length) return true;
+        return !Tables.ProgramRequests.readAll()
+            .filter(
+                (request) =>
+                    request.Id !== requestId &&
+                    request.Status === 'approved' &&
+                    request.PlaceId === place.Id,
+            )
+            .some((request) =>
+                parseProgramSessionsJson(request.SessionsJson).some((otherSession) =>
+                    sessions.some((session) => sessionsAreWithinPlaceBuffer(session, otherSession)),
+                ),
+            );
+    });
 }
 
 function createProgramRequest(

@@ -249,6 +249,8 @@ interface ProgramRequestDTO extends ProgramRequest {
     departmentName: string;
     participants: string[];
     sessions: ProgramSession[];
+    sessionStart: string;
+    sessionEnd: string;
     comments: CommentDTO[];
 }
 
@@ -270,6 +272,11 @@ interface Paginated<T> {
     page: number;
     pageSize: number;
     totalCount: number;
+}
+
+interface CalendarMonthPayload {
+    places: Place[];
+    programs: ProgramRequestDTO[];
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -578,6 +585,9 @@ interface Api {
 
     listProgramRequests(page: number, query?: ProgramRequestQuery): Paginated<ProgramRequestDTO>;
     getProgramRequest(id: string): ProgramRequestDTO;
+    getAvailablePlaces(requestId: string, sessions: ProgramSessionInput[]): Place[];
+    listComments(requestId: string, page: number): Paginated<CommentDTO>;
+    getCalendarMonth(year: number, month: number): CalendarMonthPayload;
     createProgramRequest(input: CreateProgramRequestInput, requestId: string): ProgramRequestDTO;
     updateProgramRequest(
         id: string,
