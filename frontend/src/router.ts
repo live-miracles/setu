@@ -239,13 +239,16 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
         const section = el.dataset.navSection as SectionKey;
         const hidden = !canOpenSection(section, dashboard.me);
         el.classList.toggle('hidden', hidden);
-        el.closest<HTMLElement>('.ant-menu-item, .ant-dropdown-menu-item')?.classList.toggle(
-            'hidden',
-            hidden,
-        );
+        el.hidden = hidden;
+        const menuItem = el.closest<HTMLElement>('.ant-menu-item, .ant-dropdown-menu-item');
+        if (menuItem) {
+            menuItem.hidden = hidden;
+            menuItem.style.display = hidden ? 'none' : '';
+        }
     });
     document.querySelectorAll<HTMLElement>('[data-settings-menu]').forEach((el) => {
-        el.classList.toggle('hidden', !showSettings);
+        el.hidden = !showSettings;
+        el.style.display = showSettings ? '' : 'none';
     });
 }
 
