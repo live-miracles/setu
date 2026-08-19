@@ -9,6 +9,7 @@ import {
 import {
     Button,
     Card as AntCard,
+    Divider,
     Empty as AntEmpty,
     Form as AntForm,
     Input,
@@ -420,7 +421,7 @@ function Home({ dashboard }: Props) {
     return (
         <Page title="Home" hideHeading>
             <section
-                className="home-hero"
+                className="home-section home-hero"
                 style={{ backgroundImage: `url(${homeHeroImage})` }}
                 aria-labelledby="home-hero-title">
                 <div className="home-hero-content">
@@ -444,7 +445,7 @@ function Home({ dashboard }: Props) {
                     ))}
                 </div>
             </section>
-            <div className="antd-two-column">
+            <div className="home-section antd-two-column">
                 <Card title={null}>
                     {dashboard.homeContent.Guidelines ? (
                         <div className="guidelines-markdown text-sm text-black/75">
@@ -483,6 +484,7 @@ function Home({ dashboard }: Props) {
                         </Button>
                     ))}
                     {!todayShifts.length && <Empty />}
+                    <Divider className="home-shifts-divider" />
                     <Typography.Title level={5}>
                         Tomorrow&apos;s shifts ({shortDate(tomorrowIso)})
                     </Typography.Title>
@@ -511,7 +513,7 @@ function Home({ dashboard }: Props) {
                     {!tomorrowShifts.length && <Empty />}
                 </Card>
             </div>
-            <div className="antd-two-column">
+            <div className="home-section antd-two-column">
                 <Card
                     title={sectionTitle('Pending program requests', pendingProgramRequests.length)}
                     className="home-scroll-card"
@@ -561,7 +563,7 @@ function Home({ dashboard }: Props) {
                     {!dashboard.inventoryRequests.length && <Empty />}
                 </Card>
             </div>
-            <div className="antd-two-column">
+            <div className="home-section antd-two-column">
                 <Card
                     title={
                         <Space size="small">

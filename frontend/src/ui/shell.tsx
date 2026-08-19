@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import appLogo from '../../logo.png';
 import { refreshDashboard } from '../router';
 import { showErrorAlert } from './feedback';
+import { getRandomQuote } from '../../../../folder-player/ui/quotes';
 
 const { Header, Content } = Layout;
 
@@ -40,6 +41,7 @@ function sectionFromUrl(): string {
 function Shell() {
     const [selectedSection, setSelectedSection] = useState(sectionFromUrl);
     const [refreshing, setRefreshing] = useState(false);
+    const loadingQuote = getRandomQuote();
 
     useEffect(() => {
         const syncSelection = () => setSelectedSection(sectionFromUrl());
@@ -136,7 +138,9 @@ function Shell() {
                 <Content id="app-content" className="app-content">
                     <div className="app-loading" role="status" aria-live="polite">
                         <Spin size="large" />
-                        <Typography.Text>Loading Setu…</Typography.Text>
+                        <Typography.Text className="app-loading-quote">
+                            “{loadingQuote}”
+                        </Typography.Text>
                     </div>
                 </Content>
                 <nav

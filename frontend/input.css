@@ -120,6 +120,22 @@ body {
     max-width: 50rem;
 }
 
+.home-section {
+    width: 100%;
+    max-width: 80rem;
+    min-width: 0;
+    box-sizing: border-box;
+    margin-inline: auto;
+}
+
+.home-section > .ant-card {
+    min-width: 0;
+}
+
+.home-shifts-divider {
+    border-color: var(--setu-line);
+}
+
 .home-scroll-card {
     display: flex;
     max-height: 24rem;
@@ -463,6 +479,16 @@ body {
     gap: 0.75rem;
     flex-direction: column;
     color: var(--setu-ink);
+}
+
+.app-loading-quote {
+    width: min(90%, 42rem);
+    margin-top: 0.5rem;
+    color: color-mix(in srgb, var(--setu-ink) 78%, transparent);
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    line-height: 1.5;
+    text-align: center;
 }
 
 .app-content.app-content-settings {
