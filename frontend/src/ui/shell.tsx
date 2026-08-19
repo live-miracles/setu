@@ -158,10 +158,10 @@ function Shell() {
                         <button
                             key={item.key}
                             type="button"
+                            data-nav-section={item.key}
                             className={`app-mobile-nav-item${
                                 selectedSection === item.key ? ' is-selected' : ''
-                            }`}
-                            onClick={() => navigate(item.key)}>
+                            }`}>
                             {item.icon}
                             <span>{item.label}</span>
                         </button>

@@ -331,6 +331,37 @@ function updateInventoryRequest(
     );
 }
 
+function updateInventoryRequestParticipants(
+    id: string,
+    input: UpdateRequestParticipantsInput,
+    requestId: string,
+): InventoryRequestDTO {
+    const actor = requireUser();
+    const participants = parseParticipants(input.participants);
+    const { result } = withLockedDedupe('inventory_request:participants:' + id, requestId, () => {
+        const request = Tables.InventoryRequests.findById(id);
+        if (!request) throw new ValidationError('request_not_found');
+        const requestParticipants = parseParticipants(request.Participants);
+        const canEdit =
+            canApprove(actor) ||
+            request.UserId === actor.Email ||
+            requestParticipants.indexOf(actor.Email) !== -1;
+        if (!canEdit) throw new AuthorizationError('participants_edit_not_allowed');
+        return {
+            request: Tables.InventoryRequests.updateById(id, {
+                Participants: formatParticipants(participants),
+            }),
+        };
+    });
+    return buildInventoryRequestDTO(
+        result.request,
+        indexBy(Tables.InventoryTypes.readAll(), (type) => type.Id),
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
+        indexBy(Tables.Departments.readAll(), (department) => department.Id),
+        {},
+    );
+}
+
 // Ported from the source app's `perform_inventory_request_action` Postgres
 // function. Wrapped end-to-end (read + validate + every mutated row) in one
 // withLockedDedupe/withLock, replacing Postgres's per-row `FOR UPDATE` locks

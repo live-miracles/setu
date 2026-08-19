@@ -356,6 +356,37 @@ function updateProgramRequest(
     );
 }
 
+function updateProgramRequestParticipants(
+    id: string,
+    input: UpdateRequestParticipantsInput,
+    requestId: string,
+): ProgramRequestDTO {
+    const actor = requireUser();
+    const participants = parseParticipants(input.participants);
+    const { result } = withLockedDedupe('program_request:participants:' + id, requestId, () => {
+        const request = Tables.ProgramRequests.findById(id);
+        if (!request) throw new ValidationError('request_not_found');
+        const requestParticipants = parseParticipants(request.Participants);
+        const canEdit =
+            canApprove(actor) ||
+            request.UserId === actor.Email ||
+            requestParticipants.indexOf(actor.Email) !== -1;
+        if (!canEdit) throw new AuthorizationError('participants_edit_not_allowed');
+        return {
+            request: Tables.ProgramRequests.updateById(id, {
+                Participants: formatParticipants(participants),
+            }),
+        };
+    });
+    return buildProgramRequestDTO(
+        result.request,
+        indexBy(Tables.Places.readAll(), (place) => place.Id),
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
+        indexBy(Tables.Departments.readAll(), (department) => department.Id),
+        {},
+    );
+}
+
 // Ported from the source app's `perform_program_request_action` Postgres
 // function — same shape as performInventoryRequestAction in Inventory.ts
 // minus the issue/return step.

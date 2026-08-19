@@ -340,10 +340,6 @@ function TextField({
 const INTERNATIONAL_PHONE_PATTERN = '\\+[1-9][0-9]{7,14}';
 const INTERNATIONAL_PHONE_TITLE =
     'Enter a valid phone number with country code using digits only, for example +919000000000.';
-const PARTICIPANTS_EMAIL_PATTERN =
-    '[^\\s@,]+@[^\\s@,]+\\.[^\\s@,]+(?:\\s*,\\s*[^\\s@,]+@[^\\s@,]+\\.[^\\s@,]+)*';
-const PARTICIPANTS_EMAIL_TITLE =
-    'Enter valid email addresses separated by commas, for example person@example.com, other@example.com.';
 function isValidInternationalPhone(phone: string): boolean {
     return /^\+[1-9]\d{7,14}$/.test(phone);
 }
@@ -1536,7 +1532,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                     imageId: '',
                     departmentId,
                     leadEmail: String(d.get('leadEmail') || leadEmail),
-                    participants: String(d.get('participants') || ''),
+                    participants: '',
                 },
                 generateRequestId(),
             );
@@ -1550,7 +1546,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 sessions: [],
                 departmentId,
                 leadEmail: String(d.get('leadEmail') || ''),
-                participants: String(d.get('participants') || ''),
+                participants: '',
             },
             generateRequestId(),
         );
@@ -1611,12 +1607,6 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                         value={leadEmail}
                         required
                         onChange={(event) => setLeadEmail(event.target.value)}
-                    />
-                    <TextField
-                        name="participants"
-                        label="Participants (emails, comma-separated)"
-                        pattern={PARTICIPANTS_EMAIL_PATTERN}
-                        title={PARTICIPANTS_EMAIL_TITLE}
                     />
                 </>
             )}
@@ -1700,12 +1690,6 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                         value={leadEmail}
                         required
                         onChange={(event) => setLeadEmail(event.target.value)}
-                    />
-                    <TextField
-                        name="participants"
-                        label="Participants (emails, comma-separated)"
-                        pattern={PARTICIPANTS_EMAIL_PATTERN}
-                        title={PARTICIPANTS_EMAIL_TITLE}
                     />
                 </>
             )}
@@ -1810,6 +1794,21 @@ function ProgramDetail({
         },
         () => setEditing(false),
     );
+    const saveParticipants = async (participants: string[]) => {
+        const serialized = participants.join(', ');
+        showSavingBadge(true);
+        try {
+            await api.updateProgramRequestParticipants(
+                request.Id,
+                { participants: serialized },
+                generateRequestId(),
+            );
+            setValues((current) => ({ ...current, Participants: serialized }));
+            await refreshDashboard();
+        } finally {
+            showSavingBadge(false);
+        }
+    };
     const duplicate = async () => {
         try {
             showSavingBadge(true);
@@ -1945,9 +1944,9 @@ function ProgramDetail({
     ];
     return (
         <DetailLayout
-            title={`PRG-${request.DisplayId} · ${
+            title={
                 formatProgramName(request.Language, request.Type, request.Name) || 'Unnamed program'
-            }`}
+            }
             action={
                 <Space wrap>
                     <Button
@@ -1989,6 +1988,7 @@ function ProgramDetail({
                     }>
                     <DetailFields
                         fields={[
+                            ['Request number', `PRG-${request.DisplayId}`],
                             ['Status', <Tag key="status">{request.Status}</Tag>],
                             ['Program title', values.Name],
                             ['Language', values.Language],
@@ -1997,7 +1997,16 @@ function ProgramDetail({
                             ['Department', request.departmentName || 'None'],
                             ['Lead email', values.LeadEmail],
                             ['Requested by', request.userName],
-                            ['Participants', values.Participants || 'None'],
+                            [
+                                'Participants',
+                                <ParticipantsEditor
+                                    participants={
+                                        values.Participants ? values.Participants.split(',') : []
+                                    }
+                                    editable={canApprove(dashboard.me) || owner}
+                                    onSave={saveParticipants}
+                                />,
+                            ],
                         ]}
                     />
                 </Card>
@@ -2147,13 +2156,6 @@ function ProgramDetail({
                             type="email"
                             value={values.LeadEmail}
                             required
-                        />
-                        <TextField
-                            name="participants"
-                            label="Participants (emails, comma-separated)"
-                            value={values.Participants}
-                            pattern={PARTICIPANTS_EMAIL_PATTERN}
-                            title={PARTICIPANTS_EMAIL_TITLE}
                         />
                         <div>
                             <SaveFooter
@@ -2341,6 +2343,108 @@ function DetailFields({ fields }: { fields: Array<[label: string, value: ReactNo
     );
 }
 
+const PARTICIPANT_EMAIL_PATTERN = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
+
+function ParticipantsEditor({
+    participants,
+    editable,
+    onSave,
+}: {
+    participants: string[];
+    editable: boolean;
+    onSave: (participants: string[]) => Promise<void>;
+}) {
+    const [open, setOpen] = useState(false);
+    const [email, setEmail] = useState('');
+    const [errorMessage, setErrorMessage] = useState('');
+    const [busy, setBusy] = useState(false);
+    const normalizedParticipants = participants.map((participant) => participant.toLowerCase());
+    const addParticipant = async (event: FormEvent) => {
+        event.preventDefault();
+        const nextEmail = email.trim().toLowerCase();
+        if (!PARTICIPANT_EMAIL_PATTERN.test(nextEmail)) {
+            setErrorMessage('Enter a valid email address.');
+            return;
+        }
+        if (normalizedParticipants.includes(nextEmail)) {
+            setErrorMessage('That email is already a participant.');
+            return;
+        }
+        setBusy(true);
+        setErrorMessage('');
+        try {
+            await onSave([...normalizedParticipants, nextEmail]);
+            setEmail('');
+            setOpen(false);
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : String(error));
+        } finally {
+            setBusy(false);
+        }
+    };
+    const removeParticipant = async (participant: string) => {
+        setBusy(true);
+        setErrorMessage('');
+        try {
+            await onSave(normalizedParticipants.filter((entry) => entry !== participant));
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : String(error));
+        } finally {
+            setBusy(false);
+        }
+    };
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            {normalizedParticipants.map((participant) => (
+                <Tag
+                    key={participant}
+                    closable={editable && !busy}
+                    onClose={(event) => {
+                        event.preventDefault();
+                        void removeParticipant(participant);
+                    }}>
+                    {participant}
+                </Tag>
+            ))}
+            {editable && (
+                <Button
+                    type="primary"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    disabled={busy}
+                    aria-label="Add participant"
+                    title="Add participant"
+                    onClick={() => {
+                        setErrorMessage('');
+                        setOpen(true);
+                    }}
+                />
+            )}
+            {!normalizedParticipants.length && !editable && <Typography.Text>None</Typography.Text>}
+            {errorMessage && (
+                <Typography.Text type="danger" className="basis-full text-sm">
+                    {errorMessage}
+                </Typography.Text>
+            )}
+            {open && (
+                <Modal title="Add participant" close={() => setOpen(false)}>
+                    <form className="grid gap-3" onSubmit={addParticipant}>
+                        <AntForm.Item label="Email" required>
+                            <Input
+                                type="email"
+                                value={email}
+                                autoFocus
+                                onChange={(event) => setEmail(event.target.value)}
+                            />
+                        </AntForm.Item>
+                        <SaveFooter label="Add" busy={busy} errorMessage={errorMessage} />
+                    </form>
+                </Modal>
+            )}
+        </div>
+    );
+}
+
 function DetailLayout({
     title,
     action,
@@ -2489,6 +2593,21 @@ function InventoryDetail({
         },
         () => setEditing(false),
     );
+    const saveParticipants = async (participants: string[]) => {
+        const serialized = participants.join(', ');
+        showSavingBadge(true);
+        try {
+            await api.updateInventoryRequestParticipants(
+                request.Id,
+                { participants: serialized },
+                generateRequestId(),
+            );
+            setValues((current) => ({ ...current, Participants: serialized }));
+            await refreshDashboard();
+        } finally {
+            showSavingBadge(false);
+        }
+    };
     const editItem = (index: number | null) => {
         setItemIndex(index);
         setItemError('');
@@ -2610,7 +2729,7 @@ function InventoryDetail({
         .filter((action) => (action === 'submit' ? owner : canApprove(dashboard.me)));
     return (
         <DetailLayout
-            title={`REQ-${request.DisplayId} · ${request.Name || 'Unnamed request'}`}
+            title={request.Name || 'Unnamed request'}
             action={
                 <WorkflowActions
                     actions={actions}
@@ -2633,6 +2752,7 @@ function InventoryDetail({
                     }>
                     <DetailFields
                         fields={[
+                            ['Request number', `REQ-${request.DisplayId}`],
                             ['Status', <Tag key="status">{request.Status}</Tag>],
                             ['Request name', values.Name],
                             ['Start date', values.StartDate],
@@ -2640,7 +2760,16 @@ function InventoryDetail({
                             ['Department', request.departmentName || 'None'],
                             ['Lead email', values.LeadEmail],
                             ['Requested by', request.userName || 'Unknown'],
-                            ['Participants', values.Participants || 'None'],
+                            [
+                                'Participants',
+                                <ParticipantsEditor
+                                    participants={
+                                        values.Participants ? values.Participants.split(',') : []
+                                    }
+                                    editable={canApprove(dashboard.me) || owner}
+                                    onSave={saveParticipants}
+                                />,
+                            ],
                         ]}
                     />
                 </Card>
@@ -2757,14 +2886,6 @@ function InventoryDetail({
                                 <Space>
                                     <Button
                                         type="primary"
-                                        icon={<UploadOutlined />}
-                                        loading={imageUploading}
-                                        onClick={() => imageInputRef.current?.click()}
-                                        aria-label={imageId ? 'Replace image' : 'Add image'}
-                                        title={imageId ? 'Replace image' : 'Add image'}
-                                    />
-                                    <Button
-                                        type="primary"
                                         icon={<CameraOutlined />}
                                         loading={imageUploading}
                                         onClick={() => cameraInputRef.current?.click()}
@@ -2772,6 +2893,14 @@ function InventoryDetail({
                                             imageId ? 'Replace image with camera' : 'Take photo'
                                         }
                                         title={imageId ? 'Replace image with camera' : 'Take photo'}
+                                    />
+                                    <Button
+                                        type="primary"
+                                        icon={<UploadOutlined />}
+                                        loading={imageUploading}
+                                        onClick={() => imageInputRef.current?.click()}
+                                        aria-label={imageId ? 'Replace image' : 'Add image'}
+                                        title={imageId ? 'Replace image' : 'Add image'}
                                     />
                                 </Space>
                             </>
@@ -2859,14 +2988,6 @@ function InventoryDetail({
                             value={values.LeadEmail}
                             required
                             onChange={(e) => update('LeadEmail', e.target.value)}
-                        />
-                        <TextField
-                            name="participants"
-                            label="Participants (emails, comma-separated)"
-                            value={values.Participants}
-                            pattern={PARTICIPANTS_EMAIL_PATTERN}
-                            title={PARTICIPANTS_EMAIL_TITLE}
-                            onChange={(e) => update('Participants', e.target.value)}
                         />
                         <div>
                             <SaveFooter

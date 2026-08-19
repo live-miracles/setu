@@ -396,6 +396,10 @@ interface UpdateInventoryRequestInput {
     imageId?: string;
 }
 
+interface UpdateRequestParticipantsInput {
+    participants: string;
+}
+
 interface InventoryItemInput {
     inventoryTypeId: string;
     quantity: number;
@@ -556,6 +560,11 @@ interface Api {
         input: UpdateInventoryRequestInput,
         requestId: string,
     ): InventoryRequestDTO;
+    updateInventoryRequestParticipants(
+        id: string,
+        input: UpdateRequestParticipantsInput,
+        requestId: string,
+    ): InventoryRequestDTO;
     performInventoryRequestAction(
         requestId: string,
         action: InventoryRequestAction,
@@ -570,6 +579,11 @@ interface Api {
     updateProgramRequest(
         id: string,
         input: UpdateProgramRequestInput,
+        requestId: string,
+    ): ProgramRequestDTO;
+    updateProgramRequestParticipants(
+        id: string,
+        input: UpdateRequestParticipantsInput,
         requestId: string,
     ): ProgramRequestDTO;
     performProgramRequestAction(

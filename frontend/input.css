@@ -896,7 +896,7 @@ body {
     }
 
     .app-content {
-        padding-bottom: 4rem;
+        padding-bottom: calc(6rem + env(safe-area-inset-bottom));
     }
 
     .app-mobile-nav-item {
@@ -919,11 +919,13 @@ body {
     }
 
     .app-mobile-nav-item.is-selected {
-        color: var(--setu-primary);
+        color: #b84710;
+        font-weight: 700;
+        background: color-mix(in srgb, #b84710 10%, transparent);
     }
 
     .app-mobile-nav-item:focus-visible {
-        outline: 2px solid var(--setu-primary);
+        outline: 2px solid #b84710;
         outline-offset: -2px;
     }
 
@@ -935,7 +937,7 @@ body {
     }
 
     .antd-page {
-        padding: 1rem;
+        padding: 0.5rem 1rem 1rem;
     }
 
     .detail-page {

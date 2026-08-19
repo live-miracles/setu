@@ -1620,6 +1620,19 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         );
         return mockBuildInventoryRequestDTO(request);
     },
+    updateInventoryRequestParticipants: (id: string, input: UpdateRequestParticipantsInput) => {
+        const request = mockData.inventoryRequests.find((item) => item.Id === id);
+        if (!request) throw new Error('request_not_found');
+        const actor = mockCurrentUser();
+        const isOwner =
+            request.UserId === mockData.currentUserId ||
+            mockParseParticipants(request.Participants).includes(mockData.currentUserId);
+        if (!(canApprove(mockToUserDTO(actor)) || isOwner)) {
+            throw new Error('participants_edit_not_allowed');
+        }
+        request.Participants = mockParseParticipants(input.participants).join(', ');
+        return mockBuildInventoryRequestDTO(request);
+    },
     performInventoryRequestAction: (
         requestId: string,
         action: InventoryRequestAction,
@@ -1819,6 +1832,19 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         request.LeadEmail = leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');
         request.SessionsJson = mockProgramSessionsJson(sessions);
+        return mockBuildProgramRequestDTO(request);
+    },
+    updateProgramRequestParticipants: (id: string, input: UpdateRequestParticipantsInput) => {
+        const request = mockData.programRequests.find((item) => item.Id === id);
+        if (!request) throw new Error('request_not_found');
+        const actor = mockCurrentUser();
+        const isOwner =
+            request.UserId === mockData.currentUserId ||
+            mockParseParticipants(request.Participants).includes(mockData.currentUserId);
+        if (!(canApprove(mockToUserDTO(actor)) || isOwner)) {
+            throw new Error('participants_edit_not_allowed');
+        }
+        request.Participants = mockParseParticipants(input.participants).join(', ');
         return mockBuildProgramRequestDTO(request);
     },
     performProgramRequestAction: (
