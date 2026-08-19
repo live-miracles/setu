@@ -51,6 +51,69 @@ export interface RouterConfig {
 
 let config: RouterConfig | null = null;
 let lastRenderedLocation = '';
+let appsScriptHistoryReady = false;
+
+type AppsScriptLocation = {
+    hash?: string;
+    parameter?: Record<string, string>;
+    parameters?: Record<string, string[]>;
+};
+
+type AppsScriptRuntime = {
+    script?: {
+        history?: {
+            push: (state: object, params: Record<string, string>, hash: string) => void;
+            replace: (state: object, params: Record<string, string>, hash: string) => void;
+            setChangeHandler: (
+                handler: (event: { state?: object; location: AppsScriptLocation }) => void,
+            ) => void;
+        };
+        url?: {
+            getLocation: (callback: (location: AppsScriptLocation) => void) => void;
+        };
+    };
+};
+
+function appsScriptRuntime(): AppsScriptRuntime | null {
+    const runtime = (globalThis as { google?: AppsScriptRuntime }).google;
+    return runtime?.script?.history || runtime?.script?.url ? runtime : null;
+}
+
+function applyExternalLocation(location: AppsScriptLocation): void {
+    const url = new URL(window.location.href);
+    url.search = '';
+    Object.entries(location.parameters || {}).forEach(([key, values]) => {
+        values.forEach((value) => url.searchParams.append(key, value));
+    });
+    if (!location.parameters && location.parameter) {
+        Object.entries(location.parameter).forEach(([key, value]) =>
+            url.searchParams.set(key, value),
+        );
+    }
+    url.hash = location.hash || '';
+    window.history.replaceState({ setu: true, ...(location as object) }, '', url.toString());
+    setState({ section: url.searchParams.get(APP_SECTION_QUERY_PARAM) || 'home' });
+    window.dispatchEvent(new Event('setu:navigation'));
+    void renderCurrentSection();
+}
+
+/** Sync the iframe's initial state from the outer Apps Script web-app URL. */
+export function initializeBrowserLocation(): Promise<void> {
+    const runtime = appsScriptRuntime();
+    if (!runtime?.script?.url?.getLocation) return Promise.resolve();
+
+    if (!appsScriptHistoryReady && runtime.script.history) {
+        runtime.script.history.setChangeHandler((event) => applyExternalLocation(event.location));
+        appsScriptHistoryReady = true;
+    }
+
+    return new Promise((resolve) => {
+        runtime.script!.url!.getLocation((location) => {
+            applyExternalLocation(location);
+            resolve();
+        });
+    });
+}
 
 export function initRouter(routerConfig: RouterConfig): void {
     config = routerConfig;
@@ -229,6 +292,13 @@ function navigateTo(section: SectionKey, options: NavigationOptions = {}): void 
     };
     if (options.replace) window.history.replaceState(state, '', url.toString());
     else window.history.pushState(state, '', url.toString());
+    const runtime = appsScriptRuntime();
+    const historyApi = runtime?.script?.history;
+    if (historyApi) {
+        const params = Object.fromEntries(url.searchParams.entries());
+        if (options.replace) historyApi.replace(state, params, url.hash.slice(1));
+        else historyApi.push(state, params, url.hash.slice(1));
+    }
     window.dispatchEvent(new Event('setu:navigation'));
     renderCurrentSection();
 }

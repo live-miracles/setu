@@ -1,6 +1,6 @@
 import '@ant-design/v5-patch-for-react-19';
 import { APP_SECTION_QUERY_PARAM } from './config';
-import { initRouter, refreshDashboard, wireNav } from './router';
+import { initializeBrowserLocation, initRouter, refreshDashboard, wireNav } from './router';
 import { ROUTER_CONFIG } from './sections';
 import { setState } from './state';
 import { showErrorAlert } from './ui/feedback';
@@ -17,6 +17,7 @@ async function boot(): Promise<void> {
 
     // An unknown or role-forbidden key is normalised by the router when it
     // renders, so the raw query value can go straight into state.
+    await initializeBrowserLocation();
     const params = new URLSearchParams(window.location.search);
     setState({ section: params.get(APP_SECTION_QUERY_PARAM) || 'home' });
 
