@@ -180,10 +180,11 @@ export async function renderCurrentSection(): Promise<void> {
         'blocks',
         'home-content',
     ].includes(sectionKey);
+    const isInventoryTypes = sectionKey === 'inventory-types';
     const isEdgeToEdge = isWorkbenchBrowse || isWorkbenchDetail;
     container.classList.toggle('app-content-home', isHome);
     container.classList.toggle('app-content-edge', isEdgeToEdge);
-    container.classList.toggle('app-content-settings', isSettingsSection);
+    container.classList.toggle('app-content-settings', isSettingsSection && !isInventoryTypes);
     container.classList.toggle('mx-auto', !isHome && !isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge && !isSettingsSection);
     unmountRefinePage(container);

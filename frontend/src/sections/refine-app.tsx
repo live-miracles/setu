@@ -64,6 +64,7 @@ import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inven
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
 import { TableView } from '../ui/table-view';
 import { QrScanner } from '../ui/qr-scanner';
+import { ImageCamera } from '../ui/image-camera';
 import homeHeroImage from '../../assets/home-hero.avif';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -2495,11 +2496,11 @@ function InventoryDetail({
     const [itemIndex, setItemIndex] = useState<number | null>(null);
     const [itemOpen, setItemOpen] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
+    const [cameraOpen, setCameraOpen] = useState(false);
     const [itemError, setItemError] = useState('');
     const [imageId, setImageId] = useState(request.ImageId || '');
     const [imageUploading, setImageUploading] = useState(false);
     const imageInputRef = useRef<HTMLInputElement>(null);
-    const cameraInputRef = useRef<HTMLInputElement>(null);
     const [items, setItems] = useState<InventoryItemDTO[]>(
         request.items.map((item) => ({ ...item })),
     );
@@ -2658,9 +2659,7 @@ function InventoryDetail({
         setItemOpen(false);
         await persistItems(nextItems);
     };
-    const uploadRequestImage = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        event.target.value = '';
+    const uploadRequestImage = async (file: File) => {
         if (!file) return;
         try {
             setImageUploading(true);
@@ -2698,6 +2697,11 @@ function InventoryDetail({
             setImageUploading(false);
             showSavingBadge(false);
         }
+    };
+    const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file) void uploadRequestImage(file);
     };
     const perform = async (action: InventoryRequestAction) => {
         try {
@@ -2873,22 +2877,14 @@ function InventoryDetail({
                                     type="file"
                                     accept="image/*"
                                     className="hidden"
-                                    onChange={uploadRequestImage}
-                                />
-                                <input
-                                    ref={cameraInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    className="hidden"
-                                    onChange={uploadRequestImage}
+                                    onChange={handleImageFileChange}
                                 />
                                 <Space>
                                     <Button
                                         type="primary"
                                         icon={<CameraOutlined />}
                                         loading={imageUploading}
-                                        onClick={() => cameraInputRef.current?.click()}
+                                        onClick={() => setCameraOpen(true)}
                                         aria-label={
                                             imageId ? 'Replace image with camera' : 'Take photo'
                                         }
@@ -3010,6 +3006,16 @@ function InventoryDetail({
                         <QrScanner onScan={scanInventoryType} onError={setItemError} />
                         {itemError && <Typography.Text type="danger">{itemError}</Typography.Text>}
                     </div>
+                </Modal>
+            )}
+            {cameraOpen && (
+                <Modal title="Take photo" close={() => setCameraOpen(false)}>
+                    <ImageCamera
+                        onCapture={async (file) => {
+                            setCameraOpen(false);
+                            await uploadRequestImage(file);
+                        }}
+                    />
                 </Modal>
             )}
             {itemOpen && (

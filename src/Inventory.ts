@@ -72,7 +72,7 @@ function createInventoryType(input: CreateInventoryTypeInput, requestId: string)
             Name: name,
             Description: input.description || '',
             Requestable: input.requestable !== false,
-            ImageId: '',
+            ImageId: input.imageId || '',
             TotalQuantity: input.totalQuantity,
         });
     });
@@ -89,11 +89,13 @@ function updateInventoryType(
     if (!(input.totalQuantity >= 0))
         throw new ValidationError('total_quantity_must_be_non_negative');
     const { result } = withLockedDedupe('inventory_type:update', requestId, () => {
-        if (!Tables.InventoryTypes.findById(id)) throw new ValidationError('not_found');
+        const existing = Tables.InventoryTypes.findById(id);
+        if (!existing) throw new ValidationError('not_found');
         return Tables.InventoryTypes.updateById(id, {
             Name: name,
             Description: input.description || '',
             Requestable: input.requestable !== false,
+            ImageId: input.imageId === undefined ? existing.ImageId : input.imageId,
             TotalQuantity: input.totalQuantity,
         });
     });

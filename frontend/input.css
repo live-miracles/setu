@@ -845,6 +845,80 @@ body {
     border-radius: 999px;
 }
 
+.inventory-type-grid {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem;
+}
+
+.inventory-type-toolbar {
+    width: 100%;
+    max-width: 50rem;
+    margin-inline: auto;
+}
+
+.inventory-type-card {
+    overflow: hidden;
+    border: 1px solid var(--setu-line);
+    border-radius: 0.5rem;
+    background: var(--setu-surface);
+}
+
+.inventory-type-card-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding: 0.65rem 0.75rem;
+}
+
+.inventory-type-card-heading > strong {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+}
+
+.inventory-type-card-heading > .ant-space {
+    flex: 0 0 auto;
+}
+
+.inventory-type-card-description {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: color-mix(in srgb, var(--setu-ink) 72%, transparent);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.inventory-type-card-image {
+    position: relative;
+    display: flex;
+    aspect-ratio: 4 / 3;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--setu-line) 30%, var(--setu-paper));
+    color: color-mix(in srgb, var(--setu-ink) 60%, transparent);
+}
+
+.inventory-type-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.inventory-type-card-actions {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    padding: 0.15rem;
+    border-radius: 0.35rem;
+    background: rgb(255 250 240 / 88%);
+    backdrop-filter: blur(0.25rem);
+}
+
 @media (max-width: 767px) {
     .home-hero {
         min-height: 12rem;

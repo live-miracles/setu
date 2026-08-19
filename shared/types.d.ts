@@ -370,6 +370,7 @@ interface CreateInventoryTypeInput {
     description: string;
     requestable: boolean;
     totalQuantity: number;
+    imageId?: string;
 }
 
 interface CreateInventoryRequestInput {

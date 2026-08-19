@@ -1501,7 +1501,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Name: input.name,
             Description: input.description || '',
             Requestable: input.requestable !== false,
-            ImageId: '',
+            ImageId: input.imageId || '',
             TotalQuantity: input.totalQuantity,
         };
         mockData.inventoryTypes.push(created);
@@ -1513,6 +1513,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         type.Name = input.name;
         type.Description = input.description || '';
         type.Requestable = input.requestable !== false;
+        type.ImageId = input.imageId === undefined ? type.ImageId : input.imageId;
         type.TotalQuantity = input.totalQuantity;
         return mockBuildInventoryTypeDTOs().find((t) => t.Id === id);
     },

@@ -1,6 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { Button, Card, Checkbox, Empty, Form, Input, Modal, Space, Table } from 'antd';
-import { DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+    DeleteOutlined,
+    EditOutlined,
+    PlusOutlined,
+    QrcodeOutlined,
+    UploadOutlined,
+} from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { refreshDashboard } from '../router';
@@ -11,6 +17,7 @@ import { stockLevelTextClass } from '../ui/styles';
 import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
+import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
 import { ActionConfirmation } from './refine-app';
 
 type Field = { field: string; label: string; type?: string; hiddenInTable?: boolean };
@@ -369,6 +376,33 @@ function SettingsResourcePage({
             showSavingBadge(false);
         }
     }
+    async function uploadInventoryTypeImage(row: Row, file: File) {
+        showSavingBadge(true);
+        try {
+            const prepared = await prepareInventoryImage(file);
+            const imageId = await api.uploadImage(
+                prepared.base64Data,
+                prepared.fileName,
+                prepared.mimeType,
+            );
+            await api.updateInventoryType(
+                row.Id,
+                {
+                    name: String(row.Name || ''),
+                    description: String(row.Description || ''),
+                    requestable: row.Requestable !== false,
+                    totalQuantity: Number(row.TotalQuantity || 0),
+                    imageId,
+                },
+                requestId(),
+            );
+            await refreshDashboard();
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            showSavingBadge(false);
+        }
+    }
     async function downloadInventoryTypeQr(row: Row) {
         try {
             const QRCode = (await import('qrcode')).default;
@@ -407,6 +441,60 @@ function SettingsResourcePage({
             showErrorAlert(error);
         }
     }
+    const renderActions = (row: Row) => (
+        <Space>
+            {config.kind === 'inventory-type' && (
+                <>
+                    <input
+                        id={`inventory-type-image-${row.Id}`}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = '';
+                            if (file) void uploadInventoryTypeImage(row, file);
+                        }}
+                    />
+                    <Button
+                        type="text"
+                        icon={<UploadOutlined />}
+                        onClick={() =>
+                            document.getElementById(`inventory-type-image-${row.Id}`)?.click()
+                        }
+                        aria-label={row.ImageId ? 'Replace photo' : 'Add photo'}
+                        title={row.ImageId ? 'Replace photo' : 'Add photo'}
+                    />
+                </>
+            )}
+            {config.kind === 'inventory-type' && (
+                <Button
+                    type="text"
+                    icon={<QrcodeOutlined />}
+                    onClick={() => void downloadInventoryTypeQr(row)}
+                    aria-label="Download QR code"
+                    title="Download QR code"
+                />
+            )}
+            {canEdit && (
+                <>
+                    <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => setEditing(row)}
+                        aria-label="Edit"
+                    />
+                    <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => setDeleting(row)}
+                        aria-label="Delete"
+                    />
+                </>
+            )}
+        </Space>
+    );
     const columns = [
         ...config.fields
             .filter((field) => !field.hiddenInTable)
@@ -457,66 +545,80 @@ function SettingsResourcePage({
             title: 'Actions',
             key: 'actions',
             align: 'right' as const,
-            render: (_: unknown, row: Row) => (
-                <Space>
-                    {config.kind === 'inventory-type' && (
-                        <Button
-                            type="text"
-                            icon={<DownloadOutlined />}
-                            onClick={() => void downloadInventoryTypeQr(row)}
-                            aria-label="Download QR code"
-                            title="Download QR code"
-                        />
-                    )}
-                    {canEdit && (
-                        <>
-                            <Button
-                                type="text"
-                                icon={<EditOutlined />}
-                                onClick={() => setEditing(row)}
-                                aria-label="Edit"
-                            />
-                            <Button
-                                type="text"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => setDeleting(row)}
-                                aria-label="Delete"
-                            />
-                        </>
-                    )}
-                </Space>
-            ),
+            render: (_: unknown, row: Row) => renderActions(row),
         },
     ];
+    const inventoryTypeCards =
+        filteredRows.length > 0 ? (
+            <div className="inventory-type-grid">
+                {filteredRows.map((row) => {
+                    const available = Number(row.availableQuantity ?? 0);
+                    const total = Number(row.TotalQuantity ?? 0);
+                    const imageUrl = imageUrlForDriveId(String(row.ImageId || ''));
+                    return (
+                        <article className="inventory-type-card" key={row.Id}>
+                            <div className="inventory-type-card-heading">
+                                <strong>{String(row.Name || 'Unnamed equipment')}</strong>
+                                {row.Description && (
+                                    <span className="inventory-type-card-description">
+                                        {String(row.Description)}
+                                    </span>
+                                )}
+                                <span className={stockLevelTextClass(available, total)}>
+                                    {formatInventoryAvailability(available, total)}
+                                </span>
+                            </div>
+                            <div className="inventory-type-card-image">
+                                {imageUrl ? (
+                                    <img src={imageUrl} alt={String(row.Name || '')} />
+                                ) : (
+                                    <span>No photo</span>
+                                )}
+                                <div className="inventory-type-card-actions">
+                                    {renderActions(row)}
+                                </div>
+                            </div>
+                        </article>
+                    );
+                })}
+            </div>
+        ) : (
+            <Empty description={config.emptyMessage} />
+        );
     return (
         <section className={compact ? 'antd-settings-compact' : 'antd-page'}>
-            <TableView
-                title={config.title}
-                count={rows.length}
-                action={
-                    canEdit ? (
-                        <Button
-                            type="primary"
-                            size="small"
-                            icon={<PlusOutlined />}
-                            onClick={() => setCreating(true)}
-                            aria-label={`Add ${config.kind}`}
-                            title={`Add ${config.kind}`}
+            <div
+                className={config.kind === 'inventory-type' ? 'inventory-type-toolbar' : undefined}>
+                <TableView
+                    title={config.title}
+                    count={rows.length}
+                    action={
+                        canEdit ? (
+                            <Button
+                                type="primary"
+                                size="small"
+                                icon={<PlusOutlined />}
+                                onClick={() => setCreating(true)}
+                                aria-label={`Add ${config.kind}`}
+                                title={`Add ${config.kind}`}
+                            />
+                        ) : null
+                    }
+                    searchValue={hasSearch ? search : undefined}
+                    onSearch={hasSearch ? setSearch : undefined}
+                    searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
+                    {config.kind === 'inventory-type' ? null : (
+                        <Table
+                            rowKey="Id"
+                            columns={columns}
+                            dataSource={filteredRows}
+                            locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
+                            pagination={false}
                         />
-                    ) : null
-                }
-                searchValue={hasSearch ? search : undefined}
-                onSearch={hasSearch ? setSearch : undefined}
-                searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
-                <Table
-                    rowKey="Id"
-                    columns={columns}
-                    dataSource={filteredRows}
-                    locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
-                    pagination={false}
-                />
-            </TableView>
+                    )}
+                </TableView>
+            </div>
+            {config.kind === 'inventory-type' && inventoryTypeCards}
             {deleting && (
                 <ActionConfirmation
                     action="delete"
