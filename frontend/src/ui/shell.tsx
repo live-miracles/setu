@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import appLogo from '../../logo.png';
 import { refreshDashboard } from '../router';
 import { showErrorAlert } from './feedback';
-import { getRandomQuote } from '../../../../folder-player/ui/quotes';
+import { getRandomQuote } from './quotes';
 
 const { Header, Content } = Layout;
 
