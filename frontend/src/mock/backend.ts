@@ -1257,7 +1257,7 @@ function mockIncludes(query: string | undefined, values: unknown[]): boolean {
         .trim()
         .toLocaleLowerCase();
     if (!needles) return true;
-    return needles.split(/\s+/).every((needle) =>
+    return needles.split(/\s+/).some((needle) =>
         values.some((value) =>
             String(value || '')
                 .toLocaleLowerCase()

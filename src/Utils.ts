@@ -88,7 +88,7 @@ function matchesSearch(query: string | undefined, values: unknown[]): boolean {
         .split(/\s+/)
         .filter(Boolean);
     if (!needles.length) return true;
-    return needles.every((needle) =>
+    return needles.some((needle) =>
         values.some((value) => normalizedSearch(value).indexOf(needle) !== -1),
     );
 }

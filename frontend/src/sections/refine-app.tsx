@@ -59,6 +59,7 @@ import {
 } from '../ui/roster-table';
 import { buildCalendarTableModel } from '../ui/calendar-table';
 import { availablePlacesForSessions } from '../ui/place-availability';
+import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
@@ -808,10 +809,14 @@ function Users({ dashboard }: Props) {
     const [search, setSearch] = useState('');
     const shown = dashboard.users;
     const filteredUsers = shown.filter((user) =>
-        [user.Name, user.Email, user.departmentName, user.Role, user.Phone, user.Whatsapp]
-            .join(' ')
-            .toLowerCase()
-            .includes(search.toLowerCase()),
+        matchesSearch(search, [
+            user.Name,
+            user.Email,
+            user.departmentName,
+            user.Role,
+            user.Phone,
+            user.Whatsapp,
+        ]),
     );
     return (
         <Page title="Users" hideHeading>
@@ -1344,8 +1349,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         return !ends.length || Math.max(...ends) >= now;
     };
     const matches = (row: any) => {
-        const haystack = JSON.stringify(row).toLowerCase();
-        const textMatch = !search || haystack.includes(search.toLowerCase());
+        const textMatch = matchesSearch(search, [JSON.stringify(row)]);
         return (
             textMatch &&
             (!isProgram || view === 'all' || (view === 'active' ? isActive(row) : !isActive(row)))

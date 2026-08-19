@@ -14,6 +14,7 @@ import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
 import { stockLevelTextClass } from '../ui/styles';
+import { matchesSearch } from '../ui/search';
 import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
@@ -357,16 +358,8 @@ function SettingsResourcePage({
     const [deleting, setDeleting] = useState<Row | null>(null);
     const [search, setSearch] = useState('');
     const rows = config.rows(dashboard);
-    const hasSearch = config.kind === 'department' || config.kind === 'inventory-type';
-    const filteredRows = hasSearch
-        ? rows.filter((row) =>
-              Object.values(row).some((value) =>
-                  String(value ?? '')
-                      .toLowerCase()
-                      .includes(search.toLowerCase()),
-              ),
-          )
-        : rows;
+    const hasSearch = true;
+    const filteredRows = rows.filter((row) => matchesSearch(search, Object.values(row)));
     async function save(values: Record<string, string>) {
         showSavingBadge(true);
         try {
