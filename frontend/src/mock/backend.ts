@@ -851,6 +851,48 @@ const mockData = {
             StartDateTime: mockAddDays(7) + 'T12:30:00.000Z',
             EndDateTime: mockAddDays(7) + 'T13:15:00.000Z',
         },
+        {
+            // Runs at the same time as program-7's archive capture, but in
+            // Studio C rather than Edit Suite 1.
+            Id: 'session-14',
+            Name: 'Parallel studio session',
+            Type: 'Live',
+            RequestId: 'program-8',
+            StartDateTime: mockAddDays(5) + 'T08:00:00.000Z',
+            EndDateTime: mockAddDays(5) + 'T10:30:00.000Z',
+        },
+        {
+            Id: 'session-15',
+            Name: 'Archive capture',
+            Type: 'Recording',
+            RequestId: 'program-7',
+            StartDateTime: mockAddDays(7) + 'T08:00:00.000Z',
+            EndDateTime: mockAddDays(7) + 'T10:30:00.000Z',
+        },
+        {
+            Id: 'session-16',
+            Name: 'Parallel studio session',
+            Type: 'Live',
+            RequestId: 'program-8',
+            StartDateTime: mockAddDays(7) + 'T08:00:00.000Z',
+            EndDateTime: mockAddDays(7) + 'T10:30:00.000Z',
+        },
+        {
+            Id: 'session-17',
+            Name: 'Archive capture',
+            Type: 'Recording',
+            RequestId: 'program-7',
+            StartDateTime: mockAddDays(9) + 'T08:00:00.000Z',
+            EndDateTime: mockAddDays(9) + 'T10:30:00.000Z',
+        },
+        {
+            Id: 'session-18',
+            Name: 'Parallel studio session',
+            Type: 'Live',
+            RequestId: 'program-8',
+            StartDateTime: mockAddDays(9) + 'T08:00:00.000Z',
+            EndDateTime: mockAddDays(9) + 'T10:30:00.000Z',
+        },
         ...EXTRA_APPROVED_PROGRAM_SESSIONS,
     ] as MockLegacyProgramSession[],
     rosters: [
