@@ -46,9 +46,17 @@ export function renderShell({ title, favicon, head, body }) {
 }
 
 function inlineScript(script) {
-    // Prevent a string inside the bundle from prematurely closing the HTML
-    // script element when the Apps Script/demo shell embeds the bundle.
-    return script.replace(/<\/script/gi, '<\\/script');
+    // Apps Script parses the HTML before the browser parses this inline
+    // JavaScript. Escape script/template delimiters and raw control characters
+    // that can be accepted by Node but rejected by the browser in HTML.
+    return script
+        .replace(/<\/script/gi, '<\\/script')
+        .replaceAll('<!--', '\\x3c!--')
+        .replaceAll('-->', '--\\x3e')
+        .replaceAll('?>', '?\\x3e')
+        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, (char) =>
+            `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+        );
 }
 
 /** The page Apps Script serves — assets are hosted on GitHub Pages. */
