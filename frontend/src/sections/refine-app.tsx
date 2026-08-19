@@ -630,15 +630,19 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
         if (!isValidInternationalPhone(phone)) {
             throw new Error(INTERNATIONAL_PHONE_TITLE);
         }
+        const whatsapp = String(d.get('whatsapp') || '');
+        if (!isValidInternationalPhone(whatsapp)) {
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
         await api.updateOwnProfile({
             name: String(d.get('name')),
             departmentId: departmentIdValue,
             phone,
-            whatsapp: String(d.get('whatsapp') || ''),
+            whatsapp,
         });
     });
     return (
-        <Page title={registration ? 'Welcome' : 'Profile'}>
+        <Page title={registration ? 'Welcome' : 'Profile'} hideHeading>
             <Card
                 title={
                     registration ? (
@@ -681,7 +685,15 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                         pattern={INTERNATIONAL_PHONE_PATTERN}
                         title={INTERNATIONAL_PHONE_TITLE}
                     />
-                    <TextField name="whatsapp" label="WhatsApp" value={me.Whatsapp} required />
+                    <TextField
+                        name="whatsapp"
+                        label="WhatsApp"
+                        type="tel"
+                        value={me.Whatsapp}
+                        required
+                        pattern={INTERNATIONAL_PHONE_PATTERN}
+                        title={INTERNATIONAL_PHONE_TITLE}
+                    />
                     <div>
                         <SaveFooter
                             label={registration ? 'Get started' : 'Save'}
@@ -716,6 +728,9 @@ function UserForm({
             whatsapp: String(d.get('whatsapp') || ''),
         };
         if (!isValidInternationalPhone(values.phone)) {
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
+        if (!isValidInternationalPhone(values.whatsapp)) {
             throw new Error(INTERNATIONAL_PHONE_TITLE);
         }
         if (user) await api.updateUser(user.Email, values);
@@ -765,7 +780,15 @@ function UserForm({
                     pattern={INTERNATIONAL_PHONE_PATTERN}
                     title={INTERNATIONAL_PHONE_TITLE}
                 />
-                <TextField name="whatsapp" label="WhatsApp" value={user?.Whatsapp} required />
+                <TextField
+                    name="whatsapp"
+                    label="WhatsApp"
+                    type="tel"
+                    value={user?.Whatsapp}
+                    required
+                    pattern={INTERNATIONAL_PHONE_PATTERN}
+                    title={INTERNATIONAL_PHONE_TITLE}
+                />
                 <div>
                     <SaveFooter
                         label={user ? 'Save' : 'Add'}
