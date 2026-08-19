@@ -77,8 +77,8 @@ export function runCalendarTableAssertions(): void {
             }),
         ],
         [
-            { Id: 'place-1', Name: 'Studio A' },
-            { Id: 'place-2', Name: 'Studio B' },
+            { Id: 'place-1', Name: 'Studio A', AllowOverlap: false },
+            { Id: 'place-2', Name: 'Studio B', AllowOverlap: false },
         ],
         [
             { Id: 'type-webinar', Name: 'Webinar', Color: '#7cc9a4' },

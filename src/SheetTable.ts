@@ -173,7 +173,7 @@ const Tables = {
         'Id',
         'reference-data',
     ),
-    Places: SheetTable<Place>('Places', ['Id', 'Name'], 'Id', 'reference-data'),
+    Places: SheetTable<Place>('Places', ['Id', 'Name', 'AllowOverlap'], 'Id', 'reference-data'),
     Users: SheetTable<User>(
         'Users',
         ['Email', 'Name', 'Role', 'DepartmentId', 'Phone', 'Whatsapp'],

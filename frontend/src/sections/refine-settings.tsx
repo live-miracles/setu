@@ -68,10 +68,19 @@ const RESOURCES: Record<string, ResourceConfig> = {
         title: 'Places',
         addLabel: 'Add place',
         emptyMessage: 'No places yet.',
-        fields: [{ field: 'Name', label: 'Name' }],
+        fields: [
+            { field: 'Name', label: 'Name' },
+            { field: 'AllowOverlap', label: 'Allow overlap', type: 'checkbox' },
+        ],
         rows: (d) => d.places,
-        create: (v) => api.createPlace({ name: v.Name }, requestId()),
-        update: (id, v) => api.updatePlace(id, { name: v.Name }, requestId()),
+        create: (v) =>
+            api.createPlace({ name: v.Name, allowOverlap: v.AllowOverlap === 'on' }, requestId()),
+        update: (id, v) =>
+            api.updatePlace(
+                id,
+                { name: v.Name, allowOverlap: v.AllowOverlap === 'on' },
+                requestId(),
+            ),
         remove: (id) => api.deletePlace(id, requestId()),
     },
     'inventory-types': {
@@ -269,7 +278,9 @@ function FieldSet({
         <form noValidate onSubmit={submit}>
             {config.fields.map((field, index) => (
                 <Form.Item label={field.label} required={index === 0} key={field.field}>
-                    {field.type === 'color' ? (
+                    {field.type === 'checkbox' ? (
+                        <Checkbox name={field.field} defaultChecked={Boolean(row?.[field.field])} />
+                    ) : field.type === 'color' ? (
                         <Space>
                             <Input
                                 name={field.field}

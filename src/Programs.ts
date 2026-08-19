@@ -144,6 +144,50 @@ function rangesOverlap(
     return leftStart < rightEnd && rightStart < leftEnd;
 }
 
+function placeAllowsOverlap(place: Place): boolean {
+    return (
+        place.AllowOverlap === true ||
+        ['true', 'yes', '1'].indexOf(String(place.AllowOverlap).toLowerCase()) !== -1
+    );
+}
+
+function sessionsAreWithinPlaceBuffer(left: ProgramSession, right: ProgramSession): boolean {
+    const leftStart = Date.parse(left.StartDateTime);
+    const leftEnd = Date.parse(left.EndDateTime);
+    const rightStart = Date.parse(right.StartDateTime);
+    const rightEnd = Date.parse(right.EndDateTime);
+    if ([leftStart, leftEnd, rightStart, rightEnd].some((value) => Number.isNaN(value))) {
+        return false;
+    }
+    const bufferMs = 60 * 60 * 1000;
+    return leftStart < rightEnd + bufferMs && rightStart < leftEnd + bufferMs;
+}
+
+function assertPlaceAvailability(
+    place: Place | null,
+    sessions: ProgramSession[],
+    currentRequestId?: string,
+): void {
+    if (!place || placeAllowsOverlap(place) || !sessions.length) return;
+    const conflict = Tables.ProgramRequests.readAll()
+        .filter(
+            (request) =>
+                request.Id !== currentRequestId &&
+                request.Status === 'approved' &&
+                request.PlaceId === place.Id,
+        )
+        .find((request) =>
+            parseProgramSessionsJson(request.SessionsJson).some((otherSession) =>
+                sessions.some((session) => sessionsAreWithinPlaceBuffer(session, otherSession)),
+            ),
+        );
+    if (conflict) {
+        throw new ValidationError(
+            'This place is unavailable: its session is within one hour of another scheduled program.',
+        );
+    }
+}
+
 function assertProgramSessionsNotBlockedForUser(request: ProgramRequest): void {
     const sessions = parseProgramSessionsJson(request.SessionsJson);
     const blockingBlock = Tables.Blocks.readAll()
@@ -163,6 +207,12 @@ function assertProgramSessionsNotBlockedForUser(request: ProgramRequest): void {
             'This request overlaps with a blocked time: ' + blockingBlock.Name,
         );
     }
+}
+
+function hasOngoingOrFutureProgramSession(request: ProgramRequest): boolean {
+    return parseProgramSessionsJson(request.SessionsJson).some(
+        (session) => Date.parse(session.EndDateTime) >= Date.now(),
+    );
 }
 
 function listProgramRequests(
@@ -259,6 +309,7 @@ function createProgramRequest(
     const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
     if (input.placeId && !place) throw new ValidationError('place_not_found');
     const sessionLines = cleanProgramSessions(input.sessions);
+    assertPlaceAvailability(place, sessionLines);
     const participants = parseParticipants(input.participants);
     const departmentId = cleanProgramField(input, 'departmentId');
     const department = Tables.Departments.findById(departmentId);
@@ -308,6 +359,7 @@ function updateProgramRequest(
     const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
     if (input.placeId && !place) throw new ValidationError('place_not_found');
     const sessionLines = cleanProgramSessions(input.sessions);
+    assertPlaceAvailability(place, sessionLines, id);
     const participants = parseParticipants(input.participants);
     const departmentId = cleanProgramField(input, 'departmentId');
     const department = Tables.Departments.findById(departmentId);
@@ -452,6 +504,12 @@ function performProgramRequestAction(
                 } else if (action === 'cancel') {
                     if (['draft', 'submitted', 'approved'].indexOf(request.Status) === -1)
                         throw new ValidationError('invalid_transition');
+                    if (
+                        request.Status === 'approved' &&
+                        !hasOngoingOrFutureProgramSession(request)
+                    ) {
+                        throw new ValidationError('Cannot cancel an approved past program.');
+                    }
                     computedStatus = 'cancelled';
                     Tables.ProgramRequests.updateById(requestId, { Status: computedStatus });
                     insertActionComment(

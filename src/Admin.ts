@@ -148,6 +148,7 @@ function createPlace(input: CreatePlaceInput, requestId: string): Place {
     const { result } = withLockedDedupe('place:create', requestId, () => {
         return Tables.Places.insert({
             Name: name,
+            AllowOverlap: Boolean(input.allowOverlap),
         });
     });
     return result;
@@ -158,7 +159,10 @@ function updatePlace(id: string, input: CreatePlaceInput, requestId: string): Pl
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('place:update', requestId, () => {
         if (!Tables.Places.findById(id)) throw new ValidationError('not_found');
-        return Tables.Places.updateById(id, { Name: name });
+        return Tables.Places.updateById(id, {
+            Name: name,
+            AllowOverlap: Boolean(input.allowOverlap),
+        });
     });
     return result;
 }

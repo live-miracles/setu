@@ -40,6 +40,7 @@ interface Department {
 interface Place {
     Id: string;
     Name: string;
+    AllowOverlap: boolean;
 }
 
 // Email is the primary key itself (lowercased) — no separate generated id.
@@ -330,6 +331,7 @@ interface CreateDepartmentInput {
 
 interface CreatePlaceInput {
     name: string;
+    allowOverlap: boolean;
 }
 
 interface UpdateUserInput {

@@ -102,6 +102,38 @@ function mockCleanSessionField(input: ProgramSessionInput, field: MockSessionFie
     return value;
 }
 
+function mockAssertPlaceAvailability(
+    place: Place | undefined,
+    sessions: ProgramSession[],
+    currentRequestId?: string,
+): void {
+    if (!place || place.AllowOverlap || !sessions.length) return;
+    const bufferMs = 60 * 60 * 1000;
+    const conflict = mockData.programRequests
+        .filter(
+            (request) =>
+                request.Id !== currentRequestId &&
+                request.Status === 'approved' &&
+                request.PlaceId === place.Id,
+        )
+        .some((request) =>
+            mockParseProgramSessions(request.SessionsJson).some((other) =>
+                sessions.some((session) => {
+                    const leftStart = Date.parse(session.StartDateTime);
+                    const leftEnd = Date.parse(session.EndDateTime);
+                    const rightStart = Date.parse(other.StartDateTime);
+                    const rightEnd = Date.parse(other.EndDateTime);
+                    return leftStart < rightEnd + bufferMs && rightStart < leftEnd + bufferMs;
+                }),
+            ),
+        );
+    if (conflict) {
+        throw new Error(
+            'This place is unavailable: its session is within one hour of another scheduled program.',
+        );
+    }
+}
+
 function mockCleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
     if (!input || input.length === 0) throw new Error('At least one session is required.');
     return input.map((session) => {
@@ -465,12 +497,12 @@ const mockData = {
         { Id: 'dep-6', Name: 'Finance', ShortName: 'FIN', LeadEmail: 'admin@example.com' },
     ] as Department[],
     places: [
-        { Id: 'place-1', Name: 'Studio A' },
-        { Id: 'place-2', Name: 'Studio B' },
-        { Id: 'place-3', Name: 'Studio C' },
-        { Id: 'place-4', Name: 'Edit Suite 1' },
-        { Id: 'place-5', Name: 'Podcast Room' },
-        { Id: 'place-6', Name: 'Green Room' },
+        { Id: 'place-1', Name: 'Studio A', AllowOverlap: false },
+        { Id: 'place-2', Name: 'Studio B', AllowOverlap: false },
+        { Id: 'place-3', Name: 'Studio C', AllowOverlap: false },
+        { Id: 'place-4', Name: 'Edit Suite 1', AllowOverlap: false },
+        { Id: 'place-5', Name: 'Podcast Room', AllowOverlap: false },
+        { Id: 'place-6', Name: 'Green Room', AllowOverlap: false },
     ] as Place[],
     inventoryTypes: [
         {
@@ -1328,7 +1360,11 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
 
     listPlaces: () => mockData.places,
     createPlace: (input: CreatePlaceInput) => {
-        const created: Place = { Id: mockUuid(), Name: input.name };
+        const created: Place = {
+            Id: mockUuid(),
+            Name: input.name,
+            AllowOverlap: input.allowOverlap,
+        };
         mockData.places.push(created);
         return created;
     },
@@ -1336,6 +1372,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const place = mockData.places.find((p) => p.Id === id);
         if (!place) throw new Error('not_found');
         place.Name = input.name;
+        place.AllowOverlap = input.allowOverlap;
         return place;
     },
     deletePlace: (id: string) => {
@@ -1776,6 +1813,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             ? mockData.places.find((item) => item.Id === input.placeId)
             : undefined;
         if (input.placeId && !place) throw new Error('place_not_found');
+        mockAssertPlaceAvailability(place, sessions);
         const created: ProgramRequest = {
             Id: mockUuid(),
             DisplayId: mockData.nextDisplayId.program_request++,
@@ -1816,6 +1854,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             ? mockData.places.find((item) => item.Id === input.placeId)
             : undefined;
         if (input.placeId && !place) throw new Error('place_not_found');
+        mockAssertPlaceAvailability(place, sessions, id);
         if (request.PlaceId !== (place ? place.Id : '') && !canApprove(mockToUserDTO(actor))) {
             throw new Error('place_edit_not_allowed');
         }

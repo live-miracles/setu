@@ -58,6 +58,7 @@ import {
     getShiftTypeTimes,
 } from '../ui/roster-table';
 import { buildCalendarTableModel } from '../ui/calendar-table';
+import { availablePlacesForSessions } from '../ui/place-availability';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
@@ -1521,6 +1522,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     const [programType, setProgramType] = useState(
         dashboard.programTypes[0]?.Name || OTHER_PROGRAM_TYPE,
     );
+    const createPlaceOptions = dashboard.places;
     useEffect(() => {
         if ((kind === 'programs' || kind === 'inventory') && canApprove(dashboard.me)) {
             api.listUsers().then(setUsers).catch(error);
@@ -1672,7 +1674,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                         <input type="hidden" name="placeId" value={placeId} />
                         <Select value={placeId} onChange={setPlaceId} style={{ width: '100%' }}>
                             <Select.Option value="">No place</Select.Option>
-                            {dashboard.places.map((p) => (
+                            {createPlaceOptions.map((p) => (
                                 <Select.Option key={p.Id} value={p.Id}>
                                     {p.Name}
                                 </Select.Option>
@@ -1759,6 +1761,19 @@ function ProgramDetail({
         Participants: request.participants.join(', '),
         UserId: request.UserId,
     });
+    const availablePlaceOptions = availablePlacesForSessions(
+        dashboard.places,
+        dashboard.programRequests,
+        sessions,
+        request.Id,
+    );
+    const placeOptions =
+        values.PlaceId && !availablePlaceOptions.some((p) => p.Id === values.PlaceId)
+            ? [
+                  ...availablePlaceOptions,
+                  dashboard.places.find((p) => p.Id === values.PlaceId),
+              ].filter((p): p is Place => Boolean(p))
+            : availablePlaceOptions;
     useEffect(() => {
         if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
     }, [dashboard.me]);
@@ -2134,7 +2149,7 @@ function ProgramDetail({
                                 onChange={(value) => update('PlaceId', value)}
                                 style={{ width: '100%' }}>
                                 <Select.Option value="">No place</Select.Option>
-                                {dashboard.places.map((p) => (
+                                {placeOptions.map((p) => (
                                     <Select.Option key={p.Id} value={p.Id}>
                                         {p.Name}
                                     </Select.Option>
