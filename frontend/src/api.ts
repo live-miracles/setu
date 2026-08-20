@@ -88,6 +88,7 @@ export const api: AsyncApi = {
     updateInventoryRequest: (...args) => callBackend('updateInventoryRequest', ...args),
     updateInventoryRequestParticipants: (...args) =>
         callBackend('updateInventoryRequestParticipants', ...args),
+    deleteInventoryRequest: (...args) => callBackend('deleteInventoryRequest', ...args),
     performInventoryRequestAction: (...args) =>
         callBackend('performInventoryRequestAction', ...args),
 
@@ -99,6 +100,7 @@ export const api: AsyncApi = {
     updateProgramRequest: (...args) => callBackend('updateProgramRequest', ...args),
     updateProgramRequestParticipants: (...args) =>
         callBackend('updateProgramRequestParticipants', ...args),
+    deleteProgramRequest: (...args) => callBackend('deleteProgramRequest', ...args),
     performProgramRequestAction: (...args) => callBackend('performProgramRequestAction', ...args),
 
     listTickets: (...args) => callBackend('listTickets', ...args),

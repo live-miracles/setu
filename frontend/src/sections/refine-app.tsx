@@ -22,6 +22,7 @@ import {
     Typography,
 } from 'antd';
 import {
+    ArrowLeftOutlined,
     CameraOutlined,
     DeleteOutlined,
     EditOutlined,
@@ -567,9 +568,9 @@ function Home({ dashboard }: Props) {
                                 onClick={() => navigateToTicket(ticket.Id)}>
                                 <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                                     <Typography.Text strong>
-                                        TKT-{ticket.DisplayId} · {ticket.Title}
+                                        TKT-{ticket.DisplayId} {ticket.Title}
                                     </Typography.Text>
-                                    <Tag>{ticket.Status}</Tag>
+                                    <Tag color="blue">{ticket.Status}</Tag>
                                 </Space>
                             </Button>
                         ))}
@@ -826,51 +827,49 @@ function Users({ dashboard }: Props) {
                 <div>
                     <Typography.Title level={2}>{selectedUser.Name}</Typography.Title>
                 </div>
-                <Button type="link" onClick={() => setSelectedUser(null)}>
-                    Back
-                </Button>
+                <Space>
+                    <Button
+                        type="default"
+                        icon={<ArrowLeftOutlined />}
+                        onClick={() => setSelectedUser(null)}
+                        aria-label="Back to users"
+                        title="Back to users"
+                    />
+                    {canManageConfig(dashboard.me) && (
+                        <Button
+                            type="primary"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => setDeleting(selectedUser)}
+                            aria-label="Delete user"
+                            title="Delete user"
+                        />
+                    )}
+                </Space>
             </div>
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <Card title="Details">
-                    <dl className="department-detail-list">
-                        <div>
-                            <dt>Email</dt>
-                            <dd>{selectedUser.Email}</dd>
-                        </div>
-                        <div>
-                            <dt>Department</dt>
-                            <dd>{selectedUser.departmentName || 'No department'}</dd>
-                        </div>
-                        <div>
-                            <dt>Role</dt>
-                            <dd>{roleLabel(selectedUser.Role)}</dd>
-                        </div>
-                        <div>
-                            <dt>Phone</dt>
-                            <dd>{selectedUser.Phone || '—'}</dd>
-                        </div>
-                        <div>
-                            <dt>WhatsApp</dt>
-                            <dd>{selectedUser.Whatsapp || '—'}</dd>
-                        </div>
-                    </dl>
-                </Card>
-                <Card title="Actions">
-                    {canManageConfig(dashboard.me) && (
-                        <div className="flex flex-wrap gap-2">
+                <Card
+                    title="Details"
+                    action={
+                        canManageConfig(dashboard.me) ? (
                             <Button
+                                type="primary"
                                 icon={<EditOutlined />}
-                                onClick={() => setEditing(selectedUser)}>
-                                Edit
-                            </Button>
-                            <Button
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => setDeleting(selectedUser)}>
-                                Delete
-                            </Button>
-                        </div>
-                    )}
+                                onClick={() => setEditing(selectedUser)}
+                                aria-label="Edit user"
+                                title="Edit user"
+                            />
+                        ) : null
+                    }>
+                    <DetailFields
+                        fields={[
+                            ['Email', selectedUser.Email],
+                            ['Department', selectedUser.departmentName || 'No department'],
+                            ['Role', roleLabel(selectedUser.Role)],
+                            ['Phone', selectedUser.Phone || '—'],
+                            ['WhatsApp', selectedUser.Whatsapp || '—'],
+                        ]}
+                    />
                 </Card>
             </div>
             <div className="department-related-sections">
@@ -1512,14 +1511,15 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                 key={row.Id}
                                 onClick={() => open(row.Id)}
                                 className="relative">
-                                <Space direction="vertical" size={2}>
-                                    <Space size="small" wrap>
-                                        <Typography.Text type="secondary">
-                                            {`TKT-${row.DisplayId}`}
-                                        </Typography.Text>
-                                        <Typography.Text type="secondary">·</Typography.Text>
-                                        <Tag>{label(row.Status)}</Tag>
-                                    </Space>
+                                <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                                    <div className="request-block-heading">
+                                        <Space size="small" wrap>
+                                            <Typography.Text type="secondary">
+                                                {`TKT-${row.DisplayId}`}
+                                            </Typography.Text>
+                                        </Space>
+                                        <Tag color="blue">{label(row.Status)}</Tag>
+                                    </div>
                                     <Typography.Text strong>
                                         {row.Title || 'Untitled ticket'}
                                     </Typography.Text>
@@ -1790,6 +1790,8 @@ function ProgramDetail({
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
+    const deletable =
+        ['draft', 'cancelled'].includes(request.Status) && (canApprove(dashboard.me) || owner);
     const [editing, setEditing] = useState(false);
     const [sessions, setSessions] = useState<ProgramSession[]>(request.sessions);
     const [sessionIndex, setSessionIndex] = useState<number | null>(null);
@@ -1797,6 +1799,7 @@ function ProgramDetail({
     const [rescheduling, setRescheduling] = useState(false);
     const [sessionTypeError, setSessionTypeError] = useState(false);
     const [pendingAction, setPendingAction] = useState<ProgramRequestAction | null>(null);
+    const [pendingDelete, setPendingDelete] = useState(false);
     const [pendingDeleteSessionIndex, setPendingDeleteSessionIndex] = useState<number | null>(null);
     const [sessionDraft, setSessionDraft] = useState<ProgramSession>(() =>
         defaultSessionDraft(request.sessions),
@@ -2089,6 +2092,16 @@ function ProgramDetail({
                         actions={actions}
                         onAction={(action) => setPendingAction(action as ProgramRequestAction)}
                     />
+                    {deletable && (
+                        <Button
+                            type="primary"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => setPendingDelete(true)}
+                            aria-label="Delete program"
+                            title="Delete program"
+                        />
+                    )}
                 </Space>
             }>
             <div className="detail-main min-w-0">
@@ -2108,7 +2121,12 @@ function ProgramDetail({
                     <DetailFields
                         fields={[
                             ['Request number', `PRG-${request.DisplayId}`],
-                            ['Status', <Tag key="status">{request.Status}</Tag>],
+                            [
+                                'Status',
+                                <Tag color="blue" key="status">
+                                    {request.Status}
+                                </Tag>,
+                            ],
                             ['Program title', values.Name],
                             ['Language', values.Language],
                             ['Type', values.Type],
@@ -2168,6 +2186,26 @@ function ProgramDetail({
                     onConfirm={async () => {
                         await perform(pendingAction);
                         setPendingAction(null);
+                    }}
+                />
+            )}
+            {pendingDelete && (
+                <ActionConfirmation
+                    action="delete"
+                    description="Are you sure you want to delete this program request?"
+                    onCancel={() => setPendingDelete(false)}
+                    onConfirm={async () => {
+                        try {
+                            showSavingBadge(true);
+                            await api.deleteProgramRequest(request.Id, generateRequestId());
+                            setPendingDelete(false);
+                            await refreshDashboard();
+                            navigateToPrograms();
+                        } catch (e) {
+                            error(e);
+                        } finally {
+                            showSavingBadge(false);
+                        }
                     }}
                 />
             )}
@@ -2618,8 +2656,11 @@ function InventoryDetail({
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
+    const deletable =
+        ['draft', 'cancelled'].includes(request.Status) && (canApprove(dashboard.me) || owner);
     const [editing, setEditing] = useState(false);
     const [pendingAction, setPendingAction] = useState<InventoryRequestAction | null>(null);
+    const [pendingDelete, setPendingDelete] = useState(false);
     const [pendingDeleteItemIndex, setPendingDeleteItemIndex] = useState<number | null>(null);
     const [itemIndex, setItemIndex] = useState<number | null>(null);
     const [itemOpen, setItemOpen] = useState(false);
@@ -2863,10 +2904,22 @@ function InventoryDetail({
         <DetailLayout
             title={request.Name || 'Unnamed request'}
             action={
-                <WorkflowActions
-                    actions={actions}
-                    onAction={(action) => setPendingAction(action as InventoryRequestAction)}
-                />
+                <Space wrap>
+                    <WorkflowActions
+                        actions={actions}
+                        onAction={(action) => setPendingAction(action as InventoryRequestAction)}
+                    />
+                    {deletable && (
+                        <Button
+                            type="primary"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => setPendingDelete(true)}
+                            aria-label="Delete request"
+                            title="Delete request"
+                        />
+                    )}
+                </Space>
             }>
             <div className="detail-main min-w-0">
                 <Card
@@ -2885,7 +2938,12 @@ function InventoryDetail({
                     <DetailFields
                         fields={[
                             ['Request number', `REQ-${request.DisplayId}`],
-                            ['Status', <Tag key="status">{request.Status}</Tag>],
+                            [
+                                'Status',
+                                <Tag color="blue" key="status">
+                                    {request.Status}
+                                </Tag>,
+                            ],
                             ['Request name', values.Name],
                             ['Start date', values.StartDate],
                             ['End date', values.EndDate],
@@ -3230,6 +3288,26 @@ function InventoryDetail({
                     }}
                 />
             )}
+            {pendingDelete && (
+                <ActionConfirmation
+                    action="delete"
+                    description="Are you sure you want to delete this inventory request?"
+                    onCancel={() => setPendingDelete(false)}
+                    onConfirm={async () => {
+                        try {
+                            showSavingBadge(true);
+                            await api.deleteInventoryRequest(request.Id, generateRequestId());
+                            setPendingDelete(false);
+                            await refreshDashboard();
+                            navigateToInventoryRequests();
+                        } catch (e) {
+                            error(e);
+                        } finally {
+                            showSavingBadge(false);
+                        }
+                    }}
+                />
+            )}
         </DetailLayout>
     );
 }
@@ -3284,7 +3362,12 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                     }>
                     <DetailFields
                         fields={[
-                            ['Status', <Tag key="status">{ticket.Status}</Tag>],
+                            [
+                                'Status',
+                                <Tag color="blue" key="status">
+                                    {ticket.Status}
+                                </Tag>,
+                            ],
                             ['Title', values.Title],
                             ['Assigned to', ticket.assigneeName || 'Unassigned'],
                         ]}

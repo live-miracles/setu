@@ -134,14 +134,7 @@ function listInventoryRequests(
     const statuses = query.statuses || [];
     const dtos = Tables.InventoryRequests.readAll()
         .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
-        .map((r) =>
-            buildInventoryRequestDTO(
-                r,
-                inventoryTypesById,
-                usersByEmail,
-                departmentsById,
-            ),
-        )
+        .map((r) => buildInventoryRequestDTO(r, inventoryTypesById, usersByEmail, departmentsById))
         .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
         .filter(
             (request) =>
@@ -485,4 +478,20 @@ function performInventoryRequestAction(
     );
 
     return nextStatus;
+}
+
+function deleteInventoryRequest(id: string, requestId: string): void {
+    const actor = requireUser();
+    withLockedDedupe('inventory_request:delete', requestId, () => {
+        const request = Tables.InventoryRequests.findById(id);
+        if (!request) throw new ValidationError('request_not_found');
+        const participants = parseParticipants(request.Participants);
+        const owner = request.UserId === actor.Email || participants.indexOf(actor.Email) !== -1;
+        if (!canApprove(actor) && !owner) throw new AuthorizationError('delete_not_allowed');
+        if (request.Status !== 'draft' && request.Status !== 'cancelled') {
+            throw new ValidationError('request_not_deletable');
+        }
+        Tables.InventoryRequests.deleteById(id);
+        return null;
+    });
 }

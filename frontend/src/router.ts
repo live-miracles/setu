@@ -211,6 +211,8 @@ function toggleNavVisibility(show: boolean): void {
 function renderNavIdentity(dashboard: DashboardPayload): void {
     const nameEl = document.getElementById('nav-user-name');
     if (nameEl) nameEl.textContent = dashboard.me.Name;
+    document.documentElement.dataset.userRole = dashboard.me.Role;
+    window.dispatchEvent(new Event('setu:role'));
 }
 
 // Which sections the signed-in role may open at all. Home, Inventory,
@@ -235,12 +237,9 @@ function resolveSection(section: string, dashboard: DashboardPayload): SectionKe
     return canOpenSection(key, dashboard.me) ? key : 'home';
 }
 
-// Hides the entries for sections this role can't open, wherever they appear
-// — the desktop bar, the mobile dock and the Settings dropdown each render
-// their own copy. The dropdown trigger carries no data-nav-section of its
-// own, so it's hidden separately when nothing inside it is reachable.
+// Hides the entries for sections this role can't open wherever they appear —
+// the desktop bar, mobile dock, and profile menu each render their own copy.
 function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
-    const showSettings = canApprove(dashboard.me);
     document.querySelectorAll<HTMLElement>('[data-nav-section]').forEach((el) => {
         const section = el.dataset.navSection as SectionKey;
         const hidden = !canOpenSection(section, dashboard.me);
@@ -251,10 +250,6 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
             menuItem.hidden = hidden;
             menuItem.style.display = hidden ? 'none' : '';
         }
-    });
-    document.querySelectorAll<HTMLElement>('[data-settings-menu]').forEach((el) => {
-        el.hidden = !showSettings;
-        el.style.display = showSettings ? '' : 'none';
     });
 }
 

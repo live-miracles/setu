@@ -741,7 +741,7 @@ body {
 .detail-layout {
     flex: 1 1 auto;
     min-height: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 20rem;
     align-items: stretch;
 }
 
@@ -890,7 +890,7 @@ body {
     padding: 0.8rem 1rem;
     border: 1px solid var(--setu-line);
     border-radius: 0.5rem;
-    background: var(--setu-surface);
+    background: var(--ant-color-bg-container);
     cursor: pointer;
     transition:
         border-color 120ms ease,
@@ -1055,6 +1055,7 @@ body {
 }
 
 .request-block-heading {
+    width: 100%;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -1196,7 +1197,6 @@ body {
         display: none;
     }
 
-    .app-settings-label,
     #nav-user-name {
         display: none;
     }

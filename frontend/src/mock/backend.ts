@@ -1273,7 +1273,12 @@ function mockInsertActionComment(
             ...mockParseComments(owner.CommentsJson, requestId).map(
                 ({ Id, Timestamp, UserId, Message }) => ({ Id, Timestamp, UserId, Message }),
             ),
-            { Id: created.Id, Timestamp: created.Timestamp, UserId: created.UserId, Message: created.Message },
+            {
+                Id: created.Id,
+                Timestamp: created.Timestamp,
+                UserId: created.UserId,
+                Message: created.Message,
+            },
         ]);
     }
     return created;
@@ -1823,6 +1828,18 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         request.Participants = mockParseParticipants(input.participants).join(', ');
         return mockBuildInventoryRequestDTO(request);
     },
+    deleteInventoryRequest: (id: string) => {
+        const request = mockData.inventoryRequests.find((item) => item.Id === id);
+        if (!request) throw new Error('request_not_found');
+        const actor = mockCurrentUser();
+        const owner =
+            request.UserId === actor.Email ||
+            mockParseParticipants(request.Participants).includes(actor.Email);
+        if (!canApprove(mockToUserDTO(actor)) && !owner) throw new Error('delete_not_allowed');
+        if (!['draft', 'cancelled'].includes(request.Status))
+            throw new Error('request_not_deletable');
+        mockData.inventoryRequests = mockData.inventoryRequests.filter((item) => item.Id !== id);
+    },
     performInventoryRequestAction: (
         requestId: string,
         action: InventoryRequestAction,
@@ -2039,6 +2056,18 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         }
         request.Participants = mockParseParticipants(input.participants).join(', ');
         return mockBuildProgramRequestDTO(request);
+    },
+    deleteProgramRequest: (id: string) => {
+        const request = mockData.programRequests.find((item) => item.Id === id);
+        if (!request) throw new Error('request_not_found');
+        const actor = mockCurrentUser();
+        const owner =
+            request.UserId === actor.Email ||
+            mockParseParticipants(request.Participants).includes(actor.Email);
+        if (!canApprove(mockToUserDTO(actor)) && !owner) throw new Error('delete_not_allowed');
+        if (!['draft', 'cancelled'].includes(request.Status))
+            throw new Error('request_not_deletable');
+        mockData.programRequests = mockData.programRequests.filter((item) => item.Id !== id);
     },
     performProgramRequestAction: (
         requestId: string,

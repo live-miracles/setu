@@ -1,4 +1,4 @@
-import { Pagination, Tag, Typography } from 'antd';
+import { Empty, Pagination, Tag, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { RequestBlock } from './request-block';
 
@@ -54,7 +54,7 @@ export function RelatedRequestBlocks({
                     ))}
                 </div>
             ) : (
-                <Typography.Text type="secondary">{emptyMessage}</Typography.Text>
+                <Empty description={emptyMessage} />
             )}
         </section>
     );

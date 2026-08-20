@@ -4,7 +4,6 @@ import {
     CalendarOutlined,
     InboxOutlined,
     ReloadOutlined,
-    SettingOutlined,
     ToolOutlined,
     UserOutlined,
 } from '@ant-design/icons';
@@ -17,7 +16,7 @@ import { getRandomQuote } from './quotes';
 
 const { Header, Content } = Layout;
 
-const settingsItems = [
+const profileSettingsItems = [
     { key: 'roster', label: <span data-nav-section="roster">Roster</span> },
     { key: 'users', label: <span data-nav-section="users">Users</span> },
     { key: 'departments', label: <span data-nav-section="departments">Departments</span> },
@@ -30,6 +29,13 @@ const settingsItems = [
     { key: 'home-content', label: <span data-nav-section="home-content">Other settings</span> },
 ];
 
+function profileMenuItems(role: UserRole | null) {
+    return [
+        { key: 'profile', label: <span data-nav-section="profile">Profile</span> },
+        ...(role === 'admin' || role === 'approver' ? profileSettingsItems : []),
+    ];
+}
+
 function navigate(section: string) {
     document.querySelector<HTMLElement>(`[data-nav-section="${section}"]`)?.click();
 }
@@ -40,13 +46,21 @@ function sectionFromUrl(): string {
 
 function Shell() {
     const [selectedSection, setSelectedSection] = useState(sectionFromUrl);
+    const [role, setRole] = useState<UserRole | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const loadingQuote = getRandomQuote();
 
     useEffect(() => {
         const syncSelection = () => setSelectedSection(sectionFromUrl());
         window.addEventListener('setu:navigation', syncSelection);
-        return () => window.removeEventListener('setu:navigation', syncSelection);
+        const syncRole = () =>
+            setRole((document.documentElement.dataset.userRole as UserRole | undefined) || null);
+        window.addEventListener('setu:role', syncRole);
+        syncRole();
+        return () => {
+            window.removeEventListener('setu:navigation', syncSelection);
+            window.removeEventListener('setu:role', syncRole);
+        };
     }, []);
 
     const refresh = async () => {
@@ -102,29 +116,23 @@ function Shell() {
                     />
                     <Space className="app-actions">
                         <Dropdown
-                            menu={{ items: settingsItems, onClick: ({ key }) => navigate(key) }}
+                            menu={{
+                                items: profileMenuItems(role),
+                                onClick: ({ key }) => navigate(key),
+                            }}
                             trigger={['click']}>
-                            <Button
-                                type="text"
-                                className="app-settings-button"
-                                icon={<SettingOutlined />}
-                                data-settings-menu
-                                data-authenticated-nav
-                                style={{ display: 'none' }}
-                                aria-label="Settings">
-                                <span className="app-settings-label">Settings</span>
-                            </Button>
+                            <span>
+                                <Button
+                                    type="text"
+                                    className="app-profile-button"
+                                    icon={<UserOutlined />}
+                                    data-authenticated-nav
+                                    style={{ display: 'none' }}
+                                    aria-label="Profile menu">
+                                    <span id="nav-user-name" />
+                                </Button>
+                            </span>
                         </Dropdown>
-                        <Button
-                            type="text"
-                            className="app-profile-button"
-                            icon={<UserOutlined />}
-                            data-nav-section="profile"
-                            data-authenticated-nav
-                            style={{ display: 'none' }}
-                            aria-label="Profile">
-                            <span id="nav-user-name" />
-                        </Button>
                         <Button
                             type="text"
                             icon={<ReloadOutlined spin={refreshing} />}

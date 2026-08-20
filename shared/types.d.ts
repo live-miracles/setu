@@ -573,6 +573,7 @@ interface Api {
         input: UpdateRequestParticipantsInput,
         requestId: string,
     ): InventoryRequestDTO;
+    deleteInventoryRequest(id: string, requestId: string): void;
     performInventoryRequestAction(
         requestId: string,
         action: InventoryRequestAction,
@@ -596,6 +597,7 @@ interface Api {
         input: UpdateRequestParticipantsInput,
         requestId: string,
     ): ProgramRequestDTO;
+    deleteProgramRequest(id: string, requestId: string): void;
     performProgramRequestAction(
         requestId: string,
         action: ProgramRequestAction,
