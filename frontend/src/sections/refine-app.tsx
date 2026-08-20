@@ -25,11 +25,9 @@ import {
     CameraOutlined,
     DeleteOutlined,
     EditOutlined,
-    PhoneOutlined,
     PlusOutlined,
     SearchOutlined,
     UploadOutlined,
-    WhatsAppOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
@@ -51,12 +49,7 @@ import {
 } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import {
-    formatDateTime,
-    formatProgramDateRangeFromBounds,
-    formatProgramSessionSchedule,
-    formatTimeOfDay,
-} from '../ui/format';
+import { formatDateTime, formatProgramSessionSchedule, formatTimeOfDay } from '../ui/format';
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
@@ -68,9 +61,11 @@ import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
-import { TableView } from '../ui/table-view';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
+import { RequestBlock } from '../ui/request-block';
+import { RelatedRequestBlocks } from '../ui/related-request-blocks';
+import { UserBlock } from '../ui/user-block';
 import homeHeroImage from '../../assets/home-hero.avif';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -773,10 +768,12 @@ function Users({ dashboard }: Props) {
     const [editing, setEditing] = useState<UserDTO | undefined>();
     const [deleting, setDeleting] = useState<UserDTO | null>(null);
     const [creating, setCreating] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<UserDTO | null>(null);
     const [search, setSearch] = useState('');
+    const [appliedSearch, setAppliedSearch] = useState('');
     const shown = dashboard.users;
     const filteredUsers = shown.filter((user) =>
-        matchesSearch(search, [
+        matchesSearch(appliedSearch, [
             user.Name,
             user.Email,
             user.departmentName,
@@ -785,100 +782,138 @@ function Users({ dashboard }: Props) {
             user.Whatsapp,
         ]),
     );
+    const userPrograms = selectedUser
+        ? dashboard.programRequests.filter((request) => request.UserId === selectedUser.Email)
+        : [];
+    const userInventoryRequests = selectedUser
+        ? dashboard.inventoryRequests.filter((request) => request.UserId === selectedUser.Email)
+        : [];
+    const userHeader = (
+        <div className="antd-page-heading resource-page-heading">
+            <div>
+                <Typography.Title level={2}>Users</Typography.Title>
+            </div>
+            <Space className="antd-board-filters" wrap>
+                <Input
+                    allowClear
+                    prefix={<SearchOutlined />}
+                    placeholder="Search users"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                />
+                <Button
+                    type="primary"
+                    icon={<SearchOutlined />}
+                    onClick={() => setAppliedSearch(search)}
+                    aria-label="Search users"
+                    title="Search users"
+                />
+            </Space>
+            {canManageConfig(dashboard.me) && (
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setCreating(true)}
+                    aria-label="Add user"
+                    title="Add user"
+                />
+            )}
+        </div>
+    );
+    const userDetail = selectedUser && (
+        <>
+            <div className="antd-page-heading">
+                <div>
+                    <Typography.Title level={2}>{selectedUser.Name}</Typography.Title>
+                </div>
+                <Button type="link" onClick={() => setSelectedUser(null)}>
+                    Back
+                </Button>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+                <Card title="Details">
+                    <dl className="department-detail-list">
+                        <div>
+                            <dt>Email</dt>
+                            <dd>{selectedUser.Email}</dd>
+                        </div>
+                        <div>
+                            <dt>Department</dt>
+                            <dd>{selectedUser.departmentName || 'No department'}</dd>
+                        </div>
+                        <div>
+                            <dt>Role</dt>
+                            <dd>{roleLabel(selectedUser.Role)}</dd>
+                        </div>
+                        <div>
+                            <dt>Phone</dt>
+                            <dd>{selectedUser.Phone || '—'}</dd>
+                        </div>
+                        <div>
+                            <dt>WhatsApp</dt>
+                            <dd>{selectedUser.Whatsapp || '—'}</dd>
+                        </div>
+                    </dl>
+                </Card>
+                <Card title="Actions">
+                    {canManageConfig(dashboard.me) && (
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                icon={<EditOutlined />}
+                                onClick={() => setEditing(selectedUser)}>
+                                Edit
+                            </Button>
+                            <Button
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => setDeleting(selectedUser)}>
+                                Delete
+                            </Button>
+                        </div>
+                    )}
+                </Card>
+            </div>
+            <div className="department-related-sections">
+                <RelatedRequestBlocks
+                    title="Programs"
+                    kind="program"
+                    items={userPrograms}
+                    dashboard={dashboard}
+                    emptyMessage="No program requests from this user."
+                    onOpen={navigateToProgram}
+                />
+                <RelatedRequestBlocks
+                    title="Inventory requests"
+                    kind="inventory"
+                    items={userInventoryRequests}
+                    dashboard={dashboard}
+                    emptyMessage="No inventory requests from this user."
+                    onOpen={navigateToInventoryRequest}
+                />
+            </div>
+        </>
+    );
     return (
         <Page title="Users" hideHeading>
-            <TableView
-                title="Users"
-                count={shown.length}
-                action={
-                    canManageConfig(dashboard.me) ? (
-                        <Button
-                            type="primary"
-                            size="small"
-                            icon={<PlusOutlined />}
-                            onClick={() => setCreating(true)}
-                            aria-label="Add user"
-                            title="Add user"
-                        />
-                    ) : null
-                }
-                searchValue={search}
-                onSearch={setSearch}
-                searchPlaceholder="Search users">
-                {filteredUsers.length ? (
-                    <Table
-                        rowKey="Email"
-                        dataSource={filteredUsers}
-                        pagination={false}
-                        className="users-table"
-                        scroll={{ x: 'max-content' }}
-                        columns={[
-                            {
-                                title: 'Name',
-                                dataIndex: 'Name',
-                                render: (name: string, user: UserDTO) => (
-                                    <Space direction="vertical" size={0}>
-                                        <Typography.Text strong>{name}</Typography.Text>
-                                        <Typography.Text type="secondary">
-                                            {user.Email}
-                                        </Typography.Text>
-                                    </Space>
-                                ),
-                            },
-                            {
-                                title: 'Department',
-                                dataIndex: 'departmentName',
-                                render: (value: string) => value || 'No department',
-                            },
-                            {
-                                title: 'Role',
-                                dataIndex: 'Role',
-                                render: (value: UserRole) => (
-                                    <Tag color="blue">{roleLabel(value)}</Tag>
-                                ),
-                            },
-                            {
-                                title: 'Contact',
-                                render: (_: unknown, user: UserDTO) => (
-                                    <Space direction="vertical" size={0}>
-                                        <span>
-                                            <PhoneOutlined /> {user.Phone || '—'}
-                                        </span>
-                                        <span>
-                                            <WhatsAppOutlined /> {user.Whatsapp || '—'}
-                                        </span>
-                                    </Space>
-                                ),
-                            },
-                            {
-                                title: '',
-                                key: 'actions',
-                                align: 'right' as const,
-                                render: (_: unknown, user: UserDTO) =>
-                                    canManageConfig(dashboard.me) ? (
-                                        <Space>
-                                            <Button
-                                                type="text"
-                                                icon={<EditOutlined />}
-                                                onClick={() => setEditing(user)}
-                                                aria-label="Edit"
-                                            />
-                                            <Button
-                                                type="text"
-                                                danger
-                                                icon={<DeleteOutlined />}
-                                                onClick={() => setDeleting(user)}
-                                                aria-label="Delete"
-                                            />
-                                        </Space>
-                                    ) : null,
-                            },
-                        ]}
-                    />
-                ) : (
-                    <Empty>No users yet.</Empty>
-                )}
-            </TableView>
+            {selectedUser ? userDetail : userHeader}
+            {!selectedUser && (
+                <>
+                    {filteredUsers.length ? (
+                        <div className="user-card-list">
+                            {filteredUsers.map((user) => (
+                                <UserBlock
+                                    key={user.Email}
+                                    user={user}
+                                    dashboard={dashboard}
+                                    onClick={() => setSelectedUser(user)}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <Empty>No users yet.</Empty>
+                    )}
+                </>
+            )}
             {deleting && (
                 <ActionConfirmation
                     action="delete"
@@ -887,6 +922,7 @@ function Users({ dashboard }: Props) {
                     onConfirm={async () => {
                         await api.deleteUser(deleting.Email, generateRequestId());
                         setDeleting(null);
+                        setSelectedUser(null);
                         await refreshDashboard();
                     }}
                 />
@@ -1360,17 +1396,21 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             // the backend's explicit sentinel keeps it from meaning "all".
             statuses: selectedStatuses.length ? selectedStatuses : ['__none__'],
         };
-        if (isProgram) query.dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
+        if (isProgram)
+            query.dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
         const request = isInventory
             ? api.listInventoryRequests(page, query)
             : isProgram
               ? api.listProgramRequests(page, query)
               : api.listTickets(page, query);
-        request.then((next) => {
-            if (!cancelled) setResult(next);
-        }).catch(error).finally(() => {
-            if (!cancelled) setLoading(false);
-        });
+        request
+            .then((next) => {
+                if (!cancelled) setResult(next);
+            })
+            .catch(error)
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
         return () => {
             cancelled = true;
         };
@@ -1445,103 +1485,67 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             }>
             <div className="antd-request-list">
                 {loading && <Typography.Text type="secondary">Loading requests…</Typography.Text>}
-                {!loading && rows.map((row) => (
-                    <AntCard size="small" hoverable key={row.Id} onClick={() => open(row.Id)} className="relative">
-                        <Space direction="vertical" size={2}>
-                                            {isProgram ? (
-                                                <>
-                                                    <Space size="small" wrap>
-                                                        <Typography.Text type="secondary">
-                                                            {`PRG-${row.DisplayId}`}
-                                                        </Typography.Text>
-                                                        <Typography.Text type="secondary">·</Typography.Text>
-                                                        <Typography.Text type="secondary">
-                                                            {formatProgramDateRangeFromBounds(
-                                                                row.sessionStart,
-                                                                row.sessionEnd,
-                                                            )}
-                                                        </Typography.Text>
-                                                        <Typography.Text type="secondary">·</Typography.Text>
-                                                        <Tag>{label(row.Status)}</Tag>
-                                                    </Space>
-                                                    <Typography.Text strong>
-                                                        {formatProgramName(
-                                                            row.Language,
-                                                            row.Type,
-                                                            row.Name,
-                                                        ) || 'Unnamed program'}
-                                                    </Typography.Text>
-                                                    <Typography.Text type="secondary">
-                                                        {row.userName || 'Unknown requester'} |{' '}
-                                                        {dashboard.departments.find(
-                                                            (department) =>
-                                                                department.Id ===
-                                                                dashboard.users.find(
-                                                                    (user) =>
-                                                                        user.Email === row.UserId,
-                                                                )?.DepartmentId,
-                                                        )?.ShortName || '—'}
-                                                    </Typography.Text>
-                                                </>
-                                            ) : isInventory ? (
-                                                <>
-                                                    <Space size="small" wrap>
-                                                        <Typography.Text type="secondary">
-                                                            {`REQ-${row.DisplayId}`}
-                                                        </Typography.Text>
-                                                        <Typography.Text type="secondary">·</Typography.Text>
-                                                        <Typography.Text type="secondary">
-                                                            {formatProgramDateRangeFromBounds(
-                                                                row.StartDate,
-                                                                row.EndDate,
-                                                            )}
-                                                        </Typography.Text>
-                                                        <Typography.Text type="secondary">·</Typography.Text>
-                                                        <Tag>{label(row.Status)}</Tag>
-                                                    </Space>
-                                                    <Typography.Text strong>
-                                                        {row.Name || 'Unnamed request'}
-                                                    </Typography.Text>
-                                                    <Typography.Text type="secondary">
-                                                        {row.userName || 'Unknown requester'} |{' '}
-                                                        {dashboard.departments.find(
-                                                            (department) =>
-                                                                department.Id ===
-                                                                dashboard.users.find(
-                                                                    (user) =>
-                                                                        user.Email === row.UserId,
-                                                                )?.DepartmentId,
-                                                        )?.ShortName || '—'}
-                                                    </Typography.Text>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Space size="small" wrap>
-                                                        <Typography.Text type="secondary">
-                                                            {`TKT-${row.DisplayId}`}
-                                                        </Typography.Text>
-                                                        <Typography.Text type="secondary">·</Typography.Text>
-                                                        <Tag>{label(row.Status)}</Tag>
-                                                    </Space>
-                                                    <Typography.Text strong>
-                                                        {row.Title || 'Untitled ticket'}
-                                                    </Typography.Text>
-                                                    <Typography.Text type="secondary">
-                                                        {row.assigneeName || 'Unassigned'}
-                                                    </Typography.Text>
-                                                </>
-                                            )}
-                                            {row.comments?.length ? (
-                                                <Typography.Text type="secondary">
-                                                    {row.comments.length} comment{row.comments.length === 1 ? '' : 's'} · {row.comments[row.comments.length - 1].Message}
-                                                </Typography.Text>
-                                            ) : null}
-                                        </Space>
-                    </AntCard>
-                ))}
+                {!loading &&
+                    rows.map((row) =>
+                        isProgram ? (
+                            <RequestBlock
+                                key={row.Id}
+                                kind="program"
+                                row={row as ProgramRequestDTO}
+                                dashboard={dashboard}
+                                comments={row.comments}
+                                onClick={() => open(row.Id)}
+                            />
+                        ) : isInventory ? (
+                            <RequestBlock
+                                key={row.Id}
+                                kind="inventory"
+                                row={row as InventoryRequestDTO}
+                                dashboard={dashboard}
+                                comments={row.comments}
+                                onClick={() => open(row.Id)}
+                            />
+                        ) : (
+                            <AntCard
+                                size="small"
+                                hoverable
+                                key={row.Id}
+                                onClick={() => open(row.Id)}
+                                className="relative">
+                                <Space direction="vertical" size={2}>
+                                    <Space size="small" wrap>
+                                        <Typography.Text type="secondary">
+                                            {`TKT-${row.DisplayId}`}
+                                        </Typography.Text>
+                                        <Typography.Text type="secondary">·</Typography.Text>
+                                        <Tag>{label(row.Status)}</Tag>
+                                    </Space>
+                                    <Typography.Text strong>
+                                        {row.Title || 'Untitled ticket'}
+                                    </Typography.Text>
+                                    <Typography.Text type="secondary">
+                                        {row.assigneeName || 'Unassigned'}
+                                    </Typography.Text>
+                                    {row.comments?.length ? (
+                                        <Typography.Text type="secondary">
+                                            {row.comments.length} comment
+                                            {row.comments.length === 1 ? '' : 's'} ·{' '}
+                                            {row.comments[row.comments.length - 1].Message}
+                                        </Typography.Text>
+                                    ) : null}
+                                </Space>
+                            </AntCard>
+                        ),
+                    )}
                 {!loading && !rows.length && <AntEmpty description="No requests" />}
                 {result && result.totalCount > result.pageSize && (
-                    <Pagination current={result.page} pageSize={result.pageSize} total={result.totalCount} showSizeChanger={false} onChange={setPage} />
+                    <Pagination
+                        current={result.page}
+                        pageSize={result.pageSize}
+                        total={result.totalCount}
+                        showSizeChanger={false}
+                        onChange={setPage}
+                    />
                 )}
             </div>
             {creating && (
@@ -2391,7 +2395,13 @@ function SessionForm({
     );
 }
 
-function Activity({ requestId, initialComments }: { requestId: string; initialComments: CommentDTO[] }) {
+function Activity({
+    requestId,
+    initialComments,
+}: {
+    requestId: string;
+    initialComments: CommentDTO[];
+}) {
     const [comment, setComment] = useState('');
     const [comments, setComments] = useState<CommentDTO[]>(initialComments);
     useEffect(() => {

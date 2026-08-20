@@ -1,15 +1,28 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
-import { Button, Card, Checkbox, Empty, Form, Input, Modal, Space, Table } from 'antd';
+import {
+    Button,
+    Card,
+    Checkbox,
+    Empty,
+    Form,
+    Input,
+    Modal,
+    Space,
+    Table,
+    Tag,
+    Typography,
+} from 'antd';
 import {
     DeleteOutlined,
     EditOutlined,
     PlusOutlined,
     QrcodeOutlined,
+    SearchOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
-import { refreshDashboard } from '../router';
+import { navigateToInventoryRequest, navigateToProgram, refreshDashboard } from '../router';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
@@ -19,6 +32,8 @@ import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-q
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
+import { RelatedRequestBlocks } from '../ui/related-request-blocks';
+import { UserBlock } from '../ui/user-block';
 import { ActionConfirmation } from './refine-app';
 
 type Field = { field: string; label: string; type?: string; hiddenInTable?: boolean };
@@ -356,10 +371,16 @@ function SettingsResourcePage({
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
+    const [selectedDepartment, setSelectedDepartment] = useState<Row | null>(null);
+    const [selectedInventoryType, setSelectedInventoryType] = useState<Row | null>(null);
+    const [selectedPlace, setSelectedPlace] = useState<Row | null>(null);
     const [search, setSearch] = useState('');
+    const [appliedSearch, setAppliedSearch] = useState('');
     const rows = config.rows(dashboard);
     const hasSearch = true;
-    const filteredRows = rows.filter((row) => matchesSearch(search, Object.values(row)));
+    const filterSearch =
+        config.kind === 'department' || config.kind === 'inventory-type' ? appliedSearch : search;
+    const filteredRows = rows.filter((row) => matchesSearch(filterSearch, Object.values(row)));
     async function save(values: Record<string, string>) {
         showSavingBadge(true);
         try {
@@ -446,7 +467,7 @@ function SettingsResourcePage({
         }
     }
     const renderActions = (row: Row) => (
-        <Space>
+        <Space direction={config.kind === 'department' ? 'vertical' : 'horizontal'} size={0}>
             {config.kind === 'inventory-type' && (
                 <>
                     <input
@@ -560,7 +581,18 @@ function SettingsResourcePage({
                     const total = Number(row.TotalQuantity ?? 0);
                     const imageUrl = imageUrlForDriveId(String(row.ImageId || ''));
                     return (
-                        <article className="inventory-type-card" key={row.Id}>
+                        <article
+                            className="inventory-type-card"
+                            key={row.Id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedInventoryType(row)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    setSelectedInventoryType(row);
+                                }
+                            }}>
                             <div className="inventory-type-card-heading">
                                 <strong>{String(row.Name || 'Unnamed equipment')}</strong>
                                 {row.Description && (
@@ -578,9 +610,6 @@ function SettingsResourcePage({
                                 ) : (
                                     <span>No photo</span>
                                 )}
-                                <div className="inventory-type-card-actions">
-                                    {renderActions(row)}
-                                </div>
                             </div>
                         </article>
                     );
@@ -589,40 +618,332 @@ function SettingsResourcePage({
         ) : (
             <Empty description={config.emptyMessage} />
         );
+    const departmentCards =
+        filteredRows.length > 0 ? (
+            <div className="department-list">
+                {filteredRows.map((row) => (
+                    <article
+                        className="department-card"
+                        key={row.Id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedDepartment(row)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedDepartment(row);
+                            }
+                        }}>
+                        <div className="department-card-content">
+                            <strong>
+                                {String(row.Name || 'Unnamed department')}
+                                {row.ShortName ? ` (${String(row.ShortName)})` : ''}
+                            </strong>
+                            <span>{String(row.LeadEmail || 'No lead email')}</span>
+                        </div>
+                    </article>
+                ))}
+            </div>
+        ) : (
+            <Empty description={config.emptyMessage} />
+        );
+    const placeCards =
+        filteredRows.length > 0 ? (
+            <div className="department-list">
+                {filteredRows.map((row) => (
+                    <article
+                        className="department-card"
+                        key={row.Id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedPlace(row)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedPlace(row);
+                            }
+                        }}>
+                        <div className="department-card-content">
+                            <strong>{String(row.Name || 'Unnamed place')}</strong>
+                            <span>{row.AllowOverlap ? 'Overlap allowed' : 'No overlap'}</span>
+                        </div>
+                    </article>
+                ))}
+            </div>
+        ) : (
+            <Empty description={config.emptyMessage} />
+        );
+    const departmentHeader = (
+        <div className="antd-page-heading resource-page-heading">
+            <div>
+                <Typography.Title level={2}>{config.title}</Typography.Title>
+            </div>
+            <Space className="antd-board-filters" wrap>
+                <Input
+                    allowClear
+                    prefix={<SearchOutlined />}
+                    placeholder={`Search ${config.title.toLowerCase()}`}
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                />
+                <Button
+                    type="primary"
+                    icon={<SearchOutlined />}
+                    onClick={() => setAppliedSearch(search)}
+                    aria-label={`Search ${config.title.toLowerCase()}`}
+                    title={`Search ${config.title.toLowerCase()}`}
+                />
+            </Space>
+            {canEdit && (
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setCreating(true)}
+                    aria-label={`Add ${config.kind}`}
+                    title={`Add ${config.kind}`}
+                />
+            )}
+        </div>
+    );
+    const inventoryTypeDetail = selectedInventoryType && (
+        <>
+            <div className="antd-page-heading">
+                <div>
+                    <Typography.Title level={2}>
+                        {String(selectedInventoryType.Name || 'Unnamed equipment')}
+                    </Typography.Title>
+                </div>
+                <Button type="link" onClick={() => setSelectedInventoryType(null)}>
+                    Back
+                </Button>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+                <Card title="Details">
+                    <div className="inventory-type-detail">
+                        <div className="inventory-type-detail-image">
+                            {imageUrlForDriveId(String(selectedInventoryType.ImageId || '')) ? (
+                                <img
+                                    src={imageUrlForDriveId(
+                                        String(selectedInventoryType.ImageId || ''),
+                                    )}
+                                    alt={String(selectedInventoryType.Name || '')}
+                                />
+                            ) : (
+                                <span>No photo</span>
+                            )}
+                        </div>
+                        <dl className="department-detail-list">
+                            <div>
+                                <dt>Name</dt>
+                                <dd>{String(selectedInventoryType.Name || 'Unnamed equipment')}</dd>
+                            </div>
+                            <div>
+                                <dt>Description</dt>
+                                <dd>{String(selectedInventoryType.Description || '—')}</dd>
+                            </div>
+                            <div>
+                                <dt>Availability</dt>
+                                <dd>
+                                    {formatInventoryAvailability(
+                                        Number(selectedInventoryType.availableQuantity ?? 0),
+                                        Number(selectedInventoryType.TotalQuantity ?? 0),
+                                    )}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Total quantity</dt>
+                                <dd>{String(selectedInventoryType.TotalQuantity ?? 0)}</dd>
+                            </div>
+                            <div>
+                                <dt>Requestable</dt>
+                                <dd>
+                                    {selectedInventoryType.Requestable !== false ? 'Yes' : 'No'}
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+                </Card>
+                <Card title="Actions">{renderActions(selectedInventoryType)}</Card>
+            </div>
+        </>
+    );
+    const placeDetail = selectedPlace && (
+        <>
+            <div className="antd-page-heading">
+                <div>
+                    <Typography.Title level={2}>
+                        {String(selectedPlace.Name || 'Unnamed place')}
+                    </Typography.Title>
+                </div>
+                <Button type="link" onClick={() => setSelectedPlace(null)}>
+                    Back
+                </Button>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+                <Card title="Details">
+                    <dl className="department-detail-list">
+                        <div>
+                            <dt>Name</dt>
+                            <dd>{String(selectedPlace.Name || 'Unnamed place')}</dd>
+                        </div>
+                        <div>
+                            <dt>Overlap</dt>
+                            <dd>{selectedPlace.AllowOverlap ? 'Allowed' : 'Not allowed'}</dd>
+                        </div>
+                    </dl>
+                </Card>
+                <Card title="Actions">{renderActions(selectedPlace)}</Card>
+            </div>
+        </>
+    );
+    const departmentUsers = selectedDepartment
+        ? dashboard.users.filter((user) => user.DepartmentId === selectedDepartment.Id)
+        : [];
+    const departmentPrograms = selectedDepartment
+        ? dashboard.programRequests.filter(
+              (request) => request.DepartmentId === selectedDepartment.Id,
+          )
+        : [];
+    const departmentInventoryRequests = selectedDepartment
+        ? dashboard.inventoryRequests.filter(
+              (request) => request.DepartmentId === selectedDepartment.Id,
+          )
+        : [];
+    const departmentDetail = selectedDepartment && (
+        <>
+            <div className="antd-page-heading">
+                <div>
+                    <Typography.Title level={2}>
+                        {String(selectedDepartment.Name || 'Unnamed department')}
+                        {selectedDepartment.ShortName
+                            ? ` (${String(selectedDepartment.ShortName)})`
+                            : ''}
+                    </Typography.Title>
+                </div>
+                <Button type="link" onClick={() => setSelectedDepartment(null)}>
+                    Back
+                </Button>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+                <Card title="Details">
+                    <dl className="department-detail-list">
+                        <div>
+                            <dt>Name</dt>
+                            <dd>{String(selectedDepartment.Name || 'Unnamed department')}</dd>
+                        </div>
+                        <div>
+                            <dt>Short name</dt>
+                            <dd>{String(selectedDepartment.ShortName || '—')}</dd>
+                        </div>
+                        <div>
+                            <dt>Lead email</dt>
+                            <dd>{String(selectedDepartment.LeadEmail || '—')}</dd>
+                        </div>
+                    </dl>
+                </Card>
+                <Card title="Actions">
+                    {canEdit && (
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                icon={<EditOutlined />}
+                                onClick={() => setEditing(selectedDepartment)}>
+                                Edit
+                            </Button>
+                            <Button
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => setDeleting(selectedDepartment)}>
+                                Delete
+                            </Button>
+                        </div>
+                    )}
+                </Card>
+            </div>
+            <div className="department-related-sections">
+                <section>
+                    <Typography.Title level={3}>
+                        Users <Tag>{departmentUsers.length}</Tag>
+                    </Typography.Title>
+                    {departmentUsers.length ? (
+                        <div className="department-related-grid">
+                            {departmentUsers.map((user) => (
+                                <UserBlock key={user.Email} user={user} dashboard={dashboard} />
+                            ))}
+                        </div>
+                    ) : (
+                        <Empty description="No users in this department." />
+                    )}
+                </section>
+                <RelatedRequestBlocks
+                    title="Programs"
+                    kind="program"
+                    items={departmentPrograms}
+                    dashboard={dashboard}
+                    emptyMessage="No program requests for this department."
+                    onOpen={navigateToProgram}
+                />
+                <RelatedRequestBlocks
+                    title="Inventory requests"
+                    kind="inventory"
+                    items={departmentInventoryRequests}
+                    dashboard={dashboard}
+                    emptyMessage="No inventory requests for this department."
+                    onOpen={navigateToInventoryRequest}
+                />
+            </div>
+        </>
+    );
     return (
         <section className={compact ? 'antd-settings-compact' : 'antd-page'}>
-            <div
-                className={config.kind === 'inventory-type' ? 'inventory-type-toolbar' : undefined}>
-                <TableView
-                    title={config.title}
-                    count={rows.length}
-                    action={
-                        canEdit ? (
-                            <Button
-                                type="primary"
-                                size="small"
-                                icon={<PlusOutlined />}
-                                onClick={() => setCreating(true)}
-                                aria-label={`Add ${config.kind}`}
-                                title={`Add ${config.kind}`}
+            {config.kind === 'department' && selectedDepartment ? (
+                departmentDetail
+            ) : config.kind === 'inventory-type' && selectedInventoryType ? (
+                inventoryTypeDetail
+            ) : config.kind === 'place' && selectedPlace ? (
+                placeDetail
+            ) : config.kind === 'department' ||
+              config.kind === 'inventory-type' ||
+              config.kind === 'place' ? (
+                <>
+                    {departmentHeader}
+                    {config.kind === 'department'
+                        ? departmentCards
+                        : config.kind === 'inventory-type'
+                          ? inventoryTypeCards
+                          : placeCards}
+                </>
+            ) : (
+                <>
+                    <div>
+                        <TableView
+                            title={config.title}
+                            count={rows.length}
+                            action={
+                                canEdit ? (
+                                    <Button
+                                        type="primary"
+                                        size="small"
+                                        icon={<PlusOutlined />}
+                                        onClick={() => setCreating(true)}
+                                        aria-label={`Add ${config.kind}`}
+                                        title={`Add ${config.kind}`}
+                                    />
+                                ) : null
+                            }
+                            searchValue={hasSearch ? search : undefined}
+                            onSearch={hasSearch ? setSearch : undefined}
+                            searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
+                            <Table
+                                rowKey="Id"
+                                columns={columns}
+                                dataSource={filteredRows}
+                                locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
+                                pagination={false}
                             />
-                        ) : null
-                    }
-                    searchValue={hasSearch ? search : undefined}
-                    onSearch={hasSearch ? setSearch : undefined}
-                    searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
-                    {config.kind === 'inventory-type' ? null : (
-                        <Table
-                            rowKey="Id"
-                            columns={columns}
-                            dataSource={filteredRows}
-                            locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
-                            pagination={false}
-                        />
-                    )}
-                </TableView>
-            </div>
-            {config.kind === 'inventory-type' && inventoryTypeCards}
+                        </TableView>
+                    </div>
+                </>
+            )}
             {deleting && (
                 <ActionConfirmation
                     action="delete"
@@ -631,6 +952,9 @@ function SettingsResourcePage({
                     onConfirm={async () => {
                         await remove(deleting);
                         setDeleting(null);
+                        if (config.kind === 'department') setSelectedDepartment(null);
+                        if (config.kind === 'inventory-type') setSelectedInventoryType(null);
+                        if (config.kind === 'place') setSelectedPlace(null);
                     }}
                 />
             )}

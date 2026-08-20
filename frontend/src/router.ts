@@ -181,10 +181,16 @@ export async function renderCurrentSection(): Promise<void> {
         'home-content',
     ].includes(sectionKey);
     const isInventoryTypes = sectionKey === 'inventory-types';
+    const isDepartments = sectionKey === 'departments';
+    const isUsers = sectionKey === 'users';
+    const isPlaces = sectionKey === 'places';
     const isEdgeToEdge = isWorkbenchBrowse || isWorkbenchDetail;
     container.classList.toggle('app-content-home', isHome);
     container.classList.toggle('app-content-edge', isEdgeToEdge);
     container.classList.toggle('app-content-settings', isSettingsSection && !isInventoryTypes);
+    container.classList.toggle('app-content-departments', isDepartments);
+    container.classList.toggle('app-content-users', isUsers);
+    container.classList.toggle('app-content-places', isPlaces);
     container.classList.toggle('mx-auto', !isHome && !isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge && !isSettingsSection);
     unmountRefinePage(container);
