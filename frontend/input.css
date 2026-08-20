@@ -334,6 +334,26 @@ body {
     background: color-mix(in srgb, #b9dfbd 45%, var(--setu-surface));
 }
 
+.calendar-table .calendar-blocked-row > th,
+.calendar-table .calendar-blocked-row > td,
+.calendar-table .calendar-blocked-place-cell {
+    background: color-mix(in srgb, #e98b8b 30%, var(--setu-paper));
+}
+
+.calendar-table .calendar-blocked-row > .calendar-date-cell {
+    background: color-mix(in srgb, #e98b8b 38%, var(--setu-surface));
+}
+
+.calendar-table .calendar-today-row.calendar-blocked-row > th,
+.calendar-table .calendar-today-row.calendar-blocked-row > td,
+.calendar-table .calendar-today-row > .calendar-blocked-place-cell {
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, #e98b8b 34%, var(--setu-paper)) 0 50%,
+        color-mix(in srgb, #b9dfbd 45%, var(--setu-paper)) 50% 100%
+    );
+}
+
 .calendar-program-block {
     display: flex;
     width: 100%;
@@ -504,6 +524,10 @@ body {
 }
 
 .app-content.app-content-places {
+    max-width: none;
+}
+
+.app-content.app-content-inventory-types {
     max-width: none;
 }
 
@@ -741,7 +765,7 @@ body {
 .detail-layout {
     flex: 1 1 auto;
     min-height: 0;
-    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
 }
 

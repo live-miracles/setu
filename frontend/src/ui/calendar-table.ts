@@ -109,6 +109,7 @@ export function buildCalendarTableModel(
     todayIso: string,
     monthStartIso?: string,
     monthEndIso?: string,
+    blocks: Block[] = [],
 ): CalendarTableModel {
     const today = parseDateOnly(todayIso);
     const sortedPlaces = [...places].sort((a, b) => a.Name.localeCompare(b.Name));
@@ -129,17 +130,42 @@ export function buildCalendarTableModel(
             );
         }),
     );
-    if (!visibleSessions.length) return { rows: [], places: sortedPlaces };
+    const visibleBlocks = blocks.filter((block) => {
+        const startDate = block.StartDateTime.slice(0, 10);
+        const endDate = block.EndDateTime.slice(0, 10);
+        return Boolean(
+            startDate &&
+            endDate &&
+            (!monthStartIso || endDate >= monthStartIso) &&
+            (!monthEndIso || startDate <= monthEndIso) &&
+            (monthStartIso || endDate >= todayIso),
+        );
+    });
+    if (!visibleSessions.length && !visibleBlocks.length && !monthStartIso) {
+        return { rows: [], places: sortedPlaces };
+    }
 
-    const lastDate = visibleSessions.reduce((latest, session) => {
+    const hasPlaceSpecificBlocks = visibleBlocks.some((block) => Boolean(block.Place));
+    const tablePlaces =
+        !visibleSessions.length && !hasPlaceSpecificBlocks
+            ? [{ Id: 'calendar-empty-place', Name: '', AllowOverlap: true }]
+            : sortedPlaces;
+
+    const lastSessionDate = visibleSessions.reduce((latest, session) => {
         const date = sessionDate(session);
         return date && date > latest ? date : latest;
     }, monthEndIso || todayIso);
+    const lastBlockDate = visibleBlocks.reduce(
+        (latest, block) =>
+            block.EndDateTime.slice(0, 10) > latest ? block.EndDateTime.slice(0, 10) : latest,
+        monthEndIso || todayIso,
+    );
+    const lastDate = lastSessionDate > lastBlockDate ? lastSessionDate : lastBlockDate;
     const firstDate = monthStartIso ? parseDateOnly(monthStartIso)! : addDays(today, -2);
     const rows: CalendarTableRow[] = [];
     for (let date = firstDate; toIsoDate(date) <= lastDate; date = addDays(date, 1)) {
         const isoDate = toIsoDate(date);
-        const rowPlaces = sortedPlaces.map((place) => {
+        const rowPlaces = tablePlaces.map((place) => {
             const blocks = approved
                 .map((program) => {
                     const sessions = program.sessions
@@ -173,5 +199,5 @@ export function buildCalendarTableModel(
         });
         rows.push({ isoDate, label: formatDate(isoDate), places: rowPlaces });
     }
-    return { rows, places: sortedPlaces };
+    return { rows, places: tablePlaces };
 }

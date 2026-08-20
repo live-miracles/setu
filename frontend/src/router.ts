@@ -1,9 +1,13 @@
 import { api } from './api';
 import {
     APP_SECTION_QUERY_PARAM,
+    DEPARTMENT_QUERY_PARAM,
+    INVENTORY_TYPE_QUERY_PARAM,
     INVENTORY_REQUEST_QUERY_PARAM,
+    PLACE_QUERY_PARAM,
     PROGRAM_REQUEST_QUERY_PARAM,
     TICKET_QUERY_PARAM,
+    USER_QUERY_PARAM,
     WORKBENCH_DIRECTION_QUERY_PARAM,
     WORKBENCH_MODE_QUERY_PARAM,
     WORKBENCH_SEARCH_QUERY_PARAM,
@@ -191,6 +195,7 @@ export async function renderCurrentSection(): Promise<void> {
     container.classList.toggle('app-content-departments', isDepartments);
     container.classList.toggle('app-content-users', isUsers);
     container.classList.toggle('app-content-places', isPlaces);
+    container.classList.toggle('app-content-inventory-types', isInventoryTypes);
     container.classList.toggle('mx-auto', !isHome && !isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge && !isSettingsSection);
     unmountRefinePage(container);
@@ -269,6 +274,13 @@ const WORKBENCH_QUERY_PARAMS = [
     'assignee',
 ];
 
+const DETAIL_QUERY_PARAMS = [
+    USER_QUERY_PARAM,
+    DEPARTMENT_QUERY_PARAM,
+    PLACE_QUERY_PARAM,
+    INVENTORY_TYPE_QUERY_PARAM,
+];
+
 interface NavigationOptions {
     selectedParam?: string;
     selectedId?: string;
@@ -285,6 +297,7 @@ function navigateTo(section: SectionKey, options: NavigationOptions = {}): void 
     url.searchParams.set(APP_SECTION_QUERY_PARAM, section);
     if (!options.preserveWorkbench || previousSection !== section) {
         WORKBENCH_QUERY_PARAMS.forEach((param) => url.searchParams.delete(param));
+        DETAIL_QUERY_PARAMS.forEach((param) => url.searchParams.delete(param));
     } else {
         url.searchParams.delete(INVENTORY_REQUEST_QUERY_PARAM);
         url.searchParams.delete(PROGRAM_REQUEST_QUERY_PARAM);
@@ -359,6 +372,36 @@ export function navigateToTickets(): void {
 
 export function navigateToRoster(): void {
     navigateTo('roster');
+}
+
+export function navigateToUser(userEmail: string): void {
+    navigateTo('users', { selectedParam: USER_QUERY_PARAM, selectedId: userEmail });
+}
+
+export function navigateToDepartment(departmentId: string): void {
+    navigateTo('departments', {
+        selectedParam: DEPARTMENT_QUERY_PARAM,
+        selectedId: departmentId,
+    });
+}
+
+export function navigateToPlace(placeId: string): void {
+    navigateTo('places', { selectedParam: PLACE_QUERY_PARAM, selectedId: placeId });
+}
+
+export function navigateToInventoryType(inventoryTypeId: string): void {
+    navigateTo('inventory-types', {
+        selectedParam: INVENTORY_TYPE_QUERY_PARAM,
+        selectedId: inventoryTypeId,
+    });
+}
+
+export function navigateBackToSection(section: SectionKey): void {
+    if (window.history.state?.parentSection === section) {
+        window.history.back();
+        return;
+    }
+    navigateTo(section, { replace: true });
 }
 
 export function navigateToTicketCreate(): void {

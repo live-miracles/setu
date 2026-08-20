@@ -23,7 +23,16 @@ import {
 } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
-import { navigateToInventoryRequest, navigateToProgram, refreshDashboard } from '../router';
+import {
+    navigateBackToSection,
+    navigateToDepartment,
+    navigateToInventoryRequest,
+    navigateToInventoryType,
+    navigateToPlace,
+    navigateToProgram,
+    refreshDashboard,
+} from '../router';
+import { DEPARTMENT_QUERY_PARAM, INVENTORY_TYPE_QUERY_PARAM, PLACE_QUERY_PARAM } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
@@ -385,13 +394,23 @@ function SettingsResourcePage({
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
-    const [selectedDepartment, setSelectedDepartment] = useState<Row | null>(null);
-    const [selectedInventoryType, setSelectedInventoryType] = useState<Row | null>(null);
-    const [selectedPlace, setSelectedPlace] = useState<Row | null>(null);
+    const rows = config.rows(dashboard);
+    const detailId = new URLSearchParams(window.location.search).get(
+        config.kind === 'department'
+            ? DEPARTMENT_QUERY_PARAM
+            : config.kind === 'place'
+              ? PLACE_QUERY_PARAM
+              : INVENTORY_TYPE_QUERY_PARAM,
+    );
+    const selectedDepartment =
+        config.kind === 'department' ? rows.find((row) => row.Id === detailId) || null : null;
+    const selectedInventoryType =
+        config.kind === 'inventory-type' ? rows.find((row) => row.Id === detailId) || null : null;
+    const selectedPlace =
+        config.kind === 'place' ? rows.find((row) => row.Id === detailId) || null : null;
     const [qrCodeUrl, setQrCodeUrl] = useState('');
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
-    const rows = config.rows(dashboard);
     const hasSearch = true;
     const filterSearch =
         config.kind === 'department' || config.kind === 'inventory-type' ? appliedSearch : search;
@@ -624,11 +643,11 @@ function SettingsResourcePage({
                             key={row.Id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => setSelectedInventoryType(row)}
+                            onClick={() => navigateToInventoryType(String(row.Id))}
                             onKeyDown={(event) => {
                                 if (event.key === 'Enter' || event.key === ' ') {
                                     event.preventDefault();
-                                    setSelectedInventoryType(row);
+                                    navigateToInventoryType(String(row.Id));
                                 }
                             }}>
                             <div className="inventory-type-card-heading">
@@ -665,11 +684,11 @@ function SettingsResourcePage({
                         key={row.Id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedDepartment(row)}
+                        onClick={() => navigateToDepartment(String(row.Id))}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                setSelectedDepartment(row);
+                                navigateToDepartment(String(row.Id));
                             }
                         }}>
                         <div className="department-card-content">
@@ -694,11 +713,11 @@ function SettingsResourcePage({
                         key={row.Id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedPlace(row)}
+                        onClick={() => navigateToPlace(String(row.Id))}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                setSelectedPlace(row);
+                                navigateToPlace(String(row.Id));
                             }
                         }}>
                         <div className="department-card-content">
@@ -755,115 +774,136 @@ function SettingsResourcePage({
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => setSelectedInventoryType(null)}
+                        onClick={() => navigateBackToSection('inventory-types')}
                         aria-label="Back to inventory types"
                         title="Back to inventory types"
                     />
                     {renderActions(selectedInventoryType, true)}
                 </Space>
             </div>
-            <div className="detail-main min-w-0 max-w-[50rem]">
-                <Card title="Details">
-                    <SettingsDetailFields
-                        fields={[
-                            ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
-                            ['Description', String(selectedInventoryType.Description || '—')],
-                            [
-                                'Availability',
-                                formatInventoryAvailability(
-                                    Number(selectedInventoryType.availableQuantity ?? 0),
-                                    Number(selectedInventoryType.TotalQuantity ?? 0),
-                                ),
-                            ],
-                            ['Total quantity', String(selectedInventoryType.TotalQuantity ?? 0)],
-                            [
-                                'Requestable',
-                                selectedInventoryType.Requestable !== false ? 'Yes' : 'No',
-                            ],
-                        ]}
-                    />
-                </Card>
-                <Card
-                    title="Image"
-                    extra={
-                        canEdit ? (
-                            <>
-                                <input
-                                    id={`inventory-type-image-${selectedInventoryType.Id}`}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                                        const file = event.target.files?.[0];
-                                        event.target.value = '';
-                                        if (file)
-                                            void uploadInventoryTypeImage(
-                                                selectedInventoryType,
-                                                file,
-                                            );
-                                    }}
-                                />
-                                <Button
-                                    type="primary"
-                                    icon={<UploadOutlined />}
-                                    onClick={() =>
-                                        document
-                                            .getElementById(
-                                                `inventory-type-image-${selectedInventoryType.Id}`,
-                                            )
-                                            ?.click()
-                                    }
-                                    aria-label={
-                                        selectedInventoryType.ImageId
-                                            ? 'Replace photo'
-                                            : 'Add photo'
-                                    }
-                                    title={
-                                        selectedInventoryType.ImageId
-                                            ? 'Replace photo'
-                                            : 'Add photo'
-                                    }
-                                />
-                            </>
-                        ) : null
-                    }>
-                    <div className="inventory-type-detail-image">
-                        {imageUrlForDriveId(String(selectedInventoryType.ImageId || '')) ? (
-                            <img
-                                src={imageUrlForDriveId(
-                                    String(selectedInventoryType.ImageId || ''),
-                                )}
-                                alt={String(selectedInventoryType.Name || '')}
-                            />
-                        ) : (
-                            <span>No photo</span>
-                        )}
-                    </div>
-                </Card>
-                <Card
-                    title="QR code"
-                    extra={
-                        <Button
-                            type="primary"
-                            icon={<QrcodeOutlined />}
-                            onClick={() => void downloadInventoryTypeQr(selectedInventoryType)}
-                            aria-label="Download QR code"
-                            title="Download QR code"
+            <div className="inventory-type-detail-layout grid gap-5 lg:grid-cols-2">
+                <div className="detail-main min-w-0">
+                    <Card title="Details">
+                        <SettingsDetailFields
+                            fields={[
+                                ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
+                                ['Description', String(selectedInventoryType.Description || '—')],
+                                [
+                                    'Availability',
+                                    formatInventoryAvailability(
+                                        Number(selectedInventoryType.availableQuantity ?? 0),
+                                        Number(selectedInventoryType.TotalQuantity ?? 0),
+                                    ),
+                                ],
+                                [
+                                    'Total quantity',
+                                    String(selectedInventoryType.TotalQuantity ?? 0),
+                                ],
+                                [
+                                    'Requestable',
+                                    selectedInventoryType.Requestable !== false ? 'Yes' : 'No',
+                                ],
+                            ]}
                         />
-                    }>
-                    <div className="flex justify-center">
-                        {qrCodeUrl ? (
-                            <img
-                                src={qrCodeUrl}
-                                alt={`QR code for ${String(selectedInventoryType.Name || 'inventory type')}`}
-                                width={256}
-                                height={256}
+                    </Card>
+                    <Card
+                        title="Image"
+                        extra={
+                            canEdit ? (
+                                <>
+                                    <input
+                                        id={`inventory-type-image-${selectedInventoryType.Id}`}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                                            const file = event.target.files?.[0];
+                                            event.target.value = '';
+                                            if (file)
+                                                void uploadInventoryTypeImage(
+                                                    selectedInventoryType,
+                                                    file,
+                                                );
+                                        }}
+                                    />
+                                    <Button
+                                        type="primary"
+                                        icon={<UploadOutlined />}
+                                        onClick={() =>
+                                            document
+                                                .getElementById(
+                                                    `inventory-type-image-${selectedInventoryType.Id}`,
+                                                )
+                                                ?.click()
+                                        }
+                                        aria-label={
+                                            selectedInventoryType.ImageId
+                                                ? 'Replace photo'
+                                                : 'Add photo'
+                                        }
+                                        title={
+                                            selectedInventoryType.ImageId
+                                                ? 'Replace photo'
+                                                : 'Add photo'
+                                        }
+                                    />
+                                </>
+                            ) : null
+                        }>
+                        <div className="inventory-type-detail-image">
+                            {imageUrlForDriveId(String(selectedInventoryType.ImageId || '')) ? (
+                                <img
+                                    src={imageUrlForDriveId(
+                                        String(selectedInventoryType.ImageId || ''),
+                                    )}
+                                    alt={String(selectedInventoryType.Name || '')}
+                                />
+                            ) : (
+                                <span>No photo</span>
+                            )}
+                        </div>
+                    </Card>
+                    <Card
+                        title="QR code"
+                        extra={
+                            <Button
+                                type="primary"
+                                icon={<QrcodeOutlined />}
+                                onClick={() => void downloadInventoryTypeQr(selectedInventoryType)}
+                                aria-label="Download QR code"
+                                title="Download QR code"
                             />
-                        ) : (
-                            <Typography.Text type="secondary">Preparing QR code…</Typography.Text>
+                        }>
+                        <div className="flex justify-center">
+                            {qrCodeUrl ? (
+                                <img
+                                    src={qrCodeUrl}
+                                    alt={`QR code for ${String(selectedInventoryType.Name || 'inventory type')}`}
+                                    width={256}
+                                    height={256}
+                                />
+                            ) : (
+                                <Typography.Text type="secondary">
+                                    Preparing QR code…
+                                </Typography.Text>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+                <div className="min-w-0">
+                    <RelatedRequestBlocks
+                        title="Inventory requests"
+                        kind="inventory"
+                        items={dashboard.inventoryRequests.filter((request) =>
+                            request.items.some(
+                                (item) => item.InventoryTypeId === selectedInventoryType.Id,
+                            ),
                         )}
-                    </div>
-                </Card>
+                        dashboard={dashboard}
+                        emptyMessage="No inventory requests have used this equipment."
+                        onOpen={navigateToInventoryRequest}
+                    />
+                </div>
             </div>
         </>
     );
@@ -879,7 +919,7 @@ function SettingsResourcePage({
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => setSelectedPlace(null)}
+                        onClick={() => navigateBackToSection('places')}
                         aria-label="Back to places"
                         title="Back to places"
                     />
@@ -947,7 +987,7 @@ function SettingsResourcePage({
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => setSelectedDepartment(null)}
+                        onClick={() => navigateBackToSection('departments')}
                         aria-label="Back to departments"
                         title="Back to departments"
                     />
@@ -1079,9 +1119,10 @@ function SettingsResourcePage({
                     onConfirm={async () => {
                         await remove(deleting);
                         setDeleting(null);
-                        if (config.kind === 'department') setSelectedDepartment(null);
-                        if (config.kind === 'inventory-type') setSelectedInventoryType(null);
-                        if (config.kind === 'place') setSelectedPlace(null);
+                        if (config.kind === 'department') navigateBackToSection('departments');
+                        if (config.kind === 'inventory-type')
+                            navigateBackToSection('inventory-types');
+                        if (config.kind === 'place') navigateBackToSection('places');
                     }}
                 />
             )}

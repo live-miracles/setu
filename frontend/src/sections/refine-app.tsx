@@ -35,11 +35,13 @@ import { generateRequestId } from '../ids';
 import {
     navigateToInventoryRequest,
     navigateToInventoryRequests,
+    navigateBackToSection,
     navigateToProgram,
     navigateToPrograms,
     navigateToRoster,
     navigateToTicket,
     navigateToTickets,
+    navigateToUser,
     refreshDashboard,
     replaceWorkbenchUrl,
 } from '../router';
@@ -47,6 +49,7 @@ import {
     WORKBENCH_SEARCH_QUERY_PARAM,
     WORKBENCH_STATUS_QUERY_PARAM,
     WORKBENCH_VIEW_QUERY_PARAM,
+    USER_QUERY_PARAM,
 } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
@@ -114,6 +117,12 @@ function formatDateTimeLocal(date: Date): string {
 function formatLocalDateOnly(date: Date): string {
     const pad = (value: number) => String(value).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function blockCoversDate(block: Block, isoDate: string): boolean {
+    const startDate = block.StartDateTime.slice(0, 10);
+    const endDate = block.EndDateTime.slice(0, 10);
+    return startDate <= isoDate && endDate >= isoDate;
 }
 
 function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession {
@@ -769,7 +778,10 @@ function Users({ dashboard }: Props) {
     const [editing, setEditing] = useState<UserDTO | undefined>();
     const [deleting, setDeleting] = useState<UserDTO | null>(null);
     const [creating, setCreating] = useState(false);
-    const [selectedUser, setSelectedUser] = useState<UserDTO | null>(null);
+    const selectedUserId = new URLSearchParams(window.location.search).get(USER_QUERY_PARAM);
+    const selectedUser = selectedUserId
+        ? dashboard.users.find((user) => user.Email === selectedUserId) || null
+        : null;
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
     const shown = dashboard.users;
@@ -831,7 +843,7 @@ function Users({ dashboard }: Props) {
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => setSelectedUser(null)}
+                        onClick={() => navigateBackToSection('users')}
                         aria-label="Back to users"
                         title="Back to users"
                     />
@@ -904,7 +916,7 @@ function Users({ dashboard }: Props) {
                                     key={user.Email}
                                     user={user}
                                     dashboard={dashboard}
-                                    onClick={() => setSelectedUser(user)}
+                                    onClick={() => navigateToUser(user.Email)}
                                 />
                             ))}
                         </div>
@@ -921,7 +933,6 @@ function Users({ dashboard }: Props) {
                     onConfirm={async () => {
                         await api.deleteUser(deleting.Email, generateRequestId());
                         setDeleting(null);
-                        setSelectedUser(null);
                         await refreshDashboard();
                     }}
                 />
@@ -1253,6 +1264,7 @@ function Calendar({ dashboard }: Props) {
         todayIso,
         monthStartIso,
         monthEndIso,
+        dashboard.blocks,
     );
     return (
         <Page
@@ -1296,49 +1308,77 @@ function Calendar({ dashboard }: Props) {
                             </tr>
                         </thead>
                         <tbody>
-                            {calendar.rows.map((row) => (
-                                <tr
-                                    key={row.isoDate}
-                                    className={
-                                        row.isoDate === todayIso ? 'calendar-today-row' : ''
-                                    }>
-                                    <th scope="row" className="calendar-date-cell">
-                                        {row.label}
-                                    </th>
-                                    {row.places.map((place) => (
-                                        <td
-                                            key={`${row.isoDate}-${place.placeId}`}
-                                            className="calendar-place-cell">
-                                            {place.blocks.map((block) => (
-                                                <button
-                                                    key={block.programId}
-                                                    type="button"
-                                                    className="calendar-program-block"
-                                                    style={{
-                                                        backgroundColor: block.color
-                                                            ? `${block.color}26`
-                                                            : undefined,
-                                                    }}
-                                                    onClick={() =>
-                                                        navigateToProgram(block.programId)
-                                                    }
-                                                    aria-label={`Open ${block.title}`}>
-                                                    <span className="calendar-program-title">
-                                                        {block.title}
-                                                    </span>
-                                                    {block.sessions.map((session) => (
-                                                        <span
-                                                            key={`${session.startDateTime}-${session.label}`}
-                                                            className="calendar-session-line">
-                                                            {session.label}
-                                                        </span>
-                                                    ))}
-                                                </button>
-                                            ))}
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
+                            {calendar.rows.map((row) =>
+                                (() => {
+                                    const globalBlock = dashboard.blocks.some(
+                                        (block) =>
+                                            !block.Place && blockCoversDate(block, row.isoDate),
+                                    );
+                                    return (
+                                        <tr
+                                            key={row.isoDate}
+                                            className={[
+                                                row.isoDate === todayIso
+                                                    ? 'calendar-today-row'
+                                                    : '',
+                                                globalBlock ? 'calendar-blocked-row' : '',
+                                            ]
+                                                .filter(Boolean)
+                                                .join(' ')}>
+                                            <th scope="row" className="calendar-date-cell">
+                                                {row.label}
+                                            </th>
+                                            {row.places.map((place) => {
+                                                const placeBlocked =
+                                                    !globalBlock &&
+                                                    dashboard.blocks.some(
+                                                        (block) =>
+                                                            block.Place === place.placeId &&
+                                                            blockCoversDate(block, row.isoDate),
+                                                    );
+                                                return (
+                                                    <td
+                                                        key={`${row.isoDate}-${place.placeId}`}
+                                                        className={`calendar-place-cell${
+                                                            placeBlocked
+                                                                ? ' calendar-blocked-place-cell'
+                                                                : ''
+                                                        }`}>
+                                                        {place.blocks.map((block) => (
+                                                            <button
+                                                                key={block.programId}
+                                                                type="button"
+                                                                className="calendar-program-block"
+                                                                style={{
+                                                                    backgroundColor: block.color
+                                                                        ? `${block.color}26`
+                                                                        : undefined,
+                                                                }}
+                                                                onClick={() =>
+                                                                    navigateToProgram(
+                                                                        block.programId,
+                                                                    )
+                                                                }
+                                                                aria-label={`Open ${block.title}`}>
+                                                                <span className="calendar-program-title">
+                                                                    {block.title}
+                                                                </span>
+                                                                {block.sessions.map((session) => (
+                                                                    <span
+                                                                        key={`${session.startDateTime}-${session.label}`}
+                                                                        className="calendar-session-line">
+                                                                        {session.label}
+                                                                    </span>
+                                                                ))}
+                                                            </button>
+                                                        ))}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    );
+                                })(),
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -2071,6 +2111,13 @@ function ProgramDetail({
             }
             action={
                 <Space wrap>
+                    <Button
+                        type="default"
+                        icon={<ArrowLeftOutlined />}
+                        onClick={navigateToPrograms}
+                        aria-label="Back to programs"
+                        title="Back to programs"
+                    />
                     <Button
                         aria-label="Duplicate program"
                         title="Duplicate program"
@@ -2905,6 +2952,13 @@ function InventoryDetail({
             title={request.Name || 'Unnamed request'}
             action={
                 <Space wrap>
+                    <Button
+                        type="default"
+                        icon={<ArrowLeftOutlined />}
+                        onClick={navigateToInventoryRequests}
+                        aria-label="Back to inventory requests"
+                        title="Back to inventory requests"
+                    />
                     <WorkflowActions
                         actions={actions}
                         onAction={(action) => setPendingAction(action as InventoryRequestAction)}
