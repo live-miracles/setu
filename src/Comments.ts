@@ -10,6 +10,7 @@ interface RequestOwner {
     userId: string;
     participants: string[];
     leadEmail: string;
+    CommentsJson: string;
 }
 
 function findRequestOwner(requestId: string): RequestOwner | null {
@@ -21,6 +22,7 @@ function findRequestOwner(requestId: string): RequestOwner | null {
             userId: inventoryRequest.UserId,
             participants: parseParticipants(inventoryRequest.Participants),
             leadEmail: inventoryRequest.LeadEmail,
+            CommentsJson: inventoryRequest.CommentsJson,
         };
     }
     const programRequest = Tables.ProgramRequests.findById(requestId);
@@ -31,6 +33,7 @@ function findRequestOwner(requestId: string): RequestOwner | null {
             userId: programRequest.UserId,
             participants: parseParticipants(programRequest.Participants),
             leadEmail: programRequest.LeadEmail,
+            CommentsJson: programRequest.CommentsJson,
         };
     }
     const ticket = Tables.Tickets.findById(requestId);
@@ -41,6 +44,7 @@ function findRequestOwner(requestId: string): RequestOwner | null {
             userId: ticket.AssigneeId,
             participants: [],
             leadEmail: '',
+            CommentsJson: ticket.CommentsJson,
         };
     }
     return null;
@@ -59,12 +63,30 @@ function insertActionComment(
     message: string,
     notify = true,
 ): CommentRecord {
-    const comment = Tables.Comments.insert({
+    const owner =
+        kind === 'inventory'
+            ? Tables.InventoryRequests.findById(requestId)
+            : kind === 'program'
+              ? Tables.ProgramRequests.findById(requestId)
+              : Tables.Tickets.findById(requestId);
+    if (!owner) throw new ValidationError('request_not_found');
+    const comments = parseCommentsJson(owner.CommentsJson, requestId);
+    const comment: CommentRecord = {
+        Id: Utilities.getUuid(),
         Timestamp: nowIso(),
         RequestId: requestId,
         UserId: actorId,
         Message: message,
-    });
+    };
+    comments.push(comment);
+    const commentsJson = stringifyComments(comments);
+    if (kind === 'inventory') {
+        Tables.InventoryRequests.updateById(requestId, { CommentsJson: commentsJson });
+    } else if (kind === 'program') {
+        Tables.ProgramRequests.updateById(requestId, { CommentsJson: commentsJson });
+    } else {
+        Tables.Tickets.updateById(requestId, { CommentsJson: commentsJson });
+    }
     if (notify) sendCommentNotification(requestId, comment);
     return comment;
 }
@@ -72,20 +94,6 @@ function insertActionComment(
 function buildCommentDTO(comment: CommentRecord, usersByEmail: Record<string, User>): CommentDTO {
     const user = usersByEmail[comment.UserId];
     return Object.assign({}, comment, { userName: user ? user.Name : '' });
-}
-
-function groupCommentsByRequestId(comments: CommentRecord[]): Record<string, CommentRecord[]> {
-    return groupBy(comments, (c) => c.RequestId);
-}
-
-function commentsFor(
-    requestId: string,
-    commentsByRequestId: Record<string, CommentRecord[]>,
-    usersByEmail: Record<string, User>,
-): CommentDTO[] {
-    return (commentsByRequestId[requestId] || [])
-        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp))
-        .map((c) => buildCommentDTO(c, usersByEmail));
 }
 
 // Sort key for "most recently active first" request lists: the latest
@@ -146,31 +154,4 @@ function addComment(requestId: string, message: string, dedupeRequestId: string)
         comment,
         indexBy([actor], (u) => u.Email),
     );
-}
-
-function listComments(requestId: string, page: number): Paginated<CommentDTO> {
-    const actor = requireUser();
-    const owner = findRequestOwner(requestId);
-    if (!owner) throw new ValidationError('request_not_found');
-    if (
-        owner.kind === 'ticket'
-            ? !canUseTickets(actor)
-            : !canViewRequest(actor, owner.userId, owner.participants)
-    ) {
-        throw new AuthorizationError('You do not have access to this request.');
-    }
-    const usersByEmail = indexBy(Tables.Users.readAll(), (user) => user.Email);
-    const comments = Tables.Comments.readAll()
-        .filter((comment) => comment.RequestId === requestId)
-        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp));
-    const pageSize = 25;
-    const safePage = Math.max(1, Math.floor(page) || 1);
-    const end = comments.length - (safePage - 1) * pageSize;
-    const start = Math.max(0, end - pageSize);
-    return {
-        items: comments.slice(start, end).map((comment) => buildCommentDTO(comment, usersByEmail)),
-        page: safePage,
-        pageSize,
-        totalCount: comments.length,
-    };
 }

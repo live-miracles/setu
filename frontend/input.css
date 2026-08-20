@@ -606,6 +606,23 @@ body {
     margin-bottom: 0.75rem;
 }
 
+.antd-request-list {
+    display: block;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    overflow-y: auto;
+    padding-bottom: 0.5rem;
+}
+
+.antd-request-list > .ant-card {
+    display: inline-block;
+    vertical-align: top;
+    width: calc(100% - 8px);
+    max-width: 320px;
+    margin: 0 8px 8px 0;
+}
+
 .antd-settings-compact {
     display: flex;
     flex-direction: column;

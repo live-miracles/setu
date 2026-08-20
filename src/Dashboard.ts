@@ -23,7 +23,6 @@ function getDashboard(): DashboardPayload {
               .map((roster) => buildRosterDTO(roster, usersByEmail))
         : [];
 
-    const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const visibleInventoryRows = Tables.InventoryRequests.readAll().filter((r) =>
         canViewRequest(actor, r.UserId, parseParticipants(r.Participants)),
     );
@@ -31,26 +30,6 @@ function getDashboard(): DashboardPayload {
         canViewRequest(actor, r.UserId, parseParticipants(r.Participants)),
     );
     const visibleTicketRows = canUseTickets(actor) ? Tables.Tickets.readAll() : [];
-    const oneWeekAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const visibleRequestIds = new Set([
-        ...visibleInventoryRows.map((r) => r.Id),
-        ...visibleProgramRows.map((r) => r.Id),
-        ...visibleTicketRows.map((r) => r.Id),
-    ]);
-    const requestKindById: Record<string, RecentCommentDTO['requestKind']> = {};
-    visibleInventoryRows.forEach((request) => (requestKindById[request.Id] = 'inventory'));
-    visibleProgramRows.forEach((request) => (requestKindById[request.Id] = 'program'));
-    visibleTicketRows.forEach((ticket) => (requestKindById[ticket.Id] = 'ticket'));
-    const recentComments = Tables.Comments.readAll()
-        .filter((comment) => comment.Timestamp >= oneWeekAgoIso)
-        .filter((comment) => visibleRequestIds.has(comment.RequestId))
-        .map((comment) =>
-            Object.assign(buildCommentDTO(comment, usersByEmail), {
-                requestKind: requestKindById[comment.RequestId],
-            }),
-        )
-        .sort((a, b) => b.Timestamp.localeCompare(a.Timestamp));
-    recentComments.splice(50);
 
     // Both request lists are scoped to what the actor may see — a `user`
     // gets only their own and the ones they're a participant on (see
@@ -65,8 +44,6 @@ function getDashboard(): DashboardPayload {
                 inventoryTypesById,
                 usersByEmail,
                 departmentsById,
-                commentsByRequestId,
-                false,
             ),
         )
         .sort((a, b) =>
@@ -83,9 +60,6 @@ function getDashboard(): DashboardPayload {
                 placesById,
                 usersByEmail,
                 departmentsById,
-                commentsByRequestId,
-                false,
-                false,
             ),
         )
         .sort((a, b) =>
@@ -99,7 +73,7 @@ function getDashboard(): DashboardPayload {
     const tickets = canUseTickets(actor)
         ? visibleTicketRows
               .sort((a, b) => b.DisplayId - a.DisplayId)
-              .map((ticket) => buildTicketDTO(ticket, usersByEmail, commentsByRequestId, false))
+              .map((ticket) => buildTicketDTO(ticket, usersByEmail))
         : [];
 
     const settings = getSettings();
@@ -125,7 +99,6 @@ function getDashboard(): DashboardPayload {
         inventoryRequests,
         programRequests,
         tickets,
-        recentComments,
         homeContent,
         shiftTypes: settings.shiftTypes,
         programTypes: settings.programTypes,

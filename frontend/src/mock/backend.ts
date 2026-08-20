@@ -536,6 +536,14 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: '',
             ItemsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-1',
+                    Timestamp: mockMinutesAgoIso(12),
+                    UserId: 'sam@example.com',
+                    Message: 'Sam User submitted this request.',
+                },
+            ]),
         },
         {
             Id: 'req-2',
@@ -550,6 +558,14 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: 'sam@example.com',
             ItemsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-2',
+                    Timestamp: mockMinutesAgoIso(48),
+                    UserId: 'admin@example.com',
+                    Message: 'Alex Admin approved this request.',
+                },
+            ]),
         },
         {
             Id: 'req-3',
@@ -564,6 +580,14 @@ const mockData = {
             LeadEmail: 'vic@example.com',
             Participants: '',
             ItemsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-3',
+                    Timestamp: mockMinutesAgoIso(95),
+                    UserId: 'admin@example.com',
+                    Message: 'Alex Admin issued this equipment.',
+                },
+            ]),
         },
         {
             Id: 'req-4',
@@ -578,6 +602,14 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: '',
             ItemsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-4',
+                    Timestamp: mockMinutesAgoIso(180),
+                    UserId: 'admin@example.com',
+                    Message: 'Alex Admin recorded the equipment condition.',
+                },
+            ]),
         },
         {
             Id: 'req-5',
@@ -592,6 +624,14 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: '',
             ItemsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-5',
+                    Timestamp: mockMinutesAgoIso(360),
+                    UserId: 'admin@example.com',
+                    Message: 'Alex Admin closed this request.',
+                },
+            ]),
         },
     ] as InventoryRequest[],
     inventoryItems: [
@@ -645,6 +685,14 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: 'ana@example.com',
             SessionsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-7',
+                    Timestamp: mockMinutesAgoIso(24),
+                    UserId: 'sam@example.com',
+                    Message: 'Sam User submitted this request.',
+                },
+            ]),
         },
         {
             Id: 'program-2',
@@ -659,6 +707,20 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: '',
             SessionsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-8',
+                    Timestamp: mockMinutesAgoIso(36),
+                    UserId: 'ana@example.com',
+                    Message: 'Ana Approver submitted this request.',
+                },
+                {
+                    Id: 'comment-9',
+                    Timestamp: mockMinutesAgoIso(30),
+                    UserId: 'admin@example.com',
+                    Message: 'Alex Admin approved this request.',
+                },
+            ]),
         },
         {
             Id: 'program-3',
@@ -673,6 +735,7 @@ const mockData = {
             LeadEmail: 'vic@example.com',
             Participants: '',
             SessionsJson: '',
+            CommentsJson: '[]',
         },
         {
             Id: 'program-4',
@@ -687,6 +750,7 @@ const mockData = {
             LeadEmail: 'admin@example.com',
             Participants: '',
             SessionsJson: '',
+            CommentsJson: '[]',
         },
         {
             Id: 'program-5',
@@ -701,6 +765,7 @@ const mockData = {
             LeadEmail: 'admin@example.com',
             Participants: '',
             SessionsJson: '',
+            CommentsJson: '[]',
         },
         {
             Id: 'program-6',
@@ -715,6 +780,20 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: '',
             SessionsJson: '',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-10',
+                    Timestamp: mockMinutesAgoIso(60),
+                    UserId: 'sam@example.com',
+                    Message: 'Sam User submitted this request.',
+                },
+                {
+                    Id: 'comment-11',
+                    Timestamp: mockMinutesAgoIso(48),
+                    UserId: 'admin@example.com',
+                    Message: 'Alex Admin rejected this request.',
+                },
+            ]),
         },
         {
             Id: 'program-7',
@@ -729,6 +808,7 @@ const mockData = {
             LeadEmail: 'ana@example.com',
             Participants: 'sam@example.com',
             SessionsJson: '',
+            CommentsJson: '[]',
         },
         {
             Id: 'program-8',
@@ -743,6 +823,7 @@ const mockData = {
             LeadEmail: 'vic@example.com',
             Participants: '',
             SessionsJson: '',
+            CommentsJson: '[]',
         },
         ...EXTRA_APPROVED_PROGRAM_REQUESTS,
     ] as ProgramRequest[],
@@ -983,6 +1064,7 @@ const mockData = {
             Description: 'Studio A projector flickers after 30 minutes.',
             Status: 'unassigned' as TicketStatus,
             AssigneeId: '',
+            CommentsJson: '[]',
         },
         {
             Id: 'ticket-2',
@@ -991,6 +1073,14 @@ const mockData = {
             Description: 'Audio is approximately two seconds behind video.',
             Status: 'pending' as TicketStatus,
             AssigneeId: 'ana@example.com',
+            CommentsJson: JSON.stringify([
+                {
+                    Id: 'comment-6',
+                    Timestamp: mockMinutesAgoIso(720),
+                    UserId: 'ana@example.com',
+                    Message: 'Ana Approver assigned this ticket to Ana Approver.',
+                },
+            ]),
         },
         {
             Id: 'ticket-3',
@@ -999,52 +1089,9 @@ const mockData = {
             Description: 'Replacement completed and tested.',
             Status: 'closed' as TicketStatus,
             AssigneeId: 'admin@example.com',
+            CommentsJson: '[]',
         },
     ] as Ticket[],
-    comments: [
-        {
-            Id: 'comment-1',
-            Timestamp: mockMinutesAgoIso(12),
-            RequestId: 'req-1',
-            UserId: 'sam@example.com',
-            Message: 'Sam User submitted this request.',
-        },
-        {
-            Id: 'comment-2',
-            Timestamp: mockMinutesAgoIso(48),
-            RequestId: 'req-2',
-            UserId: 'admin@example.com',
-            Message: 'Alex Admin approved this request.',
-        },
-        {
-            Id: 'comment-3',
-            Timestamp: mockMinutesAgoIso(95),
-            RequestId: 'req-3',
-            UserId: 'admin@example.com',
-            Message: 'Alex Admin issued this equipment.',
-        },
-        {
-            Id: 'comment-4',
-            Timestamp: mockMinutesAgoIso(180),
-            RequestId: 'req-4',
-            UserId: 'admin@example.com',
-            Message: 'Alex Admin recorded the equipment condition.',
-        },
-        {
-            Id: 'comment-5',
-            Timestamp: mockMinutesAgoIso(360),
-            RequestId: 'req-5',
-            UserId: 'admin@example.com',
-            Message: 'Alex Admin closed this request.',
-        },
-        {
-            Id: 'comment-6',
-            Timestamp: mockMinutesAgoIso(720),
-            RequestId: 'ticket-2',
-            UserId: 'ana@example.com',
-            Message: 'Ana Approver assigned this ticket to Ana Approver.',
-        },
-    ] as CommentRecord[],
     homeContent: {
         Guidelines:
             '## Quick guidelines\n\nPlease return equipment within 24 hours of your shoot ending.\n\n- Check the [inventory list](/?section=inventory) before requesting equipment.\n- Add a clear description and expected return time to each request.\n- Report damage promptly through the [tickets section](/?section=tickets).',
@@ -1142,6 +1189,23 @@ function mockCurrentUser(): User {
     return mockData.users.find((u) => u.Email === mockData.currentUserId)!;
 }
 
+function mockParseComments(raw: string, requestId: string): CommentRecord[] {
+    try {
+        const parsed = JSON.parse(raw || '[]');
+        return Array.isArray(parsed)
+            ? parsed.map((comment) => ({
+                  Id: String(comment.Id || ''),
+                  Timestamp: String(comment.Timestamp || ''),
+                  RequestId: requestId,
+                  UserId: String(comment.UserId || ''),
+                  Message: String(comment.Message || ''),
+              }))
+            : [];
+    } catch (_error) {
+        return [];
+    }
+}
+
 // Mirrors canViewRequest in Auth.ts, so the scoped lists a `user` sees
 // locally match what the real backend would actually return.
 function mockCanViewRequest(request: { UserId: string; Participants: string }): boolean {
@@ -1200,7 +1264,18 @@ function mockInsertActionComment(
         UserId: actorId,
         Message: message,
     };
-    mockData.comments.push(created);
+    const owner =
+        mockData.inventoryRequests.find((request) => request.Id === requestId) ||
+        mockData.programRequests.find((request) => request.Id === requestId) ||
+        mockData.tickets.find((ticket) => ticket.Id === requestId);
+    if (owner) {
+        owner.CommentsJson = JSON.stringify([
+            ...mockParseComments(owner.CommentsJson, requestId).map(
+                ({ Id, Timestamp, UserId, Message }) => ({ Id, Timestamp, UserId, Message }),
+            ),
+            { Id: created.Id, Timestamp: created.Timestamp, UserId: created.UserId, Message: created.Message },
+        ]);
+    }
     return created;
 }
 
@@ -1216,7 +1291,7 @@ function mockBuildInventoryRequestDTO(request: InventoryRequest): InventoryReque
         departmentName: department ? department.Name : '',
         participants: mockParseParticipants(request.Participants),
         items,
-        comments: [],
+        comments: mockParseComments(request.CommentsJson, request.Id).map(mockBuildCommentDTO),
     });
 }
 
@@ -1238,7 +1313,7 @@ function mockBuildProgramRequestDTO(request: ProgramRequest): ProgramRequestDTO 
         sessions,
         sessionStart: sessionDates[0] || '',
         sessionEnd: sessionDates[sessionDates.length - 1] || '',
-        comments: [],
+        comments: mockParseComments(request.CommentsJson, request.Id).map(mockBuildCommentDTO),
     });
 }
 
@@ -1246,7 +1321,7 @@ function mockBuildTicketDTO(ticket: Ticket): TicketDTO {
     const assignee = mockData.users.find((u) => u.Email === ticket.AssigneeId);
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
-        comments: [],
+        comments: mockParseComments(ticket.CommentsJson, ticket.Id).map(mockBuildCommentDTO),
     });
 }
 
@@ -1266,28 +1341,12 @@ function mockIncludes(query: string | undefined, values: unknown[]): boolean {
 
 function mockPaginate<T>(items: T[], page: number): Paginated<T> {
     const safePage = Math.max(1, Math.floor(page) || 1);
-    const pageSize = 20;
+    const pageSize = 25;
     return {
         items: items.slice((safePage - 1) * pageSize, safePage * pageSize),
         page: safePage,
         pageSize,
         totalCount: items.length,
-    };
-}
-
-function mockListComments(requestId: string, page: number): Paginated<CommentDTO> {
-    const comments = mockData.comments
-        .filter((comment) => comment.RequestId === requestId)
-        .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp));
-    const pageSize = 25;
-    const safePage = Math.max(1, Math.floor(page) || 1);
-    const end = comments.length - (safePage - 1) * pageSize;
-    const start = Math.max(0, end - pageSize);
-    return {
-        items: comments.slice(start, end).map(mockBuildCommentDTO),
-        page: safePage,
-        pageSize,
-        totalCount: comments.length,
     };
 }
 
@@ -1364,28 +1423,11 @@ function mockBuildDashboard(): DashboardPayload {
         programRequests: mockData.programRequests.filter(mockCanViewRequest).map((request) =>
             Object.assign(mockBuildProgramRequestDTO(request), {
                 sessions: [] as ProgramSession[],
-                comments: [] as CommentDTO[],
             }),
         ),
         tickets: canUseTickets(mockToUserDTO(mockCurrentUser()))
             ? mockData.tickets.map(mockBuildTicketDTO)
             : [],
-        recentComments: mockData.comments
-            .filter((comment) => {
-                const age = Date.now() - Date.parse(comment.Timestamp);
-                return age >= 0 && age <= 7 * 24 * 60 * 60 * 1000;
-            })
-            .map((comment) =>
-                Object.assign(mockBuildCommentDTO(comment), {
-                    requestKind: (comment.RequestId.startsWith('req-')
-                        ? 'inventory'
-                        : comment.RequestId.startsWith('ticket-')
-                          ? 'ticket'
-                          : 'program') as RecentCommentDTO['requestKind'],
-                }),
-            )
-            .sort((a, b) => b.Timestamp.localeCompare(a.Timestamp))
-            .slice(0, 50),
         homeContent: mockData.homeContent,
         shiftTypes: [...mockData.shiftTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
         programTypes: [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
@@ -1731,6 +1773,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                     Condition: line.condition || '',
                 })),
             ),
+            CommentsJson: '[]',
         };
         mockData.inventoryRequests.push(created);
         return mockBuildInventoryRequestDTO(created);
@@ -1902,7 +1945,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (!request || !mockCanViewRequest(request)) throw new Error('request_not_found');
         return mockBuildProgramRequestDTO(request);
     },
-    listComments: (requestId: string, page: number) => mockListComments(requestId, page),
     createProgramRequest: (input: CreateProgramRequestInput) => {
         const participants = mockParseParticipants(input.participants);
         const actor = mockCurrentUser();
@@ -1937,6 +1979,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             LeadEmail: leadEmail,
             Participants: participants.join(', '),
             SessionsJson: mockProgramSessionsJson(sessions),
+            CommentsJson: '[]',
         };
         mockData.programRequests.push(created);
         return mockBuildProgramRequestDTO(created);
@@ -2113,6 +2156,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             Description: input.description || '',
             Status: 'unassigned',
             AssigneeId: '',
+            CommentsJson: '[]',
         };
         mockData.tickets.push(created);
         return mockBuildTicketDTO(created);

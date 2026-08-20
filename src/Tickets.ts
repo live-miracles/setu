@@ -1,16 +1,16 @@
-const TICKETS_PAGE_SIZE = 20;
+const TICKETS_PAGE_SIZE = 25;
 
 function buildTicketDTO(
     ticket: Ticket,
     usersByEmail: Record<string, User>,
-    commentsByRequestId: Record<string, CommentRecord[]> = {},
-    includeComments = true,
 ): TicketDTO {
     const assignee = ticket.AssigneeId ? usersByEmail[ticket.AssigneeId] : undefined;
-    const comments = commentsFor(ticket.Id, commentsByRequestId, usersByEmail);
+    const comments = parseCommentsJson(ticket.CommentsJson, ticket.Id).map((comment) =>
+        buildCommentDTO(comment, usersByEmail),
+    );
     return Object.assign({}, ticket, {
         assigneeName: assignee ? assignee.Name : '',
-        comments: includeComments ? comments : [],
+        comments,
     });
 }
 
@@ -36,10 +36,9 @@ function ticketSortValue(ticket: TicketDTO, sortBy: TicketQuery['sortBy']): stri
 function listTickets(page: number, query: TicketQuery = {}): Paginated<TicketDTO> {
     requireTicketAccess();
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
-    const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const statuses = query.statuses || [];
     const dtos = Tables.Tickets.readAll()
-        .map((t) => buildTicketDTO(t, usersByEmail, commentsByRequestId, false))
+        .map((t) => buildTicketDTO(t, usersByEmail))
         .filter((ticket) => statuses.length === 0 || statuses.indexOf(ticket.Status) !== -1)
         .filter((ticket) => {
             if (!query.assigneeId) return true;
@@ -74,8 +73,6 @@ function getTicket(id: string): TicketDTO {
     return buildTicketDTO(
         ticket,
         indexBy(Tables.Users.readAll(), (user) => user.Email),
-        {},
-        false,
     );
 }
 
@@ -90,6 +87,7 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
             Description: input.description || '',
             Status: 'unassigned',
             AssigneeId: '',
+            CommentsJson: '[]',
         });
         return { ticket: created };
     });
@@ -98,7 +96,6 @@ function createTicket(input: CreateTicketInput, requestId: string): TicketDTO {
     return buildTicketDTO(
         ticket,
         indexBy([actor], (u) => u.Email),
-        {},
     );
 }
 
@@ -120,7 +117,6 @@ function updateTicket(id: string, input: UpdateTicketInput, requestId: string): 
     return buildTicketDTO(
         result.ticket,
         indexBy([actor], (u) => u.Email),
-        {},
     );
 }
 

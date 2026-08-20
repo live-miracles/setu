@@ -208,6 +208,7 @@ const Tables = {
         'LeadEmail',
         'Participants',
         'ItemsJson',
+        'CommentsJson',
     ]),
     ProgramRequests: SheetTable<ProgramRequest>('ProgramRequests', [
         'Id',
@@ -222,6 +223,7 @@ const Tables = {
         'Participants',
         'Language',
         'SessionsJson',
+        'CommentsJson',
     ]),
     Tickets: SheetTable<Ticket>('Tickets', [
         'Id',
@@ -230,6 +232,7 @@ const Tables = {
         'Description',
         'Status',
         'AssigneeId',
+        'CommentsJson',
     ]),
     Comments: SheetTable<CommentRecord>('Comments', [
         'Id',

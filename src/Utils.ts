@@ -183,3 +183,31 @@ function stringifyProgramSessions(sessions: ProgramSession[]): string {
         })),
     );
 }
+
+function parseCommentsJson(raw: string, requestId: string): CommentRecord[] {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((comment) => ({
+            Id: String(comment.Id || comment.id || ''),
+            Timestamp: String(comment.Timestamp || comment.timestamp || ''),
+            RequestId: requestId,
+            UserId: String(comment.UserId || comment.userId || ''),
+            Message: String(comment.Message || comment.message || ''),
+        }));
+    } catch (err) {
+        return [];
+    }
+}
+
+function stringifyComments(comments: CommentRecord[]): string {
+    return JSON.stringify(
+        comments.map((comment) => ({
+            Id: comment.Id,
+            Timestamp: comment.Timestamp,
+            UserId: comment.UserId,
+            Message: comment.Message,
+        })),
+    );
+}

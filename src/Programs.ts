@@ -1,4 +1,4 @@
-const PROGRAM_REQUESTS_PAGE_SIZE = 20;
+const PROGRAM_REQUESTS_PAGE_SIZE = 25;
 
 const PROGRAM_REQUIRED_FIELDS: Record<
     string,
@@ -92,14 +92,14 @@ function buildProgramRequestDTO(
     placesById: Record<string, Place>,
     usersByEmail: Record<string, User>,
     departmentsById: Record<string, Department>,
-    commentsByRequestId: Record<string, CommentRecord[]>,
-    includeComments = true,
     includeSessions = true,
 ): ProgramRequestDTO {
     const place = placesById[request.PlaceId];
     const requester = usersByEmail[request.UserId];
     const department = departmentsById[request.DepartmentId];
-    const comments = commentsFor(request.Id, commentsByRequestId, usersByEmail);
+    const comments = parseCommentsJson(request.CommentsJson, request.Id).map((comment) =>
+        buildCommentDTO(comment, usersByEmail),
+    );
     const sessions = parseProgramSessionsJson(request.SessionsJson)
         .slice()
         .sort((a, b) => a.StartDateTime.localeCompare(b.StartDateTime));
@@ -115,7 +115,7 @@ function buildProgramRequestDTO(
         sessions: includeSessions ? sessions : [],
         sessionStart: validSessionDates[0] || '',
         sessionEnd: validSessionDates[validSessionDates.length - 1] || '',
-        comments: includeComments ? comments : [],
+        comments,
     });
 }
 
@@ -231,7 +231,6 @@ function listProgramRequests(
     const placesById = indexBy(Tables.Places.readAll(), (p) => p.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const departmentsById = indexBy(Tables.Departments.readAll(), (d) => d.Id);
-    const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const statuses = query.statuses || [];
     const dtos = Tables.ProgramRequests.readAll()
         .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
@@ -241,9 +240,7 @@ function listProgramRequests(
                 placesById,
                 usersByEmail,
                 departmentsById,
-                commentsByRequestId,
-                false,
-                false,
+                true,
             ),
         )
         .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
@@ -298,8 +295,6 @@ function getProgramRequest(id: string): ProgramRequestDTO {
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        {},
-        false,
     );
 }
 
@@ -333,7 +328,6 @@ function getCalendarMonth(year: number, month: number): CalendarMonthPayload {
                 placesById,
                 usersByEmail,
                 departmentsById,
-                {},
                 false,
             );
             return Object.assign({}, dto, { sessions, comments: [] as CommentDTO[] });
@@ -404,6 +398,7 @@ function createProgramRequest(
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
             SessionsJson: stringifyProgramSessions(sessionLines),
+            CommentsJson: '[]',
         });
         return { request: created };
     });
@@ -415,7 +410,6 @@ function createProgramRequest(
         placesById,
         indexBy([actor], (u) => u.Email),
         { [department.Id]: department },
-        {},
     );
 }
 
@@ -479,7 +473,6 @@ function updateProgramRequest(
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        {},
     );
 }
 
@@ -510,7 +503,6 @@ function updateProgramRequestParticipants(
         indexBy(Tables.Places.readAll(), (place) => place.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        {},
     );
 }
 

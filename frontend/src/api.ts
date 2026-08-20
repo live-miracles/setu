@@ -94,7 +94,6 @@ export const api: AsyncApi = {
     listProgramRequests: (...args) => callBackend('listProgramRequests', ...args),
     getProgramRequest: (...args) => callBackend('getProgramRequest', ...args),
     getAvailablePlaces: (...args) => callBackend('getAvailablePlaces', ...args),
-    listComments: (...args) => callBackend('listComments', ...args),
     getCalendarMonth: (...args) => callBackend('getCalendarMonth', ...args),
     createProgramRequest: (...args) => callBackend('createProgramRequest', ...args),
     updateProgramRequest: (...args) => callBackend('updateProgramRequest', ...args),

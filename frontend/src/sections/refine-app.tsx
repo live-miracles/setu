@@ -14,6 +14,7 @@ import {
     Form as AntForm,
     Input,
     Modal as AntModal,
+    Pagination,
     Select,
     Space,
     Tag,
@@ -43,7 +44,11 @@ import {
     refreshDashboard,
     replaceWorkbenchUrl,
 } from '../router';
-import { WORKBENCH_SEARCH_QUERY_PARAM, WORKBENCH_VIEW_QUERY_PARAM } from '../config';
+import {
+    WORKBENCH_SEARCH_QUERY_PARAM,
+    WORKBENCH_STATUS_QUERY_PARAM,
+    WORKBENCH_VIEW_QUERY_PARAM,
+} from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import {
@@ -370,11 +375,6 @@ function Home({ dashboard }: Props) {
             );
     const todayShifts = shiftsForDate(todayIso);
     const tomorrowShifts = shiftsForDate(tomorrowIso);
-    const openComment = (comment: RecentCommentDTO) => {
-        if (comment.requestKind === 'inventory') navigateToInventoryRequest(comment.RequestId);
-        else if (comment.requestKind === 'program') navigateToProgram(comment.RequestId);
-        else navigateToTicket(comment.RequestId);
-    };
     const summaryCards = [
         {
             label: 'Programs',
@@ -385,10 +385,6 @@ function Home({ dashboard }: Props) {
             label: 'Inventory',
             count: dashboard.inventoryRequests.length,
             onClick: navigateToInventoryRequests,
-        },
-        {
-            label: 'Comments',
-            count: dashboard.recentComments.length,
         },
         ...(canUseTickets(dashboard.me)
             ? [
@@ -562,34 +558,6 @@ function Home({ dashboard }: Props) {
                 </Card>
             </div>
             <div className="home-section antd-two-column">
-                <Card
-                    title={
-                        <Space size="small">
-                            <span>Recent comments</span>
-                            <Tag>{dashboard.recentComments.length}</Tag>
-                        </Space>
-                    }
-                    className="home-scroll-card home-recent-comments">
-                    {dashboard.recentComments.map((comment) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={comment.Id}
-                            onClick={() => openComment(comment)}>
-                            <div>
-                                <Typography.Text strong>{comment.userName}</Typography.Text>
-                                <Typography.Text type="secondary" className="ml-2">
-                                    {formatDateTime(comment.Timestamp)}
-                                </Typography.Text>
-                            </div>
-                            <div className="home-comment-message whitespace-pre-wrap text-sm">
-                                {comment.Message}
-                            </div>
-                        </Button>
-                    ))}
-                    {!dashboard.recentComments.length && <Empty />}
-                </Card>
                 {canUseTickets(dashboard.me) && (
                     <Card
                         title={sectionTitle('Ongoing tickets', ongoingTickets.length)}
@@ -1349,22 +1317,26 @@ function Calendar({ dashboard }: Props) {
 function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
     const isInventory = kind === 'inventory';
     const isProgram = kind === 'programs';
-    const rows: any[] = isInventory
-        ? dashboard.inventoryRequests
-        : isProgram
-          ? dashboard.programRequests
-          : dashboard.tickets;
     const params = new URLSearchParams(window.location.search);
     const [search, setSearch] = useState(params.get(WORKBENCH_SEARCH_QUERY_PARAM) || '');
-    const [view, setView] = useState(
-        params.get(WORKBENCH_VIEW_QUERY_PARAM) || (isProgram ? 'active' : 'all'),
+    const [appliedSearch, setAppliedSearch] = useState(
+        params.get(WORKBENCH_SEARCH_QUERY_PARAM) || '',
     );
-    const [creating, setCreating] = useState(false);
+    const [view, setView] = useState(params.get(WORKBENCH_VIEW_QUERY_PARAM) || 'active');
     const statuses = isInventory
         ? ['draft', 'submitted', 'approved', 'issued', 'closed', 'rejected', 'cancelled']
         : isProgram
           ? ['draft', 'submitted', 'approved', 'rejected', 'cancelled']
           : ['unassigned', 'pending', 'closed'];
+    const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => {
+        const value = params.get(WORKBENCH_STATUS_QUERY_PARAM);
+        return value ? value.split(',').filter((status) => statuses.includes(status)) : statuses;
+    });
+    const [page, setPage] = useState(1);
+    const [result, setResult] = useState<Paginated<any> | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const rows = result?.items || [];
     const open = (id: string) =>
         isInventory
             ? navigateToInventoryRequest(id)
@@ -1379,45 +1351,79 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         else url.searchParams.delete(key);
         replaceWorkbenchUrl(url);
     };
-    const isActive = (row: any) => {
-        if (kind === 'tickets') return row.Status !== 'closed';
-        const now = Date.now();
-        if (kind === 'inventory')
-            return !row.EndDate || new Date(`${row.EndDate}T23:59:59`).getTime() >= now;
-        const end = new Date(row.sessionEnd || '').getTime();
-        return !Number.isFinite(end) || end >= now;
-    };
-    const matches = (row: any) => {
-        const textMatch = matchesSearch(search, [JSON.stringify(row)]);
-        return (
-            textMatch &&
-            (!isProgram || view === 'all' || (view === 'active' ? isActive(row) : !isActive(row)))
-        );
-    };
-    const filteredRows = rows.filter(matches);
-    const filter = isProgram ? (
-        <Select
-            size="middle"
-            className="antd-board-filter-select"
-            value={view}
-            onChange={(value) => {
-                setView(value);
-                updateQuery(WORKBENCH_VIEW_QUERY_PARAM, value);
-            }}>
-            <Select.Option value="all">All</Select.Option>
-            <Select.Option value="active">Future</Select.Option>
-            <Select.Option value="past">Past</Select.Option>
-        </Select>
-    ) : null;
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        const query: any = {
+            q: appliedSearch,
+            // An empty checkbox selection is different from an omitted filter;
+            // the backend's explicit sentinel keeps it from meaning "all".
+            statuses: selectedStatuses.length ? selectedStatuses : ['__none__'],
+        };
+        if (isProgram) query.dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
+        const request = isInventory
+            ? api.listInventoryRequests(page, query)
+            : isProgram
+              ? api.listProgramRequests(page, query)
+              : api.listTickets(page, query);
+        request.then((next) => {
+            if (!cancelled) setResult(next);
+        }).catch(error).finally(() => {
+            if (!cancelled) setLoading(false);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [appliedSearch, isInventory, isProgram, page, selectedStatuses, view]);
+
+    const filter = (
+        <Space wrap>
+            {isProgram && (
+                <Select
+                    value={view}
+                    onChange={(value) => {
+                        setView(value);
+                        setPage(1);
+                        updateQuery(WORKBENCH_VIEW_QUERY_PARAM, value);
+                    }}>
+                    <Select.Option value="all">All</Select.Option>
+                    <Select.Option value="active">Future</Select.Option>
+                    <Select.Option value="past">Past</Select.Option>
+                </Select>
+            )}
+            <Select
+                mode="multiple"
+                maxTagCount={0}
+                maxTagPlaceholder={(selected) => `${selected.length} statuses`}
+                placeholder="Filter by status"
+                style={{ minWidth: '7.25rem', maxWidth: '100%' }}
+                value={selectedStatuses}
+                onChange={(values) => {
+                    const next = values.map(String);
+                    setSelectedStatuses(next);
+                    setPage(1);
+                    updateQuery(WORKBENCH_STATUS_QUERY_PARAM, next.join(','));
+                }}
+                options={statuses.map((status) => ({ label: label(status), value: status }))}
+            />
+        </Space>
+    );
     const boardFilters = (
         <Space className="antd-board-filters" wrap>
             <Input
-                prefix={<SearchOutlined />}
                 value={search}
                 placeholder={`Search ${title.toLowerCase()}`}
-                onChange={(event) => {
-                    setSearch(event.target.value);
-                    updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, event.target.value);
+                onChange={(event) => setSearch(event.target.value)}
+            />
+            <Button
+                type="primary"
+                icon={<SearchOutlined />}
+                aria-label={`Search ${title.toLowerCase()}`}
+                title={`Search ${title.toLowerCase()}`}
+                onClick={() => {
+                    setAppliedSearch(search);
+                    setPage(1);
+                    updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, search);
                 }}
             />
             {filter}
@@ -1437,42 +1443,33 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                     title={`Add ${title.toLowerCase()}`}
                 />
             }>
-            <div className="antd-board">
-                {statuses.map((status) => {
-                    const column = filteredRows.filter((row) => row.Status === status);
-                    return (
-                        <section className="antd-board-column" key={status}>
-                            <div className="antd-board-column-heading">
-                                <Typography.Text strong>{label(status)}</Typography.Text>
-                                <Tag>{column.length}</Tag>
-                            </div>
-                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                {column.map((row) => (
-                                    <AntCard
-                                        size="small"
-                                        hoverable
-                                        key={row.Id}
-                                        onClick={() => open(row.Id)}>
-                                        <Space direction="vertical" size={2}>
+            <div className="antd-request-list">
+                {loading && <Typography.Text type="secondary">Loading requests…</Typography.Text>}
+                {!loading && rows.map((row) => (
+                    <AntCard size="small" hoverable key={row.Id} onClick={() => open(row.Id)} className="relative">
+                        <Space direction="vertical" size={2}>
                                             {isProgram ? (
                                                 <>
-                                                    <div>
+                                                    <Space size="small" wrap>
                                                         <Typography.Text type="secondary">
-                                                            {`PRG-${row.DisplayId}`} ·{' '}
+                                                            {`PRG-${row.DisplayId}`}
                                                         </Typography.Text>
-                                                        <Typography.Text strong>
-                                                            {formatProgramName(
-                                                                row.Language,
-                                                                row.Type,
-                                                                row.Name,
-                                                            ) || 'Unnamed program'}
+                                                        <Typography.Text type="secondary">·</Typography.Text>
+                                                        <Typography.Text type="secondary">
+                                                            {formatProgramDateRangeFromBounds(
+                                                                row.sessionStart,
+                                                                row.sessionEnd,
+                                                            )}
                                                         </Typography.Text>
-                                                    </div>
-                                                    <Typography.Text type="secondary">
-                                                        {formatProgramDateRangeFromBounds(
-                                                            row.sessionStart,
-                                                            row.sessionEnd,
-                                                        )}
+                                                        <Typography.Text type="secondary">·</Typography.Text>
+                                                        <Tag>{label(row.Status)}</Tag>
+                                                    </Space>
+                                                    <Typography.Text strong>
+                                                        {formatProgramName(
+                                                            row.Language,
+                                                            row.Type,
+                                                            row.Name,
+                                                        ) || 'Unnamed program'}
                                                     </Typography.Text>
                                                     <Typography.Text type="secondary">
                                                         {row.userName || 'Unknown requester'} |{' '}
@@ -1488,16 +1485,22 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                                 </>
                                             ) : isInventory ? (
                                                 <>
-                                                    <div>
+                                                    <Space size="small" wrap>
                                                         <Typography.Text type="secondary">
-                                                            {`REQ-${row.DisplayId}`} ·{' '}
+                                                            {`REQ-${row.DisplayId}`}
                                                         </Typography.Text>
-                                                        <Typography.Text strong>
-                                                            {row.Name || 'Unnamed request'}
+                                                        <Typography.Text type="secondary">·</Typography.Text>
+                                                        <Typography.Text type="secondary">
+                                                            {formatProgramDateRangeFromBounds(
+                                                                row.StartDate,
+                                                                row.EndDate,
+                                                            )}
                                                         </Typography.Text>
-                                                    </div>
-                                                    <Typography.Text type="secondary">
-                                                        {row.StartDate} - {row.EndDate}
+                                                        <Typography.Text type="secondary">·</Typography.Text>
+                                                        <Tag>{label(row.Status)}</Tag>
+                                                    </Space>
+                                                    <Typography.Text strong>
+                                                        {row.Name || 'Unnamed request'}
                                                     </Typography.Text>
                                                     <Typography.Text type="secondary">
                                                         {row.userName || 'Unknown requester'} |{' '}
@@ -1513,32 +1516,33 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                                 </>
                                             ) : (
                                                 <>
-                                                    <div>
+                                                    <Space size="small" wrap>
                                                         <Typography.Text type="secondary">
-                                                            {`TKT-${row.DisplayId}`} ·{' '}
+                                                            {`TKT-${row.DisplayId}`}
                                                         </Typography.Text>
-                                                        <Typography.Text strong>
-                                                            {row.Title || 'Untitled ticket'}
-                                                        </Typography.Text>
-                                                    </div>
+                                                        <Typography.Text type="secondary">·</Typography.Text>
+                                                        <Tag>{label(row.Status)}</Tag>
+                                                    </Space>
+                                                    <Typography.Text strong>
+                                                        {row.Title || 'Untitled ticket'}
+                                                    </Typography.Text>
                                                     <Typography.Text type="secondary">
                                                         {row.assigneeName || 'Unassigned'}
                                                     </Typography.Text>
                                                 </>
                                             )}
+                                            {row.comments?.length ? (
+                                                <Typography.Text type="secondary">
+                                                    {row.comments.length} comment{row.comments.length === 1 ? '' : 's'} · {row.comments[row.comments.length - 1].Message}
+                                                </Typography.Text>
+                                            ) : null}
                                         </Space>
-                                    </AntCard>
-                                ))}
-                                {!column.length && (
-                                    <AntEmpty
-                                        image={AntEmpty.PRESENTED_IMAGE_SIMPLE}
-                                        description="No requests"
-                                    />
-                                )}
-                            </Space>
-                        </section>
-                    );
-                })}
+                    </AntCard>
+                ))}
+                {!loading && !rows.length && <AntEmpty description="No requests" />}
+                {result && result.totalCount > result.pageSize && (
+                    <Pagination current={result.page} pageSize={result.pageSize} total={result.totalCount} showSizeChanger={false} onChange={setPage} />
+                )}
             </div>
             {creating && (
                 <Modal
@@ -2140,7 +2144,7 @@ function ProgramDetail({
                                 rowKey="key"
                                 columns={sessionColumns}
                                 dataSource={sessionRows}
-                                pagination={{ pageSize: 25, showSizeChanger: false }}
+                                pagination={false}
                                 className="sessions-table"
                                 scroll={{ x: 'max-content' }}
                             />
@@ -2151,7 +2155,7 @@ function ProgramDetail({
                 </Card>
             </div>
             <div className="detail-activity">
-                <Activity requestId={request.Id} />
+                <Activity requestId={request.Id} initialComments={request.comments} />
             </div>
             {pendingAction && (
                 <ActionConfirmation
@@ -2387,38 +2391,20 @@ function SessionForm({
     );
 }
 
-function Activity({ requestId }: { requestId: string }) {
+function Activity({ requestId, initialComments }: { requestId: string; initialComments: CommentDTO[] }) {
     const [comment, setComment] = useState('');
-    const [comments, setComments] = useState<CommentDTO[]>([]);
-    const [page, setPage] = useState(1);
-    const [totalComments, setTotalComments] = useState(0);
-    const [loading, setLoading] = useState(false);
-    const loadComments = async (targetPage = 1) => {
-        setLoading(true);
-        try {
-            const result = await api.listComments(requestId, targetPage);
-            setComments((current) =>
-                targetPage === 1 ? result.items : [...result.items, ...current],
-            );
-            setPage(targetPage);
-            setTotalComments(result.totalCount);
-        } catch (e) {
-            error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const [comments, setComments] = useState<CommentDTO[]>(initialComments);
     useEffect(() => {
-        void loadComments();
-    }, [requestId]);
+        setComments(initialComments);
+    }, [initialComments]);
     const submit = async (event: FormEvent) => {
         event.preventDefault();
         if (!comment.trim()) return;
         try {
             showSavingBadge(true);
-            await api.addComment(requestId, comment.trim(), generateRequestId());
+            const added = await api.addComment(requestId, comment.trim(), generateRequestId());
             setComment('');
-            await loadComments();
+            setComments((current) => [...current, added]);
         } catch (e) {
             error(e);
         } finally {
@@ -2429,14 +2415,6 @@ function Activity({ requestId }: { requestId: string }) {
         <div className="activity-card">
             <Card title="Activity">
                 <div className="activity-comments space-y-3">
-                    {comments.length < totalComments && (
-                        <Button
-                            size="small"
-                            loading={loading}
-                            onClick={() => loadComments(page + 1)}>
-                            Load older comments
-                        </Button>
-                    )}
                     {comments.length ? (
                         comments.map((c) => (
                             <div
@@ -2451,8 +2429,6 @@ function Activity({ requestId }: { requestId: string }) {
                                 <p className="whitespace-pre-wrap text-black/70">{c.Message}</p>
                             </div>
                         ))
-                    ) : loading ? (
-                        <Typography.Text type="secondary">Loading activity…</Typography.Text>
                     ) : (
                         <Empty>No activity yet.</Empty>
                     )}
@@ -3058,7 +3034,7 @@ function InventoryDetail({
                 </Card>
             </div>
             <div className="detail-activity">
-                <Activity requestId={request.Id} />
+                <Activity requestId={request.Id} initialComments={request.comments} />
             </div>
             {editing && (
                 <Modal title="Edit inventory request" close={() => setEditing(false)}>
@@ -3312,7 +3288,7 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                 </Card>
             </div>
             <div className="detail-activity">
-                <Activity requestId={ticket.Id} />
+                <Activity requestId={ticket.Id} initialComments={ticket.comments} />
             </div>
             {editing && (
                 <Modal title="Edit ticket" close={() => setEditing(false)}>

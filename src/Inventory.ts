@@ -1,4 +1,4 @@
-const INVENTORY_REQUESTS_PAGE_SIZE = 20;
+const INVENTORY_REQUESTS_PAGE_SIZE = 25;
 
 // Outstanding (issued but not yet closed) quantity per inventory type —
 // subtracted from TotalQuantity to derive availableQuantity on read, rather
@@ -40,21 +40,21 @@ function buildInventoryRequestDTO(
     inventoryTypesById: Record<string, InventoryType>,
     usersByEmail: Record<string, User>,
     departmentsById: Record<string, Department>,
-    commentsByRequestId: Record<string, CommentRecord[]>,
-    includeComments = true,
 ): InventoryRequestDTO {
     const items = parseInventoryItemsJson(request.ItemsJson).map((i) =>
         buildInventoryItemDTO(i, inventoryTypesById),
     );
     const requester = usersByEmail[request.UserId];
     const department = departmentsById[request.DepartmentId];
-    const comments = commentsFor(request.Id, commentsByRequestId, usersByEmail);
+    const comments = parseCommentsJson(request.CommentsJson, request.Id).map((comment) =>
+        buildCommentDTO(comment, usersByEmail),
+    );
     return Object.assign({}, request, {
         userName: requester ? requester.Name : '',
         departmentName: department ? department.Name : '',
         participants: parseParticipants(request.Participants),
         items,
-        comments: includeComments ? comments : [],
+        comments,
     });
 }
 
@@ -131,7 +131,6 @@ function listInventoryRequests(
     const inventoryTypesById = indexBy(Tables.InventoryTypes.readAll(), (t) => t.Id);
     const usersByEmail = indexBy(Tables.Users.readAll(), (u) => u.Email);
     const departmentsById = indexBy(Tables.Departments.readAll(), (d) => d.Id);
-    const commentsByRequestId = groupCommentsByRequestId(Tables.Comments.readAll());
     const statuses = query.statuses || [];
     const dtos = Tables.InventoryRequests.readAll()
         .filter((r) => canViewRequest(actor, r.UserId, parseParticipants(r.Participants)))
@@ -141,8 +140,6 @@ function listInventoryRequests(
                 inventoryTypesById,
                 usersByEmail,
                 departmentsById,
-                commentsByRequestId,
-                false,
             ),
         )
         .filter((request) => statuses.length === 0 || statuses.indexOf(request.Status) !== -1)
@@ -196,8 +193,6 @@ function getInventoryRequest(id: string): InventoryRequestDTO {
         indexBy(Tables.InventoryTypes.readAll(), (type) => type.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        {},
-        false,
     );
 }
 
@@ -251,6 +246,7 @@ function createInventoryRequest(
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
             ItemsJson: stringifyInventoryItems(items),
+            CommentsJson: '[]',
         });
         return { request: created };
     });
@@ -262,7 +258,6 @@ function createInventoryRequest(
         inventoryTypesById,
         indexBy([actor], (u) => u.Email),
         { [department.Id]: department },
-        {},
     );
 }
 
@@ -332,7 +327,6 @@ function updateInventoryRequest(
         indexBy(Tables.InventoryTypes.readAll(), (type) => type.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        {},
     );
 }
 
@@ -363,7 +357,6 @@ function updateInventoryRequestParticipants(
         indexBy(Tables.InventoryTypes.readAll(), (type) => type.Id),
         indexBy(Tables.Users.readAll(), (user) => user.Email),
         indexBy(Tables.Departments.readAll(), (department) => department.Id),
-        {},
     );
 }
 

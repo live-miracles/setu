@@ -96,6 +96,7 @@ interface InventoryRequest {
     // check in Inventory.ts) and are notified alongside UserId.
     Participants: string;
     ItemsJson: string;
+    CommentsJson: string;
 }
 
 interface InventoryItem {
@@ -117,6 +118,7 @@ interface ProgramRequest {
     LeadEmail: string;
     Participants: string;
     SessionsJson: string;
+    CommentsJson: string;
 }
 
 // One or more scheduled sessions per program request. Named ProgramSession
@@ -136,6 +138,7 @@ interface Ticket {
     Description: string;
     Status: TicketStatus;
     AssigneeId: string;
+    CommentsJson: string;
 }
 
 // The audit trail for InventoryRequests, ProgramRequests and Tickets: every
@@ -258,10 +261,6 @@ interface CommentDTO extends CommentRecord {
     userName: string;
 }
 
-interface RecentCommentDTO extends CommentDTO {
-    requestKind: 'inventory' | 'program' | 'ticket';
-}
-
 interface TicketDTO extends Ticket {
     assigneeName: string;
     comments: CommentDTO[];
@@ -316,7 +315,6 @@ interface DashboardPayload {
     inventoryRequests: InventoryRequestDTO[];
     programRequests: ProgramRequestDTO[];
     tickets: TicketDTO[];
-    recentComments: RecentCommentDTO[];
     homeContent: HomeContent;
     shiftTypes: ShiftType[];
     programTypes: ProgramType[];
@@ -586,7 +584,6 @@ interface Api {
     listProgramRequests(page: number, query?: ProgramRequestQuery): Paginated<ProgramRequestDTO>;
     getProgramRequest(id: string): ProgramRequestDTO;
     getAvailablePlaces(requestId: string, sessions: ProgramSessionInput[]): Place[];
-    listComments(requestId: string, page: number): Paginated<CommentDTO>;
     getCalendarMonth(year: number, month: number): CalendarMonthPayload;
     createProgramRequest(input: CreateProgramRequestInput, requestId: string): ProgramRequestDTO;
     updateProgramRequest(
