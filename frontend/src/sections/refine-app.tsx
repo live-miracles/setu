@@ -26,7 +26,9 @@ import {
     CameraOutlined,
     DeleteOutlined,
     EditOutlined,
+    LeftOutlined,
     PlusOutlined,
+    RightOutlined,
     SearchOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
@@ -1273,18 +1275,22 @@ function Calendar({ dashboard }: Props) {
             headingContent={
                 <Space>
                     <Button
+                        type="text"
+                        icon={<LeftOutlined />}
                         onClick={() => setMonth(new Date(year, month.getMonth() - 1, 1))}
-                        aria-label="Previous month">
-                        Previous
-                    </Button>
+                        aria-label="Previous month"
+                        title="Previous month"
+                    />
                     <Typography.Text strong>
                         {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                     </Typography.Text>
                     <Button
+                        type="text"
+                        icon={<RightOutlined />}
                         onClick={() => setMonth(new Date(year, month.getMonth() + 1, 1))}
-                        aria-label="Next month">
-                        Next
-                    </Button>
+                        aria-label="Next month"
+                        title="Next month"
+                    />
                 </Space>
             }>
             {loading ? (
