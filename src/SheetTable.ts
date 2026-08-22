@@ -234,13 +234,6 @@ const Tables = {
         'AssigneeId',
         'CommentsJson',
     ]),
-    Comments: SheetTable<CommentRecord>('Comments', [
-        'Id',
-        'Timestamp',
-        'RequestId',
-        'UserId',
-        'Message',
-    ]),
     Settings: SheetTable<SettingRow>('Settings', ['Id', 'Value'], 'Id', 'reference-data'),
     FailedEmails: SheetTable<FailedEmail>('FailedEmails', [
         'Id',
