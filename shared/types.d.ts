@@ -617,5 +617,10 @@ interface Api {
     ): TicketStatus;
     addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO;
 
-    uploadImage(base64Data: string, fileName: string, mimeType: string): string;
+    uploadImage(
+        base64Data: string,
+        fileName: string,
+        mimeType: string,
+        previousImageId?: string,
+    ): string;
 }

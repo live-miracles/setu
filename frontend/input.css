@@ -1167,6 +1167,7 @@ body {
 .inventory-type-detail-image {
     display: flex;
     width: min(100%, 24rem);
+    margin-inline: auto;
     aspect-ratio: 4 / 3;
     align-items: center;
     justify-content: center;

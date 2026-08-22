@@ -14,7 +14,12 @@ function getImagesDriveFolderId(): string {
     return id;
 }
 
-function uploadImage(base64Data: string, fileName: string, mimeType: string): string {
+function uploadImage(
+    base64Data: string,
+    fileName: string,
+    mimeType: string,
+    previousImageId?: string,
+): string {
     requireUser();
     if (ALLOWED_IMAGE_MIME_TYPES.indexOf(mimeType) === -1) {
         throw new ValidationError('unsupported_content_type');
@@ -29,5 +34,18 @@ function uploadImage(base64Data: string, fileName: string, mimeType: string): st
     const folder = DriveApp.getFolderById(getImagesDriveFolderId());
     const file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    // DriveApp cannot replace binary contents in-place. Create the new file
+    // first, then trash the previous one so a failed upload never removes a
+    // working image. The sheet is updated by the caller with the new ID.
+    const oldImageId = String(previousImageId || '').trim();
+    if (oldImageId && oldImageId !== file.getId()) {
+        try {
+            DriveApp.getFileById(oldImageId).setTrashed(true);
+        } catch (_error) {
+            // The new upload is still valid if an older/orphaned file can no
+            // longer be found or trashed.
+        }
+    }
     return file.getId();
 }

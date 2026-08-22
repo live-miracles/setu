@@ -15,9 +15,9 @@ import {
 import {
     ArrowLeftOutlined,
     DeleteOutlined,
+    DownloadOutlined,
     EditOutlined,
     PlusOutlined,
-    QrcodeOutlined,
     SearchOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
@@ -459,8 +459,9 @@ function SettingsResourcePage({
             const prepared = await prepareInventoryImage(file);
             const imageId = await api.uploadImage(
                 prepared.base64Data,
-                prepared.fileName,
+                `InventoryTypes-${String(row.Id)}.jpg`,
                 prepared.mimeType,
+                String(row.ImageId || ''),
             );
             await api.updateInventoryType(
                 row.Id,
@@ -553,7 +554,7 @@ function SettingsResourcePage({
             {config.kind === 'inventory-type' && !detail && (
                 <Button
                     type={detail ? 'primary' : 'text'}
-                    icon={<QrcodeOutlined />}
+                    icon={<DownloadOutlined />}
                     onClick={() => void downloadInventoryTypeQr(row)}
                     aria-label="Download QR code"
                     title="Download QR code"
@@ -865,7 +866,7 @@ function SettingsResourcePage({
                     action={
                         <Button
                             type="primary"
-                            icon={<QrcodeOutlined />}
+                            icon={<DownloadOutlined />}
                             onClick={() => void downloadInventoryTypeQr(selectedInventoryType)}
                             aria-label="Download QR code"
                             title="Download QR code"

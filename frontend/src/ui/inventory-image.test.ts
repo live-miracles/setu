@@ -22,7 +22,8 @@ export function runInventoryImageAssertions(): void {
 
     assert(imageUrlForDriveId('') === '', 'empty image IDs should not produce a preview URL');
     assert(
-        imageUrlForDriveId('drive/id') === 'https://drive.google.com/uc?export=view&id=drive%2Fid',
+        imageUrlForDriveId('drive/id') ===
+            'https://drive.google.com/thumbnail?id=drive%2Fid&sz=w1000',
         'Drive IDs should be URL encoded in preview URLs',
     );
 }
