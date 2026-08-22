@@ -915,7 +915,7 @@ body {
     padding: 0.8rem 1rem;
     border: 1px solid var(--setu-line);
     border-radius: 0.5rem;
-    background: var(--ant-color-bg-container);
+    background: var(--setu-surface);
     cursor: pointer;
     transition:
         border-color 120ms ease,
