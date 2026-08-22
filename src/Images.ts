@@ -2,7 +2,7 @@
 // DriveApp instead of the source app's service-account/REST approach (that
 // workaround only exists because Next.js has no built-in Drive service).
 // The target folder must be one this script/deploying account already has
-// access to under the 'drive.file' scope in appsscript.json — created by
+// access to under the 'drive' scope in appsscript.json — created by
 // (or shared with edit access to) the same Google account that deploys the
 // web app.
 const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];

@@ -46,6 +46,11 @@ Deployment is handled by GitHub Actions. Create the following resources first:
 3. A web-app deployment that executes as the deploying account. The deploying account is always treated as an administrator.
 4. A Google Drive folder for uploaded request images.
 
+The Apps Script manifest requests the full Drive scope because uploads resolve
+an existing folder by ID, create files in it, and set link-sharing permissions.
+After changing this scope or deploying a new version, the deploying account
+must authorize the updated deployment when prompted.
+
 Add these GitHub Actions secrets:
 
 - `APPS_SCRIPT_ID` — Apps Script project ID.
