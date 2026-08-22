@@ -278,6 +278,31 @@ function inputValue(field: Field, raw: unknown): string {
     return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
+function ColorField({ row, field }: { row?: Row; field: Field }) {
+    const initialColor = inputValue(field, row?.[field.field]);
+    const [color, setColor] = useState(initialColor || '');
+    const pickerValue = color || '#ffffff';
+
+    return (
+        <Space>
+            <input
+                className="settings-color-input"
+                type="color"
+                value={pickerValue}
+                onChange={(event) => setColor(event.currentTarget.value)}
+                aria-label={color ? `Selected color ${color}` : 'Choose a color'}
+            />
+            <input type="hidden" name={field.field} value={color} />
+            <span className="text-xs opacity-60">{color || 'No color selected'}</span>
+            {color && (
+                <Button type="link" size="small" onClick={() => setColor('')}>
+                    Clear
+                </Button>
+            )}
+        </Space>
+    );
+}
+
 function FieldSet({
     config,
     row,
@@ -300,13 +325,6 @@ function FieldSet({
         try {
             const data = new FormData(event.currentTarget);
             const values = Object.fromEntries(config.fields.map((f) => [f.field, value(data, f)]));
-            config.fields
-                .filter(
-                    (field) => field.type === 'color' && data.get(`${field.field}Enabled`) !== 'on',
-                )
-                .forEach((field) => {
-                    values[field.field] = '';
-                });
             await onSubmit(values);
         } catch (error) {
             showErrorAlert(error);
@@ -321,18 +339,7 @@ function FieldSet({
                     {field.type === 'checkbox' ? (
                         <Checkbox name={field.field} defaultChecked={Boolean(row?.[field.field])} />
                     ) : field.type === 'color' ? (
-                        <Space>
-                            <Input
-                                name={field.field}
-                                type="color"
-                                defaultValue={inputValue(field, row?.[field.field]) || '#ffffff'}
-                            />
-                            <Checkbox
-                                name={`${field.field}Enabled`}
-                                defaultChecked={Boolean(row?.[field.field])}>
-                                Use color
-                            </Checkbox>
-                        </Space>
+                        <ColorField field={field} row={row} />
                     ) : (
                         <Input
                             name={field.field}
@@ -961,7 +968,10 @@ function SettingsResourcePage({
         </>
     );
     return (
-        <section className={compact ? 'antd-settings-compact' : 'antd-page'}>
+        <section
+            className={`${compact ? 'antd-settings-compact' : 'antd-page'}${
+                config.kind === 'block' ? ' blocks-page' : ''
+            }`}>
             {config.kind === 'department' && selectedDepartment ? (
                 departmentDetail
             ) : config.kind === 'inventory-type' && selectedInventoryType ? (

@@ -235,15 +235,6 @@ function deleteShiftType(id: string, requestId: string): void {
     });
 }
 
-const DEFAULT_PROGRAM_TYPES: ProgramType[] = [
-    { Id: 'program-type-livestream', Name: 'Livestream', Color: '' },
-    { Id: 'program-type-recording', Name: 'Recording', Color: '' },
-    { Id: 'program-type-webinar', Name: 'Webinar', Color: '' },
-    { Id: 'program-type-meeting', Name: 'Meeting', Color: '' },
-    { Id: 'program-type-visit', Name: 'Visit', Color: '' },
-    { Id: 'program-type-other', Name: 'Other', Color: '' },
-];
-
 const DEFAULT_PROGRAM_LANGUAGES: ProgramLanguage[] = [
     { Id: 'program-language-english', Name: 'English' },
     { Id: 'program-language-hindi', Name: 'Hindi' },
@@ -330,7 +321,9 @@ function deleteNamedOption<T extends { Id: string; Name: string }>(
 }
 
 function readProgramTypes(): ProgramType[] {
-    return readNamedOptions('programTypes', DEFAULT_PROGRAM_TYPES);
+    // Program types are optional configuration. A fresh setup should remain
+    // empty until an administrator adds the types used by the organization.
+    return readNamedOptions('programTypes', []);
 }
 
 function listProgramTypes(): ProgramType[] {
@@ -375,7 +368,7 @@ function updateProgramType(
 }
 
 function deleteProgramType(id: string, requestId: string): void {
-    deleteNamedOption('programTypes', DEFAULT_PROGRAM_TYPES, id, requestId, 'program-type');
+    deleteNamedOption('programTypes', [], id, requestId, 'program-type');
 }
 
 function readProgramLanguages(): ProgramLanguage[] {
