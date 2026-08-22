@@ -523,10 +523,6 @@ body {
     max-width: none;
 }
 
-.app-content.app-content-places {
-    max-width: none;
-}
-
 .app-content.app-content-inventory-types {
     max-width: none;
 }
@@ -651,7 +647,7 @@ body {
     padding-bottom: 0.5rem;
 }
 
-.antd-request-list > .ant-card {
+.antd-request-list > .record-block {
     display: inline-block;
     vertical-align: top;
     width: calc(100% - 8px);
@@ -786,6 +782,7 @@ body {
 
 .detail-section-full {
     grid-column: 1 / -1;
+    max-width: none;
 }
 
 .detail-section > .ant-card {
@@ -904,6 +901,30 @@ body {
     width: 100%;
 }
 
+.record-block {
+    border: 1px solid var(--setu-line);
+    border-radius: 0.5rem;
+    background: var(--setu-surface);
+    transition:
+        border-color 120ms ease,
+        box-shadow 120ms ease;
+}
+
+.record-block[role='button'] {
+    cursor: pointer;
+}
+
+.record-block[role='button']:hover,
+.record-block[role='button']:focus-visible {
+    border-color: color-mix(in srgb, #c84f12 55%, var(--setu-line));
+    box-shadow: 0 0.25rem 0.75rem rgb(41 37 31 / 8%);
+}
+
+.record-block[role='button']:focus-visible {
+    outline: 2px solid #c84f12;
+    outline-offset: 2px;
+}
+
 .user-card {
     display: inline-grid;
     width: calc(100% - 8px);
@@ -913,13 +934,6 @@ body {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.65rem;
     padding: 0.8rem 1rem;
-    border: 1px solid var(--setu-line);
-    border-radius: 0.5rem;
-    background: var(--setu-surface);
-    cursor: pointer;
-    transition:
-        border-color 120ms ease,
-        box-shadow 120ms ease;
 }
 
 .user-card-heading {
@@ -927,17 +941,6 @@ body {
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
-}
-
-.user-card:hover,
-.user-card:focus-visible {
-    border-color: color-mix(in srgb, #c84f12 55%, var(--setu-line));
-    box-shadow: 0 0.25rem 0.75rem rgb(41 37 31 / 8%);
-}
-
-.user-card:focus-visible {
-    outline: 2px solid #c84f12;
-    outline-offset: 2px;
 }
 
 .user-card-identity {
@@ -992,24 +995,6 @@ body {
     align-items: center;
     gap: 1rem;
     padding: 0.8rem 1rem;
-    border: 1px solid var(--setu-line);
-    border-radius: 0.5rem;
-    background: var(--setu-surface);
-    cursor: pointer;
-    transition:
-        border-color 120ms ease,
-        box-shadow 120ms ease;
-}
-
-.department-card:hover,
-.department-card:focus-visible {
-    border-color: color-mix(in srgb, #c84f12 55%, var(--setu-line));
-    box-shadow: 0 0.25rem 0.75rem rgb(41 37 31 / 8%);
-}
-
-.department-card:focus-visible {
-    outline: 2px solid #c84f12;
-    outline-offset: 2px;
 }
 
 .department-card-content {
@@ -1075,8 +1060,14 @@ body {
     gap: 0.75rem;
 }
 
-.department-related-grid .ant-card {
+.department-related-grid .record-block {
     min-width: 0;
+    background: var(--setu-surface);
+}
+
+.request-block {
+    min-width: 0;
+    padding: 0.75rem;
 }
 
 .request-block-heading {
@@ -1095,24 +1086,6 @@ body {
 
 .inventory-type-card {
     overflow: hidden;
-    border: 1px solid var(--setu-line);
-    border-radius: 0.5rem;
-    background: var(--setu-surface);
-    cursor: pointer;
-    transition:
-        border-color 120ms ease,
-        box-shadow 120ms ease;
-}
-
-.inventory-type-card:hover,
-.inventory-type-card:focus-visible {
-    border-color: color-mix(in srgb, #c84f12 55%, var(--setu-line));
-    box-shadow: 0 0.25rem 0.75rem rgb(41 37 31 / 8%);
-}
-
-.inventory-type-card:focus-visible {
-    outline: 2px solid #c84f12;
-    outline-offset: 2px;
 }
 
 .inventory-type-card-heading {

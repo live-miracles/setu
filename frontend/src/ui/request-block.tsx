@@ -1,5 +1,6 @@
-import { Card, Space, Tag, Typography } from 'antd';
+import { Space, Tag, Typography } from 'antd';
 import { formatProgramDateRangeFromBounds } from './format';
+import { BlockCard } from './block-card';
 
 type RequestBlockProps = {
     kind: 'program' | 'inventory' | 'ticket';
@@ -30,7 +31,7 @@ export function RequestBlock({ kind, row, dashboard, onClick, comments }: Reques
     const program = kind === 'program';
     const ticket = kind === 'ticket';
     return (
-        <Card size="small" hoverable={Boolean(onClick)} onClick={onClick}>
+        <BlockCard className="request-block" onClick={onClick}>
             <Space direction="vertical" size={2}>
                 <div className="request-block-heading">
                     <Space size="small" wrap>
@@ -78,6 +79,6 @@ export function RequestBlock({ kind, row, dashboard, onClick, comments }: Reques
                     </Typography.Text>
                 ) : null}
             </Space>
-        </Card>
+        </BlockCard>
     );
 }

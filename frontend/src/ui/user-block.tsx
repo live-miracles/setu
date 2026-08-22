@@ -1,6 +1,7 @@
 import { Tag, Typography } from 'antd';
 import { PhoneOutlined, WhatsAppOutlined } from '@ant-design/icons';
 import { roleLabel } from './styles';
+import { BlockCard } from './block-card';
 
 export function UserBlock({
     user,
@@ -13,21 +14,7 @@ export function UserBlock({
 }) {
     const department = dashboard.departments.find((item) => item.Id === user.DepartmentId);
     return (
-        <article
-            className="user-card"
-            role={onClick ? 'button' : undefined}
-            tabIndex={onClick ? 0 : undefined}
-            onClick={onClick}
-            onKeyDown={
-                onClick
-                    ? (event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              onClick();
-                          }
-                      }
-                    : undefined
-            }>
+        <BlockCard className="user-card" onClick={onClick}>
             <div className="user-card-heading">
                 <div className="user-card-identity">
                     <Typography.Text strong>{user.Name}</Typography.Text>
@@ -46,6 +33,6 @@ export function UserBlock({
                     <WhatsAppOutlined /> {user.Whatsapp || '—'}
                 </span>
             </div>
-        </article>
+        </BlockCard>
     );
 }

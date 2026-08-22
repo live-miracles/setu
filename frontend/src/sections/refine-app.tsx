@@ -862,8 +862,8 @@ function Users({ dashboard }: Props) {
                     )}
                 </Space>
             </div>
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <Card
+            <DetailSections>
+                <DetailSection
                     title="Details"
                     action={
                         canManageConfig(dashboard.me) ? (
@@ -885,26 +885,28 @@ function Users({ dashboard }: Props) {
                             ['WhatsApp', selectedUser.Whatsapp || '—'],
                         ]}
                     />
-                </Card>
-            </div>
-            <div className="department-related-sections">
-                <RelatedRequestBlocks
-                    title="Programs"
-                    kind="program"
-                    items={userPrograms}
-                    dashboard={dashboard}
-                    emptyMessage="No program requests from this user."
-                    onOpen={navigateToProgram}
-                />
-                <RelatedRequestBlocks
-                    title="Inventory requests"
-                    kind="inventory"
-                    items={userInventoryRequests}
-                    dashboard={dashboard}
-                    emptyMessage="No inventory requests from this user."
-                    onOpen={navigateToInventoryRequest}
-                />
-            </div>
+                </DetailSection>
+                <DetailSection span="full">
+                    <RelatedRequestBlocks
+                        title="Programs"
+                        kind="program"
+                        items={userPrograms}
+                        dashboard={dashboard}
+                        emptyMessage="No program requests from this user."
+                        onOpen={navigateToProgram}
+                    />
+                </DetailSection>
+                <DetailSection span="full">
+                    <RelatedRequestBlocks
+                        title="Inventory requests"
+                        kind="inventory"
+                        items={userInventoryRequests}
+                        dashboard={dashboard}
+                        emptyMessage="No inventory requests from this user."
+                        onOpen={navigateToInventoryRequest}
+                    />
+                </DetailSection>
+            </DetailSections>
         </>
     );
     return (

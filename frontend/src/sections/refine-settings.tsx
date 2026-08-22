@@ -28,11 +28,10 @@ import {
     navigateToDepartment,
     navigateToInventoryRequest,
     navigateToInventoryType,
-    navigateToPlace,
     navigateToProgram,
     refreshDashboard,
 } from '../router';
-import { DEPARTMENT_QUERY_PARAM, INVENTORY_TYPE_QUERY_PARAM, PLACE_QUERY_PARAM } from '../config';
+import { DEPARTMENT_QUERY_PARAM, INVENTORY_TYPE_QUERY_PARAM } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
@@ -44,6 +43,7 @@ import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { UserBlock } from '../ui/user-block';
+import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { ActionConfirmation } from './refine-app';
 
@@ -396,19 +396,16 @@ function SettingsResourcePage({
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
     const rows = config.rows(dashboard);
-    const detailId = new URLSearchParams(window.location.search).get(
+    const detailId =
         config.kind === 'department'
-            ? DEPARTMENT_QUERY_PARAM
-            : config.kind === 'place'
-              ? PLACE_QUERY_PARAM
-              : INVENTORY_TYPE_QUERY_PARAM,
-    );
+            ? new URLSearchParams(window.location.search).get(DEPARTMENT_QUERY_PARAM)
+            : config.kind === 'inventory-type'
+              ? new URLSearchParams(window.location.search).get(INVENTORY_TYPE_QUERY_PARAM)
+              : null;
     const selectedDepartment =
         config.kind === 'department' ? rows.find((row) => row.Id === detailId) || null : null;
     const selectedInventoryType =
         config.kind === 'inventory-type' ? rows.find((row) => row.Id === detailId) || null : null;
-    const selectedPlace =
-        config.kind === 'place' ? rows.find((row) => row.Id === detailId) || null : null;
     const [qrCodeUrl, setQrCodeUrl] = useState('');
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
@@ -640,18 +637,10 @@ function SettingsResourcePage({
                     const total = Number(row.TotalQuantity ?? 0);
                     const imageUrl = imageUrlForDriveId(String(row.ImageId || ''));
                     return (
-                        <article
-                            className="inventory-type-card"
+                        <BlockCard
                             key={row.Id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => navigateToInventoryType(String(row.Id))}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                    event.preventDefault();
-                                    navigateToInventoryType(String(row.Id));
-                                }
-                            }}>
+                            className="inventory-type-card"
+                            onClick={() => navigateToInventoryType(String(row.Id))}>
                             <div className="inventory-type-card-heading">
                                 <strong>{String(row.Name || 'Unnamed equipment')}</strong>
                                 {row.Description && (
@@ -670,7 +659,7 @@ function SettingsResourcePage({
                                     <span>No photo</span>
                                 )}
                             </div>
-                        </article>
+                        </BlockCard>
                     );
                 })}
             </div>
@@ -681,18 +670,10 @@ function SettingsResourcePage({
         filteredRows.length > 0 ? (
             <div className="department-list">
                 {filteredRows.map((row) => (
-                    <article
-                        className="department-card"
+                    <BlockCard
                         key={row.Id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => navigateToDepartment(String(row.Id))}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                navigateToDepartment(String(row.Id));
-                            }
-                        }}>
+                        className="department-card"
+                        onClick={() => navigateToDepartment(String(row.Id))}>
                         <div className="department-card-content">
                             <strong>
                                 {String(row.Name || 'Unnamed department')}
@@ -700,33 +681,7 @@ function SettingsResourcePage({
                             </strong>
                             <span>{String(row.LeadEmail || 'No lead email')}</span>
                         </div>
-                    </article>
-                ))}
-            </div>
-        ) : (
-            <Empty description={config.emptyMessage} />
-        );
-    const placeCards =
-        filteredRows.length > 0 ? (
-            <div className="department-list">
-                {filteredRows.map((row) => (
-                    <article
-                        className="department-card"
-                        key={row.Id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => navigateToPlace(String(row.Id))}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                navigateToPlace(String(row.Id));
-                            }
-                        }}>
-                        <div className="department-card-content">
-                            <strong>{String(row.Name || 'Unnamed place')}</strong>
-                            <span>{row.AllowOverlap ? 'Overlap allowed' : 'No overlap'}</span>
-                        </div>
-                    </article>
+                    </BlockCard>
                 ))}
             </div>
         ) : (
@@ -902,58 +857,6 @@ function SettingsResourcePage({
             </DetailSections>
         </>
     );
-    const placeDetail = selectedPlace && (
-        <>
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>
-                        {String(selectedPlace.Name || 'Unnamed place')}
-                    </Typography.Title>
-                </div>
-                <Space>
-                    <Button
-                        type="default"
-                        icon={<ArrowLeftOutlined />}
-                        onClick={() => navigateBackToSection('places')}
-                        aria-label="Back to places"
-                        title="Back to places"
-                    />
-                    {canEdit && (
-                        <Button
-                            type="primary"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => setDeleting(selectedPlace)}
-                            aria-label="Delete place"
-                            title="Delete place"
-                        />
-                    )}
-                </Space>
-            </div>
-            <DetailSections>
-                <DetailSection
-                    title="Details"
-                    action={
-                        canEdit ? (
-                            <Button
-                                type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => setEditing(selectedPlace)}
-                                aria-label="Edit place"
-                                title="Edit place"
-                            />
-                        ) : null
-                    }>
-                    <SettingsDetailFields
-                        fields={[
-                            ['Name', String(selectedPlace.Name || 'Unnamed place')],
-                            ['Overlap', selectedPlace.AllowOverlap ? 'Allowed' : 'Not allowed'],
-                        ]}
-                    />
-                </DetailSection>
-            </DetailSections>
-        </>
-    );
     const departmentUsers = selectedDepartment
         ? dashboard.users.filter((user) => user.DepartmentId === selectedDepartment.Id)
         : [];
@@ -1063,18 +966,10 @@ function SettingsResourcePage({
                 departmentDetail
             ) : config.kind === 'inventory-type' && selectedInventoryType ? (
                 inventoryTypeDetail
-            ) : config.kind === 'place' && selectedPlace ? (
-                placeDetail
-            ) : config.kind === 'department' ||
-              config.kind === 'inventory-type' ||
-              config.kind === 'place' ? (
+            ) : config.kind === 'department' || config.kind === 'inventory-type' ? (
                 <>
                     {departmentHeader}
-                    {config.kind === 'department'
-                        ? departmentCards
-                        : config.kind === 'inventory-type'
-                          ? inventoryTypeCards
-                          : placeCards}
+                    {config.kind === 'department' ? departmentCards : inventoryTypeCards}
                 </>
             ) : (
                 <>
@@ -1119,7 +1014,6 @@ function SettingsResourcePage({
                         if (config.kind === 'department') navigateBackToSection('departments');
                         if (config.kind === 'inventory-type')
                             navigateBackToSection('inventory-types');
-                        if (config.kind === 'place') navigateBackToSection('places');
                     }}
                 />
             )}
