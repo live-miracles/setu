@@ -71,6 +71,7 @@ import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
 import { RequestBlock } from '../ui/request-block';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
+import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { UserBlock } from '../ui/user-block';
 import homeHeroImage from '../../assets/home-hero.avif';
 import ReactMarkdown from 'react-markdown';
@@ -1551,36 +1552,14 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                 onClick={() => open(row.Id)}
                             />
                         ) : (
-                            <AntCard
-                                size="small"
-                                hoverable
+                            <RequestBlock
                                 key={row.Id}
+                                kind="ticket"
+                                row={row as TicketDTO}
+                                dashboard={dashboard}
+                                comments={row.comments}
                                 onClick={() => open(row.Id)}
-                                className="relative">
-                                <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                                    <div className="request-block-heading">
-                                        <Space size="small" wrap>
-                                            <Typography.Text type="secondary">
-                                                {`TKT-${row.DisplayId}`}
-                                            </Typography.Text>
-                                        </Space>
-                                        <Tag color="blue">{label(row.Status)}</Tag>
-                                    </div>
-                                    <Typography.Text strong>
-                                        {row.Title || 'Untitled ticket'}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary">
-                                        {row.assigneeName || 'Unassigned'}
-                                    </Typography.Text>
-                                    {row.comments?.length ? (
-                                        <Typography.Text type="secondary">
-                                            {row.comments.length} comment
-                                            {row.comments.length === 1 ? '' : 's'} ·{' '}
-                                            {row.comments[row.comments.length - 1].Message}
-                                        </Typography.Text>
-                                    ) : null}
-                                </Space>
-                            </AntCard>
+                            />
                         ),
                     )}
                 {!loading && !rows.length && <AntEmpty description="No requests" />}
@@ -2157,81 +2136,79 @@ function ProgramDetail({
                     )}
                 </Space>
             }>
-            <div className="detail-main min-w-0">
-                <Card
-                    title="Details"
-                    action={
-                        editable && (
-                            <Button
-                                type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => setEditing(true)}
-                                aria-label="Edit program"
-                                title="Edit program"
-                            />
-                        )
-                    }>
-                    <DetailFields
-                        fields={[
-                            ['Request number', `PRG-${request.DisplayId}`],
-                            [
-                                'Status',
-                                <Tag color="blue" key="status">
-                                    {request.Status}
-                                </Tag>,
-                            ],
-                            ['Program title', values.Name],
-                            ['Language', values.Language],
-                            ['Type', values.Type],
-                            ['Place', request.placeName || 'None'],
-                            ['Department', request.departmentName || 'None'],
-                            ['Lead email', values.LeadEmail],
-                            ['Requested by', request.userName],
-                            [
-                                'Participants',
-                                <ParticipantsEditor
-                                    participants={
-                                        values.Participants ? values.Participants.split(',') : []
-                                    }
-                                    editable={canApprove(dashboard.me) || owner}
-                                    onSave={saveParticipants}
-                                />,
-                            ],
-                        ]}
-                    />
-                </Card>
-                <Card
-                    title="Sessions"
-                    action={
-                        editable && (
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={() => editSession(null)}
-                                aria-label="Add session"
-                                title="Add session"
-                            />
-                        )
-                    }>
-                    {sessions.length ? (
-                        <div className="overflow-x-auto">
-                            <Table
-                                rowKey="key"
-                                columns={sessionColumns}
-                                dataSource={sessionRows}
-                                pagination={false}
-                                className="sessions-table"
-                                scroll={{ x: 'max-content' }}
-                            />
-                        </div>
-                    ) : (
-                        <Empty>No sessions added.</Empty>
-                    )}
-                </Card>
-            </div>
-            <div className="detail-activity">
+            <DetailSection
+                title="Details"
+                action={
+                    editable && (
+                        <Button
+                            type="primary"
+                            icon={<EditOutlined />}
+                            onClick={() => setEditing(true)}
+                            aria-label="Edit program"
+                            title="Edit program"
+                        />
+                    )
+                }>
+                <DetailFields
+                    fields={[
+                        ['Request number', `PRG-${request.DisplayId}`],
+                        [
+                            'Status',
+                            <Tag color="blue" key="status">
+                                {request.Status}
+                            </Tag>,
+                        ],
+                        ['Program title', values.Name],
+                        ['Language', values.Language],
+                        ['Type', values.Type],
+                        ['Place', request.placeName || 'None'],
+                        ['Department', request.departmentName || 'None'],
+                        ['Lead email', values.LeadEmail],
+                        ['Requested by', request.userName],
+                        [
+                            'Participants',
+                            <ParticipantsEditor
+                                participants={
+                                    values.Participants ? values.Participants.split(',') : []
+                                }
+                                editable={canApprove(dashboard.me) || owner}
+                                onSave={saveParticipants}
+                            />,
+                        ],
+                    ]}
+                />
+            </DetailSection>
+            <DetailSection
+                title="Sessions"
+                action={
+                    editable && (
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => editSession(null)}
+                            aria-label="Add session"
+                            title="Add session"
+                        />
+                    )
+                }>
+                {sessions.length ? (
+                    <div className="overflow-x-auto">
+                        <Table
+                            rowKey="key"
+                            columns={sessionColumns}
+                            dataSource={sessionRows}
+                            pagination={false}
+                            className="sessions-table"
+                            scroll={{ x: 'max-content' }}
+                        />
+                    </div>
+                ) : (
+                    <Empty>No sessions added.</Empty>
+                )}
+            </DetailSection>
+            <DetailSection minHeight="16rem" maxHeight="32rem">
                 <Activity requestId={request.Id} initialComments={request.comments} />
-            </div>
+            </DetailSection>
             {pendingAction && (
                 <ActionConfirmation
                     action={pendingAction}
@@ -2676,7 +2653,7 @@ function DetailLayout({
 }) {
     return (
         <Page title={title} action={action} className="detail-page">
-            <div className="detail-layout grid gap-5">{children}</div>
+            <DetailSections>{children}</DetailSections>
         </Page>
     );
 }
@@ -2981,189 +2958,185 @@ function InventoryDetail({
                     )}
                 </Space>
             }>
-            <div className="detail-main min-w-0">
-                <Card
-                    title="Details"
-                    action={
-                        editable && (
+            <DetailSection
+                title="Details"
+                action={
+                    editable && (
+                        <Button
+                            type="primary"
+                            icon={<EditOutlined />}
+                            onClick={() => setEditing(true)}
+                            aria-label="Edit request"
+                            title="Edit request"
+                        />
+                    )
+                }>
+                <DetailFields
+                    fields={[
+                        ['Request number', `REQ-${request.DisplayId}`],
+                        [
+                            'Status',
+                            <Tag color="blue" key="status">
+                                {request.Status}
+                            </Tag>,
+                        ],
+                        ['Request name', values.Name],
+                        ['Start date', values.StartDate],
+                        ['End date', values.EndDate],
+                        ['Department', request.departmentName || 'None'],
+                        ['Lead email', values.LeadEmail],
+                        ['Requested by', request.userName || 'Unknown'],
+                        [
+                            'Participants',
+                            <ParticipantsEditor
+                                participants={
+                                    values.Participants ? values.Participants.split(',') : []
+                                }
+                                editable={canApprove(dashboard.me) || owner}
+                                onSave={saveParticipants}
+                            />,
+                        ],
+                    ]}
+                />
+            </DetailSection>
+            <DetailSection
+                title="Requested items"
+                action={
+                    editable && (
+                        <Space>
                             <Button
                                 type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => setEditing(true)}
-                                aria-label="Edit request"
-                                title="Edit request"
+                                icon={<CameraOutlined />}
+                                onClick={() => {
+                                    setItemError('');
+                                    setScanOpen(true);
+                                }}
+                                aria-label="Scan requested item"
+                                title="Scan requested item"
                             />
-                        )
-                    }>
-                    <DetailFields
-                        fields={[
-                            ['Request number', `REQ-${request.DisplayId}`],
-                            [
-                                'Status',
-                                <Tag color="blue" key="status">
-                                    {request.Status}
-                                </Tag>,
-                            ],
-                            ['Request name', values.Name],
-                            ['Start date', values.StartDate],
-                            ['End date', values.EndDate],
-                            ['Department', request.departmentName || 'None'],
-                            ['Lead email', values.LeadEmail],
-                            ['Requested by', request.userName || 'Unknown'],
-                            [
-                                'Participants',
-                                <ParticipantsEditor
-                                    participants={
-                                        values.Participants ? values.Participants.split(',') : []
-                                    }
-                                    editable={canApprove(dashboard.me) || owner}
-                                    onSave={saveParticipants}
-                                />,
-                            ],
-                        ]}
-                    />
-                </Card>
-                <Card
-                    title="Requested items"
-                    action={
-                        editable && (
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => editItem(null)}
+                                aria-label="Add item"
+                                title="Add item"
+                            />
+                        </Space>
+                    )
+                }>
+                {items.length ? (
+                    <div className="overflow-x-auto">
+                        <Table
+                            rowKey={(item) => `${item.InventoryTypeId}-${item.Quantity}`}
+                            pagination={false}
+                            dataSource={items}
+                            columns={[
+                                {
+                                    title: 'Item',
+                                    key: 'item',
+                                    render: (_value: unknown, item: InventoryItemDTO) => (
+                                        <Space size={6}>
+                                            <Typography.Text type="secondary">
+                                                {item.Quantity}×
+                                            </Typography.Text>
+                                            <Typography.Text strong>
+                                                {item.itemName || 'Unknown item'}
+                                            </Typography.Text>
+                                        </Space>
+                                    ),
+                                },
+                                {
+                                    title: 'Condition',
+                                    dataIndex: 'Condition',
+                                    key: 'Condition',
+                                    render: (value: string) => value || '—',
+                                },
+                                {
+                                    title: 'Actions',
+                                    key: 'actions',
+                                    align: 'right' as const,
+                                    render: (
+                                        _value: unknown,
+                                        _item: InventoryItemDTO,
+                                        index: number,
+                                    ) =>
+                                        editable ? (
+                                            <Space>
+                                                <Button
+                                                    type="text"
+                                                    icon={<EditOutlined />}
+                                                    onClick={() => editItem(index)}
+                                                    aria-label="Edit item"
+                                                />
+                                                <Button
+                                                    type="text"
+                                                    danger
+                                                    icon={<DeleteOutlined />}
+                                                    onClick={() => setPendingDeleteItemIndex(index)}
+                                                    aria-label="Delete item"
+                                                />
+                                            </Space>
+                                        ) : null,
+                                },
+                            ]}
+                            className="inventory-items-table"
+                            scroll={{ x: 'max-content' }}
+                        />
+                    </div>
+                ) : (
+                    <Empty>No items added.</Empty>
+                )}
+            </DetailSection>
+            <DetailSection
+                title="Image"
+                action={
+                    editable && (
+                        <>
+                            <input
+                                ref={imageInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleImageFileChange}
+                            />
                             <Space>
                                 <Button
                                     type="primary"
                                     icon={<CameraOutlined />}
-                                    onClick={() => {
-                                        setItemError('');
-                                        setScanOpen(true);
-                                    }}
-                                    aria-label="Scan requested item"
-                                    title="Scan requested item"
+                                    loading={imageUploading}
+                                    onClick={() => setCameraOpen(true)}
+                                    aria-label={
+                                        imageId ? 'Replace image with camera' : 'Take photo'
+                                    }
+                                    title={imageId ? 'Replace image with camera' : 'Take photo'}
                                 />
                                 <Button
                                     type="primary"
-                                    icon={<PlusOutlined />}
-                                    onClick={() => editItem(null)}
-                                    aria-label="Add item"
-                                    title="Add item"
+                                    icon={<UploadOutlined />}
+                                    loading={imageUploading}
+                                    onClick={() => imageInputRef.current?.click()}
+                                    aria-label={imageId ? 'Replace image' : 'Add image'}
+                                    title={imageId ? 'Replace image' : 'Add image'}
                                 />
                             </Space>
-                        )
-                    }>
-                    {items.length ? (
-                        <div className="overflow-x-auto">
-                            <Table
-                                rowKey={(item) => `${item.InventoryTypeId}-${item.Quantity}`}
-                                pagination={false}
-                                dataSource={items}
-                                columns={[
-                                    {
-                                        title: 'Item',
-                                        key: 'item',
-                                        render: (_value: unknown, item: InventoryItemDTO) => (
-                                            <Space size={6}>
-                                                <Typography.Text type="secondary">
-                                                    {item.Quantity}×
-                                                </Typography.Text>
-                                                <Typography.Text strong>
-                                                    {item.itemName || 'Unknown item'}
-                                                </Typography.Text>
-                                            </Space>
-                                        ),
-                                    },
-                                    {
-                                        title: 'Condition',
-                                        dataIndex: 'Condition',
-                                        key: 'Condition',
-                                        render: (value: string) => value || '—',
-                                    },
-                                    {
-                                        title: 'Actions',
-                                        key: 'actions',
-                                        align: 'right' as const,
-                                        render: (
-                                            _value: unknown,
-                                            _item: InventoryItemDTO,
-                                            index: number,
-                                        ) =>
-                                            editable ? (
-                                                <Space>
-                                                    <Button
-                                                        type="text"
-                                                        icon={<EditOutlined />}
-                                                        onClick={() => editItem(index)}
-                                                        aria-label="Edit item"
-                                                    />
-                                                    <Button
-                                                        type="text"
-                                                        danger
-                                                        icon={<DeleteOutlined />}
-                                                        onClick={() =>
-                                                            setPendingDeleteItemIndex(index)
-                                                        }
-                                                        aria-label="Delete item"
-                                                    />
-                                                </Space>
-                                            ) : null,
-                                    },
-                                ]}
-                                className="inventory-items-table"
-                                scroll={{ x: 'max-content' }}
-                            />
-                        </div>
+                        </>
+                    )
+                }>
+                <div className="inventory-request-image-frame">
+                    {imageUrlForDriveId(imageId) ? (
+                        <img
+                            src={imageUrlForDriveId(imageId)}
+                            alt="Inventory request"
+                            className="inventory-request-image"
+                        />
                     ) : (
-                        <Empty>No items added.</Empty>
+                        <Typography.Text type="secondary">No image added.</Typography.Text>
                     )}
-                </Card>
-                <Card
-                    title="Image"
-                    action={
-                        editable && (
-                            <>
-                                <input
-                                    ref={imageInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={handleImageFileChange}
-                                />
-                                <Space>
-                                    <Button
-                                        type="primary"
-                                        icon={<CameraOutlined />}
-                                        loading={imageUploading}
-                                        onClick={() => setCameraOpen(true)}
-                                        aria-label={
-                                            imageId ? 'Replace image with camera' : 'Take photo'
-                                        }
-                                        title={imageId ? 'Replace image with camera' : 'Take photo'}
-                                    />
-                                    <Button
-                                        type="primary"
-                                        icon={<UploadOutlined />}
-                                        loading={imageUploading}
-                                        onClick={() => imageInputRef.current?.click()}
-                                        aria-label={imageId ? 'Replace image' : 'Add image'}
-                                        title={imageId ? 'Replace image' : 'Add image'}
-                                    />
-                                </Space>
-                            </>
-                        )
-                    }>
-                    <div className="inventory-request-image-frame">
-                        {imageUrlForDriveId(imageId) ? (
-                            <img
-                                src={imageUrlForDriveId(imageId)}
-                                alt="Inventory request"
-                                className="inventory-request-image"
-                            />
-                        ) : (
-                            <Typography.Text type="secondary">No image added.</Typography.Text>
-                        )}
-                    </div>
-                </Card>
-            </div>
-            <div className="detail-activity">
+                </div>
+            </DetailSection>
+            <DetailSection minHeight="16rem" maxHeight="32rem">
                 <Activity requestId={request.Id} initialComments={request.comments} />
-            </div>
+            </DetailSection>
             {editing && (
                 <Modal title="Edit inventory request" close={() => setEditing(false)}>
                     <form className="grid gap-3" noValidate onSubmit={save.run}>
@@ -3408,41 +3381,39 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                     onAction={(action) => setPendingAction(action as TicketAction)}
                 />
             }>
-            <div className="detail-main min-w-0">
-                <Card
-                    title="Details"
-                    action={
-                        <Button
-                            type="primary"
-                            icon={<EditOutlined />}
-                            onClick={() => setEditing(true)}
-                            aria-label="Edit ticket"
-                            title="Edit ticket"
-                        />
-                    }>
-                    <DetailFields
-                        fields={[
-                            [
-                                'Status',
-                                <Tag color="blue" key="status">
-                                    {ticket.Status}
-                                </Tag>,
-                            ],
-                            ['Title', values.Title],
-                            ['Assigned to', ticket.assigneeName || 'Unassigned'],
-                        ]}
+            <DetailSection
+                title="Details"
+                action={
+                    <Button
+                        type="primary"
+                        icon={<EditOutlined />}
+                        onClick={() => setEditing(true)}
+                        aria-label="Edit ticket"
+                        title="Edit ticket"
                     />
-                    <div className="mt-4 sm:col-span-2">
-                        <dt className="text-xs font-semibold text-black/50">Description</dt>
-                        <dd className="mt-1 whitespace-pre-wrap text-sm">
-                            {values.Description || 'No description.'}
-                        </dd>
-                    </div>
-                </Card>
-            </div>
-            <div className="detail-activity">
+                }>
+                <DetailFields
+                    fields={[
+                        [
+                            'Status',
+                            <Tag color="blue" key="status">
+                                {ticket.Status}
+                            </Tag>,
+                        ],
+                        ['Title', values.Title],
+                        ['Assigned to', ticket.assigneeName || 'Unassigned'],
+                    ]}
+                />
+                <div className="mt-4 sm:col-span-2">
+                    <dt className="text-xs font-semibold text-black/50">Description</dt>
+                    <dd className="mt-1 whitespace-pre-wrap text-sm">
+                        {values.Description || 'No description.'}
+                    </dd>
+                </div>
+            </DetailSection>
+            <DetailSection minHeight="16rem" maxHeight="32rem">
                 <Activity requestId={ticket.Id} initialComments={ticket.comments} />
-            </div>
+            </DetailSection>
             {editing && (
                 <Modal title="Edit ticket" close={() => setEditing(false)}>
                     <form className="grid gap-3" noValidate onSubmit={save.run}>
@@ -3541,47 +3512,42 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
         }
     };
     return (
-        <Page
+        <DetailLayout
             title={title}
             action={
                 <Button type="link" onClick={back}>
                     Back
                 </Button>
             }>
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <Card title="Details">
-                    <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                        <div>
-                            <dt className="text-xs text-black/50">Status</dt>
-                            <dd>
-                                <Tag>{row.Status}</Tag>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs text-black/50">Requested by</dt>
-                            <dd>{row.userName || row.assigneeName || '—'}</dd>
-                        </div>
-                        <div className="sm:col-span-2">
-                            <dt className="text-xs text-black/50">Description</dt>
-                            <dd className="whitespace-pre-wrap">
-                                {row.Description || 'No description.'}
-                            </dd>
-                        </div>
-                    </dl>
-                </Card>
-                <Card title="Actions">
-                    <div className="flex flex-wrap gap-2">
-                        {actions.map((action) => (
-                            <Button
-                                size="small"
-                                key={action}
-                                onClick={() => setPendingAction(action)}>
-                                {action}
-                            </Button>
-                        ))}
+            <DetailSection title="Details">
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                        <dt className="text-xs text-black/50">Status</dt>
+                        <dd>
+                            <Tag>{row.Status}</Tag>
+                        </dd>
                     </div>
-                </Card>
-            </div>
+                    <div>
+                        <dt className="text-xs text-black/50">Requested by</dt>
+                        <dd>{row.userName || row.assigneeName || '—'}</dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                        <dt className="text-xs text-black/50">Description</dt>
+                        <dd className="whitespace-pre-wrap">
+                            {row.Description || 'No description.'}
+                        </dd>
+                    </div>
+                </dl>
+            </DetailSection>
+            <DetailSection title="Actions">
+                <div className="flex flex-wrap gap-2">
+                    {actions.map((action) => (
+                        <Button size="small" key={action} onClick={() => setPendingAction(action)}>
+                            {action}
+                        </Button>
+                    ))}
+                </div>
+            </DetailSection>
             {pendingAction && (
                 <ActionConfirmation
                     action={pendingAction}
@@ -3592,7 +3558,7 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                     }}
                 />
             )}
-        </Page>
+        </DetailLayout>
     );
 }
 

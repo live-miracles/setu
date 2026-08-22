@@ -44,6 +44,7 @@ import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { UserBlock } from '../ui/user-block';
+import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { ActionConfirmation } from './refine-app';
 
 type Field = { field: string; label: string; type?: string; hiddenInTable?: boolean };
@@ -781,116 +782,109 @@ function SettingsResourcePage({
                     {renderActions(selectedInventoryType, true)}
                 </Space>
             </div>
-            <div className="inventory-type-detail-layout grid gap-5 lg:grid-cols-2">
-                <div className="detail-main min-w-0">
-                    <Card title="Details">
-                        <SettingsDetailFields
-                            fields={[
-                                ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
-                                ['Description', String(selectedInventoryType.Description || '—')],
-                                [
-                                    'Availability',
-                                    formatInventoryAvailability(
-                                        Number(selectedInventoryType.availableQuantity ?? 0),
-                                        Number(selectedInventoryType.TotalQuantity ?? 0),
-                                    ),
-                                ],
-                                [
-                                    'Total quantity',
-                                    String(selectedInventoryType.TotalQuantity ?? 0),
-                                ],
-                                [
-                                    'Requestable',
-                                    selectedInventoryType.Requestable !== false ? 'Yes' : 'No',
-                                ],
-                            ]}
-                        />
-                    </Card>
-                    <Card
-                        title="Image"
-                        extra={
-                            canEdit ? (
-                                <>
-                                    <input
-                                        id={`inventory-type-image-${selectedInventoryType.Id}`}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                                            const file = event.target.files?.[0];
-                                            event.target.value = '';
-                                            if (file)
-                                                void uploadInventoryTypeImage(
-                                                    selectedInventoryType,
-                                                    file,
-                                                );
-                                        }}
-                                    />
-                                    <Button
-                                        type="primary"
-                                        icon={<UploadOutlined />}
-                                        onClick={() =>
-                                            document
-                                                .getElementById(
-                                                    `inventory-type-image-${selectedInventoryType.Id}`,
-                                                )
-                                                ?.click()
-                                        }
-                                        aria-label={
-                                            selectedInventoryType.ImageId
-                                                ? 'Replace photo'
-                                                : 'Add photo'
-                                        }
-                                        title={
-                                            selectedInventoryType.ImageId
-                                                ? 'Replace photo'
-                                                : 'Add photo'
-                                        }
-                                    />
-                                </>
-                            ) : null
-                        }>
-                        <div className="inventory-type-detail-image">
-                            {imageUrlForDriveId(String(selectedInventoryType.ImageId || '')) ? (
-                                <img
-                                    src={imageUrlForDriveId(
-                                        String(selectedInventoryType.ImageId || ''),
-                                    )}
-                                    alt={String(selectedInventoryType.Name || '')}
+            <DetailSections>
+                <DetailSection title="Details">
+                    <SettingsDetailFields
+                        fields={[
+                            ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
+                            ['Description', String(selectedInventoryType.Description || '—')],
+                            [
+                                'Availability',
+                                formatInventoryAvailability(
+                                    Number(selectedInventoryType.availableQuantity ?? 0),
+                                    Number(selectedInventoryType.TotalQuantity ?? 0),
+                                ),
+                            ],
+                            ['Total quantity', String(selectedInventoryType.TotalQuantity ?? 0)],
+                            [
+                                'Requestable',
+                                selectedInventoryType.Requestable !== false ? 'Yes' : 'No',
+                            ],
+                        ]}
+                    />
+                </DetailSection>
+                <DetailSection
+                    title="Image"
+                    action={
+                        canEdit ? (
+                            <>
+                                <input
+                                    id={`inventory-type-image-${selectedInventoryType.Id}`}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                                        const file = event.target.files?.[0];
+                                        event.target.value = '';
+                                        if (file)
+                                            void uploadInventoryTypeImage(
+                                                selectedInventoryType,
+                                                file,
+                                            );
+                                    }}
                                 />
-                            ) : (
-                                <span>No photo</span>
-                            )}
-                        </div>
-                    </Card>
-                    <Card
-                        title="QR code"
-                        extra={
-                            <Button
-                                type="primary"
-                                icon={<QrcodeOutlined />}
-                                onClick={() => void downloadInventoryTypeQr(selectedInventoryType)}
-                                aria-label="Download QR code"
-                                title="Download QR code"
+                                <Button
+                                    type="primary"
+                                    icon={<UploadOutlined />}
+                                    onClick={() =>
+                                        document
+                                            .getElementById(
+                                                `inventory-type-image-${selectedInventoryType.Id}`,
+                                            )
+                                            ?.click()
+                                    }
+                                    aria-label={
+                                        selectedInventoryType.ImageId
+                                            ? 'Replace photo'
+                                            : 'Add photo'
+                                    }
+                                    title={
+                                        selectedInventoryType.ImageId
+                                            ? 'Replace photo'
+                                            : 'Add photo'
+                                    }
+                                />
+                            </>
+                        ) : null
+                    }>
+                    <div className="inventory-type-detail-image">
+                        {imageUrlForDriveId(String(selectedInventoryType.ImageId || '')) ? (
+                            <img
+                                src={imageUrlForDriveId(
+                                    String(selectedInventoryType.ImageId || ''),
+                                )}
+                                alt={String(selectedInventoryType.Name || '')}
                             />
-                        }>
-                        <div className="flex justify-center">
-                            {qrCodeUrl ? (
-                                <img
-                                    src={qrCodeUrl}
-                                    alt={`QR code for ${String(selectedInventoryType.Name || 'inventory type')}`}
-                                    width={256}
-                                    height={256}
-                                />
-                            ) : (
-                                <Typography.Text type="secondary">
-                                    Preparing QR code…
-                                </Typography.Text>
-                            )}
-                        </div>
-                    </Card>
-                </div>
-                <div className="min-w-0">
+                        ) : (
+                            <span>No photo</span>
+                        )}
+                    </div>
+                </DetailSection>
+                <DetailSection
+                    title="QR code"
+                    action={
+                        <Button
+                            type="primary"
+                            icon={<QrcodeOutlined />}
+                            onClick={() => void downloadInventoryTypeQr(selectedInventoryType)}
+                            aria-label="Download QR code"
+                            title="Download QR code"
+                        />
+                    }>
+                    <div className="flex justify-center">
+                        {qrCodeUrl ? (
+                            <img
+                                src={qrCodeUrl}
+                                alt={`QR code for ${String(selectedInventoryType.Name || 'inventory type')}`}
+                                width={256}
+                                height={256}
+                            />
+                        ) : (
+                            <Typography.Text type="secondary">Preparing QR code…</Typography.Text>
+                        )}
+                    </div>
+                </DetailSection>
+                <DetailSection span="full">
                     <RelatedRequestBlocks
                         title="Inventory requests"
                         kind="inventory"
@@ -903,8 +897,8 @@ function SettingsResourcePage({
                         emptyMessage="No inventory requests have used this equipment."
                         onOpen={navigateToInventoryRequest}
                     />
-                </div>
-            </div>
+                </DetailSection>
+            </DetailSections>
         </>
     );
     const placeDetail = selectedPlace && (
@@ -935,10 +929,10 @@ function SettingsResourcePage({
                     )}
                 </Space>
             </div>
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <Card
+            <DetailSections>
+                <DetailSection
                     title="Details"
-                    extra={
+                    action={
                         canEdit ? (
                             <Button
                                 type="primary"
@@ -955,8 +949,8 @@ function SettingsResourcePage({
                             ['Overlap', selectedPlace.AllowOverlap ? 'Allowed' : 'Not allowed'],
                         ]}
                     />
-                </Card>
-            </div>
+                </DetailSection>
+            </DetailSections>
         </>
     );
     const departmentUsers = selectedDepartment
@@ -1003,10 +997,10 @@ function SettingsResourcePage({
                     )}
                 </Space>
             </div>
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <Card
+            <DetailSections>
+                <DetailSection
                     title="Details"
-                    extra={
+                    action={
                         canEdit ? (
                             <Button
                                 type="primary"
@@ -1024,10 +1018,8 @@ function SettingsResourcePage({
                             ['Lead email', String(selectedDepartment.LeadEmail || '—')],
                         ]}
                     />
-                </Card>
-            </div>
-            <div className="department-related-sections">
-                <section>
+                </DetailSection>
+                <DetailSection span="full">
                     <Typography.Title level={3}>
                         Users <Tag>{departmentUsers.length}</Tag>
                     </Typography.Title>
@@ -1040,24 +1032,28 @@ function SettingsResourcePage({
                     ) : (
                         <Empty description="No users in this department." />
                     )}
-                </section>
-                <RelatedRequestBlocks
-                    title="Programs"
-                    kind="program"
-                    items={departmentPrograms}
-                    dashboard={dashboard}
-                    emptyMessage="No program requests for this department."
-                    onOpen={navigateToProgram}
-                />
-                <RelatedRequestBlocks
-                    title="Inventory requests"
-                    kind="inventory"
-                    items={departmentInventoryRequests}
-                    dashboard={dashboard}
-                    emptyMessage="No inventory requests for this department."
-                    onOpen={navigateToInventoryRequest}
-                />
-            </div>
+                </DetailSection>
+                <DetailSection span="full">
+                    <RelatedRequestBlocks
+                        title="Programs"
+                        kind="program"
+                        items={departmentPrograms}
+                        dashboard={dashboard}
+                        emptyMessage="No program requests for this department."
+                        onOpen={navigateToProgram}
+                    />
+                </DetailSection>
+                <DetailSection span="full">
+                    <RelatedRequestBlocks
+                        title="Inventory requests"
+                        kind="inventory"
+                        items={departmentInventoryRequests}
+                        dashboard={dashboard}
+                        emptyMessage="No inventory requests for this department."
+                        onOpen={navigateToInventoryRequest}
+                    />
+                </DetailSection>
+            </DetailSections>
         </>
     );
     return (

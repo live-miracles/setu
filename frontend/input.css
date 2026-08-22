@@ -762,26 +762,41 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.detail-layout {
+.detail-sections {
     flex: 1 1 auto;
     min-height: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
+    overflow: auto;
+    align-content: start;
+    grid-template-columns: repeat(2, minmax(0, 48rem));
+    display: grid;
+    gap: 1.25rem;
+    justify-content: center;
+}
+
+.detail-section {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    max-width: 48rem;
+    flex-direction: column;
+    overflow: auto;
+    justify-self: center;
+}
+
+.detail-section-full {
+    grid-column: 1 / -1;
+}
+
+.detail-section > .ant-card {
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .detail-page {
     height: calc(100vh - 4rem);
     box-sizing: border-box;
     overflow: hidden;
-}
-
-.detail-main {
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    overflow-y: auto;
 }
 
 .inventory-request-image-frame {
@@ -804,13 +819,6 @@ body {
     margin-inline: auto;
     object-fit: contain;
     object-position: center;
-}
-
-.detail-activity {
-    min-width: 0;
-    min-height: 0;
-    width: 100%;
-    align-self: stretch;
 }
 
 .activity-card,
@@ -849,22 +857,15 @@ body {
         min-height: 0;
     }
 
-    .detail-layout {
+    .detail-sections {
         display: block;
-    }
-
-    .detail-main {
-        gap: 1rem;
+        overflow: visible;
     }
 
     .sessions-table .ant-table-cell,
     .inventory-items-table .ant-table-cell,
     .users-table .ant-table-cell {
         padding-inline: 0.5rem;
-    }
-
-    .detail-activity {
-        margin-top: 1rem;
     }
 
     .activity-card,
@@ -1290,16 +1291,13 @@ body {
         min-height: 0;
     }
 
-    .detail-layout {
+    .detail-sections {
         display: block;
+        overflow: visible;
     }
 
-    .detail-main {
-        gap: 1rem;
-    }
-
-    .detail-activity {
-        margin-top: 1rem;
+    .detail-section {
+        margin-bottom: 1rem;
     }
 
     .antd-page-heading {
