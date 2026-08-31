@@ -68,7 +68,19 @@ function SheetTable<T extends Record<string, any>>(
     function rowToObject(row: any[]): T {
         const obj: any = {};
         headers.forEach((h, i) => {
-            obj[h] = row[i];
+            const value = row[i];
+            // Apps Script's client bridge cannot serialize Date objects in a
+            // returned object. Sheets returns native Dates for cells that are
+            // date-formatted, even when the rest of the row contains strings.
+            // Normalize them at the table boundary so manually entered data
+            // cannot leave google.script.run pending forever.
+            if (value instanceof Date) {
+                const format =
+                    h === 'StartDate' || h === 'EndDate' ? 'yyyy-MM-dd' : "yyyy-MM-dd'T'HH:mm:ss";
+                obj[h] = Utilities.formatDate(value, Session.getScriptTimeZone(), format);
+            } else {
+                obj[h] = value;
+            }
         });
         return obj as T;
     }

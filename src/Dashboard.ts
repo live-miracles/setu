@@ -1,3 +1,5 @@
+const DASHBOARD_REQUEST_LIMIT = 250;
+
 // The single "load everything the home screen needs" call, mirroring the
 // source app's GET /api/v1/dashboard. DTO-building helpers referenced here
 // (buildRosterDTO, buildInventoryTypeDTOs, buildInventoryRequestDTO,
@@ -50,7 +52,8 @@ function getDashboard(): DashboardPayload {
             latestActivityAt(b.comments, b.DisplayId).localeCompare(
                 latestActivityAt(a.comments, a.DisplayId),
             ),
-        );
+        )
+        .slice(0, DASHBOARD_REQUEST_LIMIT);
 
     const placesById = indexBy(places, (p) => p.Id);
     const programRequests = visibleProgramRows
@@ -66,13 +69,15 @@ function getDashboard(): DashboardPayload {
             latestActivityAt(b.comments, b.DisplayId).localeCompare(
                 latestActivityAt(a.comments, a.DisplayId),
             ),
-        );
+        )
+        .slice(0, DASHBOARD_REQUEST_LIMIT);
 
     // The whole ticket board is invisible to `user` (canUseTickets), so the
     // payload carries nothing for them to render a section from.
     const tickets = canUseTickets(actor)
         ? visibleTicketRows
               .sort((a, b) => b.DisplayId - a.DisplayId)
+              .slice(0, DASHBOARD_REQUEST_LIMIT)
               .map((ticket) => buildTicketDTO(ticket, usersByEmail))
         : [];
 
