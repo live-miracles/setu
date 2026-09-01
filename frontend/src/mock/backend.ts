@@ -1459,11 +1459,9 @@ function mockBuildDashboard(): DashboardPayload {
             .filter(mockCanViewRequest)
             .filter((request) => ['closed', 'rejected', 'cancelled'].indexOf(request.Status) === -1)
             .map(mockBuildInventoryRequestDTO),
-        programRequests: mockData.programRequests.filter(mockCanViewRequest).map((request) =>
-            Object.assign(mockBuildProgramRequestDTO(request), {
-                sessions: [] as ProgramSession[],
-            }),
-        ),
+        programRequests: mockData.programRequests
+            .filter(mockCanViewRequest)
+            .map(mockBuildProgramRequestDTO),
         tickets: canUseTickets(mockToUserDTO(mockCurrentUser()))
             ? mockData.tickets.map(mockBuildTicketDTO)
             : [],
@@ -2233,8 +2231,34 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const ticket = mockData.tickets.find((item) => item.Id === id);
         if (!ticket) throw new Error('ticket_not_found');
         if (!input.title.trim()) throw new Error('Title is required.');
+        const assignmentChanged =
+            input.assigneeId !== undefined && input.assigneeId !== ticket.AssigneeId;
+        if (assignmentChanged && !input.assigneeId) throw new Error('assignee_required');
+        const assignee = assignmentChanged
+            ? mockData.users.find((user) => user.Email === input.assigneeId)
+            : undefined;
+        if (assignmentChanged && !assignee) throw new Error('assignee_not_found');
+        if (assignee && !canUseTickets(mockToUserDTO(assignee)))
+            throw new Error('assignee_cannot_access_tickets');
+        if (
+            assignmentChanged &&
+            !canApprove(mockToUserDTO(mockCurrentUser())) &&
+            input.assigneeId !== mockData.currentUserId
+        ) {
+            throw new Error('approver_required');
+        }
         ticket.Title = input.title;
         ticket.Description = input.description || '';
+        if (assignmentChanged) {
+            ticket.AssigneeId = assignee!.Email;
+            ticket.Status = 'pending';
+            mockInsertActionComment(
+                'ticket',
+                id,
+                mockData.currentUserId,
+                mockCurrentUser().Name + ' assigned this ticket to ' + assignee!.Name + '.',
+            );
+        }
         return mockBuildTicketDTO(ticket);
     },
     performTicketAction: (ticketId: string, action: TicketAction, assigneeId: string | null) => {

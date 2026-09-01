@@ -1,9 +1,6 @@
 const TICKETS_PAGE_SIZE = 25;
 
-function buildTicketDTO(
-    ticket: Ticket,
-    usersByEmail: Record<string, User>,
-): TicketDTO {
+function buildTicketDTO(ticket: Ticket, usersByEmail: Record<string, User>): TicketDTO {
     const assignee = ticket.AssigneeId ? usersByEmail[ticket.AssigneeId] : undefined;
     const comments = parseCommentsJson(ticket.CommentsJson, ticket.Id).map((comment) =>
         buildCommentDTO(comment, usersByEmail),
@@ -107,16 +104,39 @@ function updateTicket(id: string, input: UpdateTicketInput, requestId: string): 
     const { result } = withLockedDedupe('ticket:update:' + id, requestId, () => {
         const ticket = Tables.Tickets.findById(id);
         if (!ticket) throw new ValidationError('ticket_not_found');
+        const assignmentChanged =
+            input.assigneeId !== undefined && input.assigneeId !== ticket.AssigneeId;
+        let assignee: User | undefined;
+        if (assignmentChanged) {
+            if (!input.assigneeId) throw new ValidationError('assignee_required');
+            if (!canApprove(actor) && input.assigneeId !== actor.Email)
+                throw new AuthorizationError('approver_required');
+            assignee = Tables.Users.findById(input.assigneeId) || undefined;
+            if (!assignee) throw new ValidationError('assignee_not_found');
+            if (!canUseTickets(assignee))
+                throw new ValidationError('assignee_cannot_access_tickets');
+        }
         const updated = Tables.Tickets.updateById(id, {
             Title: title,
             Description: description,
+            ...(assignmentChanged
+                ? { AssigneeId: assignee!.Email, Status: 'pending' as TicketStatus }
+                : {}),
         });
+        if (assignmentChanged) {
+            insertActionComment(
+                'ticket',
+                id,
+                actor.Email,
+                actor.Name + ' assigned this ticket to ' + assignee!.Name + '.',
+            );
+        }
         return { ticket: updated };
     });
 
     return buildTicketDTO(
         result.ticket,
-        indexBy([actor], (u) => u.Email),
+        indexBy(Tables.Users.readAll(), (user) => user.Email),
     );
 }
 

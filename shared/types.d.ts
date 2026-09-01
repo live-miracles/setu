@@ -460,6 +460,7 @@ interface CreateTicketInput {
 interface UpdateTicketInput {
     title: string;
     description: string;
+    assigneeId?: string;
 }
 
 interface UpdateHomeContentInput {

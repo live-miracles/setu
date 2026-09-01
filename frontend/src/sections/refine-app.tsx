@@ -1929,19 +1929,6 @@ function ProgramDetail({
         dashboard.places.map((place) => place.Id),
     );
     useEffect(() => {
-        api.getProgramRequest(request.Id)
-            .then((detail) => {
-                setSessions(detail.sessions);
-                setSessionDraft(defaultSessionDraft(detail.sessions));
-                setRescheduleDate(
-                    detail.sessions.length
-                        ? getLocalDateFromSession(detail.sessions[0].StartDateTime)
-                        : '',
-                );
-            })
-            .catch(error);
-    }, [request.Id]);
-    useEffect(() => {
         api.getAvailablePlaces(
             request.Id,
             sessions.map((session) => ({
@@ -2100,9 +2087,8 @@ function ProgramDetail({
         try {
             setDuplicating(true);
             showSavingBadge(true);
-            const detail = await api.getProgramRequest(request.Id);
             const created = await api.createProgramRequest(
-                buildDuplicateProgramInput(request, dashboard.me.Email, detail.sessions),
+                buildDuplicateProgramInput(request, dashboard.me.Email, sessions),
                 generateRequestId(),
             );
             await refreshDashboard();
@@ -3580,7 +3566,12 @@ function InventoryDetail({
 function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: DashboardPayload }) {
     const [editing, setEditing] = useState(false);
     const [pendingAction, setPendingAction] = useState<TicketAction | null>(null);
-    const [values, setValues] = useState({ Title: ticket.Title, Description: ticket.Description });
+    const [values, setValues] = useState({
+        Title: ticket.Title,
+        Description: ticket.Description,
+        AssigneeId: ticket.AssigneeId,
+    });
+    const eligibleAssignees = dashboard.users.filter(canUseTickets);
     const save = useSave(
         () =>
             runOptimisticDashboardUpdate(
@@ -3591,6 +3582,15 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                                 ? Object.assign({}, item, {
                                       Title: values.Title,
                                       Description: values.Description,
+                                      AssigneeId: values.AssigneeId,
+                                      assigneeName:
+                                          eligibleAssignees.find(
+                                              (user) => user.Email === values.AssigneeId,
+                                          )?.Name || '',
+                                      Status:
+                                          values.AssigneeId !== ticket.AssigneeId
+                                              ? 'pending'
+                                              : ticket.Status,
                                   })
                                 : item,
                         ),
@@ -3598,11 +3598,19 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                 () =>
                     api.updateTicket(
                         ticket.Id,
-                        { title: values.Title, description: values.Description },
+                        {
+                            title: values.Title,
+                            description: values.Description,
+                            assigneeId: values.AssigneeId,
+                        },
                         generateRequestId(),
                     ),
             ).catch((e) => {
-                setValues({ Title: ticket.Title, Description: ticket.Description });
+                setValues({
+                    Title: ticket.Title,
+                    Description: ticket.Description,
+                    AssigneeId: ticket.AssigneeId,
+                });
                 throw e;
             }),
         () => setEditing(false),
@@ -3683,6 +3691,21 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                                 }
                                 rows={5}
                             />
+                        </AntForm.Item>
+                        <AntForm.Item label="Assigned volunteer">
+                            <Select
+                                value={values.AssigneeId || undefined}
+                                placeholder="Select a volunteer"
+                                onChange={(assigneeId) =>
+                                    setValues({ ...values, AssigneeId: assigneeId })
+                                }
+                                style={{ width: '100%' }}>
+                                {eligibleAssignees.map((user) => (
+                                    <Select.Option key={user.Email} value={user.Email}>
+                                        {user.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
                         </AntForm.Item>
                         <div>
                             <SaveFooter
@@ -3827,7 +3850,7 @@ export function renderRefineApp(
         if (request) {
             mountRefinePage(
                 container,
-                <ProgramDetail request={request} dashboard={dashboard} />,
+                <ProgramDetail key={request.Id} request={request} dashboard={dashboard} />,
                 'programs',
             );
             return;
