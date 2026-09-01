@@ -481,10 +481,6 @@ export function navigateToInventoryType(inventoryTypeId: string): void {
 }
 
 export function navigateBackToSection(section: SectionKey): void {
-    if (window.history.state?.parentSection === section) {
-        window.history.back();
-        return;
-    }
     navigateTo(section, { replace: true });
 }
 
@@ -493,10 +489,6 @@ export function navigateToTicketCreate(): void {
 }
 
 function navigateBackToWorkbench(section: SectionKey): void {
-    if (window.history.state?.parentSection === section) {
-        window.history.back();
-        return;
-    }
     navigateTo(section, { preserveWorkbench: true, replace: true });
 }
 

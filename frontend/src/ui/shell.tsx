@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Spin, Typography } from 'antd';
+import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
 import {
     AppstoreOutlined,
     CalendarOutlined,
@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import appLogo from '../../logo.png';
 import { refreshDashboard } from '../router';
 import { showErrorAlert } from './feedback';
-import { getRandomQuote } from './quotes';
+import { AppLoading } from './app-loading';
 
 const { Header, Content } = Layout;
 
@@ -48,7 +48,6 @@ function Shell() {
     const [selectedSection, setSelectedSection] = useState(sectionFromUrl);
     const [role, setRole] = useState<UserRole | null>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const loadingQuote = getRandomQuote();
 
     useEffect(() => {
         const syncSelection = () => setSelectedSection(sectionFromUrl());
@@ -144,12 +143,7 @@ function Shell() {
                     </Space>
                 </Header>
                 <Content id="app-content" className="app-content">
-                    <div className="app-loading" role="status" aria-live="polite">
-                        <Spin size="large" />
-                        <Typography.Text className="app-loading-quote">
-                            “{loadingQuote}”
-                        </Typography.Text>
-                    </div>
+                    <AppLoading />
                 </Content>
                 <nav
                     id="mobile-dock"

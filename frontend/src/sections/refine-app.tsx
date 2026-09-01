@@ -57,6 +57,7 @@ import {
 } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { AppLoading } from '../ui/app-loading';
 import { formatDateTime, formatProgramSessionSchedule, formatTimeOfDay } from '../ui/format';
 import {
     buildRosterTableModel,
@@ -1906,6 +1907,7 @@ function ProgramDetail({
     const [pendingAction, setPendingAction] = useState<ProgramRequestAction | null>(null);
     const [pendingDelete, setPendingDelete] = useState(false);
     const [pendingDeleteSessionIndex, setPendingDeleteSessionIndex] = useState<number | null>(null);
+    const [duplicating, setDuplicating] = useState(false);
     const [sessionDraft, setSessionDraft] = useState<ProgramSession>(() =>
         defaultSessionDraft(request.sessions),
     );
@@ -2096,15 +2098,18 @@ function ProgramDetail({
     };
     const duplicate = async () => {
         try {
+            setDuplicating(true);
             showSavingBadge(true);
+            const detail = await api.getProgramRequest(request.Id);
             const created = await api.createProgramRequest(
-                buildDuplicateProgramInput(request, dashboard.me.Email, sessions),
+                buildDuplicateProgramInput(request, dashboard.me.Email, detail.sessions),
                 generateRequestId(),
             );
             await refreshDashboard();
             navigateToProgram(created.Id);
         } catch (e) {
             error(e);
+            setDuplicating(false);
         } finally {
             showSavingBadge(false);
         }
@@ -2240,6 +2245,9 @@ function ProgramDetail({
                 ) : null,
         },
     ];
+    if (duplicating) {
+        return <AppLoading />;
+    }
     return (
         <DetailLayout
             title={
@@ -2254,12 +2262,14 @@ function ProgramDetail({
                         aria-label="Back to programs"
                         title="Back to programs"
                     />
-                    <Button
-                        aria-label="Duplicate program"
-                        title="Duplicate program"
-                        onClick={duplicate}>
-                        Duplicate
-                    </Button>
+                    {request.Status !== 'draft' && (
+                        <Button
+                            aria-label="Duplicate program"
+                            title="Duplicate program"
+                            onClick={duplicate}>
+                            Duplicate
+                        </Button>
+                    )}
                     {sessions.length > 0 && canRescheduleProgram(request, dashboard.me) && (
                         <Button
                             onClick={() => {
