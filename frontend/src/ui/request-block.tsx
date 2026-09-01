@@ -78,10 +78,7 @@ export function RequestBlock({ kind, row, dashboard, onClick, comments }: Reques
                                   dashboard,
                               ),
                               ...(program
-                                  ? [
-                                        (row as ProgramRequestDTO).placeName ||
-                                            'No place assigned',
-                                    ]
+                                  ? [(row as ProgramRequestDTO).placeName || 'No place assigned']
                                   : []),
                           ].join(' | ')}
                 </Typography.Text>

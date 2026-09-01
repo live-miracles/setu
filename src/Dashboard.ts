@@ -41,12 +41,7 @@ function getDashboard(): DashboardPayload {
     const inventoryRequests = visibleInventoryRows
         .filter((r) => ['closed', 'rejected', 'cancelled'].indexOf(r.Status) === -1)
         .map((request) =>
-            buildInventoryRequestDTO(
-                request,
-                inventoryTypesById,
-                usersByEmail,
-                departmentsById,
-            ),
+            buildInventoryRequestDTO(request, inventoryTypesById, usersByEmail, departmentsById),
         )
         .sort((a, b) =>
             latestActivityAt(b.comments, b.DisplayId).localeCompare(
@@ -58,12 +53,7 @@ function getDashboard(): DashboardPayload {
     const placesById = indexBy(places, (p) => p.Id);
     const programRequests = visibleProgramRows
         .map((request) =>
-            buildProgramRequestDTO(
-                request,
-                placesById,
-                usersByEmail,
-                departmentsById,
-            ),
+            buildProgramRequestDTO(request, placesById, usersByEmail, departmentsById),
         )
         .sort((a, b) =>
             latestActivityAt(b.comments, b.DisplayId).localeCompare(

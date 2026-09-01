@@ -103,7 +103,10 @@ export function runCalendarTableAssertions(): void {
     assert(model.rows[2].label === 'Tue, Aug 11', 'date label includes weekday');
     assert(model.places[0].Name === '', 'unassigned programs use a leading untitled column');
     assert(
-        model.places.slice(1).map((place) => place.Name).join('|') === 'Studio 2|Studio 10',
+        model.places
+            .slice(1)
+            .map((place) => place.Name)
+            .join('|') === 'Studio 2|Studio 10',
         'studio columns sort alphabetically in ascending natural order',
     );
     assert(

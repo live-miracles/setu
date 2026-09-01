@@ -54,8 +54,9 @@ function inlineScript(script) {
         .replaceAll('<!--', '\\x3c!--')
         .replaceAll('-->', '--\\x3e')
         .replaceAll('?>', '?\\x3e')
-        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, (char) =>
-            `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+        .replace(
+            /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
+            (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
         );
 }
 
