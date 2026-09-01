@@ -1957,9 +1957,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 const hasOngoingOrFutureSession = request.sessions.some(
                     (session) => session.EndDateTime >= nowIso,
                 );
+                const isUnscheduled = request.sessions.length === 0;
                 return query.dateScope === 'past'
-                    ? !hasOngoingOrFutureSession
-                    : hasOngoingOrFutureSession;
+                    ? !hasOngoingOrFutureSession && !isUnscheduled
+                    : hasOngoingOrFutureSession || isUnscheduled;
             })
             .filter((request) =>
                 mockIncludes(query.q, [

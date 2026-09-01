@@ -147,7 +147,10 @@ function matchesProgramDateScope(
     const hasOngoingOrFutureSession = request.sessions.some(
         (session) => session.EndDateTime >= nowIso,
     );
-    return dateScope === 'past' ? !hasOngoingOrFutureSession : hasOngoingOrFutureSession;
+    const isUnscheduled = request.sessions.length === 0;
+    return dateScope === 'past'
+        ? !hasOngoingOrFutureSession && !isUnscheduled
+        : hasOngoingOrFutureSession || isUnscheduled;
 }
 
 function rangesOverlap(
