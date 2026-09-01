@@ -138,6 +138,90 @@ export async function refreshDashboard(): Promise<void> {
     await renderCurrentSection();
 }
 
+type OptimisticRequestKind = 'inventory' | 'program' | 'ticket';
+
+const OPTIMISTIC_STATUS: Record<string, string> = {
+    submit: 'submitted',
+    approve: 'approved',
+    reject: 'rejected',
+    issue: 'issued',
+    return: 'returned',
+    close: 'closed',
+    cancel: 'cancelled',
+    reopen: 'pending',
+};
+
+/** Apply a reversible dashboard mutation before Apps Script responds.
+ *
+ * The server remains authoritative: a successful mutation triggers a quiet
+ * refresh, while a failed one restores the previous dashboard and rethrows.
+ */
+export async function runOptimisticDashboardUpdate(
+    update: (dashboard: DashboardPayload) => DashboardPayload,
+    operation: () => Promise<unknown>,
+): Promise<void> {
+    const previous = getState().dashboard;
+    if (!previous) return operation().then(() => undefined);
+    setState({ dashboard: update(previous) });
+    await renderCurrentSection();
+
+    try {
+        await operation();
+    } catch (error) {
+        setState({ dashboard: previous });
+        await renderCurrentSection();
+        void refreshDashboard().catch(() => undefined);
+        throw error;
+    }
+
+    void refreshDashboard().catch(() => undefined);
+}
+
+/**
+ * Apply a small, reversible dashboard mutation before Apps Script responds.
+ * The server remains authoritative: a successful mutation triggers a quiet
+ * refresh, while a failed one restores the previous dashboard and rethrows so
+ * the caller can show its existing error notification.
+ */
+export async function runOptimisticRequestAction(
+    kind: OptimisticRequestKind,
+    id: string,
+    action: string,
+    operation: () => Promise<unknown>,
+): Promise<void> {
+    const status = OPTIMISTIC_STATUS[action];
+    await runOptimisticDashboardUpdate(
+        (previous) =>
+            Object.assign({}, previous, {
+                inventoryRequests:
+                    kind === 'inventory'
+                        ? previous.inventoryRequests.map((request) =>
+                              request.Id === id && status
+                                  ? Object.assign({}, request, { Status: status })
+                                  : request,
+                          )
+                        : previous.inventoryRequests,
+                programRequests:
+                    kind === 'program'
+                        ? previous.programRequests.map((request) =>
+                              request.Id === id && status
+                                  ? Object.assign({}, request, { Status: status })
+                                  : request,
+                          )
+                        : previous.programRequests,
+                tickets:
+                    kind === 'ticket'
+                        ? previous.tickets.map((ticket) =>
+                              ticket.Id === id && status
+                                  ? Object.assign({}, ticket, { Status: status })
+                                  : ticket,
+                          )
+                        : previous.tickets,
+            }),
+        operation,
+    );
+}
+
 export async function renderCurrentSection(): Promise<void> {
     const { dashboard, section } = getState();
     if (!dashboard) return;

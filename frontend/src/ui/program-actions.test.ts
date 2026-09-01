@@ -66,6 +66,17 @@ export function runProgramActionAssertions(): void {
         'duplicate should copy session dates',
     );
 
+    const dashboardRecord = request({ sessions: [] });
+    const duplicateFromDetail = buildDuplicateProgramInput(
+        dashboardRecord,
+        'current@example.com',
+        source.sessions,
+    );
+    assert(
+        duplicateFromDetail.sessions.length === source.sessions.length,
+        'duplicate should use sessions loaded by the detail screen',
+    );
+
     assert(
         canRescheduleProgram(source, user('admin')),
         'admins should always be able to reschedule',

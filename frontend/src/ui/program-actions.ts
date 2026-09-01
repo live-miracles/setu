@@ -31,6 +31,7 @@ function shiftLocalDateTime(value: string, dayDelta: number): string {
 export function buildDuplicateProgramInput(
     request: ProgramRequestDTO,
     currentUserEmail: string,
+    sessions = request.sessions,
 ): CreateProgramRequestInput {
     return {
         name: request.Name,
@@ -38,7 +39,7 @@ export function buildDuplicateProgramInput(
         type: request.Type,
         userId: currentUserEmail,
         placeId: '',
-        sessions: request.sessions.map((session) => ({
+        sessions: sessions.map((session) => ({
             name: session.Name,
             type: session.Type,
             startDateTime: session.StartDateTime,

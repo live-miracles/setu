@@ -134,9 +134,11 @@ function mockAssertPlaceAvailability(
     }
 }
 
-function mockCleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
-    if (!input || input.length === 0) throw new Error('At least one session is required.');
-    return input.map((session) => {
+function mockCleanProgramSessions(
+    input: ProgramSessionInput[],
+    requireAtLeastOne = true,
+): ProgramSession[] {
+    const sessions = (input || []).map((session) => {
         const type = mockCleanSessionField(session, 'type');
         const startDateTime = mockCleanSessionField(session, 'startDateTime');
         const endDateTime = mockCleanSessionField(session, 'endDateTime');
@@ -153,6 +155,10 @@ function mockCleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[
             EndDateTime: endDateTime,
         };
     });
+    if (requireAtLeastOne && sessions.length === 0) {
+        throw new Error('At least one session is required.');
+    }
+    return sessions;
 }
 
 function mockInventoryItemsJson(items: InventoryItem[]): string {
@@ -2038,7 +2044,9 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const type = mockCleanProgramField(input, 'type');
         const departmentId = mockCleanProgramField(input, 'departmentId');
         const leadEmail = mockCleanProgramField(input, 'leadEmail');
-        const sessions = mockCleanProgramSessions(input.sessions);
+        // Keep legacy session-less programs editable while preserving the
+        // required-session rule for newly created programs.
+        const sessions = mockCleanProgramSessions(input.sessions, false);
         const isOwner =
             request.UserId === mockData.currentUserId ||
             mockParseParticipants(request.Participants).includes(mockData.currentUserId);
@@ -2287,6 +2295,11 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         'mock-image-' + mockUuid() + '-' + fileName,
 };
 
+const MOCK_DASHBOARD_DELAY_MIN_MS = 5000;
+const MOCK_DASHBOARD_DELAY_RANGE_MS = 1500;
+const MOCK_API_DELAY_MIN_MS = 1000;
+const MOCK_API_DELAY_RANGE_MS = 1000;
+
 function mockRunner(
     onSuccess: ((data: any) => void) | null,
     onFailure: ((error: any) => void) | null,
@@ -2308,12 +2321,14 @@ function mockRunner(
                                 else console.error(err);
                             }
                         },
-                        // Keep the mock responsive, but make the initial
-                        // dashboard round trip visibly closer to production,
-                        // where it reads several Sheets-backed datasets.
+                        // Apps Script reads several Sheets-backed datasets for
+                        // each call. Keep local timing representative of the
+                        // production experience rather than making the mock
+                        // appear unrealistically instant.
                         fnName === 'getDashboard'
-                            ? 900 + Math.random() * 600
-                            : 300 + Math.random() * 500,
+                            ? MOCK_DASHBOARD_DELAY_MIN_MS +
+                                  Math.random() * MOCK_DASHBOARD_DELAY_RANGE_MS
+                            : MOCK_API_DELAY_MIN_MS + Math.random() * MOCK_API_DELAY_RANGE_MS,
                     );
             },
         },

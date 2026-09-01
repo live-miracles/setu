@@ -29,6 +29,7 @@ import {
     navigateToInventoryRequest,
     navigateToInventoryType,
     navigateToProgram,
+    runOptimisticDashboardUpdate,
     refreshDashboard,
 } from '../router';
 import { DEPARTMENT_QUERY_PARAM, INVENTORY_TYPE_QUERY_PARAM } from '../config';
@@ -380,8 +381,9 @@ function Editor({
                 config={config}
                 row={row}
                 onSubmit={async (values) => {
+                    if (row) onClose();
                     await onSaved(values);
-                    onClose();
+                    if (!row) onClose();
                 }}
                 submitLabel={row ? 'Save' : 'Add'}
             />
@@ -440,8 +442,50 @@ function SettingsResourcePage({
     async function save(values: Record<string, string>) {
         showSavingBadge(true);
         try {
-            await (editing ? config.update(editing.Id, values) : config.create(values));
-            await refreshDashboard();
+            if (!editing) {
+                await config.create(values);
+                await refreshDashboard();
+                return;
+            }
+            const row = editing;
+            await runOptimisticDashboardUpdate(
+                (previous) => {
+                    const updateRows = (rows: Row[]) =>
+                        rows.map((item) =>
+                            item.Id === row.Id ? Object.assign({}, item, values) : item,
+                        );
+                    if (config.kind === 'department')
+                        return Object.assign({}, previous, {
+                            departments: updateRows(previous.departments),
+                        });
+                    if (config.kind === 'place')
+                        return Object.assign({}, previous, {
+                            places: updateRows(previous.places),
+                        });
+                    if (config.kind === 'inventory-type')
+                        return Object.assign({}, previous, {
+                            inventoryTypes: updateRows(previous.inventoryTypes),
+                        });
+                    if (config.kind === 'block')
+                        return Object.assign({}, previous, { blocks: updateRows(previous.blocks) });
+                    if (config.kind === 'shift-type')
+                        return Object.assign({}, previous, {
+                            shiftTypes: updateRows(previous.shiftTypes),
+                        });
+                    if (config.kind === 'program-type')
+                        return Object.assign({}, previous, {
+                            programTypes: updateRows(previous.programTypes),
+                        });
+                    if (config.kind === 'program-language')
+                        return Object.assign({}, previous, {
+                            programLanguages: updateRows(previous.programLanguages),
+                        });
+                    return Object.assign({}, previous, {
+                        sessionTypes: updateRows(previous.sessionTypes),
+                    });
+                },
+                () => config.update(row.Id, values),
+            );
         } finally {
             showSavingBadge(false);
         }
@@ -467,18 +511,28 @@ function SettingsResourcePage({
                 prepared.mimeType,
                 String(row.ImageId || ''),
             );
-            await api.updateInventoryType(
-                row.Id,
-                {
-                    name: String(row.Name || ''),
-                    description: String(row.Description || ''),
-                    requestable: row.Requestable !== false,
-                    totalQuantity: Number(row.TotalQuantity || 0),
-                    imageId,
-                },
-                requestId(),
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        inventoryTypes: previous.inventoryTypes.map((item) =>
+                            item.Id === row.Id
+                                ? Object.assign({}, item, { ImageId: imageId })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateInventoryType(
+                        row.Id,
+                        {
+                            name: String(row.Name || ''),
+                            description: String(row.Description || ''),
+                            requestable: row.Requestable !== false,
+                            totalQuantity: Number(row.TotalQuantity || 0),
+                            imageId,
+                        },
+                        requestId(),
+                    ),
             );
-            await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -1049,17 +1103,13 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
     async function saveGuidelines(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setSavingGuidelines(true);
-        try {
-            const data = new FormData(event.currentTarget);
-            await api.updateHomeContent({
-                guidelines: String(data.get('guidelines') || ''),
-            });
-            await refreshDashboard();
-        } catch (error) {
-            showErrorAlert(error);
-        } finally {
-            setSavingGuidelines(false);
-        }
+        const data = new FormData(event.currentTarget);
+        const guidelines = String(data.get('guidelines') || '');
+        void runOptimisticDashboardUpdate(
+            (previous) => Object.assign({}, previous, { homeContent: { Guidelines: guidelines } }),
+            () => api.updateHomeContent({ guidelines }),
+        ).catch(showErrorAlert);
+        setSavingGuidelines(false);
     }
 
     return (

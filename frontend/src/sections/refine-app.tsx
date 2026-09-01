@@ -44,6 +44,8 @@ import {
     navigateToTicket,
     navigateToTickets,
     navigateToUser,
+    runOptimisticDashboardUpdate,
+    runOptimisticRequestAction,
     refreshDashboard,
     replaceWorkbenchUrl,
 } from '../router';
@@ -286,7 +288,7 @@ export function ActionConfirmation({
         </Modal>
     );
 }
-function useSave<T>(action: () => Promise<T>, close?: () => void) {
+function useSave<T>(action: () => Promise<T>, close?: () => void, optimistic = false) {
     const [busy, setBusy] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     return {
@@ -303,6 +305,12 @@ function useSave<T>(action: () => Promise<T>, close?: () => void) {
             }
             setErrorMessage('');
             setBusy(true);
+            if (optimistic) {
+                close?.();
+                setBusy(false);
+                void action().catch((e) => showErrorAlert(e));
+                return null;
+            }
             try {
                 const result = await action();
                 close?.();
@@ -597,27 +605,57 @@ function Home({ dashboard }: Props) {
 function Profile({ dashboard, registration = false }: Props & { registration?: boolean }) {
     const me = dashboard.me;
     const [departmentId, setDepartmentId] = useState(me.DepartmentId);
-    const save = useSave(async () => {
-        const form = document.getElementById(
-            registration ? 'registration-form' : 'profile-form',
-        ) as HTMLFormElement;
-        const d = new FormData(form);
-        const phone = String(d.get('phone') || '');
-        const departmentIdValue = String(d.get('departmentId') || '');
-        if (!isValidInternationalPhone(phone)) {
-            throw new Error(INTERNATIONAL_PHONE_TITLE);
-        }
-        const whatsapp = String(d.get('whatsapp') || '');
-        if (!isValidInternationalPhone(whatsapp)) {
-            throw new Error(INTERNATIONAL_PHONE_TITLE);
-        }
-        await api.updateOwnProfile({
-            name: String(d.get('name')),
-            departmentId: departmentIdValue,
-            phone,
-            whatsapp,
-        });
-    });
+    const save = useSave(
+        async () => {
+            const form = document.getElementById(
+                registration ? 'registration-form' : 'profile-form',
+            ) as HTMLFormElement;
+            const d = new FormData(form);
+            const phone = String(d.get('phone') || '');
+            const departmentIdValue = String(d.get('departmentId') || '');
+            if (!isValidInternationalPhone(phone)) {
+                throw new Error(INTERNATIONAL_PHONE_TITLE);
+            }
+            const whatsapp = String(d.get('whatsapp') || '');
+            if (!isValidInternationalPhone(whatsapp)) {
+                throw new Error(INTERNATIONAL_PHONE_TITLE);
+            }
+            const profile = {
+                name: String(d.get('name')),
+                departmentId: departmentIdValue,
+                phone,
+                whatsapp,
+            };
+            if (registration) {
+                await api.updateOwnProfile(profile);
+                return;
+            }
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        me: Object.assign({}, previous.me, {
+                            Name: profile.name,
+                            DepartmentId: profile.departmentId,
+                            Phone: profile.phone,
+                            Whatsapp: profile.whatsapp,
+                        }),
+                        users: previous.users.map((user) =>
+                            user.Email === previous.me.Email
+                                ? Object.assign({}, user, {
+                                      Name: profile.name,
+                                      DepartmentId: profile.departmentId,
+                                      Phone: profile.phone,
+                                      Whatsapp: profile.whatsapp,
+                                  })
+                                : user,
+                        ),
+                    }),
+                () => api.updateOwnProfile(profile),
+            );
+        },
+        undefined,
+        !registration,
+    );
     return (
         <Page title={registration ? 'Welcome' : 'Profile'} hideHeading>
             <Card
@@ -695,28 +733,49 @@ function UserForm({
 }) {
     const [role, setRole] = useState<UserRole>(user?.Role || 'user');
     const [departmentId, setDepartmentId] = useState(user?.DepartmentId || '');
-    const save = useSave(async () => {
-        const d = new FormData(document.getElementById('refine-user-form') as HTMLFormElement);
-        const values = {
-            name: String(d.get('name')),
-            role: String(d.get('role')) as UserRole,
-            departmentId: String(d.get('departmentId') || ''),
-            phone: String(d.get('phone') || ''),
-            whatsapp: String(d.get('whatsapp') || ''),
-        };
-        if (!isValidInternationalPhone(values.phone)) {
-            throw new Error(INTERNATIONAL_PHONE_TITLE);
-        }
-        if (!isValidInternationalPhone(values.whatsapp)) {
-            throw new Error(INTERNATIONAL_PHONE_TITLE);
-        }
-        if (user) await api.updateUser(user.Email, values);
-        else
-            await api.createUser(
-                { email: String(d.get('email')).toLowerCase(), ...values },
-                generateRequestId(),
-            );
-    }, close);
+    const save = useSave(
+        async () => {
+            const d = new FormData(document.getElementById('refine-user-form') as HTMLFormElement);
+            const values = {
+                name: String(d.get('name')),
+                role: String(d.get('role')) as UserRole,
+                departmentId: String(d.get('departmentId') || ''),
+                phone: String(d.get('phone') || ''),
+                whatsapp: String(d.get('whatsapp') || ''),
+            };
+            if (!isValidInternationalPhone(values.phone)) {
+                throw new Error(INTERNATIONAL_PHONE_TITLE);
+            }
+            if (!isValidInternationalPhone(values.whatsapp)) {
+                throw new Error(INTERNATIONAL_PHONE_TITLE);
+            }
+            if (user) {
+                await runOptimisticDashboardUpdate(
+                    (previous) =>
+                        Object.assign({}, previous, {
+                            users: previous.users.map((item) =>
+                                item.Email === user.Email
+                                    ? Object.assign({}, item, {
+                                          Name: values.name,
+                                          Role: values.role,
+                                          DepartmentId: values.departmentId,
+                                          Phone: values.phone,
+                                          Whatsapp: values.whatsapp,
+                                      })
+                                    : item,
+                            ),
+                        }),
+                    () => api.updateUser(user.Email, values),
+                );
+            } else
+                await api.createUser(
+                    { email: String(d.get('email')).toLowerCase(), ...values },
+                    generateRequestId(),
+                );
+        },
+        close,
+        Boolean(user),
+    );
     return (
         <Modal title={user ? 'Edit user' : 'Add user'} close={close}>
             <form id="refine-user-form" className="grid gap-3" noValidate onSubmit={save.run}>
@@ -1006,13 +1065,32 @@ function Roster({ dashboard }: Props) {
                     endTime: String(d.get('endTime') || ''),
                     userId: String(d.get('userId') || ''),
                 };
-                if (row) await api.updateRoster(row.Id, v, generateRequestId());
-                else await api.createRoster(v, generateRequestId());
+                if (row) {
+                    await runOptimisticDashboardUpdate(
+                        (previous) =>
+                            Object.assign({}, previous, {
+                                upcomingRosters: previous.upcomingRosters.map((item) =>
+                                    item.Id === row.Id
+                                        ? Object.assign({}, item, {
+                                              Name: v.name,
+                                              StartDate: v.startDate,
+                                              EndDate: v.endDate,
+                                              StartTime: v.startTime,
+                                              EndTime: v.endTime,
+                                              UserId: v.userId,
+                                          })
+                                        : item,
+                                ),
+                            }),
+                        () => api.updateRoster(row.Id, v, generateRequestId()),
+                    );
+                } else await api.createRoster(v, generateRequestId());
             },
             () => {
                 setCreating(false);
                 setEditing(undefined);
             },
+            Boolean(row),
         );
         return (
             <Modal
@@ -1890,28 +1968,38 @@ function ProgramDetail({
     const persistSessions = async (nextSessions: ProgramSession[]) => {
         try {
             showSavingBadge(true);
-            await api.updateProgramRequest(
-                request.Id,
-                {
-                    name: values.Name,
-                    language: values.Language,
-                    type: values.Type,
-                    userId: values.UserId,
-                    placeId: values.PlaceId,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    sessions: nextSessions.map((s) => ({
-                        name: s.Name,
-                        type: s.Type,
-                        startDateTime: s.StartDateTime,
-                        endDateTime: s.EndDateTime,
-                    })),
-                },
-                generateRequestId(),
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        programRequests: previous.programRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, { sessions: nextSessions })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateProgramRequest(
+                        request.Id,
+                        {
+                            name: values.Name,
+                            language: values.Language,
+                            type: values.Type,
+                            userId: values.UserId,
+                            placeId: values.PlaceId,
+                            departmentId: values.DepartmentId,
+                            leadEmail: values.LeadEmail,
+                            participants: values.Participants,
+                            sessions: nextSessions.map((s) => ({
+                                name: s.Name,
+                                type: s.Type,
+                                startDateTime: s.StartDateTime,
+                                endDateTime: s.EndDateTime,
+                            })),
+                        },
+                        generateRequestId(),
+                    ),
             );
             setSessions(nextSessions);
-            await refreshDashboard();
         } catch (e) {
             error(e);
         } finally {
@@ -1919,41 +2007,89 @@ function ProgramDetail({
         }
     };
     const save = useSave(
-        async () => {
-            await api.updateProgramRequest(
-                request.Id,
-                {
-                    name: values.Name,
-                    language: values.Language,
-                    type: values.Type,
-                    userId: values.UserId,
-                    placeId: values.PlaceId,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    sessions: sessions.map((s) => ({
-                        name: s.Name,
-                        type: s.Type,
-                        startDateTime: s.StartDateTime,
-                        endDateTime: s.EndDateTime,
-                    })),
-                },
-                generateRequestId(),
-            );
-        },
+        () =>
+            runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        programRequests: previous.programRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, {
+                                      Name: values.Name,
+                                      Language: values.Language,
+                                      Type: values.Type,
+                                      UserId: values.UserId,
+                                      PlaceId: values.PlaceId,
+                                      DepartmentId: values.DepartmentId,
+                                      LeadEmail: values.LeadEmail,
+                                      sessions,
+                                  })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateProgramRequest(
+                        request.Id,
+                        {
+                            name: values.Name,
+                            language: values.Language,
+                            type: values.Type,
+                            userId: values.UserId,
+                            placeId: values.PlaceId,
+                            departmentId: values.DepartmentId,
+                            leadEmail: values.LeadEmail,
+                            participants: values.Participants,
+                            sessions: sessions.map((s) => ({
+                                name: s.Name,
+                                type: s.Type,
+                                startDateTime: s.StartDateTime,
+                                endDateTime: s.EndDateTime,
+                            })),
+                        },
+                        generateRequestId(),
+                    ),
+            ).catch((e) => {
+                setValues({
+                    Name: request.Name,
+                    Language: request.Language,
+                    Type: request.Type,
+                    PlaceId: request.PlaceId,
+                    DepartmentId: request.DepartmentId,
+                    LeadEmail: request.LeadEmail,
+                    Participants: request.participants.join(', '),
+                    UserId: request.UserId,
+                });
+                setSessions(request.sessions);
+                throw e;
+            }),
         () => setEditing(false),
+        true,
     );
     const saveParticipants = async (participants: string[]) => {
         const serialized = participants.join(', ');
         showSavingBadge(true);
         try {
-            await api.updateProgramRequestParticipants(
-                request.Id,
-                { participants: serialized },
-                generateRequestId(),
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        programRequests: previous.programRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, {
+                                      participants: serialized
+                                          .split(',')
+                                          .map((email) => email.trim().toLowerCase())
+                                          .filter(Boolean),
+                                  })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateProgramRequestParticipants(
+                        request.Id,
+                        { participants: serialized },
+                        generateRequestId(),
+                    ),
             );
             setValues((current) => ({ ...current, Participants: serialized }));
-            await refreshDashboard();
         } finally {
             showSavingBadge(false);
         }
@@ -1962,7 +2098,7 @@ function ProgramDetail({
         try {
             showSavingBadge(true);
             const created = await api.createProgramRequest(
-                buildDuplicateProgramInput(request, dashboard.me.Email),
+                buildDuplicateProgramInput(request, dashboard.me.Email, sessions),
                 generateRequestId(),
             );
             await refreshDashboard();
@@ -1977,29 +2113,41 @@ function ProgramDetail({
         async () => {
             if (!rescheduleDate) throw new Error('Select a new first session date.');
             const nextSessions = shiftProgramSessions(sessions, rescheduleDate);
-            await api.updateProgramRequest(
-                request.Id,
-                {
-                    name: values.Name,
-                    language: values.Language,
-                    type: values.Type,
-                    userId: values.UserId,
-                    placeId: values.PlaceId,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    sessions: nextSessions.map((s) => ({
-                        name: s.Name,
-                        type: s.Type,
-                        startDateTime: s.StartDateTime,
-                        endDateTime: s.EndDateTime,
-                    })),
-                },
-                generateRequestId(),
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        programRequests: previous.programRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, { sessions: nextSessions })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateProgramRequest(
+                        request.Id,
+                        {
+                            name: values.Name,
+                            language: values.Language,
+                            type: values.Type,
+                            userId: values.UserId,
+                            placeId: values.PlaceId,
+                            departmentId: values.DepartmentId,
+                            leadEmail: values.LeadEmail,
+                            participants: values.Participants,
+                            sessions: nextSessions.map((s) => ({
+                                name: s.Name,
+                                type: s.Type,
+                                startDateTime: s.StartDateTime,
+                                endDateTime: s.EndDateTime,
+                            })),
+                        },
+                        generateRequestId(),
+                    ),
             );
             setSessions(nextSessions);
         },
         () => setRescheduling(false),
+        true,
     );
     const editSession = (index: number | null) => {
         setSessionIndex(index);
@@ -2038,8 +2186,9 @@ function ProgramDetail({
     const perform = async (action: ProgramRequestAction) => {
         try {
             showSavingBadge(true);
-            await api.performProgramRequestAction(request.Id, action, '', generateRequestId());
-            await refreshDashboard();
+            await runOptimisticRequestAction('program', request.Id, action, () =>
+                api.performProgramRequestAction(request.Id, action, '', generateRequestId()),
+            );
         } catch (e) {
             error(e);
         } finally {
@@ -2277,6 +2426,7 @@ function ProgramDetail({
                             label="Program title"
                             value={values.Name}
                             required={values.Type === OTHER_PROGRAM_TYPE}
+                            onChange={(e) => update('Name', e.target.value)}
                         />
                         <AntForm.Item label="Type" required>
                             <input type="hidden" name="type" value={values.Type} />
@@ -2345,6 +2495,7 @@ function ProgramDetail({
                             type="email"
                             value={values.LeadEmail}
                             required
+                            onChange={(e) => update('LeadEmail', e.target.value)}
                         />
                         <div>
                             <SaveFooter
@@ -2726,31 +2877,43 @@ function InventoryDetail({
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
     const persistItems = async (nextItems: InventoryItemDTO[]): Promise<boolean> => {
+        const previousItems = items;
         try {
             setItemError('');
             showSavingBadge(true);
-            await api.updateInventoryRequest(
-                request.Id,
-                {
-                    name: values.Name,
-                    userId: values.UserId,
-                    startDate: values.StartDate,
-                    endDate: values.EndDate,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    items: nextItems.map((item) => ({
-                        inventoryTypeId: item.InventoryTypeId,
-                        quantity: item.Quantity,
-                        condition: item.Condition,
-                    })),
-                },
-                generateRequestId(),
-            );
             setItems(nextItems);
-            await refreshDashboard();
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        inventoryRequests: previous.inventoryRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, { items: nextItems })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateInventoryRequest(
+                        request.Id,
+                        {
+                            name: values.Name,
+                            userId: values.UserId,
+                            startDate: values.StartDate,
+                            endDate: values.EndDate,
+                            departmentId: values.DepartmentId,
+                            leadEmail: values.LeadEmail,
+                            participants: values.Participants,
+                            items: nextItems.map((item) => ({
+                                inventoryTypeId: item.InventoryTypeId,
+                                quantity: item.Quantity,
+                                condition: item.Condition,
+                            })),
+                        },
+                        generateRequestId(),
+                    ),
+            );
             return true;
         } catch (e) {
+            setItems(previousItems);
             setItemError(e instanceof Error ? e.message : String(e));
             return false;
         } finally {
@@ -2773,39 +2936,85 @@ function InventoryDetail({
         if (saved) setScanOpen(false);
     };
     const save = useSave(
-        async () => {
-            await api.updateInventoryRequest(
-                request.Id,
-                {
-                    name: values.Name,
-                    userId: values.UserId,
-                    startDate: values.StartDate,
-                    endDate: values.EndDate,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    items: items.map((item) => ({
-                        inventoryTypeId: item.InventoryTypeId,
-                        quantity: item.Quantity,
-                        condition: item.Condition,
-                    })),
-                },
-                generateRequestId(),
-            );
-        },
+        () =>
+            runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        inventoryRequests: previous.inventoryRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, {
+                                      Name: values.Name,
+                                      UserId: values.UserId,
+                                      StartDate: values.StartDate,
+                                      EndDate: values.EndDate,
+                                      DepartmentId: values.DepartmentId,
+                                      LeadEmail: values.LeadEmail,
+                                      items,
+                                  })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateInventoryRequest(
+                        request.Id,
+                        {
+                            name: values.Name,
+                            userId: values.UserId,
+                            startDate: values.StartDate,
+                            endDate: values.EndDate,
+                            departmentId: values.DepartmentId,
+                            leadEmail: values.LeadEmail,
+                            participants: values.Participants,
+                            items: items.map((item) => ({
+                                inventoryTypeId: item.InventoryTypeId,
+                                quantity: item.Quantity,
+                                condition: item.Condition,
+                            })),
+                        },
+                        generateRequestId(),
+                    ),
+            ).catch((e) => {
+                setValues({
+                    Name: request.Name,
+                    StartDate: request.StartDate,
+                    EndDate: request.EndDate,
+                    DepartmentId: request.DepartmentId,
+                    LeadEmail: request.LeadEmail,
+                    Participants: request.participants.join(', '),
+                    UserId: request.UserId,
+                });
+                setItems(request.items);
+                throw e;
+            }),
         () => setEditing(false),
+        true,
     );
     const saveParticipants = async (participants: string[]) => {
         const serialized = participants.join(', ');
         showSavingBadge(true);
         try {
-            await api.updateInventoryRequestParticipants(
-                request.Id,
-                { participants: serialized },
-                generateRequestId(),
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        inventoryRequests: previous.inventoryRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, {
+                                      participants: serialized
+                                          .split(',')
+                                          .map((email) => email.trim().toLowerCase())
+                                          .filter(Boolean),
+                                  })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateInventoryRequestParticipants(
+                        request.Id,
+                        { participants: serialized },
+                        generateRequestId(),
+                    ),
             );
             setValues((current) => ({ ...current, Participants: serialized }));
-            await refreshDashboard();
         } finally {
             showSavingBadge(false);
         }
@@ -2871,27 +3080,37 @@ function InventoryDetail({
                 prepared.fileName,
                 prepared.mimeType,
             );
-            await api.updateInventoryRequest(
-                request.Id,
-                {
-                    name: values.Name,
-                    userId: values.UserId,
-                    startDate: values.StartDate,
-                    endDate: values.EndDate,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    imageId: nextImageId,
-                    items: items.map((item) => ({
-                        inventoryTypeId: item.InventoryTypeId,
-                        quantity: item.Quantity,
-                        condition: item.Condition,
-                    })),
-                },
-                generateRequestId(),
-            );
             setImageId(nextImageId);
-            await refreshDashboard();
+            await runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        inventoryRequests: previous.inventoryRequests.map((item) =>
+                            item.Id === request.Id
+                                ? Object.assign({}, item, { ImageId: nextImageId })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateInventoryRequest(
+                        request.Id,
+                        {
+                            name: values.Name,
+                            userId: values.UserId,
+                            startDate: values.StartDate,
+                            endDate: values.EndDate,
+                            departmentId: values.DepartmentId,
+                            leadEmail: values.LeadEmail,
+                            participants: values.Participants,
+                            imageId: nextImageId,
+                            items: items.map((item) => ({
+                                inventoryTypeId: item.InventoryTypeId,
+                                quantity: item.Quantity,
+                                condition: item.Condition,
+                            })),
+                        },
+                        generateRequestId(),
+                    ),
+            );
         } catch (e) {
             error(e);
         } finally {
@@ -2907,14 +3126,15 @@ function InventoryDetail({
     const perform = async (action: InventoryRequestAction) => {
         try {
             showSavingBadge(true);
-            await api.performInventoryRequestAction(
-                request.Id,
-                action,
-                '',
-                null,
-                generateRequestId(),
+            await runOptimisticRequestAction('inventory', request.Id, action, () =>
+                api.performInventoryRequestAction(
+                    request.Id,
+                    action,
+                    '',
+                    null,
+                    generateRequestId(),
+                ),
             );
-            await refreshDashboard();
         } catch (e) {
             error(e);
         } finally {
@@ -3352,13 +3572,31 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
     const [pendingAction, setPendingAction] = useState<TicketAction | null>(null);
     const [values, setValues] = useState({ Title: ticket.Title, Description: ticket.Description });
     const save = useSave(
-        async () =>
-            api.updateTicket(
-                ticket.Id,
-                { title: values.Title, description: values.Description },
-                generateRequestId(),
-            ),
+        () =>
+            runOptimisticDashboardUpdate(
+                (previous) =>
+                    Object.assign({}, previous, {
+                        tickets: previous.tickets.map((item) =>
+                            item.Id === ticket.Id
+                                ? Object.assign({}, item, {
+                                      Title: values.Title,
+                                      Description: values.Description,
+                                  })
+                                : item,
+                        ),
+                    }),
+                () =>
+                    api.updateTicket(
+                        ticket.Id,
+                        { title: values.Title, description: values.Description },
+                        generateRequestId(),
+                    ),
+            ).catch((e) => {
+                setValues({ Title: ticket.Title, Description: ticket.Description });
+                throw e;
+            }),
         () => setEditing(false),
+        true,
     );
     const actions = (['close', 'reopen'] as TicketAction[]).filter((action) =>
         canTransitionTicket(ticket.Status, action),
@@ -3366,8 +3604,9 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
     const perform = async (action: TicketAction) => {
         try {
             showSavingBadge(true);
-            await api.performTicketAction(ticket.Id, action, null, generateRequestId());
-            await refreshDashboard();
+            await runOptimisticRequestAction('ticket', ticket.Id, action, () =>
+                api.performTicketAction(ticket.Id, action, null, generateRequestId()),
+            );
         } catch (e) {
             error(e);
         } finally {
@@ -3500,13 +3739,14 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
     const applyAction = async (action: string) => {
         try {
             showSavingBadge(true);
-            await api.performProgramRequestAction(
-                row.Id,
-                action as ProgramRequestAction,
-                '',
-                generateRequestId(),
+            await runOptimisticRequestAction('program', row.Id, action, () =>
+                api.performProgramRequestAction(
+                    row.Id,
+                    action as ProgramRequestAction,
+                    '',
+                    generateRequestId(),
+                ),
             );
-            await refreshDashboard();
         } catch (e) {
             error(e);
         } finally {

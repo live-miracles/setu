@@ -55,8 +55,11 @@ function cleanSessionField(session: ProgramSessionInput, field: string): string 
         : value;
 }
 
-function cleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
-    return (input || []).map((session) => {
+function cleanProgramSessions(
+    input: ProgramSessionInput[],
+    requireAtLeastOne = true,
+): ProgramSession[] {
+    const sessions = (input || []).map((session) => {
         const sessionType = cleanSessionField(session, 'type');
         const startDateTime = cleanSessionField(session, 'startDateTime');
         const endDateTime = cleanSessionField(session, 'endDateTime');
@@ -81,6 +84,10 @@ function cleanProgramSessions(input: ProgramSessionInput[]): ProgramSession[] {
             EndDateTime: endDateTime,
         };
     });
+    if (requireAtLeastOne && sessions.length === 0) {
+        throw new ValidationError('At least one session is required.');
+    }
+    return sessions;
 }
 
 // Status-change history (who/when) lives in Comments, same as
@@ -419,7 +426,9 @@ function updateProgramRequest(
     if (!requestedBy) throw new ValidationError('requester_not_found');
     const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
     if (input.placeId && !place) throw new ValidationError('place_not_found');
-    const sessionLines = cleanProgramSessions(input.sessions);
+    // Existing legacy programs may have no sessions. They remain editable;
+    // new programs still require at least one session in createProgramRequest.
+    const sessionLines = cleanProgramSessions(input.sessions, false);
     assertPlaceAvailability(place, sessionLines, id);
     const participants = parseParticipants(input.participants);
     const departmentId = cleanProgramField(input, 'departmentId');
