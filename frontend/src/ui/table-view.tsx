@@ -25,6 +25,7 @@ export function TableView({
 }: TableViewProps) {
     return (
         <Card
+            className="table-view"
             title={
                 <Space size="small">
                     <span>{title}</span>
@@ -43,7 +44,7 @@ export function TableView({
                     />
                 </div>
             )}
-            {children}
+            <div className="table-view-body">{children}</div>
         </Card>
     );
 }

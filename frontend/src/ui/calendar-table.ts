@@ -1,4 +1,5 @@
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const UNASSIGNED_PLACE_ID = 'calendar-unassigned-place';
 
 export interface CalendarSessionLine {
     label: string;
@@ -112,23 +113,26 @@ export function buildCalendarTableModel(
     blocks: Block[] = [],
 ): CalendarTableModel {
     const today = parseDateOnly(todayIso);
-    const sortedPlaces = [...places].sort((a, b) => a.Name.localeCompare(b.Name));
+    const sortedPlaces = [...places].sort((a, b) =>
+        a.Name.localeCompare(b.Name, undefined, { numeric: true, sensitivity: 'base' }),
+    );
     if (!today) return { rows: [], places: sortedPlaces };
 
     const typeColors = new Map(
         programTypes.map((type) => [type.Name.toLowerCase(), type.Color || '']),
     );
     const approved = programs.filter((program) => program.Status === 'approved');
+    const isVisibleSession = (session: ProgramSession): boolean => {
+        const date = sessionDate(session);
+        return Boolean(
+            date &&
+            (!monthStartIso || date >= monthStartIso) &&
+            (!monthEndIso || date <= monthEndIso) &&
+            (monthStartIso || date >= todayIso),
+        );
+    };
     const visibleSessions = approved.flatMap((program) =>
-        program.sessions.filter((session) => {
-            const date = sessionDate(session);
-            return Boolean(
-                date &&
-                (!monthStartIso || date >= monthStartIso) &&
-                (!monthEndIso || date <= monthEndIso) &&
-                (monthStartIso || date >= todayIso),
-            );
-        }),
+        program.sessions.filter(isVisibleSession),
     );
     const visibleBlocks = blocks.filter((block) => {
         const startDate = block.StartDateTime.slice(0, 10);
@@ -145,11 +149,18 @@ export function buildCalendarTableModel(
         return { rows: [], places: sortedPlaces };
     }
 
+    const hasUnassignedPrograms = approved.some(
+        (program) => !program.PlaceId.trim() && program.sessions.some(isVisibleSession),
+    );
     const hasPlaceSpecificBlocks = visibleBlocks.some((block) => Boolean(block.Place));
-    const tablePlaces =
-        !visibleSessions.length && !hasPlaceSpecificBlocks
+    const tablePlaces = [
+        ...(hasUnassignedPrograms
+            ? [{ Id: UNASSIGNED_PLACE_ID, Name: '', AllowOverlap: true }]
+            : []),
+        ...(!visibleSessions.length && !hasPlaceSpecificBlocks
             ? [{ Id: 'calendar-empty-place', Name: '', AllowOverlap: true }]
-            : sortedPlaces;
+            : sortedPlaces),
+    ];
 
     const lastSessionDate = visibleSessions.reduce((latest, session) => {
         const date = sessionDate(session);
@@ -171,7 +182,10 @@ export function buildCalendarTableModel(
                     const sessions = program.sessions
                         .filter(
                             (session) =>
-                                sessionDate(session) === isoDate && program.PlaceId === place.Id,
+                                sessionDate(session) === isoDate &&
+                                (place.Id === UNASSIGNED_PLACE_ID
+                                    ? !program.PlaceId.trim()
+                                    : program.PlaceId === place.Id),
                         )
                         .sort((a, b) => sessionSortValue(a).localeCompare(sessionSortValue(b)));
                     if (!sessions.length) return null;

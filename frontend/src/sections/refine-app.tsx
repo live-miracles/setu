@@ -40,6 +40,7 @@ import {
     navigateBackToSection,
     navigateToProgram,
     navigateToPrograms,
+    navigateToRequestList,
     navigateToRoster,
     navigateToTicket,
     navigateToTickets,
@@ -75,6 +76,7 @@ import { ImageCamera } from '../ui/image-camera';
 import { RequestBlock } from '../ui/request-block';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
+import { TableView } from '../ui/table-view';
 import { UserBlock } from '../ui/user-block';
 import homeHeroImage from '../../assets/home-hero.avif';
 import ReactMarkdown from 'react-markdown';
@@ -396,19 +398,19 @@ function Home({ dashboard }: Props) {
         {
             label: 'Programs',
             count: pendingProgramRequests.length,
-            onClick: navigateToPrograms,
+            onClick: () => navigateToRequestList('programs'),
         },
         {
             label: 'Inventory',
             count: dashboard.inventoryRequests.length,
-            onClick: navigateToInventoryRequests,
+            onClick: () => navigateToRequestList('inventory'),
         },
         ...(canUseTickets(dashboard.me)
             ? [
                   {
                       label: 'Tickets',
                       count: ongoingTickets.length,
-                      onClick: navigateToTickets,
+                      onClick: () => navigateToRequestList('tickets'),
                   },
               ]
             : []),
@@ -528,7 +530,9 @@ function Home({ dashboard }: Props) {
                 <Card
                     title={sectionTitle('Pending program requests', pendingProgramRequests.length)}
                     className="home-scroll-card"
-                    action={sectionAction('Pending program requests', navigateToPrograms)}>
+                    action={sectionAction('Pending program requests', () =>
+                        navigateToRequestList('programs'),
+                    )}>
                     {pendingProgramRequests.map((request) => (
                         <Button
                             type="text"
@@ -552,9 +556,8 @@ function Home({ dashboard }: Props) {
                         dashboard.inventoryRequests.length,
                     )}
                     className="home-scroll-card"
-                    action={sectionAction(
-                        'Ongoing Inventory Requests',
-                        navigateToInventoryRequests,
+                    action={sectionAction('Ongoing Inventory Requests', () =>
+                        navigateToRequestList('inventory'),
                     )}>
                     {dashboard.inventoryRequests.map((r) => (
                         <Button
@@ -579,7 +582,9 @@ function Home({ dashboard }: Props) {
                     <Card
                         title={sectionTitle('Ongoing tickets', ongoingTickets.length)}
                         className="home-scroll-card"
-                        action={sectionAction('Ongoing tickets', navigateToTickets)}>
+                        action={sectionAction('Ongoing tickets', () =>
+                            navigateToRequestList('tickets'),
+                        )}>
                         {ongoingTickets.map((ticket) => (
                             <Button
                                 type="text"
@@ -1751,7 +1756,11 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 else navigateToTicket(id);
             }}>
             {kind !== 'programs' && (
-                <TextField name="name" label={kind === 'tickets' ? 'Title' : 'Name'} required />
+                <TextField
+                    name="name"
+                    label={kind === 'tickets' ? 'Title' : 'Event / Purpose'}
+                    required
+                />
             )}
             {kind === 'tickets' && <TextField name="description" label="Description" />}
             {kind === 'inventory' && (
@@ -1832,7 +1841,11 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                     />
                     <AntForm.Item label="Place">
                         <input type="hidden" name="placeId" value={placeId} />
-                        <Select value={placeId} onChange={setPlaceId} style={{ width: '100%' }}>
+                        <Select
+                            value={placeId}
+                            onChange={setPlaceId}
+                            disabled={!canApprove(dashboard.me)}
+                            style={{ width: '100%' }}>
                             <Select.Option value="">No place</Select.Option>
                             {createPlaceOptions.map((p) => (
                                 <Select.Option key={p.Id} value={p.Id}>
@@ -2325,21 +2338,22 @@ function ProgramDetail({
                     ]}
                 />
             </DetailSection>
-            <DetailSection
-                title="Sessions"
-                action={
-                    editable && (
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => editSession(null)}
-                            aria-label="Add session"
-                            title="Add session"
-                        />
-                    )
-                }>
-                {sessions.length ? (
-                    <div className="overflow-x-auto">
+            <DetailSection className="table-detail-section">
+                <TableView
+                    title="Sessions"
+                    count={sessions.length}
+                    action={
+                        editable && (
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => editSession(null)}
+                                aria-label="Add session"
+                                title="Add session"
+                            />
+                        )
+                    }>
+                    {sessions.length ? (
                         <Table
                             rowKey="key"
                             columns={sessionColumns}
@@ -2348,10 +2362,10 @@ function ProgramDetail({
                             className="sessions-table"
                             scroll={{ x: 'max-content' }}
                         />
-                    </div>
-                ) : (
-                    <Empty>No sessions added.</Empty>
-                )}
+                    ) : (
+                        <Empty>No sessions added.</Empty>
+                    )}
+                </TableView>
             </DetailSection>
             <DetailSection minHeight="16rem" maxHeight="32rem">
                 <Activity requestId={request.Id} initialComments={request.comments} />
@@ -2443,6 +2457,7 @@ function ProgramDetail({
                             <Select
                                 value={values.PlaceId}
                                 onChange={(value) => update('PlaceId', value)}
+                                disabled={!canApprove(dashboard.me)}
                                 style={{ width: '100%' }}>
                                 <Select.Option value="">No place</Select.Option>
                                 {placeOptions.map((p) => (
@@ -3217,33 +3232,34 @@ function InventoryDetail({
                     ]}
                 />
             </DetailSection>
-            <DetailSection
-                title="Requested items"
-                action={
-                    editable && (
-                        <Space>
-                            <Button
-                                type="primary"
-                                icon={<CameraOutlined />}
-                                onClick={() => {
-                                    setItemError('');
-                                    setScanOpen(true);
-                                }}
-                                aria-label="Scan requested item"
-                                title="Scan requested item"
-                            />
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={() => editItem(null)}
-                                aria-label="Add item"
-                                title="Add item"
-                            />
-                        </Space>
-                    )
-                }>
-                {items.length ? (
-                    <div className="overflow-x-auto">
+            <DetailSection className="table-detail-section">
+                <TableView
+                    title="Requested items"
+                    count={items.length}
+                    action={
+                        editable && (
+                            <Space>
+                                <Button
+                                    type="primary"
+                                    icon={<CameraOutlined />}
+                                    onClick={() => {
+                                        setItemError('');
+                                        setScanOpen(true);
+                                    }}
+                                    aria-label="Scan requested item"
+                                    title="Scan requested item"
+                                />
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={() => editItem(null)}
+                                    aria-label="Add item"
+                                    title="Add item"
+                                />
+                            </Space>
+                        )
+                    }>
+                    {items.length ? (
                         <Table
                             rowKey={(item) => `${item.InventoryTypeId}-${item.Quantity}`}
                             pagination={false}
@@ -3300,10 +3316,10 @@ function InventoryDetail({
                             className="inventory-items-table"
                             scroll={{ x: 'max-content' }}
                         />
-                    </div>
-                ) : (
-                    <Empty>No items added.</Empty>
-                )}
+                    ) : (
+                        <Empty>No items added.</Empty>
+                    )}
+                </TableView>
             </DetailSection>
             <DetailSection
                 title="Image"
@@ -3360,7 +3376,7 @@ function InventoryDetail({
                     <form className="grid gap-3" noValidate onSubmit={save.run}>
                         <TextField
                             name="name"
-                            label="Request name"
+                            label="Event / Purpose"
                             value={values.Name}
                             required
                             onChange={(e) => update('Name', e.target.value)}

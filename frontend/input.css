@@ -151,6 +151,35 @@ body {
     overflow: auto;
 }
 
+/* Shared table shell: card chrome stays visible while table content scrolls. */
+.table-view {
+    display: flex;
+    max-height: calc(100dvh - 7rem);
+    flex-direction: column;
+}
+
+.table-view > .ant-card-head {
+    flex: 0 0 auto;
+}
+
+.table-view > .ant-card-body {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+.table-view-body {
+    min-height: 0;
+    overflow: auto;
+}
+
+.table-view-body .ant-table-thead > tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
 .home-recent-comments .antd-list-button {
     flex-direction: column;
     text-align: left;
@@ -512,11 +541,14 @@ body {
 }
 
 .app-content.app-content-settings {
-    max-width: none;
+    max-width: 50rem;
+    margin-inline: auto;
 }
 
 .app-content-settings > .refine-page > .antd-page,
-.app-content-settings > .refine-page > .antd-settings-compact {
+.app-content-settings > .refine-page > .antd-settings-compact,
+.app-content-settings > .refine-page > .ant-app > .antd-page,
+.app-content-settings > .refine-page > .ant-app > .antd-settings-compact {
     width: 100%;
     max-width: 50rem;
     margin-inline: auto;
@@ -804,6 +836,14 @@ body {
 
 .detail-section > .ant-card {
     min-width: 0;
+    flex: 1 1 auto;
+}
+
+.table-detail-section {
+    overflow: hidden;
+}
+
+.table-detail-section > .table-view {
     flex: 1 1 auto;
 }
 

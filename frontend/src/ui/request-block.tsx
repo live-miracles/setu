@@ -70,7 +70,20 @@ export function RequestBlock({ kind, row, dashboard, onClick, comments }: Reques
                 <Typography.Text type="secondary">
                     {ticket
                         ? (row as TicketDTO).assigneeName || 'Unassigned'
-                        : `${(row as ProgramRequestDTO | InventoryRequestDTO).userName || 'Unknown requester'} | ${departmentShortName(row as ProgramRequestDTO | InventoryRequestDTO, dashboard)}`}
+                        : [
+                              (row as ProgramRequestDTO | InventoryRequestDTO).userName ||
+                                  'Unknown requester',
+                              departmentShortName(
+                                  row as ProgramRequestDTO | InventoryRequestDTO,
+                                  dashboard,
+                              ),
+                              ...(program
+                                  ? [
+                                        (row as ProgramRequestDTO).placeName ||
+                                            'No place assigned',
+                                    ]
+                                  : []),
+                          ].join(' | ')}
                 </Typography.Text>
                 {comments?.length ? (
                     <Typography.Text type="secondary">

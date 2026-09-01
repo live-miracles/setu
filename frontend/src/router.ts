@@ -454,6 +454,11 @@ export function navigateToTickets(): void {
     navigateBackToWorkbench('tickets');
 }
 
+/** Open a request list from a peer page (such as Home), preserving browser Back history. */
+export function navigateToRequestList(section: 'inventory' | 'programs' | 'tickets'): void {
+    navigateTo(section);
+}
+
 export function navigateToRoster(): void {
     navigateTo('roster');
 }

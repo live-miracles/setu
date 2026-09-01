@@ -113,7 +113,10 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'Name', label: 'Name' },
             { field: 'AllowOverlap', label: 'Allow overlap', type: 'checkbox' },
         ],
-        rows: (d) => d.places,
+        rows: (d) =>
+            [...d.places].sort((a, b) =>
+                a.Name.localeCompare(b.Name, undefined, { numeric: true, sensitivity: 'base' }),
+            ),
         create: (v) =>
             api.createPlace({ name: v.Name, allowOverlap: v.AllowOverlap === 'on' }, requestId()),
         update: (id, v) =>
@@ -381,9 +384,8 @@ function Editor({
                 config={config}
                 row={row}
                 onSubmit={async (values) => {
-                    if (row) onClose();
+                    onClose();
                     await onSaved(values);
-                    if (!row) onClose();
                 }}
                 submitLabel={row ? 'Save' : 'Add'}
             />

@@ -374,6 +374,9 @@ function createProgramRequest(
     if (requestedBy.Email !== actor.Email && !canApprove(actor)) {
         throw new AuthorizationError('requester_edit_not_allowed');
     }
+    if (input.placeId && !canApprove(actor)) {
+        throw new AuthorizationError('place_edit_not_allowed');
+    }
     const place = input.placeId ? Tables.Places.findById(input.placeId) : null;
     if (input.placeId && !place) throw new ValidationError('place_not_found');
     const sessionLines = cleanProgramSessions(input.sessions);

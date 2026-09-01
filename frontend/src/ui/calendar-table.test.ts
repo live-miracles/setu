@@ -57,6 +57,13 @@ export function runCalendarTableAssertions(): void {
                 sessions: [session({ Name: 'Other session', Type: 'Talk' })],
             }),
             program({
+                Id: 'unassigned',
+                Name: 'No studio title',
+                PlaceId: '',
+                placeName: '',
+                sessions: [session({ Name: 'No studio session' })],
+            }),
+            program({
                 Id: 'rejected',
                 Status: 'rejected',
                 sessions: [
@@ -77,8 +84,8 @@ export function runCalendarTableAssertions(): void {
             }),
         ],
         [
-            { Id: 'place-1', Name: 'Studio A', AllowOverlap: false },
-            { Id: 'place-2', Name: 'Studio B', AllowOverlap: false },
+            { Id: 'place-2', Name: 'Studio 10', AllowOverlap: false },
+            { Id: 'place-1', Name: 'Studio 2', AllowOverlap: false },
         ],
         [
             { Id: 'type-webinar', Name: 'Webinar', Color: '#7cc9a4' },
@@ -94,8 +101,17 @@ export function runCalendarTableAssertions(): void {
     );
     assert(model.rows.length === 3, 'window includes dates without sessions');
     assert(model.rows[2].label === 'Tue, Aug 11', 'date label includes weekday');
+    assert(model.places[0].Name === '', 'unassigned programs use a leading untitled column');
+    assert(
+        model.places.slice(1).map((place) => place.Name).join('|') === 'Studio 2|Studio 10',
+        'studio columns sort alphabetically in ascending natural order',
+    );
+    assert(
+        model.rows[2].places[0].blocks[0].programId === 'unassigned',
+        'unassigned programs appear in the untitled column',
+    );
 
-    const studio = model.rows[2].places[0];
+    const studio = model.rows[2].places[1];
     assert(studio.blocks.length === 2, 'different programs stack in the same place');
     assert(studio.blocks[0].sessions.length === 2, 'sessions group into one program block');
     assert(studio.blocks[0].title === 'English Webinar Title', 'program label format');
