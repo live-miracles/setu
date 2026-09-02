@@ -77,6 +77,12 @@ import { RequestBlock } from '../ui/request-block';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
+import {
+    cacheProgramRequests,
+    getCachedProgramRequests,
+    getProgramRequestCacheVersion,
+    programRequestCacheKey,
+} from '../ui/program-request-cache';
 import { UserBlock } from '../ui/user-block';
 import homeHeroImage from '../../assets/home-hero.avif';
 import ReactMarkdown from 'react-markdown';
@@ -1519,7 +1525,6 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     };
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
         const query: any = {
             q: appliedSearch,
             // An empty checkbox selection is different from an omitted filter;
@@ -1528,6 +1533,21 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         };
         if (isProgram)
             query.dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
+
+        const cacheKey = isProgram
+            ? programRequestCacheKey(page, appliedSearch, selectedStatuses, query.dateScope)
+            : '';
+        const cached = isProgram ? getCachedProgramRequests(cacheKey) : undefined;
+        if (cached) {
+            setResult(cached);
+            setLoading(false);
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        setLoading(true);
+        const requestCacheVersion = getProgramRequestCacheVersion();
         const request = isInventory
             ? api.listInventoryRequests(page, query)
             : isProgram
@@ -1535,6 +1555,13 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
               : api.listTickets(page, query);
         request
             .then((next) => {
+                if (isProgram) {
+                    cacheProgramRequests(
+                        cacheKey,
+                        next as Paginated<ProgramRequestDTO>,
+                        requestCacheVersion,
+                    );
+                }
                 if (!cancelled) setResult(next);
             })
             .catch(error)
@@ -1544,7 +1571,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         return () => {
             cancelled = true;
         };
-    }, [appliedSearch, isInventory, isProgram, page, selectedStatuses, view]);
+    }, [appliedSearch, dashboard, isInventory, isProgram, page, selectedStatuses, view]);
 
     const filter = (
         <Space wrap>
@@ -1615,34 +1642,36 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             }>
             <div className="antd-request-list">
                 {loading && <Typography.Text type="secondary">Loading requests…</Typography.Text>}
-                {!loading &&
-                    rows.map((row) =>
-                        isProgram ? (
-                            <RequestBlock
-                                key={row.Id}
-                                kind="program"
-                                row={row as ProgramRequestDTO}
-                                dashboard={dashboard}
-                                onClick={() => open(row.Id)}
-                            />
-                        ) : isInventory ? (
-                            <RequestBlock
-                                key={row.Id}
-                                kind="inventory"
-                                row={row as InventoryRequestDTO}
-                                dashboard={dashboard}
-                                onClick={() => open(row.Id)}
-                            />
-                        ) : (
-                            <RequestBlock
-                                key={row.Id}
-                                kind="ticket"
-                                row={row as TicketDTO}
-                                dashboard={dashboard}
-                                onClick={() => open(row.Id)}
-                            />
-                        ),
-                    )}
+                {/* Rows stay put while a refresh is in flight: the dashboard is
+                    refreshed after every mutation, and blanking the board on each
+                    one flashed an empty list between the two renders. */}
+                {rows.map((row) =>
+                    isProgram ? (
+                        <RequestBlock
+                            key={row.Id}
+                            kind="program"
+                            row={row as ProgramRequestDTO}
+                            dashboard={dashboard}
+                            onClick={() => open(row.Id)}
+                        />
+                    ) : isInventory ? (
+                        <RequestBlock
+                            key={row.Id}
+                            kind="inventory"
+                            row={row as InventoryRequestDTO}
+                            dashboard={dashboard}
+                            onClick={() => open(row.Id)}
+                        />
+                    ) : (
+                        <RequestBlock
+                            key={row.Id}
+                            kind="ticket"
+                            row={row as TicketDTO}
+                            dashboard={dashboard}
+                            onClick={() => open(row.Id)}
+                        />
+                    ),
+                )}
                 {!loading && !rows.length && <AntEmpty description="No requests" />}
                 {result && result.totalCount > result.pageSize && (
                     <Pagination
@@ -2492,7 +2521,7 @@ function ProgramDetail({
                     )}
                 </TableView>
             </DetailSection>
-            <DetailSection minHeight="16rem" maxHeight="32rem">
+            <DetailSection className="activity-detail-section">
                 <Activity requestId={request.Id} initialComments={request.comments} />
             </DetailSection>
             {pendingAction && (
@@ -3496,7 +3525,7 @@ function InventoryDetail({
                     )}
                 </div>
             </DetailSection>
-            <DetailSection minHeight="16rem" maxHeight="32rem">
+            <DetailSection className="activity-detail-section">
                 <Activity requestId={request.Id} initialComments={request.comments} />
             </DetailSection>
             {editing && (
@@ -3828,7 +3857,7 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                     </dd>
                 </div>
             </DetailSection>
-            <DetailSection minHeight="16rem" maxHeight="32rem">
+            <DetailSection className="activity-detail-section">
                 <Activity requestId={ticket.Id} initialComments={ticket.comments} />
             </DetailSection>
             {editing && (
