@@ -153,13 +153,23 @@ export function buildCalendarTableModel(
         (program) => !program.PlaceId.trim() && program.sessions.some(isVisibleSession),
     );
     const hasPlaceSpecificBlocks = visibleBlocks.some((block) => Boolean(block.Place));
+    const activePlaceIds = new Set<string>();
+    approved.forEach((program) => {
+        if (program.PlaceId.trim() && program.sessions.some(isVisibleSession)) {
+            activePlaceIds.add(program.PlaceId);
+        }
+    });
+    visibleBlocks.forEach((block) => {
+        if (block.Place) activePlaceIds.add(block.Place);
+    });
+    const activePlaces = sortedPlaces.filter((place) => activePlaceIds.has(place.Id));
     const tablePlaces = [
         ...(hasUnassignedPrograms
             ? [{ Id: UNASSIGNED_PLACE_ID, Name: '', AllowOverlap: true }]
             : []),
         ...(!visibleSessions.length && !hasPlaceSpecificBlocks
             ? [{ Id: 'calendar-empty-place', Name: '', AllowOverlap: true }]
-            : sortedPlaces),
+            : activePlaces),
     ];
 
     const lastSessionDate = visibleSessions.reduce((latest, session) => {

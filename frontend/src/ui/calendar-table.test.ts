@@ -82,10 +82,18 @@ export function runCalendarTableAssertions(): void {
                     }),
                 ],
             }),
+            program({
+                Id: 'program-3',
+                Name: 'Third studio',
+                PlaceId: 'place-3',
+                placeName: 'Studio 5',
+                sessions: [session({ Name: 'Studio 5 session' })],
+            }),
         ],
         [
             { Id: 'place-2', Name: 'Studio 10', AllowOverlap: false },
             { Id: 'place-1', Name: 'Studio 2', AllowOverlap: false },
+            { Id: 'place-3', Name: 'Studio 5', AllowOverlap: false },
         ],
         [
             { Id: 'type-webinar', Name: 'Webinar', Color: '#7cc9a4' },
@@ -106,8 +114,12 @@ export function runCalendarTableAssertions(): void {
         model.places
             .slice(1)
             .map((place) => place.Name)
-            .join('|') === 'Studio 2|Studio 10',
-        'studio columns sort alphabetically in ascending natural order',
+            .join('|') === 'Studio 2|Studio 5',
+        'studio columns with sessions this window sort alphabetically in ascending natural order',
+    );
+    assert(
+        !model.places.some((place) => place.Name === 'Studio 10'),
+        'studios without any sessions this window are dropped',
     );
     assert(
         model.rows[2].places[0].blocks[0].programId === 'unassigned',
