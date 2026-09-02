@@ -1100,9 +1100,8 @@ function Roster({ dashboard }: Props) {
                                               EndTime: v.endTime,
                                               UserId: v.userId,
                                               userName:
-                                                  dashboard.users.find(
-                                                      (u) => u.Email === v.userId,
-                                                  )?.Name || item.userName,
+                                                  dashboard.users.find((u) => u.Email === v.userId)
+                                                      ?.Name || item.userName,
                                           })
                                         : item,
                                 ),
