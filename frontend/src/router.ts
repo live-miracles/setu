@@ -17,7 +17,7 @@ import {
 } from './config';
 import { getState, setState } from './state';
 import { canApprove, canUseTickets } from './workflows';
-import { clearProgramRequestCache } from './ui/program-request-cache';
+import { clearListCache } from './ui/list-cache';
 
 // The routing core: it owns navigation, role gating and the nav chrome, but
 // deliberately imports no section. The table of renderers is handed to it by
@@ -133,7 +133,7 @@ function requireConfig(): RouterConfig {
 const CONFIG_SECTIONS: SectionKey[] = ['departments', 'places', 'inventory-types', 'home-content'];
 
 export async function refreshDashboard(): Promise<void> {
-    clearProgramRequestCache();
+    clearListCache();
     const dashboard = await api.getDashboard();
     setState({ dashboard });
     await renderCurrentSection();

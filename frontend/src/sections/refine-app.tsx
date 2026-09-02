@@ -78,11 +78,12 @@ import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
 import {
-    cacheProgramRequests,
-    getCachedProgramRequests,
-    getProgramRequestCacheVersion,
-    programRequestCacheKey,
-} from '../ui/program-request-cache';
+    cacheList,
+    calendarMonthCacheKey,
+    getCachedList,
+    getListCacheVersion,
+    requestListCacheKey,
+} from '../ui/list-cache';
 import { UserBlock } from '../ui/user-block';
 import homeHeroImage from '../../assets/home-hero.avif';
 import ReactMarkdown from 'react-markdown';
@@ -1334,22 +1335,49 @@ function Calendar({ dashboard }: Props) {
         const today = new Date();
         return new Date(today.getFullYear(), today.getMonth(), 1);
     });
-    const [calendarData, setCalendarData] = useState<CalendarMonthPayload | null>(null);
+    // Tagged with the month it was fetched for so a paged-away month's programs
+    // never render under the month the user is now looking at.
+    const [loaded, setLoaded] = useState<{ key: string; payload: CalendarMonthPayload } | null>(
+        null,
+    );
     const [loading, setLoading] = useState(false);
     const year = month.getFullYear();
     const monthNumber = month.getMonth() + 1;
     const todayIso = formatLocalDateOnly(new Date());
     const monthStartIso = formatLocalDateOnly(month);
     const monthEndIso = formatLocalDateOnly(new Date(year, monthNumber, 0));
+    const cacheKey = calendarMonthCacheKey(year, monthNumber);
     useEffect(() => {
+        let cancelled = false;
+        const cached = getCachedList<CalendarMonthPayload>(cacheKey);
+        if (cached) {
+            setLoaded({ key: cacheKey, payload: cached });
+            setLoading(false);
+            return () => {
+                cancelled = true;
+            };
+        }
+
         setLoading(true);
+        const requestCacheVersion = getListCacheVersion();
         api.getCalendarMonth(year, monthNumber)
-            .then(setCalendarData)
+            .then((next) => {
+                cacheList(cacheKey, next, requestCacheVersion);
+                // Months are paged through faster than Apps Script answers, so
+                // only the newest request may write to the grid.
+                if (!cancelled) setLoaded({ key: cacheKey, payload: next });
+            })
             .catch(error)
-            .finally(() => setLoading(false));
-    }, [year, monthNumber]);
-    const calendarPrograms = calendarData?.programs || [];
-    const calendarPlaces = calendarData?.places || dashboard.places;
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [cacheKey, dashboard, year, monthNumber]);
+    const monthData = loaded && loaded.key === cacheKey ? loaded.payload : null;
+    const calendarPrograms = monthData?.programs || [];
+    const calendarPlaces = monthData?.places || dashboard.places;
     const calendar = buildCalendarTableModel(
         calendarPrograms,
         calendarPlaces,
@@ -1384,7 +1412,9 @@ function Calendar({ dashboard }: Props) {
                     />
                 </Space>
             }>
-            {loading ? (
+            {/* A refresh keeps the grid up: only a month we have nothing for yet
+                is worth replacing with a loading line. */}
+            {loading && !monthData ? (
                 <Typography.Text type="secondary">Loading calendar…</Typography.Text>
             ) : calendar.rows.length ? (
                 <div className="calendar-table-scroll">
@@ -1534,10 +1564,14 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         if (isProgram)
             query.dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
 
-        const cacheKey = isProgram
-            ? programRequestCacheKey(page, appliedSearch, selectedStatuses, query.dateScope)
-            : '';
-        const cached = isProgram ? getCachedProgramRequests(cacheKey) : undefined;
+        const cacheKey = requestListCacheKey(
+            kind,
+            page,
+            appliedSearch,
+            selectedStatuses,
+            query.dateScope,
+        );
+        const cached = getCachedList<Paginated<any>>(cacheKey);
         if (cached) {
             setResult(cached);
             setLoading(false);
@@ -1547,7 +1581,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         }
 
         setLoading(true);
-        const requestCacheVersion = getProgramRequestCacheVersion();
+        const requestCacheVersion = getListCacheVersion();
         const request = isInventory
             ? api.listInventoryRequests(page, query)
             : isProgram
@@ -1555,13 +1589,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
               : api.listTickets(page, query);
         request
             .then((next) => {
-                if (isProgram) {
-                    cacheProgramRequests(
-                        cacheKey,
-                        next as Paginated<ProgramRequestDTO>,
-                        requestCacheVersion,
-                    );
-                }
+                cacheList(cacheKey, next, requestCacheVersion);
                 if (!cancelled) setResult(next);
             })
             .catch(error)
@@ -1571,7 +1599,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         return () => {
             cancelled = true;
         };
-    }, [appliedSearch, dashboard, isInventory, isProgram, page, selectedStatuses, view]);
+    }, [appliedSearch, dashboard, isInventory, isProgram, kind, page, selectedStatuses, view]);
 
     const filter = (
         <Space wrap>
