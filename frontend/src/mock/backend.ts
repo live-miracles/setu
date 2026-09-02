@@ -2052,9 +2052,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (!(canApprove(mockToUserDTO(actor)) || (isOwner && request.Status === 'draft'))) {
             throw new Error('edit_not_allowed');
         }
-        if (['rejected', 'cancelled'].includes(request.Status)) {
-            throw new Error('request_not_editable');
-        }
         const place = input.placeId
             ? mockData.places.find((item) => item.Id === input.placeId)
             : undefined;

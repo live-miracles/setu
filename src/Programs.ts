@@ -451,9 +451,6 @@ function updateProgramRequest(
         if (!(canApprove(actor) || (isOwner && request.Status === 'draft'))) {
             throw new AuthorizationError('edit_not_allowed');
         }
-        if (['cancelled', 'rejected'].indexOf(request.Status) !== -1) {
-            throw new ValidationError('request_not_editable');
-        }
         if (request.PlaceId !== (place ? place.Id : '') && !canApprove(actor)) {
             throw new AuthorizationError('place_edit_not_allowed');
         }
