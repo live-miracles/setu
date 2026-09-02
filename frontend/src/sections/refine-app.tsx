@@ -105,6 +105,13 @@ import {
 
 type Props = { dashboard: DashboardPayload };
 const OTHER_PROGRAM_TYPE = 'Other';
+const PROGRAM_REQUEST_STATUSES: ProgramRequestStatus[] = [
+    'draft',
+    'submitted',
+    'approved',
+    'rejected',
+    'cancelled',
+];
 const error = (e: unknown) => showErrorAlert(e);
 
 function programTypeOptions(programTypes: ProgramType[], current = ''): string[] {
@@ -2107,7 +2114,8 @@ function ProgramDetail({
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
     const deletable =
-        ['draft', 'cancelled'].includes(request.Status) && (canApprove(dashboard.me) || owner);
+        ['draft', 'cancelled', 'rejected'].includes(request.Status) &&
+        (canApprove(dashboard.me) || owner);
     const [editing, setEditing] = useState(false);
     const [sessions, setSessions] = useState<ProgramSession[]>(request.sessions);
     const [sessionIndex, setSessionIndex] = useState<number | null>(null);
@@ -2138,6 +2146,7 @@ function ProgramDetail({
         LeadEmail: request.LeadEmail,
         Participants: request.participants.join(', '),
         UserId: request.UserId,
+        Status: request.Status,
     });
     const [availablePlaceIds, setAvailablePlaceIds] = useState<string[]>(
         dashboard.places.map((place) => place.Id),
@@ -2192,6 +2201,7 @@ function ProgramDetail({
                             departmentId: values.DepartmentId,
                             leadEmail: values.LeadEmail,
                             participants: values.Participants,
+                            status: values.Status,
                             sessions: nextSessions.map((s) => ({
                                 name: s.Name,
                                 type: s.Type,
@@ -2251,6 +2261,7 @@ function ProgramDetail({
                             departmentId: values.DepartmentId,
                             leadEmail: values.LeadEmail,
                             participants: values.Participants,
+                            status: values.Status,
                             sessions: sessions.map((s) => ({
                                 name: s.Name,
                                 type: s.Type,
@@ -2270,6 +2281,7 @@ function ProgramDetail({
                     LeadEmail: request.LeadEmail,
                     Participants: request.participants.join(', '),
                     UserId: request.UserId,
+                    Status: request.Status,
                 });
                 setSessions(request.sessions);
                 throw e;
@@ -2369,6 +2381,7 @@ function ProgramDetail({
                             departmentId: values.DepartmentId,
                             leadEmail: values.LeadEmail,
                             participants: values.Participants,
+                            status: values.Status,
                             sessions: nextSessions.map((s) => ({
                                 name: s.Name,
                                 type: s.Type,
@@ -2677,6 +2690,19 @@ function ProgramDetail({
                                         </Select.Option>
                                     ),
                                 )}
+                            </Select>
+                        </AntForm.Item>
+                        <AntForm.Item label="Status" required>
+                            <Select
+                                value={values.Status}
+                                onChange={(value) => update('Status', value)}
+                                disabled={!canApprove(dashboard.me)}
+                                style={{ width: '100%' }}>
+                                {PROGRAM_REQUEST_STATUSES.map((status) => (
+                                    <Select.Option key={status} value={status}>
+                                        {status}
+                                    </Select.Option>
+                                ))}
                             </Select>
                         </AntForm.Item>
                         <AntForm.Item label="Place">

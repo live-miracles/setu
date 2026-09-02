@@ -45,6 +45,14 @@ type MockSessionFieldName = 'type' | 'startDateTime' | 'endDateTime';
 type MockLegacyInventoryItem = InventoryItem & { Id: string; RequestId: string };
 type MockLegacyProgramSession = ProgramSession & { Id: string; RequestId: string };
 
+const MOCK_PROGRAM_REQUEST_STATUSES: ProgramRequestStatus[] = [
+    'draft',
+    'submitted',
+    'approved',
+    'rejected',
+    'cancelled',
+];
+
 const MOCK_PROGRAM_FIELD_LABELS: Record<MockProgramFieldName, string> = {
     name: 'Program title',
     language: 'Language',
@@ -2065,6 +2073,14 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         if (request.UserId !== requestedBy.Email && !canApprove(mockToUserDTO(actor))) {
             throw new Error('requester_edit_not_allowed');
         }
+        const status = input.status || request.Status;
+        if (!MOCK_PROGRAM_REQUEST_STATUSES.includes(status)) {
+            throw new Error('invalid_status');
+        }
+        if (status !== request.Status && !canApprove(mockToUserDTO(actor))) {
+            throw new Error('status_edit_not_allowed');
+        }
+        const previousStatus = request.Status;
         request.Name = name;
         request.Language = language;
         request.Type = type;
@@ -2074,6 +2090,15 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         request.LeadEmail = leadEmail;
         request.Participants = mockParseParticipants(input.participants).join(', ');
         request.SessionsJson = mockProgramSessionsJson(sessions);
+        request.Status = status;
+        if (status !== previousStatus) {
+            mockInsertActionComment(
+                'program',
+                id,
+                actor.Email,
+                actor.Name + ' changed the status to ' + status + '.',
+            );
+        }
         return mockBuildProgramRequestDTO(request);
     },
     updateProgramRequestParticipants: (id: string, input: UpdateRequestParticipantsInput) => {
@@ -2097,7 +2122,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
             request.UserId === actor.Email ||
             mockParseParticipants(request.Participants).includes(actor.Email);
         if (!canApprove(mockToUserDTO(actor)) && !owner) throw new Error('delete_not_allowed');
-        if (!['draft', 'cancelled'].includes(request.Status))
+        if (!['draft', 'cancelled', 'rejected'].includes(request.Status))
             throw new Error('request_not_deletable');
         mockData.programRequests = mockData.programRequests.filter((item) => item.Id !== id);
     },

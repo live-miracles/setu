@@ -1,5 +1,13 @@
 const PROGRAM_REQUESTS_PAGE_SIZE = 25;
 
+const PROGRAM_REQUEST_STATUSES: ProgramRequestStatus[] = [
+    'draft',
+    'submitted',
+    'approved',
+    'rejected',
+    'cancelled',
+];
+
 const PROGRAM_REQUIRED_FIELDS: Record<
     string,
     (input: CreateProgramRequestInput | UpdateProgramRequestInput) => boolean
@@ -457,6 +465,13 @@ function updateProgramRequest(
         if (request.UserId !== requestedBy.Email && !canApprove(actor)) {
             throw new AuthorizationError('requester_edit_not_allowed');
         }
+        const status = input.status || request.Status;
+        if (PROGRAM_REQUEST_STATUSES.indexOf(status) === -1) {
+            throw new ValidationError('invalid_status');
+        }
+        if (status !== request.Status && !canApprove(actor)) {
+            throw new AuthorizationError('status_edit_not_allowed');
+        }
 
         const updated = Tables.ProgramRequests.updateById(id, {
             Name: name,
@@ -468,7 +483,16 @@ function updateProgramRequest(
             LeadEmail: leadEmail,
             Participants: formatParticipants(participants),
             SessionsJson: stringifyProgramSessions(sessionLines),
+            Status: status,
         });
+        if (status !== request.Status) {
+            insertActionComment(
+                'program',
+                id,
+                actor.Email,
+                actor.Name + ' changed the status to ' + status + '.',
+            );
+        }
         return { request: updated };
     });
 
@@ -609,7 +633,7 @@ function deleteProgramRequest(id: string, requestId: string): void {
         const participants = parseParticipants(request.Participants);
         const owner = request.UserId === actor.Email || participants.indexOf(actor.Email) !== -1;
         if (!canApprove(actor) && !owner) throw new AuthorizationError('delete_not_allowed');
-        if (request.Status !== 'draft' && request.Status !== 'cancelled') {
+        if (['draft', 'cancelled', 'rejected'].indexOf(request.Status) === -1) {
             throw new ValidationError('request_not_deletable');
         }
         Tables.ProgramRequests.deleteById(id);

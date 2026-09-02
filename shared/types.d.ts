@@ -450,6 +450,7 @@ interface UpdateProgramRequestInput {
     departmentId: string;
     leadEmail: string;
     participants: string;
+    status: ProgramRequestStatus;
 }
 
 interface CreateTicketInput {
