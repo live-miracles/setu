@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons';
 import { createRoot } from 'react-dom/client';
 import { useEffect, useState } from 'react';
-import appLogo from '../../logo.png';
+import appLogo from '../../assets/logo.png';
 import { refreshDashboard } from '../router';
 import { showErrorAlert } from './feedback';
 import { AppLoading } from './app-loading';

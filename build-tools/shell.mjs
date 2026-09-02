@@ -23,7 +23,7 @@ const PROD_ASSET_BASE = 'https://live-miracles.github.io/setu/prod';
  * so a <link rel="icon"> here is what the browser tab actually reads, and
  * inlining keeps the dev server free of a second asset route. 64px is the
  * largest source that stays cheap once base64'd while still covering retina
- * tabs; frontend/logo.png is the master image for regenerating the icon set.
+ * tabs; frontend/assets/logo.png is the master image for regenerating the icon set.
  *
  * Production deliberately gets nothing here: Apps Script serves the app in an
  * iframe, so the browser tab belongs to Google's outer page and an icon in
