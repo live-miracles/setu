@@ -644,13 +644,17 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                 return;
             }
             await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
+                (previous) => {
+                    const departmentName =
+                        dashboard.departments.find((d) => d.Id === profile.departmentId)?.Name ||
+                        '';
+                    return Object.assign({}, previous, {
                         me: Object.assign({}, previous.me, {
                             Name: profile.name,
                             DepartmentId: profile.departmentId,
                             Phone: profile.phone,
                             Whatsapp: profile.whatsapp,
+                            departmentName,
                         }),
                         users: previous.users.map((user) =>
                             user.Email === previous.me.Email
@@ -659,10 +663,12 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                                       DepartmentId: profile.departmentId,
                                       Phone: profile.phone,
                                       Whatsapp: profile.whatsapp,
+                                      departmentName,
                                   })
                                 : user,
                         ),
-                    }),
+                    });
+                },
                 () => api.updateOwnProfile(profile),
             );
         },
@@ -774,6 +780,10 @@ function UserForm({
                                           DepartmentId: values.departmentId,
                                           Phone: values.phone,
                                           Whatsapp: values.whatsapp,
+                                          departmentName:
+                                              dashboard.departments.find(
+                                                  (d) => d.Id === values.departmentId,
+                                              )?.Name || '',
                                       })
                                     : item,
                             ),
@@ -1089,6 +1099,10 @@ function Roster({ dashboard }: Props) {
                                               StartTime: v.startTime,
                                               EndTime: v.endTime,
                                               UserId: v.userId,
+                                              userName:
+                                                  dashboard.users.find(
+                                                      (u) => u.Email === v.userId,
+                                                  )?.Name || item.userName,
                                           })
                                         : item,
                                 ),
@@ -2206,6 +2220,16 @@ function ProgramDetail({
                                       DepartmentId: values.DepartmentId,
                                       LeadEmail: values.LeadEmail,
                                       sessions,
+                                      userName:
+                                          users.find((u) => u.Email === values.UserId)?.Name ||
+                                          item.userName,
+                                      placeName:
+                                          dashboard.places.find((p) => p.Id === values.PlaceId)
+                                              ?.Name || '',
+                                      departmentName:
+                                          dashboard.departments.find(
+                                              (d) => d.Id === values.DepartmentId,
+                                          )?.Name || '',
                                   })
                                 : item,
                         ),
@@ -2500,12 +2524,12 @@ function ProgramDetail({
                                 {request.Status}
                             </Tag>,
                         ],
-                        ['Program title', values.Name],
-                        ['Language', values.Language],
-                        ['Type', values.Type],
+                        ['Program title', request.Name],
+                        ['Language', request.Language],
+                        ['Type', request.Type],
                         ['Place', request.placeName || 'None'],
                         ['Department', request.departmentName || 'None'],
-                        ['Lead email', values.LeadEmail],
+                        ['Lead email', request.LeadEmail],
                         ['Requested by', request.userName],
                         [
                             'Participants',
@@ -3143,6 +3167,13 @@ function InventoryDetail({
                                       DepartmentId: values.DepartmentId,
                                       LeadEmail: values.LeadEmail,
                                       items,
+                                      userName:
+                                          users.find((u) => u.Email === values.UserId)?.Name ||
+                                          item.userName,
+                                      departmentName:
+                                          dashboard.departments.find(
+                                              (d) => d.Id === values.DepartmentId,
+                                          )?.Name || '',
                                   })
                                 : item,
                         ),
@@ -3398,11 +3429,11 @@ function InventoryDetail({
                                 {request.Status}
                             </Tag>,
                         ],
-                        ['Request name', values.Name],
-                        ['Start date', values.StartDate],
-                        ['End date', values.EndDate],
+                        ['Request name', request.Name],
+                        ['Start date', request.StartDate],
+                        ['End date', request.EndDate],
                         ['Department', request.departmentName || 'None'],
-                        ['Lead email', values.LeadEmail],
+                        ['Lead email', request.LeadEmail],
                         ['Requested by', request.userName || 'Unknown'],
                         [
                             'Participants',
@@ -3874,14 +3905,14 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                                 {ticket.Status}
                             </Tag>,
                         ],
-                        ['Title', values.Title],
+                        ['Title', ticket.Title],
                         ['Assigned to', ticket.assigneeName || 'Unassigned'],
                     ]}
                 />
                 <div className="mt-4 sm:col-span-2">
                     <dt className="text-xs font-semibold text-black/50">Description</dt>
                     <dd className="mt-1 whitespace-pre-wrap text-sm">
-                        {values.Description || 'No description.'}
+                        {ticket.Description || 'No description.'}
                     </dd>
                 </div>
             </DetailSection>
