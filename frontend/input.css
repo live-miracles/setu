@@ -541,11 +541,6 @@ body {
     text-align: center;
 }
 
-.app-content.app-content-settings {
-    max-width: 50rem;
-    margin-inline: auto;
-}
-
 .app-content-settings > .refine-page > .antd-page,
 .app-content-settings > .refine-page > .antd-settings-compact,
 .app-content-settings > .refine-page > .ant-app > .antd-page,
