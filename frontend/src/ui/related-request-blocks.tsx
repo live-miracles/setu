@@ -48,7 +48,6 @@ export function RelatedRequestBlocks({
                             kind={kind}
                             row={item}
                             dashboard={dashboard}
-                            comments={item.comments}
                             onClick={() => onOpen(item.Id)}
                         />
                     ))}

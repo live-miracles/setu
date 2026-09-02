@@ -1623,7 +1623,6 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                 kind="program"
                                 row={row as ProgramRequestDTO}
                                 dashboard={dashboard}
-                                comments={row.comments}
                                 onClick={() => open(row.Id)}
                             />
                         ) : isInventory ? (
@@ -1632,7 +1631,6 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                 kind="inventory"
                                 row={row as InventoryRequestDTO}
                                 dashboard={dashboard}
-                                comments={row.comments}
                                 onClick={() => open(row.Id)}
                             />
                         ) : (
@@ -1641,7 +1639,6 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                 kind="ticket"
                                 row={row as TicketDTO}
                                 dashboard={dashboard}
-                                comments={row.comments}
                                 onClick={() => open(row.Id)}
                             />
                         ),
@@ -2996,7 +2993,7 @@ function InventoryDetail({
         request.items.map((item) => ({ ...item })),
     );
     const [itemDraft, setItemDraft] = useState({
-        InventoryTypeId: dashboard.inventoryTypes[0]?.Id || '',
+        InventoryTypeId: '',
         Quantity: 1,
         Condition: '' as ReturnCondition | '',
     });
@@ -3164,7 +3161,7 @@ function InventoryDetail({
         setItemDraft(
             index === null
                 ? {
-                      InventoryTypeId: dashboard.inventoryTypes[0]?.Id || '',
+                      InventoryTypeId: '',
                       Quantity: 1,
                       Condition: '',
                   }
@@ -3208,6 +3205,9 @@ function InventoryDetail({
         setItemOpen(false);
         await persistItems(nextItems);
     };
+    const selectedInventoryType = dashboard.inventoryTypes.find(
+        (type) => type.Id === itemDraft.InventoryTypeId,
+    );
     const uploadRequestImage = async (file: File) => {
         if (!file) return;
         try {
@@ -3609,20 +3609,33 @@ function InventoryDetail({
                     <form className="grid gap-3" noValidate onSubmit={saveItem}>
                         <AntForm.Item label="Inventory type" required>
                             <Select
-                                value={itemDraft.InventoryTypeId}
+                                value={itemDraft.InventoryTypeId || undefined}
                                 onChange={(value) =>
                                     setItemDraft((current) => ({
                                         ...current,
                                         InventoryTypeId: value,
                                     }))
                                 }
-                                style={{ width: '100%' }}>
+                                style={{ width: '100%' }}
+                                placeholder="Select inventory type">
                                 {dashboard.inventoryTypes.map((type) => (
                                     <Select.Option key={type.Id} value={type.Id}>
                                         {type.Name}
                                     </Select.Option>
                                 ))}
                             </Select>
+                            {selectedInventoryType && (
+                                <div className="inventory-type-detail-image mt-3">
+                                    {imageUrlForDriveId(selectedInventoryType.ImageId) ? (
+                                        <img
+                                            src={imageUrlForDriveId(selectedInventoryType.ImageId)}
+                                            alt={selectedInventoryType.Name}
+                                        />
+                                    ) : (
+                                        <span>No photo</span>
+                                    )}
+                                </div>
+                            )}
                         </AntForm.Item>
                         <TextField
                             name="quantity"
@@ -3640,6 +3653,7 @@ function InventoryDetail({
                         <AntForm.Item label="Condition">
                             <Select
                                 value={itemDraft.Condition}
+                                disabled={!canApprove(dashboard.me)}
                                 onChange={(value) =>
                                     setItemDraft((current) => ({
                                         ...current,
@@ -3890,7 +3904,33 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
             : kind === 'programs'
               ? dashboard.programRequests
               : dashboard.tickets;
-    const row = rows.find((r) => r.Id === id);
+    const dashboardRow = rows.find((r) => r.Id === id);
+    const hasDashboardRow = Boolean(dashboardRow);
+    const [loadedInventoryRequest, setLoadedInventoryRequest] =
+        useState<InventoryRequestDTO | null>(null);
+    const [loadingInventoryRequest, setLoadingInventoryRequest] = useState(false);
+    useEffect(() => {
+        if (kind !== 'inventory' || !id || hasDashboardRow) {
+            setLoadedInventoryRequest(null);
+            setLoadingInventoryRequest(false);
+            return;
+        }
+        let cancelled = false;
+        setLoadedInventoryRequest(null);
+        setLoadingInventoryRequest(true);
+        api.getInventoryRequest(id)
+            .then((request) => {
+                if (!cancelled) setLoadedInventoryRequest(request);
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                if (!cancelled) setLoadingInventoryRequest(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [hasDashboardRow, id, kind]);
+    const row = dashboardRow || (kind === 'inventory' ? loadedInventoryRequest : null);
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const back =
         kind === 'inventory'
@@ -3898,6 +3938,12 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
             : kind === 'programs'
               ? navigateToPrograms
               : navigateToTickets;
+    if (!row && loadingInventoryRequest)
+        return (
+            <Page title="Loading request…">
+                <Typography.Text>Loading request…</Typography.Text>
+            </Page>
+        );
     if (!row)
         return params.get('mode') === 'create' ? (
             <CreateRecord kind={kind} dashboard={dashboard} />

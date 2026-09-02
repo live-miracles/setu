@@ -7,7 +7,6 @@ type RequestBlockProps = {
     row: ProgramRequestDTO | InventoryRequestDTO | TicketDTO;
     dashboard: DashboardPayload;
     onClick?: () => void;
-    comments?: CommentDTO[];
 };
 
 function statusLabel(status: string): string {
@@ -27,7 +26,7 @@ function departmentShortName(
     );
 }
 
-export function RequestBlock({ kind, row, dashboard, onClick, comments }: RequestBlockProps) {
+export function RequestBlock({ kind, row, dashboard, onClick }: RequestBlockProps) {
     const program = kind === 'program';
     const ticket = kind === 'ticket';
     return (
@@ -77,17 +76,11 @@ export function RequestBlock({ kind, row, dashboard, onClick, comments }: Reques
                                   row as ProgramRequestDTO | InventoryRequestDTO,
                                   dashboard,
                               ),
-                              ...(program
-                                  ? [(row as ProgramRequestDTO).placeName || 'No place assigned']
+                              ...(program && (row as ProgramRequestDTO).placeName
+                                  ? [(row as ProgramRequestDTO).placeName]
                                   : []),
                           ].join(' | ')}
                 </Typography.Text>
-                {comments?.length ? (
-                    <Typography.Text type="secondary">
-                        {comments.length} comment{comments.length === 1 ? '' : 's'} ·{' '}
-                        {comments[comments.length - 1].Message}
-                    </Typography.Text>
-                ) : null}
             </Space>
         </BlockCard>
     );

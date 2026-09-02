@@ -17,7 +17,6 @@ import {
 } from './config';
 import { getState, setState } from './state';
 import { canApprove, canUseTickets } from './workflows';
-import { unmountRefinePage } from './ui/refine';
 
 // The routing core: it owns navigation, role gating and the nav chrome, but
 // deliberately imports no section. The table of renderers is handed to it by
@@ -282,7 +281,6 @@ export async function renderCurrentSection(): Promise<void> {
     container.classList.toggle('app-content-inventory-types', isInventoryTypes);
     container.classList.toggle('mx-auto', !isHome && !isEdgeToEdge);
     container.classList.toggle('max-w-[50rem]', !isHome && !isEdgeToEdge && !isSettingsSection);
-    unmountRefinePage(container);
     await sections[sectionKey](container, dashboard);
     toggleRoleNavVisibility(dashboard);
 }
