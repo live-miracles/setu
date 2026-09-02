@@ -40,7 +40,6 @@ interface Department {
 interface Place {
     Id: string;
     Name: string;
-    AllowOverlap: boolean;
 }
 
 // Email is the primary key itself (lowercased) — no separate generated id.
@@ -157,7 +156,6 @@ interface CommentRecord {
 // scheduling a roster entry can prefill times and the roster can use the
 // configured color. See Admin.ts and the shift-name select in roster.ts.
 interface ShiftType {
-    Id: string;
     Name: string;
     Color: string;
     DefaultStartTime: string;
@@ -165,18 +163,15 @@ interface ShiftType {
 }
 
 interface ProgramType {
-    Id: string;
     Name: string;
     Color: string;
 }
 
 interface ProgramLanguage {
-    Id: string;
     Name: string;
 }
 
 interface SessionType {
-    Id: string;
     Name: string;
 }
 
@@ -336,7 +331,6 @@ interface CreateDepartmentInput {
 
 interface CreatePlaceInput {
     name: string;
-    allowOverlap: boolean;
 }
 
 interface UpdateUserInput {
@@ -518,24 +512,24 @@ interface Api {
 
     getSettings(): SettingsPayload;
     createShiftType(input: CreateShiftTypeInput, requestId: string): ShiftType;
-    updateShiftType(id: string, input: CreateShiftTypeInput, requestId: string): ShiftType;
-    deleteShiftType(id: string, requestId: string): void;
+    updateShiftType(name: string, input: CreateShiftTypeInput, requestId: string): ShiftType;
+    deleteShiftType(name: string, requestId: string): void;
 
     createProgramType(input: CreateNamedOptionInput, requestId: string): ProgramType;
-    updateProgramType(id: string, input: CreateNamedOptionInput, requestId: string): ProgramType;
-    deleteProgramType(id: string, requestId: string): void;
+    updateProgramType(name: string, input: CreateNamedOptionInput, requestId: string): ProgramType;
+    deleteProgramType(name: string, requestId: string): void;
 
     createProgramLanguage(input: CreateNamedOptionInput, requestId: string): ProgramLanguage;
     updateProgramLanguage(
-        id: string,
+        name: string,
         input: CreateNamedOptionInput,
         requestId: string,
     ): ProgramLanguage;
-    deleteProgramLanguage(id: string, requestId: string): void;
+    deleteProgramLanguage(name: string, requestId: string): void;
 
     createSessionType(input: CreateNamedOptionInput, requestId: string): SessionType;
-    updateSessionType(id: string, input: CreateNamedOptionInput, requestId: string): SessionType;
-    deleteSessionType(id: string, requestId: string): void;
+    updateSessionType(name: string, input: CreateNamedOptionInput, requestId: string): SessionType;
+    deleteSessionType(name: string, requestId: string): void;
 
     listBlocks(): Block[];
     createBlock(input: CreateBlockInput, requestId: string): Block;

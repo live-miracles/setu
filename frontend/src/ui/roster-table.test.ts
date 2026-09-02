@@ -58,14 +58,13 @@ export function runRosterTableAssertions(): void {
     const shiftTypeTimes = getShiftTypeTimes(
         [
             {
-                Id: 'morning',
                 Name: 'Morning',
                 Color: '',
                 DefaultStartTime: '04:00',
                 DefaultEndTime: '13:30',
             },
         ],
-        'morning',
+        'Morning',
     );
     assert(
         shiftTypeTimes?.startTime === '04:00' && shiftTypeTimes.endTime === '13:30',
@@ -84,7 +83,6 @@ export function runRosterTableAssertions(): void {
         ],
         [
             {
-                Id: 'morning-shift',
                 Name: 'morning shift',
                 Color: '#7cc9a4',
                 DefaultStartTime: '',

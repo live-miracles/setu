@@ -72,9 +72,9 @@ export function formatRosterTableTimes(roster: RosterDTO): string {
 
 export function getShiftTypeTimes(
     shiftTypes: ShiftType[],
-    shiftTypeId: string,
+    shiftTypeName: string,
 ): { startTime: string; endTime: string } | null {
-    const shiftType = shiftTypes.find((candidate) => candidate.Id === shiftTypeId);
+    const shiftType = shiftTypes.find((candidate) => candidate.Name === shiftTypeName);
     return shiftType
         ? { startTime: shiftType.DefaultStartTime, endTime: shiftType.DefaultEndTime }
         : null;

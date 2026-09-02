@@ -148,7 +148,6 @@ function createPlace(input: CreatePlaceInput, requestId: string): Place {
     const { result } = withLockedDedupe('place:create', requestId, () => {
         return Tables.Places.insert({
             Name: name,
-            AllowOverlap: Boolean(input.allowOverlap),
         });
     });
     return result;
@@ -161,7 +160,6 @@ function updatePlace(id: string, input: CreatePlaceInput, requestId: string): Pl
         if (!Tables.Places.findById(id)) throw new ValidationError('not_found');
         return Tables.Places.updateById(id, {
             Name: name,
-            AllowOverlap: Boolean(input.allowOverlap),
         });
     });
     return result;
@@ -195,14 +193,16 @@ function createShiftType(input: CreateShiftTypeInput, requestId: string): ShiftT
     requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('shift-type:create', requestId, () => {
+        const shiftTypes = readShiftTypes();
+        if (shiftTypes.some((shiftType) => shiftType.Name === name)) {
+            throw new ValidationError('A shift type with this name already exists.');
+        }
         const created: ShiftType = {
-            Id: Utilities.getUuid(),
             Name: name,
             Color: String(input.color || '').trim(),
             DefaultStartTime: input.defaultStartTime || '',
             DefaultEndTime: input.defaultEndTime || '',
         };
-        const shiftTypes = readShiftTypes();
         shiftTypes.push(created);
         writeShiftTypes(shiftTypes);
         return created;
@@ -210,14 +210,17 @@ function createShiftType(input: CreateShiftTypeInput, requestId: string): ShiftT
     return result;
 }
 
-function updateShiftType(id: string, input: CreateShiftTypeInput, requestId: string): ShiftType {
+function updateShiftType(name: string, input: CreateShiftTypeInput, requestId: string): ShiftType {
     requireAdmin();
-    const name = requireNonEmpty(input.name, 'Name is required.');
+    const newName = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('shift-type:update', requestId, () => {
         const shiftTypes = readShiftTypes();
-        const existing = shiftTypes.find((shiftType) => shiftType.Id === id);
+        const existing = shiftTypes.find((shiftType) => shiftType.Name === name);
         if (!existing) throw new ValidationError('not_found');
-        existing.Name = name;
+        if (newName !== name && shiftTypes.some((shiftType) => shiftType.Name === newName)) {
+            throw new ValidationError('A shift type with this name already exists.');
+        }
+        existing.Name = newName;
         existing.Color = String(input.color || '').trim();
         existing.DefaultStartTime = input.defaultStartTime || '';
         existing.DefaultEndTime = input.defaultEndTime || '';
@@ -227,29 +230,29 @@ function updateShiftType(id: string, input: CreateShiftTypeInput, requestId: str
     return result;
 }
 
-function deleteShiftType(id: string, requestId: string): void {
+function deleteShiftType(name: string, requestId: string): void {
     requireAdmin();
     withLockedDedupe('shift-type:delete', requestId, () => {
-        writeShiftTypes(readShiftTypes().filter((shiftType) => shiftType.Id !== id));
+        writeShiftTypes(readShiftTypes().filter((shiftType) => shiftType.Name !== name));
         return null;
     });
 }
 
 const DEFAULT_PROGRAM_LANGUAGES: ProgramLanguage[] = [
-    { Id: 'program-language-english', Name: 'English' },
-    { Id: 'program-language-hindi', Name: 'Hindi' },
-    { Id: 'program-language-tamil', Name: 'Tamil' },
-    { Id: 'program-language-telugu', Name: 'Telugu' },
-    { Id: 'program-language-kannada', Name: 'Kannada' },
+    { Name: 'English' },
+    { Name: 'Hindi' },
+    { Name: 'Tamil' },
+    { Name: 'Telugu' },
+    { Name: 'Kannada' },
 ];
 
 const DEFAULT_SESSION_TYPES: SessionType[] = [
-    { Id: 'session-type-live', Name: 'Live' },
-    { Id: 'session-type-dry-run', Name: 'Dry Run' },
-    { Id: 'session-type-recording', Name: 'Recording' },
+    { Name: 'Live' },
+    { Name: 'Dry Run' },
+    { Name: 'Recording' },
 ];
 
-function readNamedOptions<T extends { Id: string; Name: string }>(key: string, fallback: T[]): T[] {
+function readNamedOptions<T extends { Name: string }>(key: string, fallback: T[]): T[] {
     const setting = Tables.Settings.findById(key);
     if (!setting || !setting.Value) return fallback.map((option) => Object.assign({}, option));
     try {
@@ -259,65 +262,8 @@ function readNamedOptions<T extends { Id: string; Name: string }>(key: string, f
     }
 }
 
-function writeNamedOptions(key: string, options: { Id: string; Name: string }[]): void {
+function writeNamedOptions(key: string, options: { Name: string }[]): void {
     upsertSetting(key, JSON.stringify(options));
-}
-
-function createNamedOption<T extends { Id: string; Name: string }>(
-    key: string,
-    fallback: T[],
-    input: CreateNamedOptionInput,
-    requestId: string,
-    lockKey: string,
-): T {
-    requireAdmin();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result } = withLockedDedupe(lockKey + ':create', requestId, () => {
-        const created = { Id: Utilities.getUuid(), Name: name } as T;
-        const options = readNamedOptions(key, fallback);
-        options.push(created);
-        writeNamedOptions(key, options);
-        return created;
-    });
-    return result;
-}
-
-function updateNamedOption<T extends { Id: string; Name: string }>(
-    key: string,
-    fallback: T[],
-    id: string,
-    input: CreateNamedOptionInput,
-    requestId: string,
-    lockKey: string,
-): T {
-    requireAdmin();
-    const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result } = withLockedDedupe(lockKey + ':update', requestId, () => {
-        const options = readNamedOptions(key, fallback);
-        const existing = options.find((option) => option.Id === id);
-        if (!existing) throw new ValidationError('not_found');
-        existing.Name = name;
-        writeNamedOptions(key, options);
-        return existing;
-    });
-    return result;
-}
-
-function deleteNamedOption<T extends { Id: string; Name: string }>(
-    key: string,
-    fallback: T[],
-    id: string,
-    requestId: string,
-    lockKey: string,
-): void {
-    requireAdmin();
-    withLockedDedupe(lockKey + ':delete', requestId, () => {
-        writeNamedOptions(
-            key,
-            readNamedOptions(key, fallback).filter((option) => option.Id !== id),
-        );
-        return null;
-    });
 }
 
 function readProgramTypes(): ProgramType[] {
@@ -335,12 +281,11 @@ function createProgramType(input: CreateNamedOptionInput, requestId: string): Pr
     requireAdmin();
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('program-type:create', requestId, () => {
-        const created: ProgramType = {
-            Id: Utilities.getUuid(),
-            Name: name,
-            Color: String(input.color || '').trim(),
-        };
         const options = readProgramTypes();
+        if (options.some((option) => option.Name === name)) {
+            throw new ValidationError('A program type with this name already exists.');
+        }
+        const created: ProgramType = { Name: name, Color: String(input.color || '').trim() };
         options.push(created);
         writeNamedOptions('programTypes', options);
         return created;
@@ -349,17 +294,20 @@ function createProgramType(input: CreateNamedOptionInput, requestId: string): Pr
 }
 
 function updateProgramType(
-    id: string,
+    name: string,
     input: CreateNamedOptionInput,
     requestId: string,
 ): ProgramType {
     requireAdmin();
-    const name = requireNonEmpty(input.name, 'Name is required.');
+    const newName = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('program-type:update', requestId, () => {
         const options = readProgramTypes();
-        const existing = options.find((option) => option.Id === id);
+        const existing = options.find((option) => option.Name === name);
         if (!existing) throw new ValidationError('not_found');
-        existing.Name = name;
+        if (newName !== name && options.some((option) => option.Name === newName)) {
+            throw new ValidationError('A program type with this name already exists.');
+        }
+        existing.Name = newName;
         existing.Color = String(input.color || '').trim();
         writeNamedOptions('programTypes', options);
         return existing;
@@ -367,8 +315,15 @@ function updateProgramType(
     return result;
 }
 
-function deleteProgramType(id: string, requestId: string): void {
-    deleteNamedOption('programTypes', [], id, requestId, 'program-type');
+function deleteProgramType(name: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('program-type:delete', requestId, () => {
+        writeNamedOptions(
+            'programTypes',
+            readProgramTypes().filter((option) => option.Name !== name),
+        );
+        return null;
+    });
 }
 
 function readProgramLanguages(): ProgramLanguage[] {
@@ -381,38 +336,51 @@ function listProgramLanguages(): ProgramLanguage[] {
 }
 
 function createProgramLanguage(input: CreateNamedOptionInput, requestId: string): ProgramLanguage {
-    return createNamedOption(
-        'programLanguages',
-        DEFAULT_PROGRAM_LANGUAGES,
-        input,
-        requestId,
-        'program-language',
-    );
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('program-language:create', requestId, () => {
+        const options = readProgramLanguages();
+        if (options.some((option) => option.Name === name)) {
+            throw new ValidationError('A language with this name already exists.');
+        }
+        const created: ProgramLanguage = { Name: name };
+        options.push(created);
+        writeNamedOptions('programLanguages', options);
+        return created;
+    });
+    return result;
 }
 
 function updateProgramLanguage(
-    id: string,
+    name: string,
     input: CreateNamedOptionInput,
     requestId: string,
 ): ProgramLanguage {
-    return updateNamedOption(
-        'programLanguages',
-        DEFAULT_PROGRAM_LANGUAGES,
-        id,
-        input,
-        requestId,
-        'program-language',
-    );
+    requireAdmin();
+    const newName = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('program-language:update', requestId, () => {
+        const options = readProgramLanguages();
+        const existing = options.find((option) => option.Name === name);
+        if (!existing) throw new ValidationError('not_found');
+        if (newName !== name && options.some((option) => option.Name === newName)) {
+            throw new ValidationError('A language with this name already exists.');
+        }
+        existing.Name = newName;
+        writeNamedOptions('programLanguages', options);
+        return existing;
+    });
+    return result;
 }
 
-function deleteProgramLanguage(id: string, requestId: string): void {
-    deleteNamedOption(
-        'programLanguages',
-        DEFAULT_PROGRAM_LANGUAGES,
-        id,
-        requestId,
-        'program-language',
-    );
+function deleteProgramLanguage(name: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('program-language:delete', requestId, () => {
+        writeNamedOptions(
+            'programLanguages',
+            readProgramLanguages().filter((option) => option.Name !== name),
+        );
+        return null;
+    });
 }
 
 function readSessionTypes(): SessionType[] {
@@ -425,32 +393,51 @@ function listSessionTypes(): SessionType[] {
 }
 
 function createSessionType(input: CreateNamedOptionInput, requestId: string): SessionType {
-    return createNamedOption(
-        'sessionTypes',
-        DEFAULT_SESSION_TYPES,
-        input,
-        requestId,
-        'session-type',
-    );
+    requireAdmin();
+    const name = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('session-type:create', requestId, () => {
+        const options = readSessionTypes();
+        if (options.some((option) => option.Name === name)) {
+            throw new ValidationError('A session type with this name already exists.');
+        }
+        const created: SessionType = { Name: name };
+        options.push(created);
+        writeNamedOptions('sessionTypes', options);
+        return created;
+    });
+    return result;
 }
 
 function updateSessionType(
-    id: string,
+    name: string,
     input: CreateNamedOptionInput,
     requestId: string,
 ): SessionType {
-    return updateNamedOption(
-        'sessionTypes',
-        DEFAULT_SESSION_TYPES,
-        id,
-        input,
-        requestId,
-        'session-type',
-    );
+    requireAdmin();
+    const newName = requireNonEmpty(input.name, 'Name is required.');
+    const { result } = withLockedDedupe('session-type:update', requestId, () => {
+        const options = readSessionTypes();
+        const existing = options.find((option) => option.Name === name);
+        if (!existing) throw new ValidationError('not_found');
+        if (newName !== name && options.some((option) => option.Name === newName)) {
+            throw new ValidationError('A session type with this name already exists.');
+        }
+        existing.Name = newName;
+        writeNamedOptions('sessionTypes', options);
+        return existing;
+    });
+    return result;
 }
 
-function deleteSessionType(id: string, requestId: string): void {
-    deleteNamedOption('sessionTypes', DEFAULT_SESSION_TYPES, id, requestId, 'session-type');
+function deleteSessionType(name: string, requestId: string): void {
+    requireAdmin();
+    withLockedDedupe('session-type:delete', requestId, () => {
+        writeNamedOptions(
+            'sessionTypes',
+            readSessionTypes().filter((option) => option.Name !== name),
+        );
+        return null;
+    });
 }
 
 function getSettings(): SettingsPayload {

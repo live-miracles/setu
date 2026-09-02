@@ -115,7 +115,7 @@ function mockAssertPlaceAvailability(
     sessions: ProgramSession[],
     currentRequestId?: string,
 ): void {
-    if (!place || place.AllowOverlap || !sessions.length) return;
+    if (!place || !sessions.length) return;
     const bufferMs = 60 * 60 * 1000;
     const conflict = mockData.programRequests
         .filter(
@@ -511,12 +511,12 @@ const mockData = {
         { Id: 'dep-6', Name: 'Finance', ShortName: 'FIN', LeadEmail: 'admin@example.com' },
     ] as Department[],
     places: [
-        { Id: 'place-1', Name: 'Studio A', AllowOverlap: false },
-        { Id: 'place-2', Name: 'Studio B', AllowOverlap: false },
-        { Id: 'place-3', Name: 'Studio C', AllowOverlap: false },
-        { Id: 'place-4', Name: 'Edit Suite 1', AllowOverlap: false },
-        { Id: 'place-5', Name: 'Podcast Room', AllowOverlap: false },
-        { Id: 'place-6', Name: 'Green Room', AllowOverlap: false },
+        { Id: 'place-1', Name: 'Studio A' },
+        { Id: 'place-2', Name: 'Studio B' },
+        { Id: 'place-3', Name: 'Studio C' },
+        { Id: 'place-4', Name: 'Edit Suite 1' },
+        { Id: 'place-5', Name: 'Podcast Room' },
+        { Id: 'place-6', Name: 'Green Room' },
     ] as Place[],
     inventoryTypes: [
         {
@@ -1112,21 +1112,18 @@ const mockData = {
     } as HomeContent,
     shiftTypes: [
         {
-            Id: 'shift-type-1',
             Name: 'Morning',
             Color: '#8bb8e8',
             DefaultStartTime: '04:00',
             DefaultEndTime: '13:30',
         },
         {
-            Id: 'shift-type-2',
             Name: 'Evening',
             Color: '#f2ad72',
             DefaultStartTime: '13:30',
             DefaultEndTime: '22:00',
         },
         {
-            Id: 'shift-type-3',
             Name: 'Night',
             Color: '#b7bec8',
             DefaultStartTime: '22:00',
@@ -1134,9 +1131,8 @@ const mockData = {
         },
         // Blank times mean the full day - see the Roster.StartTime/EndTime
         // comment in shared/types.d.ts and isAllDayShiftBlock in roster.ts.
-        { Id: 'shift-type-4', Name: 'Day', Color: '', DefaultStartTime: '', DefaultEndTime: '' },
+        { Name: 'Day', Color: '', DefaultStartTime: '', DefaultEndTime: '' },
         {
-            Id: 'shift-type-5',
             Name: 'Vacation',
             Color: '',
             DefaultStartTime: '',
@@ -1144,24 +1140,20 @@ const mockData = {
         },
     ] as ShiftType[],
     programTypes: [
-        { Id: 'program-type-livestream', Name: 'Livestream', Color: '#8bb8e8' },
-        { Id: 'program-type-recording', Name: 'Recording', Color: '#f2ad72' },
-        { Id: 'program-type-webinar', Name: 'Webinar', Color: '#f0d36b' },
-        { Id: 'program-type-meeting', Name: 'Meeting', Color: '#b7bec8' },
-        { Id: 'program-type-visit', Name: 'Visit', Color: '#8ac7a0' },
+        { Name: 'Livestream', Color: '#8bb8e8' },
+        { Name: 'Recording', Color: '#f2ad72' },
+        { Name: 'Webinar', Color: '#f0d36b' },
+        { Name: 'Meeting', Color: '#b7bec8' },
+        { Name: 'Visit', Color: '#8ac7a0' },
     ] as ProgramType[],
     programLanguages: [
-        { Id: 'program-language-english', Name: 'English' },
-        { Id: 'program-language-hindi', Name: 'Hindi' },
-        { Id: 'program-language-tamil', Name: 'Tamil' },
-        { Id: 'program-language-telugu', Name: 'Telugu' },
-        { Id: 'program-language-kannada', Name: 'Kannada' },
+        { Name: 'English' },
+        { Name: 'Hindi' },
+        { Name: 'Tamil' },
+        { Name: 'Telugu' },
+        { Name: 'Kannada' },
     ] as ProgramLanguage[],
-    sessionTypes: [
-        { Id: 'session-type-live', Name: 'Live' },
-        { Id: 'session-type-dry-run', Name: 'Dry Run' },
-        { Id: 'session-type-recording', Name: 'Recording' },
-    ] as SessionType[],
+    sessionTypes: [{ Name: 'Live' }, { Name: 'Dry Run' }, { Name: 'Recording' }] as SessionType[],
     blocks: [
         {
             Id: 'block-1',
@@ -1420,7 +1412,7 @@ function mockGetCalendarMonth(year: number, month: number): CalendarMonthPayload
 
 function mockGetAvailablePlaces(requestId: string, sessions: ProgramSessionInput[]): Place[] {
     return mockData.places.filter((place) => {
-        if (place.AllowOverlap || !sessions.length) return true;
+        if (!sessions.length) return true;
         return !mockData.programRequests
             .filter(
                 (request) =>
@@ -1559,7 +1551,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const created: Place = {
             Id: mockUuid(),
             Name: input.name,
-            AllowOverlap: input.allowOverlap,
         };
         mockData.places.push(created);
         return created;
@@ -1568,7 +1559,6 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         const place = mockData.places.find((p) => p.Id === id);
         if (!place) throw new Error('not_found');
         place.Name = input.name;
-        place.AllowOverlap = input.allowOverlap;
         return place;
     },
     deletePlace: (id: string) => {
@@ -1593,8 +1583,10 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         sessionTypes: [...mockData.sessionTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
     }),
     createShiftType: (input: CreateShiftTypeInput) => {
+        if (mockData.shiftTypes.some((item) => item.Name === input.name)) {
+            throw new Error('A shift type with this name already exists.');
+        }
         const created: ShiftType = {
-            Id: mockUuid(),
             Name: input.name,
             Color: input.color || '',
             DefaultStartTime: input.defaultStartTime || '',
@@ -1603,67 +1595,88 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
         mockData.shiftTypes.push(created);
         return created;
     },
-    updateShiftType: (id: string, input: CreateShiftTypeInput) => {
-        const shiftType = mockData.shiftTypes.find((item) => item.Id === id);
+    updateShiftType: (name: string, input: CreateShiftTypeInput) => {
+        const shiftType = mockData.shiftTypes.find((item) => item.Name === name);
         if (!shiftType) throw new Error('not_found');
+        if (mockData.shiftTypes.some((item) => item !== shiftType && item.Name === input.name)) {
+            throw new Error('A shift type with this name already exists.');
+        }
         shiftType.Name = input.name;
         shiftType.Color = input.color || '';
         shiftType.DefaultStartTime = input.defaultStartTime || '';
         shiftType.DefaultEndTime = input.defaultEndTime || '';
         return shiftType;
     },
-    deleteShiftType: (id: string) => {
-        mockData.shiftTypes = mockData.shiftTypes.filter((item) => item.Id !== id);
+    deleteShiftType: (name: string) => {
+        mockData.shiftTypes = mockData.shiftTypes.filter((item) => item.Name !== name);
     },
 
     listProgramTypes: () => [...mockData.programTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
     createProgramType: (input: CreateNamedOptionInput) => {
-        const created: ProgramType = { Id: mockUuid(), Name: input.name, Color: input.color || '' };
+        if (mockData.programTypes.some((item) => item.Name === input.name)) {
+            throw new Error('A program type with this name already exists.');
+        }
+        const created: ProgramType = { Name: input.name, Color: input.color || '' };
         mockData.programTypes.push(created);
         return created;
     },
-    updateProgramType: (id: string, input: CreateNamedOptionInput) => {
-        const option = mockData.programTypes.find((item) => item.Id === id);
+    updateProgramType: (name: string, input: CreateNamedOptionInput) => {
+        const option = mockData.programTypes.find((item) => item.Name === name);
         if (!option) throw new Error('not_found');
+        if (mockData.programTypes.some((item) => item !== option && item.Name === input.name)) {
+            throw new Error('A program type with this name already exists.');
+        }
         option.Name = input.name;
         option.Color = input.color || '';
         return option;
     },
-    deleteProgramType: (id: string) => {
-        mockData.programTypes = mockData.programTypes.filter((item) => item.Id !== id);
+    deleteProgramType: (name: string) => {
+        mockData.programTypes = mockData.programTypes.filter((item) => item.Name !== name);
     },
 
     listProgramLanguages: () =>
         [...mockData.programLanguages].sort((a, b) => a.Name.localeCompare(b.Name)),
     createProgramLanguage: (input: CreateNamedOptionInput) => {
-        const created: ProgramLanguage = { Id: mockUuid(), Name: input.name };
+        if (mockData.programLanguages.some((item) => item.Name === input.name)) {
+            throw new Error('A language with this name already exists.');
+        }
+        const created: ProgramLanguage = { Name: input.name };
         mockData.programLanguages.push(created);
         return created;
     },
-    updateProgramLanguage: (id: string, input: CreateNamedOptionInput) => {
-        const option = mockData.programLanguages.find((item) => item.Id === id);
+    updateProgramLanguage: (name: string, input: CreateNamedOptionInput) => {
+        const option = mockData.programLanguages.find((item) => item.Name === name);
         if (!option) throw new Error('not_found');
+        if (mockData.programLanguages.some((item) => item !== option && item.Name === input.name)) {
+            throw new Error('A language with this name already exists.');
+        }
         option.Name = input.name;
         return option;
     },
-    deleteProgramLanguage: (id: string) => {
-        mockData.programLanguages = mockData.programLanguages.filter((item) => item.Id !== id);
+    deleteProgramLanguage: (name: string) => {
+        mockData.programLanguages = mockData.programLanguages.filter((item) => item.Name !== name);
     },
 
     listSessionTypes: () => [...mockData.sessionTypes].sort((a, b) => a.Name.localeCompare(b.Name)),
     createSessionType: (input: CreateNamedOptionInput) => {
-        const created: SessionType = { Id: mockUuid(), Name: input.name };
+        if (mockData.sessionTypes.some((item) => item.Name === input.name)) {
+            throw new Error('A session type with this name already exists.');
+        }
+        const created: SessionType = { Name: input.name };
         mockData.sessionTypes.push(created);
         return created;
     },
-    updateSessionType: (id: string, input: CreateNamedOptionInput) => {
-        const option = mockData.sessionTypes.find((item) => item.Id === id);
+    updateSessionType: (name: string, input: CreateNamedOptionInput) => {
+        const option = mockData.sessionTypes.find((item) => item.Name === name);
         if (!option) throw new Error('not_found');
+        if (mockData.sessionTypes.some((item) => item !== option && item.Name === input.name)) {
+            throw new Error('A session type with this name already exists.');
+        }
         option.Name = input.name;
         return option;
     },
-    deleteSessionType: (id: string) => {
-        mockData.sessionTypes = mockData.sessionTypes.filter((item) => item.Id !== id);
+    deleteSessionType: (name: string) => {
+        mockData.sessionTypes = mockData.sessionTypes.filter((item) => item.Name !== name);
     },
 
     listBlocks: () =>

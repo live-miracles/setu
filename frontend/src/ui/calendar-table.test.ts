@@ -91,13 +91,13 @@ export function runCalendarTableAssertions(): void {
             }),
         ],
         [
-            { Id: 'place-2', Name: 'Studio 10', AllowOverlap: false },
-            { Id: 'place-1', Name: 'Studio 2', AllowOverlap: false },
-            { Id: 'place-3', Name: 'Studio 5', AllowOverlap: false },
+            { Id: 'place-2', Name: 'Studio 10' },
+            { Id: 'place-1', Name: 'Studio 2' },
+            { Id: 'place-3', Name: 'Studio 5' },
         ],
         [
-            { Id: 'type-webinar', Name: 'Webinar', Color: '#7cc9a4' },
-            { Id: 'type-other', Name: 'Other', Color: '' },
+            { Name: 'Webinar', Color: '#7cc9a4' },
+            { Name: 'Other', Color: '' },
         ],
         '2026-08-11',
     );

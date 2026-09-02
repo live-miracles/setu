@@ -1066,16 +1066,16 @@ function Roster({ dashboard }: Props) {
         const initialShiftType = dashboard.shiftTypes.find(
             (shiftType) => shiftType.Name === row?.Name,
         );
-        const [shiftTypeId, setShiftTypeId] = useState(initialShiftType?.Id || '');
+        const [shiftTypeName, setShiftTypeName] = useState(initialShiftType?.Name || '');
         const [startTime, setStartTime] = useState(
             row?.StartTime || initialShiftType?.DefaultStartTime || '',
         );
         const [endTime, setEndTime] = useState(
             row?.EndTime || initialShiftType?.DefaultEndTime || '',
         );
-        const selectShiftType = (nextShiftTypeId: string) => {
-            setShiftTypeId(nextShiftTypeId);
-            const times = getShiftTypeTimes(dashboard.shiftTypes, nextShiftTypeId);
+        const selectShiftType = (nextShiftTypeName: string) => {
+            setShiftTypeName(nextShiftTypeName);
+            const times = getShiftTypeTimes(dashboard.shiftTypes, nextShiftTypeName);
             if (!times) return;
             setStartTime(times.startTime);
             setEndTime(times.endTime);
@@ -1132,25 +1132,16 @@ function Roster({ dashboard }: Props) {
                 }}>
                 <form id="refine-roster-form" className="grid gap-3" noValidate onSubmit={save.run}>
                     <AntForm.Item label="Shift" required>
-                        <input
-                            type="hidden"
-                            name="name"
-                            value={
-                                dashboard.shiftTypes.find(
-                                    (shiftType) => shiftType.Id === shiftTypeId,
-                                )?.Name || ''
-                            }
-                            required
-                        />
+                        <input type="hidden" name="name" value={shiftTypeName} required />
                         <Select
-                            value={shiftTypeId}
+                            value={shiftTypeName}
                             onChange={selectShiftType}
                             style={{ width: '100%' }}>
                             <Select.Option value="" disabled>
                                 Select a shift
                             </Select.Option>
                             {dashboard.shiftTypes.map((shiftType) => (
-                                <Select.Option key={shiftType.Id} value={shiftType.Id}>
+                                <Select.Option key={shiftType.Name} value={shiftType.Name}>
                                     {shiftType.Name}
                                 </Select.Option>
                             ))}
@@ -1909,7 +1900,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                             style={{ width: '100%' }}
                             placeholder="Select language">
                             {dashboard.programLanguages.map((language) => (
-                                <Select.Option key={language.Id} value={language.Name}>
+                                <Select.Option key={language.Name} value={language.Name}>
                                     {language.Name}
                                 </Select.Option>
                             ))}
@@ -2022,7 +2013,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                                         style={{ width: '100%' }}
                                         placeholder="Select type">
                                         {dashboard.sessionTypes.map((type) => (
-                                            <Select.Option key={type.Id} value={type.Name}>
+                                            <Select.Option key={type.Name} value={type.Name}>
                                                 {type.Name}
                                             </Select.Option>
                                         ))}
@@ -2664,7 +2655,7 @@ function ProgramDetail({
                                 style={{ width: '100%' }}
                                 placeholder="Select language">
                                 {dashboard.programLanguages.map((language) => (
-                                    <Select.Option key={language.Id} value={language.Name}>
+                                    <Select.Option key={language.Name} value={language.Name}>
                                         {language.Name}
                                     </Select.Option>
                                 ))}
@@ -2877,7 +2868,7 @@ function SessionForm({
                         Select type
                     </Select.Option>
                     {types.map((t) => (
-                        <Select.Option key={t.Id} value={t.Name}>
+                        <Select.Option key={t.Name} value={t.Name}>
                             {t.Name}
                         </Select.Option>
                     ))}

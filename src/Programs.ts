@@ -170,13 +170,6 @@ function rangesOverlap(
     return leftStart < rightEnd && rightStart < leftEnd;
 }
 
-function placeAllowsOverlap(place: Place): boolean {
-    return (
-        place.AllowOverlap === true ||
-        ['true', 'yes', '1'].indexOf(String(place.AllowOverlap).toLowerCase()) !== -1
-    );
-}
-
 function sessionsAreWithinPlaceBuffer(left: ProgramSession, right: ProgramSession): boolean {
     const leftStart = Date.parse(left.StartDateTime);
     const leftEnd = Date.parse(left.EndDateTime);
@@ -194,7 +187,7 @@ function assertPlaceAvailability(
     sessions: ProgramSession[],
     currentRequestId?: string,
 ): void {
-    if (!place || placeAllowsOverlap(place) || !sessions.length) return;
+    if (!place || !sessions.length) return;
     const conflict = Tables.ProgramRequests.readAll()
         .filter(
             (request) =>
@@ -355,7 +348,7 @@ function getAvailablePlaces(requestId: string, inputSessions: ProgramSessionInpu
         EndDateTime: session.endDateTime || '',
     }));
     return Tables.Places.readAll().filter((place) => {
-        if (placeAllowsOverlap(place) || !sessions.length) return true;
+        if (!sessions.length) return true;
         return !Tables.ProgramRequests.readAll()
             .filter(
                 (request) =>

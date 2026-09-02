@@ -164,11 +164,9 @@ export function buildCalendarTableModel(
     });
     const activePlaces = sortedPlaces.filter((place) => activePlaceIds.has(place.Id));
     const tablePlaces = [
-        ...(hasUnassignedPrograms
-            ? [{ Id: UNASSIGNED_PLACE_ID, Name: '', AllowOverlap: true }]
-            : []),
+        ...(hasUnassignedPrograms ? [{ Id: UNASSIGNED_PLACE_ID, Name: '' }] : []),
         ...(!visibleSessions.length && !hasPlaceSpecificBlocks
-            ? [{ Id: 'calendar-empty-place', Name: '', AllowOverlap: true }]
+            ? [{ Id: 'calendar-empty-place', Name: '' }]
             : activePlaces),
     ];
 

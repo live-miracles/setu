@@ -78,12 +78,19 @@ interface ResourceConfig {
     emptyMessage: string;
     fields: Field[];
     rows: (dashboard: DashboardPayload) => Row[];
+    // Most resources are keyed by a generated Id. Program languages have no
+    // Id column — the name itself is the identifier — so this lets the
+    // shared table below key/match/save rows without every resource needing
+    // one.
+    rowKey?: (row: Row) => string;
     create: (values: Record<string, string>) => Promise<unknown>;
     update: (id: string, values: Record<string, string>) => Promise<unknown>;
     remove: (id: string) => Promise<unknown>;
 }
 
 const requestId = () => generateRequestId();
+const rowKeyOf = (config: ResourceConfig, row: Row): string =>
+    config.rowKey ? config.rowKey(row) : String(row.Id);
 const value = (data: FormData, field: Field) => String(data.get(field.field) || '');
 const iso = (raw: string) => (raw ? new Date(raw).toISOString() : '');
 const RESOURCES: Record<string, ResourceConfig> = {
@@ -116,22 +123,13 @@ const RESOURCES: Record<string, ResourceConfig> = {
         title: 'Places',
         addLabel: 'Add place',
         emptyMessage: 'No places yet.',
-        fields: [
-            { field: 'Name', label: 'Name' },
-            { field: 'AllowOverlap', label: 'Allow overlap', type: 'checkbox' },
-        ],
+        fields: [{ field: 'Name', label: 'Name' }],
         rows: (d) =>
             [...d.places].sort((a, b) =>
                 a.Name.localeCompare(b.Name, undefined, { numeric: true, sensitivity: 'base' }),
             ),
-        create: (v) =>
-            api.createPlace({ name: v.Name, allowOverlap: v.AllowOverlap === 'on' }, requestId()),
-        update: (id, v) =>
-            api.updatePlace(
-                id,
-                { name: v.Name, allowOverlap: v.AllowOverlap === 'on' },
-                requestId(),
-            ),
+        create: (v) => api.createPlace({ name: v.Name }, requestId()),
+        update: (id, v) => api.updatePlace(id, { name: v.Name }, requestId()),
         remove: (id) => api.deletePlace(id, requestId()),
     },
     'inventory-types': {
@@ -220,6 +218,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'Color', label: 'Color', type: 'color' },
         ],
         rows: (d) => d.shiftTypes,
+        rowKey: (row) => String(row.Name),
         create: (v) =>
             api.createShiftType(
                 {
@@ -230,9 +229,9 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 },
                 requestId(),
             ),
-        update: (id, v) =>
+        update: (name, v) =>
             api.updateShiftType(
-                id,
+                name,
                 {
                     name: v.Name,
                     defaultStartTime: v.DefaultStartTime,
@@ -241,7 +240,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 },
                 requestId(),
             ),
-        remove: (id) => api.deleteShiftType(id, requestId()),
+        remove: (name) => api.deleteShiftType(name, requestId()),
     },
     'program-types': {
         kind: 'program-type',
@@ -253,9 +252,11 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'Color', label: 'Color', type: 'color' },
         ],
         rows: (d) => d.programTypes,
+        rowKey: (row) => String(row.Name),
         create: (v) => api.createProgramType({ name: v.Name, color: v.Color }, requestId()),
-        update: (id, v) => api.updateProgramType(id, { name: v.Name, color: v.Color }, requestId()),
-        remove: (id) => api.deleteProgramType(id, requestId()),
+        update: (name, v) =>
+            api.updateProgramType(name, { name: v.Name, color: v.Color }, requestId()),
+        remove: (name) => api.deleteProgramType(name, requestId()),
     },
     'program-languages': {
         kind: 'program-language',
@@ -264,9 +265,10 @@ const RESOURCES: Record<string, ResourceConfig> = {
         emptyMessage: 'No languages configured yet.',
         fields: [{ field: 'Name', label: 'Name' }],
         rows: (d) => d.programLanguages,
+        rowKey: (row) => String(row.Name),
         create: (v) => api.createProgramLanguage({ name: v.Name }, requestId()),
-        update: (id, v) => api.updateProgramLanguage(id, { name: v.Name }, requestId()),
-        remove: (id) => api.deleteProgramLanguage(id, requestId()),
+        update: (name, v) => api.updateProgramLanguage(name, { name: v.Name }, requestId()),
+        remove: (name) => api.deleteProgramLanguage(name, requestId()),
     },
     'session-types': {
         kind: 'session-type',
@@ -275,9 +277,10 @@ const RESOURCES: Record<string, ResourceConfig> = {
         emptyMessage: 'No session types configured yet.',
         fields: [{ field: 'Name', label: 'Name' }],
         rows: (d) => d.sessionTypes,
+        rowKey: (row) => String(row.Name),
         create: (v) => api.createSessionType({ name: v.Name }, requestId()),
-        update: (id, v) => api.updateSessionType(id, { name: v.Name }, requestId()),
-        remove: (id) => api.deleteSessionType(id, requestId()),
+        update: (name, v) => api.updateSessionType(name, { name: v.Name }, requestId()),
+        remove: (name) => api.deleteSessionType(name, requestId()),
     },
 };
 
@@ -481,7 +484,9 @@ function SettingsResourcePage({
                 (previous) => {
                     const updateRows = (rows: Row[]) =>
                         rows.map((item) =>
-                            item.Id === row.Id ? Object.assign({}, item, values) : item,
+                            rowKeyOf(config, item) === rowKeyOf(config, row)
+                                ? Object.assign({}, item, values)
+                                : item,
                         );
                     if (config.kind === 'department')
                         return Object.assign({}, previous, {
@@ -513,7 +518,7 @@ function SettingsResourcePage({
                         sessionTypes: updateRows(previous.sessionTypes),
                     });
                 },
-                () => config.update(row.Id, values),
+                () => config.update(rowKeyOf(config, row), values),
             );
         } finally {
             showSavingBadge(false);
@@ -522,7 +527,7 @@ function SettingsResourcePage({
     async function remove(row: Row) {
         showSavingBadge(true);
         try {
-            await config.remove(row.Id);
+            await config.remove(rowKeyOf(config, row));
             await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
@@ -1086,7 +1091,7 @@ function SettingsResourcePage({
                             onSearch={hasSearch ? setSearch : undefined}
                             searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
                             <Table
-                                rowKey="Id"
+                                rowKey={(row) => rowKeyOf(config, row)}
                                 columns={columns}
                                 dataSource={filteredRows}
                                 locale={{ emptyText: <Empty description={config.emptyMessage} /> }}

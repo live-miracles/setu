@@ -60,11 +60,7 @@ export const appsScriptDataProvider = {
                         },
                         id,
                     ),
-                places: () =>
-                    api.createPlace(
-                        { name: value.Name, allowOverlap: value.AllowOverlap === 'on' },
-                        id,
-                    ),
+                places: () => api.createPlace({ name: value.Name }, id),
                 'inventory-types': () =>
                     api.createInventoryType(
                         {
@@ -120,11 +116,7 @@ export const appsScriptDataProvider = {
                         generateRequestId(),
                     ),
                 places: () =>
-                    api.updatePlace(
-                        String(id),
-                        { name: value.Name, allowOverlap: value.AllowOverlap === 'on' },
-                        generateRequestId(),
-                    ),
+                    api.updatePlace(String(id), { name: value.Name }, generateRequestId()),
                 'inventory-types': () =>
                     api.updateInventoryType(
                         String(id),
