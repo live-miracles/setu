@@ -2843,13 +2843,19 @@ function Activity({
     }, [initialComments]);
     const submit = async (event: FormEvent) => {
         event.preventDefault();
-        if (!comment.trim()) return;
+        const trimmed = comment.trim();
+        if (!trimmed) return;
+        setComment('');
         try {
             showSavingBadge(true);
-            const added = await api.addComment(requestId, comment.trim(), generateRequestId());
-            setComment('');
+            const added = await api.addComment(requestId, trimmed, generateRequestId());
             setComments((current) => [...current, added]);
+            // The dashboard's cached request lists aren't patched with the new
+            // comment, so a later visit would show the request without it until
+            // this quiet refresh catches it up.
+            void refreshDashboard().catch(() => undefined);
         } catch (e) {
+            setComment(trimmed);
             error(e);
         } finally {
             showSavingBadge(false);
@@ -2877,11 +2883,18 @@ function Activity({
                         <Empty>No activity yet.</Empty>
                     )}
                 </div>
-                <form className="flex gap-2" onSubmit={submit}>
-                    <Input
+                <form className="flex items-end gap-2" onSubmit={submit}>
+                    <Input.TextArea
                         size="small"
+                        autoSize={{ minRows: 1, maxRows: 6 }}
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                e.currentTarget.form?.requestSubmit();
+                            }
+                        }}
                         placeholder="Add a comment"
                     />
                     <Button size="small" htmlType="submit">
