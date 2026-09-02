@@ -2421,12 +2421,7 @@ function ProgramDetail({
                 formatProgramSessionSchedule(session.StartDateTime, session.EndDateTime),
         },
         { title: 'Type', dataIndex: 'Type', key: 'Type' },
-        {
-            title: 'Title',
-            dataIndex: 'Name',
-            key: 'Name',
-            render: (value: string) => value || 'Untitled',
-        },
+        { title: 'Title', dataIndex: 'Name', key: 'Name' },
         {
             title: 'Actions',
             key: 'actions',
@@ -4153,9 +4148,14 @@ export function renderRefineApp(
                 ),
             ) || params.get('mode') === 'create';
         page = detail ? (
-            <Detail kind={section as 'inventory' | 'programs' | 'tickets'} dashboard={dashboard} />
+            <Detail
+                key={section}
+                kind={section as 'inventory' | 'programs' | 'tickets'}
+                dashboard={dashboard}
+            />
         ) : (
             <RequestTable
+                key={section}
                 kind={section as 'inventory' | 'programs' | 'tickets'}
                 dashboard={dashboard}
             />
