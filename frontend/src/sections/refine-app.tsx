@@ -1683,6 +1683,8 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             ?.LeadEmail || '';
     const [leadEmail, setLeadEmail] = useState(initialLeadEmail);
     const [programType, setProgramType] = useState(OTHER_PROGRAM_TYPE);
+    const [sessionDraft, setSessionDraft] = useState<ProgramSession>(() => defaultSessionDraft([]));
+    const [sessionTypeError, setSessionTypeError] = useState(false);
     const createPlaceOptions = dashboard.places;
     useEffect(() => {
         if ((kind === 'programs' || kind === 'inventory') && canApprove(dashboard.me)) {
@@ -1723,6 +1725,17 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 },
                 generateRequestId(),
             );
+        if (!sessionDraft.Type) {
+            setSessionTypeError(true);
+            throw new Error('Session type is required.');
+        }
+        if (
+            !sessionDraft.StartDateTime ||
+            !sessionDraft.EndDateTime ||
+            new Date(sessionDraft.EndDateTime) <= new Date(sessionDraft.StartDateTime)
+        ) {
+            throw new Error('Session end must be after its start.');
+        }
         return api.createProgramRequest(
             {
                 name,
@@ -1730,7 +1743,14 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 type: programType,
                 userId: requestedBy,
                 placeId: String(d.get('placeId') || ''),
-                sessions: [],
+                sessions: [
+                    {
+                        name: sessionDraft.Name,
+                        type: sessionDraft.Type,
+                        startDateTime: sessionDraft.StartDateTime,
+                        endDateTime: sessionDraft.EndDateTime,
+                    },
+                ],
                 departmentId,
                 leadEmail: String(d.get('leadEmail') || ''),
                 participants: '',
@@ -1886,6 +1906,59 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                         required
                         onChange={(event) => setLeadEmail(event.target.value)}
                     />
+                    <div className="grid gap-3">
+                        <AntForm.Item label="Session type" required>
+                            <Select
+                                value={sessionDraft.Type || undefined}
+                                onChange={(value) => {
+                                    setSessionDraft({ ...sessionDraft, Type: value });
+                                    setSessionTypeError(false);
+                                }}
+                                status={sessionTypeError ? 'error' : undefined}
+                                style={{ width: '100%' }}
+                                placeholder="Select type">
+                                {dashboard.sessionTypes.map((type) => (
+                                    <Select.Option key={type.Id} value={type.Name}>
+                                        {type.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                        <AntForm.Item label="Session title">
+                            <Input
+                                value={sessionDraft.Name}
+                                onChange={(event) =>
+                                    setSessionDraft({ ...sessionDraft, Name: event.target.value })
+                                }
+                            />
+                        </AntForm.Item>
+                        <AntForm.Item label="Start" required>
+                            <Input
+                                type="datetime-local"
+                                value={sessionDraft.StartDateTime.slice(0, 16)}
+                                onChange={(event) =>
+                                    setSessionDraft({
+                                        ...sessionDraft,
+                                        StartDateTime: event.target.value,
+                                    })
+                                }
+                                required
+                            />
+                        </AntForm.Item>
+                        <AntForm.Item label="End" required>
+                            <Input
+                                type="datetime-local"
+                                value={sessionDraft.EndDateTime.slice(0, 16)}
+                                onChange={(event) =>
+                                    setSessionDraft({
+                                        ...sessionDraft,
+                                        EndDateTime: event.target.value,
+                                    })
+                                }
+                                required
+                            />
+                        </AntForm.Item>
+                    </div>
                 </>
             )}
             <div>
