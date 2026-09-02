@@ -2118,6 +2118,10 @@ function ProgramDetail({
     const [pendingDelete, setPendingDelete] = useState(false);
     const [pendingDeleteSessionIndex, setPendingDeleteSessionIndex] = useState<number | null>(null);
     const [duplicating, setDuplicating] = useState(false);
+    const [duplicateOpen, setDuplicateOpen] = useState(false);
+    const [duplicateDate, setDuplicateDate] = useState('');
+    const [duplicateBusy, setDuplicateBusy] = useState(false);
+    const [duplicateError, setDuplicateError] = useState('');
     const [sessionDraft, setSessionDraft] = useState<ProgramSession>(() =>
         defaultSessionDraft(request.sessions),
     );
@@ -2303,20 +2307,40 @@ function ProgramDetail({
             showSavingBadge(false);
         }
     };
-    const duplicate = async () => {
+    const openDuplicate = () => {
+        setDuplicateError('');
+        setDuplicateDate(sessions.length ? getLocalDateFromSession(sessions[0].StartDateTime) : '');
+        setDuplicateOpen(true);
+    };
+    const duplicate = async (event?: FormEvent) => {
+        event?.preventDefault();
+        if (event) {
+            const form = event.currentTarget as HTMLFormElement;
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+        }
+        setDuplicateError('');
+        setDuplicateBusy(true);
         try {
-            setDuplicating(true);
             showSavingBadge(true);
+            const nextSessions =
+                sessions.length && duplicateDate
+                    ? shiftProgramSessions(sessions, duplicateDate)
+                    : sessions;
             const created = await api.createProgramRequest(
-                buildDuplicateProgramInput(request, dashboard.me.Email, sessions),
+                buildDuplicateProgramInput(request, dashboard.me.Email, nextSessions),
                 generateRequestId(),
             );
+            setDuplicateOpen(false);
+            setDuplicating(true);
             await refreshDashboard();
             navigateToProgram(created.Id);
         } catch (e) {
-            error(e);
-            setDuplicating(false);
+            setDuplicateError(e instanceof Error ? e.message : String(e));
         } finally {
+            setDuplicateBusy(false);
             showSavingBadge(false);
         }
     };
@@ -2467,7 +2491,7 @@ function ProgramDetail({
                         <Button
                             aria-label="Duplicate program"
                             title="Duplicate program"
-                            onClick={duplicate}>
+                            onClick={openDuplicate}>
                             Duplicate
                         </Button>
                     )}
@@ -2723,6 +2747,10 @@ function ProgramDetail({
             {rescheduling && (
                 <Modal title="Reschedule program" close={() => setRescheduling(false)}>
                     <form className="grid gap-3" noValidate onSubmit={rescheduleSave.run}>
+                        <Typography.Text type="secondary">
+                            Moves every session together, keeping the gaps between them, so the
+                            first session starts on this date.
+                        </Typography.Text>
                         <TextField
                             name="firstSessionDate"
                             label="First session date"
@@ -2735,6 +2763,37 @@ function ProgramDetail({
                             label="Save"
                             busy={rescheduleSave.busy}
                             errorMessage={rescheduleSave.errorMessage}
+                        />
+                    </form>
+                </Modal>
+            )}
+            {duplicateOpen && (
+                <Modal title="Duplicate program" close={() => setDuplicateOpen(false)}>
+                    <form className="grid gap-3" noValidate onSubmit={duplicate}>
+                        {sessions.length > 0 ? (
+                            <>
+                                <Typography.Text type="secondary">
+                                    The copy keeps the same sessions, moved together so the first
+                                    session starts on this date.
+                                </Typography.Text>
+                                <TextField
+                                    name="duplicateFirstSessionDate"
+                                    label="First session date"
+                                    type="date"
+                                    value={duplicateDate}
+                                    required
+                                    onChange={(event) => setDuplicateDate(event.target.value)}
+                                />
+                            </>
+                        ) : (
+                            <Typography.Text type="secondary">
+                                This program has no sessions to schedule.
+                            </Typography.Text>
+                        )}
+                        <SaveFooter
+                            label="Duplicate"
+                            busy={duplicateBusy}
+                            errorMessage={duplicateError}
                         />
                     </form>
                 </Modal>
