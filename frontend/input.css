@@ -568,6 +568,11 @@ body {
     max-width: none;
 }
 
+.app-content-users > .refine-page > .detail-page,
+.app-content-users > .refine-page > .ant-app > .detail-page {
+    max-width: none;
+}
+
 .app-content.app-content-inventory-types {
     max-width: none;
 }

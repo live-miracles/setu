@@ -902,11 +902,9 @@ function Users({ dashboard }: Props) {
         </div>
     );
     const userDetail = selectedUser && (
-        <>
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>{selectedUser.Name}</Typography.Title>
-                </div>
+        <DetailLayout
+            title={selectedUser.Name}
+            action={
                 <Space>
                     <Button
                         type="default"
@@ -926,59 +924,59 @@ function Users({ dashboard }: Props) {
                         />
                     )}
                 </Space>
-            </div>
-            <DetailSections>
-                <DetailSection
-                    title="Details"
-                    action={
-                        canManageConfig(dashboard.me) ? (
-                            <Button
-                                type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => setEditing(selectedUser)}
-                                aria-label="Edit user"
-                                title="Edit user"
-                            />
-                        ) : null
-                    }>
-                    <DetailFields
-                        fields={[
-                            ['Email', selectedUser.Email],
-                            ['Department', selectedUser.departmentName || 'No department'],
-                            ['Role', roleLabel(selectedUser.Role)],
-                            ['Phone', selectedUser.Phone || '—'],
-                            ['WhatsApp', selectedUser.Whatsapp || '—'],
-                        ]}
-                    />
-                </DetailSection>
-                <DetailSection span="full">
-                    <RelatedRequestBlocks
-                        title="Programs"
-                        kind="program"
-                        items={userPrograms}
-                        dashboard={dashboard}
-                        emptyMessage="No program requests from this user."
-                        onOpen={navigateToProgram}
-                    />
-                </DetailSection>
-                <DetailSection span="full">
-                    <RelatedRequestBlocks
-                        title="Inventory requests"
-                        kind="inventory"
-                        items={userInventoryRequests}
-                        dashboard={dashboard}
-                        emptyMessage="No inventory requests from this user."
-                        onOpen={navigateToInventoryRequest}
-                    />
-                </DetailSection>
-            </DetailSections>
-        </>
+            }>
+            <DetailSection
+                title="Details"
+                action={
+                    canManageConfig(dashboard.me) ? (
+                        <Button
+                            type="primary"
+                            icon={<EditOutlined />}
+                            onClick={() => setEditing(selectedUser)}
+                            aria-label="Edit user"
+                            title="Edit user"
+                        />
+                    ) : null
+                }>
+                <DetailFields
+                    fields={[
+                        ['Email', selectedUser.Email],
+                        ['Department', selectedUser.departmentName || 'No department'],
+                        ['Role', roleLabel(selectedUser.Role)],
+                        ['Phone', selectedUser.Phone || '—'],
+                        ['WhatsApp', selectedUser.Whatsapp || '—'],
+                    ]}
+                />
+            </DetailSection>
+            <DetailSection span="full">
+                <RelatedRequestBlocks
+                    title="Programs"
+                    kind="program"
+                    items={userPrograms}
+                    dashboard={dashboard}
+                    emptyMessage="No program requests from this user."
+                    onOpen={navigateToProgram}
+                />
+            </DetailSection>
+            <DetailSection span="full">
+                <RelatedRequestBlocks
+                    title="Inventory requests"
+                    kind="inventory"
+                    items={userInventoryRequests}
+                    dashboard={dashboard}
+                    emptyMessage="No inventory requests from this user."
+                    onOpen={navigateToInventoryRequest}
+                />
+            </DetailSection>
+        </DetailLayout>
     );
     return (
-        <Page title="Users" hideHeading>
-            {selectedUser ? userDetail : userHeader}
-            {!selectedUser && (
-                <>
+        <>
+            {selectedUser ? (
+                userDetail
+            ) : (
+                <Page title="Users" hideHeading>
+                    {userHeader}
                     {filteredUsers.length ? (
                         <div className="user-card-list">
                             {filteredUsers.map((user) => (
@@ -993,7 +991,7 @@ function Users({ dashboard }: Props) {
                     ) : (
                         <Empty>No users yet.</Empty>
                     )}
-                </>
+                </Page>
             )}
             {deleting && (
                 <ActionConfirmation
@@ -1017,7 +1015,7 @@ function Users({ dashboard }: Props) {
                     }}
                 />
             )}
-        </Page>
+        </>
     );
 }
 
@@ -1684,9 +1682,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         dashboard.departments.find((department) => department.Id === dashboard.me.DepartmentId)
             ?.LeadEmail || '';
     const [leadEmail, setLeadEmail] = useState(initialLeadEmail);
-    const [programType, setProgramType] = useState(
-        dashboard.programTypes[0]?.Name || OTHER_PROGRAM_TYPE,
-    );
+    const [programType, setProgramType] = useState(OTHER_PROGRAM_TYPE);
     const createPlaceOptions = dashboard.places;
     useEffect(() => {
         if ((kind === 'programs' || kind === 'inventory') && canApprove(dashboard.me)) {

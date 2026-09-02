@@ -1,4 +1,11 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import {
+    useEffect,
+    useRef,
+    useState,
+    type ChangeEvent,
+    type FormEvent,
+    type ReactNode,
+} from 'react';
 import {
     Button,
     Card,
@@ -405,6 +412,8 @@ function SettingsResourcePage({
     const canEdit = dashboard.me.Role === 'admin';
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
+    const editorOpenRef = useRef(false);
+    const pendingRefreshRef = useRef(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
     const rows = config.rows(dashboard);
     const detailId =
@@ -424,6 +433,23 @@ function SettingsResourcePage({
     const filterSearch =
         config.kind === 'department' || config.kind === 'inventory-type' ? appliedSearch : search;
     const filteredRows = rows.filter((row) => matchesSearch(filterSearch, Object.values(row)));
+    const beginCreate = () => {
+        editorOpenRef.current = true;
+        setCreating(true);
+    };
+    const beginEdit = (row: Row) => {
+        editorOpenRef.current = true;
+        setEditing(row);
+    };
+    const closeEditor = () => {
+        editorOpenRef.current = false;
+        setCreating(false);
+        setEditing(null);
+        if (pendingRefreshRef.current) {
+            pendingRefreshRef.current = false;
+            void refreshDashboard().catch(showErrorAlert);
+        }
+    };
     useEffect(() => {
         if (config.kind !== 'inventory-type' || !selectedInventoryType) {
             setQrCodeUrl('');
@@ -446,7 +472,8 @@ function SettingsResourcePage({
         try {
             if (!editing) {
                 await config.create(values);
-                await refreshDashboard();
+                if (editorOpenRef.current) pendingRefreshRef.current = true;
+                else await refreshDashboard();
                 return;
             }
             const row = editing;
@@ -625,7 +652,7 @@ function SettingsResourcePage({
                     <Button
                         type={detail ? 'primary' : 'text'}
                         icon={<EditOutlined />}
-                        onClick={() => setEditing(row)}
+                        onClick={() => beginEdit(row)}
                         aria-label="Edit"
                     />
                     <Button
@@ -775,7 +802,7 @@ function SettingsResourcePage({
                 <Button
                     type="primary"
                     icon={<PlusOutlined />}
-                    onClick={() => setCreating(true)}
+                    onClick={beginCreate}
                     aria-label={`Add ${config.kind}`}
                     title={`Add ${config.kind}`}
                 />
@@ -972,7 +999,7 @@ function SettingsResourcePage({
                             <Button
                                 type="primary"
                                 icon={<EditOutlined />}
-                                onClick={() => setEditing(selectedDepartment)}
+                                onClick={() => beginEdit(selectedDepartment)}
                                 aria-label="Edit department"
                                 title="Edit department"
                             />
@@ -1049,7 +1076,7 @@ function SettingsResourcePage({
                                         type="primary"
                                         size="small"
                                         icon={<PlusOutlined />}
-                                        onClick={() => setCreating(true)}
+                                        onClick={beginCreate}
                                         aria-label={`Add ${config.kind}`}
                                         title={`Add ${config.kind}`}
                                     />
@@ -1087,10 +1114,7 @@ function SettingsResourcePage({
                 <Editor
                     config={config}
                     row={editing || undefined}
-                    onClose={() => {
-                        setCreating(false);
-                        setEditing(null);
-                    }}
+                    onClose={closeEditor}
                     onSaved={save}
                 />
             )}
