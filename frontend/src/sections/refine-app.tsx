@@ -1574,6 +1574,8 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             // An empty checkbox selection is different from an omitted filter;
             // the backend's explicit sentinel keeps it from meaning "all".
             statuses: selectedStatuses.length ? selectedStatuses : ['__none__'],
+            sortBy: isProgram ? 'sessionStart' : isInventory ? 'startDate' : 'id',
+            sortDirection: 'asc',
         };
         if (isProgram)
             query.dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
