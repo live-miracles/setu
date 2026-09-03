@@ -382,7 +382,7 @@ body {
         color-mix(in srgb, #e98b8b 85%, transparent) 34%,
         transparent 35%
     );
-    background-size: 16px 16px;
+    background-size: 32px 32px;
 }
 
 .calendar-program-block {
