@@ -527,8 +527,40 @@ function SettingsResourcePage({
     async function remove(row: Row) {
         showSavingBadge(true);
         try {
-            await config.remove(rowKeyOf(config, row));
-            await refreshDashboard();
+            await runOptimisticDashboardUpdate(
+                (previous) => {
+                    const filterRows = (rows: Row[]) =>
+                        rows.filter((item) => rowKeyOf(config, item) !== rowKeyOf(config, row));
+                    if (config.kind === 'department')
+                        return Object.assign({}, previous, {
+                            departments: filterRows(previous.departments),
+                        });
+                    if (config.kind === 'place')
+                        return Object.assign({}, previous, { places: filterRows(previous.places) });
+                    if (config.kind === 'inventory-type')
+                        return Object.assign({}, previous, {
+                            inventoryTypes: filterRows(previous.inventoryTypes),
+                        });
+                    if (config.kind === 'block')
+                        return Object.assign({}, previous, { blocks: filterRows(previous.blocks) });
+                    if (config.kind === 'shift-type')
+                        return Object.assign({}, previous, {
+                            shiftTypes: filterRows(previous.shiftTypes),
+                        });
+                    if (config.kind === 'program-type')
+                        return Object.assign({}, previous, {
+                            programTypes: filterRows(previous.programTypes),
+                        });
+                    if (config.kind === 'program-language')
+                        return Object.assign({}, previous, {
+                            programLanguages: filterRows(previous.programLanguages),
+                        });
+                    return Object.assign({}, previous, {
+                        sessionTypes: filterRows(previous.sessionTypes),
+                    });
+                },
+                () => config.remove(rowKeyOf(config, row)),
+            );
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -1107,11 +1139,12 @@ function SettingsResourcePage({
                     description={`Delete “${deleting[config.fields[0].field]}”?`}
                     onCancel={() => setDeleting(null)}
                     onConfirm={async () => {
-                        await remove(deleting);
+                        const row = deleting;
                         setDeleting(null);
                         if (config.kind === 'department') navigateBackToSection('departments');
                         if (config.kind === 'inventory-type')
                             navigateBackToSection('inventory-types');
+                        await remove(row);
                     }}
                 />
             )}

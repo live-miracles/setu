@@ -215,17 +215,22 @@ function updateShiftType(name: string, input: CreateShiftTypeInput, requestId: s
     const newName = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('shift-type:update', requestId, () => {
         const shiftTypes = readShiftTypes();
-        const existing = shiftTypes.find((shiftType) => shiftType.Name === name);
-        if (!existing) throw new ValidationError('not_found');
+        const index = shiftTypes.findIndex((shiftType) => shiftType.Name === name);
+        if (index === -1) throw new ValidationError('not_found');
         if (newName !== name && shiftTypes.some((shiftType) => shiftType.Name === newName)) {
             throw new ValidationError('A shift type with this name already exists.');
         }
-        existing.Name = newName;
-        existing.Color = String(input.color || '').trim();
-        existing.DefaultStartTime = input.defaultStartTime || '';
-        existing.DefaultEndTime = input.defaultEndTime || '';
+        // Rebuilt from scratch (not mutated in place) so editing a legacy
+        // record strips any stray fields left over from an old schema.
+        const updated: ShiftType = {
+            Name: newName,
+            Color: String(input.color || '').trim(),
+            DefaultStartTime: input.defaultStartTime || '',
+            DefaultEndTime: input.defaultEndTime || '',
+        };
+        shiftTypes[index] = updated;
         writeShiftTypes(shiftTypes);
-        return existing;
+        return updated;
     });
     return result;
 }
@@ -302,15 +307,17 @@ function updateProgramType(
     const newName = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('program-type:update', requestId, () => {
         const options = readProgramTypes();
-        const existing = options.find((option) => option.Name === name);
-        if (!existing) throw new ValidationError('not_found');
+        const index = options.findIndex((option) => option.Name === name);
+        if (index === -1) throw new ValidationError('not_found');
         if (newName !== name && options.some((option) => option.Name === newName)) {
             throw new ValidationError('A program type with this name already exists.');
         }
-        existing.Name = newName;
-        existing.Color = String(input.color || '').trim();
+        // Rebuilt from scratch (not mutated in place) so editing a legacy
+        // record strips any stray fields left over from an old schema.
+        const updated: ProgramType = { Name: newName, Color: String(input.color || '').trim() };
+        options[index] = updated;
         writeNamedOptions('programTypes', options);
-        return existing;
+        return updated;
     });
     return result;
 }
@@ -360,14 +367,17 @@ function updateProgramLanguage(
     const newName = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('program-language:update', requestId, () => {
         const options = readProgramLanguages();
-        const existing = options.find((option) => option.Name === name);
-        if (!existing) throw new ValidationError('not_found');
+        const index = options.findIndex((option) => option.Name === name);
+        if (index === -1) throw new ValidationError('not_found');
         if (newName !== name && options.some((option) => option.Name === newName)) {
             throw new ValidationError('A language with this name already exists.');
         }
-        existing.Name = newName;
+        // Rebuilt from scratch (not mutated in place) so editing a legacy
+        // record strips any stray fields left over from an old schema.
+        const updated: ProgramLanguage = { Name: newName };
+        options[index] = updated;
         writeNamedOptions('programLanguages', options);
-        return existing;
+        return updated;
     });
     return result;
 }
@@ -417,14 +427,17 @@ function updateSessionType(
     const newName = requireNonEmpty(input.name, 'Name is required.');
     const { result } = withLockedDedupe('session-type:update', requestId, () => {
         const options = readSessionTypes();
-        const existing = options.find((option) => option.Name === name);
-        if (!existing) throw new ValidationError('not_found');
+        const index = options.findIndex((option) => option.Name === name);
+        if (index === -1) throw new ValidationError('not_found');
         if (newName !== name && options.some((option) => option.Name === newName)) {
             throw new ValidationError('A session type with this name already exists.');
         }
-        existing.Name = newName;
+        // Rebuilt from scratch (not mutated in place) so editing a legacy
+        // record strips any stray fields left over from an old schema.
+        const updated: SessionType = { Name: newName };
+        options[index] = updated;
         writeNamedOptions('sessionTypes', options);
-        return existing;
+        return updated;
     });
     return result;
 }
