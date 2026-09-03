@@ -1051,7 +1051,7 @@ function Users({ dashboard }: Props) {
             {selectedUser ? (
                 userDetail
             ) : (
-                <Page title="Users" hideHeading>
+                <Page title="Users" hideHeading className="users-list-page">
                     {userHeader}
                     {filteredUsers.length ? (
                         <div className="user-card-list">

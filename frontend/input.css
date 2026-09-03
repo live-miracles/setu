@@ -578,6 +578,11 @@ body {
     max-width: none;
 }
 
+.app-content-users > .refine-page > .users-list-page,
+.app-content-users > .refine-page > .ant-app > .users-list-page {
+    max-width: none;
+}
+
 .app-content.app-content-inventory-types {
     max-width: none;
 }
@@ -1021,7 +1026,7 @@ a.record-block:focus-visible {
     outline-offset: 2px;
 }
 
-.user-card {
+.record-block.user-card {
     display: inline-grid;
     width: calc(100% - 8px);
     max-width: 20rem;
