@@ -376,11 +376,13 @@ body {
 .calendar-table .calendar-today-row.calendar-blocked-row > th,
 .calendar-table .calendar-today-row.calendar-blocked-row > td,
 .calendar-table .calendar-today-row > .calendar-blocked-place-cell {
-    background: linear-gradient(
-        135deg,
-        color-mix(in srgb, #e98b8b 34%, var(--setu-paper)) 0 50%,
-        color-mix(in srgb, #b9dfbd 45%, var(--setu-paper)) 50% 100%
+    background-color: color-mix(in srgb, #b9dfbd 45%, var(--setu-paper));
+    background-image: radial-gradient(
+        circle,
+        color-mix(in srgb, #e98b8b 85%, transparent) 34%,
+        transparent 35%
     );
+    background-size: 16px 16px;
 }
 
 .calendar-program-block {
