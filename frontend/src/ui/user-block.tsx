@@ -6,15 +6,17 @@ import { BlockCard } from './block-card';
 export function UserBlock({
     user,
     dashboard,
+    href,
     onClick,
 }: {
     user: UserDTO;
     dashboard: DashboardPayload;
+    href?: string;
     onClick?: () => void;
 }) {
     const department = dashboard.departments.find((item) => item.Id === user.DepartmentId);
     return (
-        <BlockCard className="user-card" onClick={onClick}>
+        <BlockCard className="user-card" href={href} onClick={onClick}>
             <div className="user-card-heading">
                 <div className="user-card-identity">
                     <Typography.Text strong>{user.Name}</Typography.Text>

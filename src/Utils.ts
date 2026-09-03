@@ -27,6 +27,17 @@ function nowIso(): string {
     return new Date().toISOString();
 }
 
+// Default display name for a self-registered user, derived from the local
+// part of their email (e.g. "live.stream@example.com" -> "Live Stream").
+function defaultNameFromEmail(email: string): string {
+    return String(email || '')
+        .split('@')[0]
+        .split('.')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+}
+
 function toBool(value: unknown): boolean {
     return value === true || value === 'true' || value === 'TRUE' || value === 1 || value === '1';
 }

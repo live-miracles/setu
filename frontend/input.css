@@ -399,6 +399,7 @@ body {
     color: var(--setu-ink);
     cursor: pointer;
     text-align: left;
+    text-decoration: none;
 }
 
 .calendar-program-block:last-child {
@@ -995,17 +996,27 @@ body {
         box-shadow 120ms ease;
 }
 
-.record-block[role='button'] {
+a.record-block {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.record-block[role='button'],
+a.record-block {
     cursor: pointer;
 }
 
 .record-block[role='button']:hover,
-.record-block[role='button']:focus-visible {
+.record-block[role='button']:focus-visible,
+a.record-block:hover,
+a.record-block:focus-visible {
     border-color: color-mix(in srgb, #c84f12 55%, var(--setu-line));
     box-shadow: 0 0.25rem 0.75rem rgb(41 37 31 / 8%);
 }
 
-.record-block[role='button']:focus-visible {
+.record-block[role='button']:focus-visible,
+a.record-block:focus-visible {
     outline: 2px solid #c84f12;
     outline-offset: 2px;
 }

@@ -14,6 +14,17 @@ export function escapeHtml(value: unknown): string {
         .replace(/'/g, '&#39;');
 }
 
+// Default display name for a new user, derived from the local part of their
+// email (e.g. "live.stream@example.com" -> "Live Stream").
+export function defaultNameFromEmail(email: string): string {
+    return String(email || '')
+        .split('@')[0]
+        .split('.')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+}
+
 export const MONTH_SHORT_NAMES = [
     'Jan',
     'Feb',

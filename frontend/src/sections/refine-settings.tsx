@@ -38,6 +38,8 @@ import {
     navigateToProgram,
     runOptimisticDashboardUpdate,
     refreshDashboard,
+    inventoryRequestUrl,
+    programRequestUrl,
 } from '../router';
 import { DEPARTMENT_QUERY_PARAM, INVENTORY_TYPE_QUERY_PARAM } from '../config';
 import { mountRefinePage } from '../ui/refine';
@@ -978,6 +980,7 @@ function SettingsResourcePage({
                         )}
                         dashboard={dashboard}
                         emptyMessage="No inventory requests have used this equipment."
+                        hrefFor={inventoryRequestUrl}
                         onOpen={navigateToInventoryRequest}
                     />
                 </DetailSection>
@@ -1071,6 +1074,7 @@ function SettingsResourcePage({
                         items={departmentPrograms}
                         dashboard={dashboard}
                         emptyMessage="No program requests for this department."
+                        hrefFor={programRequestUrl}
                         onOpen={navigateToProgram}
                     />
                 </DetailSection>
@@ -1081,6 +1085,7 @@ function SettingsResourcePage({
                         items={departmentInventoryRequests}
                         dashboard={dashboard}
                         emptyMessage="No inventory requests for this department."
+                        hrefFor={inventoryRequestUrl}
                         onOpen={navigateToInventoryRequest}
                     />
                 </DetailSection>

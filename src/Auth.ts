@@ -88,7 +88,7 @@ function getCurrentActor(): User {
         if (alreadyCreated) return alreadyCreated;
         return Tables.Users.insert({
             Email: email,
-            Name: email.split('@')[0],
+            Name: defaultNameFromEmail(email),
             Role: isScriptOwner ? 'admin' : DEFAULT_USER_ROLE,
             DepartmentId: '',
             Phone: '',

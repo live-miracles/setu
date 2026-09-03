@@ -10,6 +10,7 @@ export function RelatedRequestBlocks({
     items,
     dashboard,
     emptyMessage,
+    hrefFor,
     onOpen,
 }: {
     title: string;
@@ -17,6 +18,7 @@ export function RelatedRequestBlocks({
     items: (ProgramRequestDTO | InventoryRequestDTO)[];
     dashboard: DashboardPayload;
     emptyMessage: string;
+    hrefFor?: (id: string) => string;
     onOpen: (id: string) => void;
 }) {
     const [page, setPage] = useState(1);
@@ -48,6 +50,7 @@ export function RelatedRequestBlocks({
                             kind={kind}
                             row={item}
                             dashboard={dashboard}
+                            href={hrefFor?.(item.Id)}
                             onClick={() => onOpen(item.Id)}
                         />
                     ))}

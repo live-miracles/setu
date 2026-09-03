@@ -17,6 +17,7 @@ import {
     Pagination,
     Select,
     Space,
+    Spin,
     Tag,
     Table,
     Typography,
@@ -49,7 +50,12 @@ import {
     runOptimisticRequestAction,
     refreshDashboard,
     replaceWorkbenchUrl,
+    inventoryRequestUrl,
+    programRequestUrl,
+    ticketUrl,
+    userUrl,
 } from '../router';
+import { isPlainLeftClick } from '../ui/link-click';
 import {
     WORKBENCH_SEARCH_QUERY_PARAM,
     WORKBENCH_STATUS_QUERY_PARAM,
@@ -59,7 +65,12 @@ import {
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { AppLoading } from '../ui/app-loading';
-import { formatDateTime, formatProgramSessionSchedule, formatTimeOfDay } from '../ui/format';
+import {
+    defaultNameFromEmail,
+    formatDateTime,
+    formatProgramSessionSchedule,
+    formatTimeOfDay,
+} from '../ui/format';
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
@@ -553,7 +564,12 @@ function Home({ dashboard }: Props) {
                             block
                             className="antd-list-button"
                             key={request.Id}
-                            onClick={() => navigateToProgram(request.Id)}>
+                            href={programRequestUrl(request.Id)}
+                            onClick={(event) => {
+                                if (!isPlainLeftClick(event)) return;
+                                event.preventDefault();
+                                navigateToProgram(request.Id);
+                            }}>
                             <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                                 <Typography.Text strong>
                                     REQ-{request.DisplayId} · {request.Name}
@@ -579,7 +595,12 @@ function Home({ dashboard }: Props) {
                             block
                             className="antd-list-button"
                             key={r.Id}
-                            onClick={() => navigateToInventoryRequest(r.Id)}>
+                            href={inventoryRequestUrl(r.Id)}
+                            onClick={(event) => {
+                                if (!isPlainLeftClick(event)) return;
+                                event.preventDefault();
+                                navigateToInventoryRequest(r.Id);
+                            }}>
                             <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                                 <Typography.Text strong>
                                     REQ-{r.DisplayId} · {r.Name}
@@ -605,7 +626,12 @@ function Home({ dashboard }: Props) {
                                 block
                                 className="antd-list-button"
                                 key={ticket.Id}
-                                onClick={() => navigateToTicket(ticket.Id)}>
+                                href={ticketUrl(ticket.Id)}
+                                onClick={(event) => {
+                                    if (!isPlainLeftClick(event)) return;
+                                    event.preventDefault();
+                                    navigateToTicket(ticket.Id);
+                                }}>
                                 <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                                     <Typography.Text strong>
                                         TKT-{ticket.DisplayId} {ticket.Title}
@@ -759,6 +785,9 @@ function UserForm({
 }) {
     const [role, setRole] = useState<UserRole>(user?.Role || 'user');
     const [departmentId, setDepartmentId] = useState(user?.DepartmentId || '');
+    const [email, setEmail] = useState('');
+    const [name, setName] = useState(user?.Name || '');
+    const [nameEdited, setNameEdited] = useState(Boolean(user));
     const save = useSave(
         async () => {
             const d = new FormData(document.getElementById('refine-user-form') as HTMLFormElement);
@@ -809,8 +838,29 @@ function UserForm({
     return (
         <Modal title={user ? 'Edit user' : 'Add user'} close={close}>
             <form id="refine-user-form" className="grid gap-3" noValidate onSubmit={save.run}>
-                {!user && <TextField name="email" label="Email" type="email" required />}
-                <TextField name="name" label="Name" value={user?.Name} required />
+                {!user && (
+                    <TextField
+                        name="email"
+                        label="Email"
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(event) => {
+                            setEmail(event.target.value);
+                            if (!nameEdited) setName(defaultNameFromEmail(event.target.value));
+                        }}
+                    />
+                )}
+                <TextField
+                    name="name"
+                    label="Name"
+                    value={name}
+                    required
+                    onChange={(event) => {
+                        setNameEdited(true);
+                        setName(event.target.value);
+                    }}
+                />
                 <AntForm.Item label="Role" required>
                     <input type="hidden" name="role" value={role} required />
                     <Select value={role} onChange={setRole} style={{ width: '100%' }}>
@@ -979,6 +1029,7 @@ function Users({ dashboard }: Props) {
                     items={userPrograms}
                     dashboard={dashboard}
                     emptyMessage="No program requests from this user."
+                    hrefFor={programRequestUrl}
                     onOpen={navigateToProgram}
                 />
             </DetailSection>
@@ -989,6 +1040,7 @@ function Users({ dashboard }: Props) {
                     items={userInventoryRequests}
                     dashboard={dashboard}
                     emptyMessage="No inventory requests from this user."
+                    hrefFor={inventoryRequestUrl}
                     onOpen={navigateToInventoryRequest}
                 />
             </DetailSection>
@@ -1008,6 +1060,7 @@ function Users({ dashboard }: Props) {
                                     key={user.Email}
                                     user={user}
                                     dashboard={dashboard}
+                                    href={userUrl(user.Email)}
                                     onClick={() => navigateToUser(user.Email)}
                                 />
                             ))}
@@ -1483,20 +1536,25 @@ function Calendar({ dashboard }: Props) {
                                                                 : ''
                                                         }`}>
                                                         {place.blocks.map((block) => (
-                                                            <button
+                                                            <a
                                                                 key={block.programId}
-                                                                type="button"
                                                                 className="calendar-program-block"
+                                                                href={programRequestUrl(
+                                                                    block.programId,
+                                                                )}
                                                                 style={{
                                                                     backgroundColor: block.color
                                                                         ? `${block.color}26`
                                                                         : undefined,
                                                                 }}
-                                                                onClick={() =>
+                                                                onClick={(event) => {
+                                                                    if (!isPlainLeftClick(event))
+                                                                        return;
+                                                                    event.preventDefault();
                                                                     navigateToProgram(
                                                                         block.programId,
-                                                                    )
-                                                                }
+                                                                    );
+                                                                }}
                                                                 aria-label={`Open ${block.title}`}>
                                                                 <span className="calendar-program-title">
                                                                     {block.title}
@@ -1508,7 +1566,7 @@ function Calendar({ dashboard }: Props) {
                                                                         {session.label}
                                                                     </span>
                                                                 ))}
-                                                            </button>
+                                                            </a>
                                                         ))}
                                                     </td>
                                                 );
@@ -1556,6 +1614,8 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             : isProgram
               ? navigateToProgram(id)
               : navigateToTicket(id);
+    const hrefFor = (id: string) =>
+        isInventory ? inventoryRequestUrl(id) : isProgram ? programRequestUrl(id) : ticketUrl(id);
     const title = isInventory ? 'Inventory' : isProgram ? 'Programs' : 'Tickets';
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
@@ -1693,6 +1753,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                             kind="program"
                             row={row as ProgramRequestDTO}
                             dashboard={dashboard}
+                            href={hrefFor(row.Id)}
                             onClick={() => open(row.Id)}
                         />
                     ) : isInventory ? (
@@ -1701,6 +1762,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                             kind="inventory"
                             row={row as InventoryRequestDTO}
                             dashboard={dashboard}
+                            href={hrefFor(row.Id)}
                             onClick={() => open(row.Id)}
                         />
                     ) : (
@@ -1709,6 +1771,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                             kind="ticket"
                             row={row as TicketDTO}
                             dashboard={dashboard}
+                            href={hrefFor(row.Id)}
                             onClick={() => open(row.Id)}
                         />
                     ),
@@ -1742,7 +1805,6 @@ function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
 function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
     const [users, setUsers] = useState<UserDTO[]>([]);
     const [language, setLanguage] = useState(dashboard.programLanguages[0]?.Name || '');
-    const [placeId, setPlaceId] = useState('');
     const [requestedBy, setRequestedBy] = useState(dashboard.me.Email);
     const [departmentId, setDepartmentId] = useState(dashboard.me.DepartmentId);
     const initialLeadEmail =
@@ -1753,7 +1815,6 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     const [sessionDrafts, setSessionDrafts] = useState<ProgramSession[]>(() => [
         defaultSessionDraft([]),
     ]);
-    const createPlaceOptions = dashboard.places;
     useEffect(() => {
         if ((kind === 'programs' || kind === 'inventory') && canApprove(dashboard.me)) {
             api.listUsers().then(setUsers).catch(error);
@@ -1813,7 +1874,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 language: String(d.get('language') || ''),
                 type: programType,
                 userId: requestedBy,
-                placeId: String(d.get('placeId') || ''),
+                placeId: '',
                 sessions: sessionDrafts.map((session) => ({
                     name: session.Name,
                     type: session.Type,
@@ -1828,269 +1889,252 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         );
     });
     return (
-        <form
-            id="refine-request-form"
-            className="grid gap-3"
-            noValidate
-            onSubmit={async (e) => {
-                const created = await save.run(e);
-                if (!created) return;
-                const id = createRecordDestination(kind, created.Id);
-                if (kind === 'programs') navigateToProgram(id);
-                else if (kind === 'inventory') navigateToInventoryRequest(id);
-                else navigateToTicket(id);
-            }}>
-            {kind !== 'programs' && (
-                <TextField
-                    name="name"
-                    label={kind === 'tickets' ? 'Title' : 'Event / Purpose'}
-                    required
-                />
-            )}
-            {kind === 'tickets' && <TextField name="description" label="Description" />}
-            {kind === 'inventory' && (
-                <>
-                    <TextField name="startDate" label="Start date" type="date" required />
-                    <TextField name="endDate" label="End date" type="date" required />
-                    {canApprove(dashboard.me) && (
-                        <AntForm.Item label="Requested by" required>
-                            <input type="hidden" name="userId" value={requestedBy} required />
-                            <Select
-                                value={requestedBy}
-                                onChange={selectRequester}
-                                style={{ width: '100%' }}>
-                                {users.map((user) => (
-                                    <Select.Option key={user.Email} value={user.Email}>
-                                        {user.Name}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </AntForm.Item>
-                    )}
-                    <AntForm.Item label="Department" required>
-                        <input type="hidden" name="departmentId" value={departmentId} required />
-                        <Select
-                            value={departmentId}
-                            onChange={selectDepartment}
-                            style={{ width: '100%' }}>
-                            {dashboard.departments.map((department) => (
-                                <Select.Option key={department.Id} value={department.Id}>
-                                    {department.Name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </AntForm.Item>
-                    <TextField
-                        name="leadEmail"
-                        label="Lead email"
-                        type="email"
-                        value={leadEmail}
-                        required
-                        onChange={(event) => setLeadEmail(event.target.value)}
-                    />
-                </>
-            )}
-            {kind === 'programs' && (
-                <>
-                    <AntForm.Item label="Language" required>
-                        <input type="hidden" name="language" value={language} required />
-                        <Select
-                            value={language || undefined}
-                            onChange={setLanguage}
-                            style={{ width: '100%' }}
-                            placeholder="Select language">
-                            {dashboard.programLanguages.map((language) => (
-                                <Select.Option key={language.Name} value={language.Name}>
-                                    {language.Name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </AntForm.Item>
-                    <AntForm.Item label="Type" required>
-                        <input type="hidden" name="type" value={programType} />
-                        <Select
-                            value={programType}
-                            onChange={setProgramType}
-                            style={{ width: '100%' }}>
-                            {programTypeOptions(dashboard.programTypes).map((type) => (
-                                <Select.Option key={type} value={type}>
-                                    {type}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </AntForm.Item>
+        <Spin spinning={save.busy} tip="Creating…">
+            <form
+                id="refine-request-form"
+                className="grid gap-3"
+                noValidate
+                onSubmit={async (e) => {
+                    const created = await save.run(e);
+                    if (!created) return;
+                    const id = createRecordDestination(kind, created.Id);
+                    if (kind === 'programs') navigateToProgram(id);
+                    else if (kind === 'inventory') navigateToInventoryRequest(id);
+                    else navigateToTicket(id);
+                }}>
+                {kind !== 'programs' && (
                     <TextField
                         name="name"
-                        label="Program title"
-                        required={programType === OTHER_PROGRAM_TYPE}
+                        label={kind === 'tickets' ? 'Title' : 'Event / Purpose'}
+                        required
                     />
-                    <AntForm.Item label="Place">
-                        <input type="hidden" name="placeId" value={placeId} />
-                        <Select
-                            value={placeId}
-                            onChange={setPlaceId}
-                            disabled={!canApprove(dashboard.me)}
-                            style={{ width: '100%' }}>
-                            <Select.Option value="">No place</Select.Option>
-                            {createPlaceOptions.map((p) => (
-                                <Select.Option key={p.Id} value={p.Id}>
-                                    {p.Name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </AntForm.Item>
-                    {canApprove(dashboard.me) && (
-                        <AntForm.Item label="Requested by" required>
-                            <input type="hidden" name="userId" value={requestedBy} required />
+                )}
+                {kind === 'tickets' && <TextField name="description" label="Description" />}
+                {kind === 'inventory' && (
+                    <>
+                        <TextField name="startDate" label="Start date" type="date" required />
+                        <TextField name="endDate" label="End date" type="date" required />
+                        {canApprove(dashboard.me) && (
+                            <AntForm.Item label="Requested by" required>
+                                <input type="hidden" name="userId" value={requestedBy} required />
+                                <Select
+                                    value={requestedBy}
+                                    onChange={selectRequester}
+                                    style={{ width: '100%' }}>
+                                    {users.map((user) => (
+                                        <Select.Option key={user.Email} value={user.Email}>
+                                            {user.Name}
+                                        </Select.Option>
+                                    ))}
+                                </Select>
+                            </AntForm.Item>
+                        )}
+                        <AntForm.Item label="Department" required>
+                            <input
+                                type="hidden"
+                                name="departmentId"
+                                value={departmentId}
+                                required
+                            />
                             <Select
-                                value={requestedBy}
-                                onChange={selectRequester}
+                                value={departmentId}
+                                onChange={selectDepartment}
                                 style={{ width: '100%' }}>
-                                {users.map((user) => (
-                                    <Select.Option key={user.Email} value={user.Email}>
-                                        {user.Name}
+                                {dashboard.departments.map((department) => (
+                                    <Select.Option key={department.Id} value={department.Id}>
+                                        {department.Name}
                                     </Select.Option>
                                 ))}
                             </Select>
                         </AntForm.Item>
-                    )}
-                    <AntForm.Item label="Department" required>
-                        <input type="hidden" name="departmentId" value={departmentId} required />
-                        <Select
-                            value={departmentId}
-                            onChange={selectDepartment}
-                            style={{ width: '100%' }}>
-                            {dashboard.departments.map((department) => (
-                                <Select.Option key={department.Id} value={department.Id}>
-                                    {department.Name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </AntForm.Item>
-                    <TextField
-                        name="leadEmail"
-                        label="Lead email"
-                        type="email"
-                        value={leadEmail}
-                        required
-                        onChange={(event) => setLeadEmail(event.target.value)}
-                    />
-                    {sessionDrafts.map((sessionDraft, index) => (
-                        <AntCard
-                            key={index}
-                            size="small"
-                            title={`Session ${index + 1}`}
-                            extra={
-                                sessionDrafts.length > 1 ? (
-                                    <Button
-                                        type="text"
-                                        danger
-                                        icon={<DeleteOutlined />}
-                                        aria-label={`Remove session ${index + 1}`}
-                                        onClick={() =>
-                                            setSessionDrafts((current) =>
-                                                current.filter(
-                                                    (_, currentIndex) => currentIndex !== index,
-                                                ),
-                                            )
-                                        }
-                                    />
-                                ) : null
+                        <TextField
+                            name="leadEmail"
+                            label="Lead email"
+                            type="email"
+                            value={leadEmail}
+                            required
+                            onChange={(event) => setLeadEmail(event.target.value)}
+                        />
+                    </>
+                )}
+                {kind === 'programs' && (
+                    <>
+                        <AntForm.Item label="Language" required>
+                            <input type="hidden" name="language" value={language} required />
+                            <Select
+                                value={language || undefined}
+                                onChange={setLanguage}
+                                style={{ width: '100%' }}
+                                placeholder="Select language">
+                                {dashboard.programLanguages.map((language) => (
+                                    <Select.Option key={language.Name} value={language.Name}>
+                                        {language.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                        <AntForm.Item label="Type" required>
+                            <input type="hidden" name="type" value={programType} />
+                            <Select
+                                value={programType}
+                                onChange={setProgramType}
+                                style={{ width: '100%' }}>
+                                {programTypeOptions(dashboard.programTypes).map((type) => (
+                                    <Select.Option key={type} value={type}>
+                                        {type}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                        <TextField
+                            name="name"
+                            label="Program title"
+                            required={programType === OTHER_PROGRAM_TYPE}
+                        />
+                        {canApprove(dashboard.me) && (
+                            <AntForm.Item label="Requested by" required>
+                                <input type="hidden" name="userId" value={requestedBy} required />
+                                <Select
+                                    value={requestedBy}
+                                    onChange={selectRequester}
+                                    style={{ width: '100%' }}>
+                                    {users.map((user) => (
+                                        <Select.Option key={user.Email} value={user.Email}>
+                                            {user.Name}
+                                        </Select.Option>
+                                    ))}
+                                </Select>
+                            </AntForm.Item>
+                        )}
+                        <AntForm.Item label="Department" required>
+                            <input
+                                type="hidden"
+                                name="departmentId"
+                                value={departmentId}
+                                required
+                            />
+                            <Select
+                                value={departmentId}
+                                onChange={selectDepartment}
+                                style={{ width: '100%' }}>
+                                {dashboard.departments.map((department) => (
+                                    <Select.Option key={department.Id} value={department.Id}>
+                                        {department.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                        <TextField
+                            name="leadEmail"
+                            label="Lead email"
+                            type="email"
+                            value={leadEmail}
+                            required
+                            onChange={(event) => setLeadEmail(event.target.value)}
+                        />
+                        {sessionDrafts.map((sessionDraft, index) => (
+                            <AntCard
+                                key={index}
+                                size="small"
+                                title={`Session ${index + 1}`}
+                                extra={
+                                    sessionDrafts.length > 1 ? (
+                                        <Button
+                                            type="text"
+                                            danger
+                                            icon={<DeleteOutlined />}
+                                            aria-label={`Remove session ${index + 1}`}
+                                            onClick={() =>
+                                                setSessionDrafts((current) =>
+                                                    current.filter(
+                                                        (_, currentIndex) => currentIndex !== index,
+                                                    ),
+                                                )
+                                            }
+                                        />
+                                    ) : null
+                                }>
+                                <div className="grid gap-3">
+                                    <AntForm.Item label="Session type" required>
+                                        <Select
+                                            value={sessionDraft.Type || undefined}
+                                            onChange={(value) =>
+                                                setSessionDrafts((current) =>
+                                                    current.map((item, currentIndex) =>
+                                                        currentIndex === index
+                                                            ? { ...item, Type: value }
+                                                            : item,
+                                                    ),
+                                                )
+                                            }
+                                            style={{ width: '100%' }}
+                                            placeholder="Select type">
+                                            {dashboard.sessionTypes.map((type) => (
+                                                <Select.Option key={type.Name} value={type.Name}>
+                                                    {type.Name}
+                                                </Select.Option>
+                                            ))}
+                                        </Select>
+                                    </AntForm.Item>
+                                    <AntForm.Item label="Start" required>
+                                        <Input
+                                            type="datetime-local"
+                                            value={sessionDraft.StartDateTime.slice(0, 16)}
+                                            onChange={(event) =>
+                                                setSessionDrafts((current) =>
+                                                    current.map((item, currentIndex) =>
+                                                        currentIndex === index
+                                                            ? {
+                                                                  ...item,
+                                                                  StartDateTime: event.target.value,
+                                                              }
+                                                            : item,
+                                                    ),
+                                                )
+                                            }
+                                            required
+                                        />
+                                    </AntForm.Item>
+                                    <AntForm.Item label="End" required>
+                                        <Input
+                                            type="datetime-local"
+                                            value={sessionDraft.EndDateTime.slice(0, 16)}
+                                            onChange={(event) =>
+                                                setSessionDrafts((current) =>
+                                                    current.map((item, currentIndex) =>
+                                                        currentIndex === index
+                                                            ? {
+                                                                  ...item,
+                                                                  EndDateTime: event.target.value,
+                                                              }
+                                                            : item,
+                                                    ),
+                                                )
+                                            }
+                                            required
+                                        />
+                                    </AntForm.Item>
+                                </div>
+                            </AntCard>
+                        ))}
+                        <Button
+                            type="dashed"
+                            icon={<PlusOutlined />}
+                            onClick={() =>
+                                setSessionDrafts((current) => [
+                                    ...current,
+                                    defaultSessionDraft(current),
+                                ])
                             }>
-                            <div className="grid gap-3">
-                                <AntForm.Item label="Session type" required>
-                                    <Select
-                                        value={sessionDraft.Type || undefined}
-                                        onChange={(value) =>
-                                            setSessionDrafts((current) =>
-                                                current.map((item, currentIndex) =>
-                                                    currentIndex === index
-                                                        ? { ...item, Type: value }
-                                                        : item,
-                                                ),
-                                            )
-                                        }
-                                        style={{ width: '100%' }}
-                                        placeholder="Select type">
-                                        {dashboard.sessionTypes.map((type) => (
-                                            <Select.Option key={type.Name} value={type.Name}>
-                                                {type.Name}
-                                            </Select.Option>
-                                        ))}
-                                    </Select>
-                                </AntForm.Item>
-                                <AntForm.Item label="Session title">
-                                    <Input
-                                        value={sessionDraft.Name}
-                                        onChange={(event) =>
-                                            setSessionDrafts((current) =>
-                                                current.map((item, currentIndex) =>
-                                                    currentIndex === index
-                                                        ? { ...item, Name: event.target.value }
-                                                        : item,
-                                                ),
-                                            )
-                                        }
-                                    />
-                                </AntForm.Item>
-                                <AntForm.Item label="Start" required>
-                                    <Input
-                                        type="datetime-local"
-                                        value={sessionDraft.StartDateTime.slice(0, 16)}
-                                        onChange={(event) =>
-                                            setSessionDrafts((current) =>
-                                                current.map((item, currentIndex) =>
-                                                    currentIndex === index
-                                                        ? {
-                                                              ...item,
-                                                              StartDateTime: event.target.value,
-                                                          }
-                                                        : item,
-                                                ),
-                                            )
-                                        }
-                                        required
-                                    />
-                                </AntForm.Item>
-                                <AntForm.Item label="End" required>
-                                    <Input
-                                        type="datetime-local"
-                                        value={sessionDraft.EndDateTime.slice(0, 16)}
-                                        onChange={(event) =>
-                                            setSessionDrafts((current) =>
-                                                current.map((item, currentIndex) =>
-                                                    currentIndex === index
-                                                        ? {
-                                                              ...item,
-                                                              EndDateTime: event.target.value,
-                                                          }
-                                                        : item,
-                                                ),
-                                            )
-                                        }
-                                        required
-                                    />
-                                </AntForm.Item>
-                            </div>
-                        </AntCard>
-                    ))}
-                    <Button
-                        type="dashed"
-                        icon={<PlusOutlined />}
-                        onClick={() =>
-                            setSessionDrafts((current) => [
-                                ...current,
-                                defaultSessionDraft(current),
-                            ])
-                        }>
-                        Add session
-                    </Button>
-                </>
-            )}
-            <div>
-                <SaveFooter label="Save" busy={save.busy} errorMessage={save.errorMessage} />
-            </div>
-        </form>
+                            Add session
+                        </Button>
+                    </>
+                )}
+                <div>
+                    <SaveFooter label="Save" busy={save.busy} errorMessage={save.errorMessage} />
+                </div>
+            </form>
+        </Spin>
     );
 }
 
@@ -2605,8 +2649,8 @@ function ProgramDetail({
                     action={pendingAction}
                     onCancel={() => setPendingAction(null)}
                     onConfirm={async () => {
-                        await perform(pendingAction);
                         setPendingAction(null);
+                        void perform(pendingAction);
                     }}
                 />
             )}
@@ -3865,8 +3909,8 @@ function InventoryDetail({
                     action={pendingAction}
                     onCancel={() => setPendingAction(null)}
                     onConfirm={async () => {
-                        await perform(pendingAction);
                         setPendingAction(null);
+                        void perform(pendingAction);
                     }}
                 />
             )}
@@ -4053,8 +4097,8 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
                     action={pendingAction}
                     onCancel={() => setPendingAction(null)}
                     onConfirm={async () => {
-                        await perform(pendingAction);
                         setPendingAction(null);
+                        void perform(pendingAction);
                     }}
                 />
             )}
@@ -4191,8 +4235,8 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                     action={pendingAction}
                     onCancel={() => setPendingAction(null)}
                     onConfirm={async () => {
-                        await applyAction(pendingAction);
                         setPendingAction(null);
+                        void applyAction(pendingAction);
                     }}
                 />
             )}

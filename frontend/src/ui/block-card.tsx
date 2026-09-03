@@ -1,12 +1,15 @@
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import { isPlainLeftClick } from './link-click';
 
 export function BlockCard({
     children,
     className = '',
+    href,
     onClick,
 }: {
     children: ReactNode;
     className?: string;
+    href?: string;
     onClick?: () => void;
 }) {
     const interactive = Boolean(onClick);
@@ -16,6 +19,22 @@ export function BlockCard({
             onClick?.();
         }
     };
+    if (href) {
+        const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+            if (!isPlainLeftClick(event)) return;
+            event.preventDefault();
+            onClick?.();
+        };
+        return (
+            <a
+                className={`record-block ${className}`.trim()}
+                href={href}
+                onClick={handleClick}
+                onKeyDown={handleKeyDown}>
+                {children}
+            </a>
+        );
+    }
     return (
         <article
             className={`record-block ${className}`.trim()}

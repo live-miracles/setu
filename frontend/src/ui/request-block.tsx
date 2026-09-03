@@ -6,6 +6,7 @@ type RequestBlockProps = {
     kind: 'program' | 'inventory' | 'ticket';
     row: ProgramRequestDTO | InventoryRequestDTO | TicketDTO;
     dashboard: DashboardPayload;
+    href?: string;
     onClick?: () => void;
 };
 
@@ -26,11 +27,11 @@ function departmentShortName(
     );
 }
 
-export function RequestBlock({ kind, row, dashboard, onClick }: RequestBlockProps) {
+export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlockProps) {
     const program = kind === 'program';
     const ticket = kind === 'ticket';
     return (
-        <BlockCard className="request-block" onClick={onClick}>
+        <BlockCard className="request-block" href={href} onClick={onClick}>
             <Space direction="vertical" size={2}>
                 <div className="request-block-heading">
                     <Space size="small" wrap>

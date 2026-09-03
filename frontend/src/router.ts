@@ -373,6 +373,20 @@ interface NavigationOptions {
     replace?: boolean;
 }
 
+/** Build a shareable URL for a section's detail record, so a block/row can
+ * carry a real `href` (right-click "open in new tab", middle-click, ctrl-click)
+ * alongside its SPA `onClick` handler. Always resets workbench/detail filters —
+ * unlike navigateTo's preserveWorkbench, there is no "previous" state to keep
+ * when the link is followed fresh in a new tab. */
+function detailUrl(section: SectionKey, param: string, id: string): string {
+    const url = new URL(window.location.href);
+    url.searchParams.set(APP_SECTION_QUERY_PARAM, section);
+    WORKBENCH_QUERY_PARAMS.forEach((p) => url.searchParams.delete(p));
+    DETAIL_QUERY_PARAMS.forEach((p) => url.searchParams.delete(p));
+    url.searchParams.set(param, id);
+    return url.toString();
+}
+
 function navigateTo(section: SectionKey, options: NavigationOptions = {}): void {
     (document.activeElement as HTMLElement | null)?.blur();
     const previousSection = getState().section;
@@ -418,6 +432,10 @@ export function navigateToInventoryRequest(requestId: string): void {
     });
 }
 
+export function inventoryRequestUrl(requestId: string): string {
+    return detailUrl('inventory', INVENTORY_REQUEST_QUERY_PARAM, requestId);
+}
+
 export function navigateToInventoryRequests(): void {
     navigateBackToWorkbench('inventory');
 }
@@ -432,6 +450,10 @@ export function navigateToProgram(programId: string): void {
         selectedId: programId,
         preserveWorkbench: true,
     });
+}
+
+export function programRequestUrl(programId: string): string {
+    return detailUrl('programs', PROGRAM_REQUEST_QUERY_PARAM, programId);
 }
 
 export function navigateToPrograms(): void {
@@ -450,6 +472,10 @@ export function navigateToTicket(ticketId: string): void {
     });
 }
 
+export function ticketUrl(ticketId: string): string {
+    return detailUrl('tickets', TICKET_QUERY_PARAM, ticketId);
+}
+
 export function navigateToTickets(): void {
     navigateBackToWorkbench('tickets');
 }
@@ -465,6 +491,10 @@ export function navigateToRoster(): void {
 
 export function navigateToUser(userEmail: string): void {
     navigateTo('users', { selectedParam: USER_QUERY_PARAM, selectedId: userEmail });
+}
+
+export function userUrl(userEmail: string): string {
+    return detailUrl('users', USER_QUERY_PARAM, userEmail);
 }
 
 export function navigateToDepartment(departmentId: string): void {
