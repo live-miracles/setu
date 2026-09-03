@@ -14,6 +14,7 @@ import {
     Form,
     Input,
     Modal,
+    Select,
     Space,
     Table,
     Tag,
@@ -57,7 +58,15 @@ import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { ActionConfirmation } from './refine-app';
 
-type Field = { field: string; label: string; type?: string; hiddenInTable?: boolean };
+type Field = {
+    field: string;
+    label: string;
+    type?: string;
+    hiddenInTable?: boolean;
+    options?: (dashboard: DashboardPayload) => Array<{ value: string; label: string }>;
+    // Only used when adding a new row (never overrides an existing row's value).
+    defaultValue?: () => string;
+};
 type Row = Record<string, any>;
 
 function SettingsDetailFields({ fields }: { fields: Array<[label: string, value: ReactNode]> }) {
@@ -180,9 +189,27 @@ const RESOURCES: Record<string, ResourceConfig> = {
         emptyMessage: 'No blocked times configured yet.',
         fields: [
             { field: 'Name', label: 'Name' },
-            { field: 'StartDateTime', label: 'Start', type: 'datetime-local' },
-            { field: 'EndDateTime', label: 'End', type: 'datetime-local' },
-            { field: 'Place', label: 'Place (optional)' },
+            {
+                field: 'StartDateTime',
+                label: 'Start',
+                type: 'datetime-local',
+                defaultValue: () => todayAt(10),
+            },
+            {
+                field: 'EndDateTime',
+                label: 'End',
+                type: 'datetime-local',
+                defaultValue: () => todayAt(22),
+            },
+            {
+                field: 'Place',
+                label: 'Place (optional)',
+                type: 'select',
+                options: (d) =>
+                    [{ value: '', label: 'All places' }].concat(
+                        d.places.map((place) => ({ value: place.Id, label: place.Name })),
+                    ),
+            },
         ],
         rows: (d) => d.blocks,
         create: (v) =>
@@ -286,12 +313,22 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
 };
 
+function formatDateTimeLocalValue(date: Date): string {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+}
+
+function todayAt(hours: number, minutes = 0): string {
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return formatDateTimeLocalValue(date);
+}
+
 function inputValue(field: Field, raw: unknown): string {
     if (field.type !== 'datetime-local') return String(raw ?? '');
     const date = new Date(String(raw || ''));
     if (Number.isNaN(date.getTime())) return String(raw || '').slice(0, 16);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+    return formatDateTimeLocalValue(date);
 }
 
 function ColorField({ row, field }: { row?: Row; field: Field }) {
@@ -319,14 +356,40 @@ function ColorField({ row, field }: { row?: Row; field: Field }) {
     );
 }
 
+function SelectField({
+    field,
+    row,
+    dashboard,
+}: {
+    field: Field;
+    row?: Row;
+    dashboard: DashboardPayload;
+}) {
+    const options = field.options?.(dashboard) || [];
+    const [selected, setSelected] = useState(String(row?.[field.field] ?? ''));
+    return (
+        <>
+            <input type="hidden" name={field.field} value={selected} />
+            <Select
+                value={selected}
+                onChange={setSelected}
+                style={{ width: '100%' }}
+                options={options.map((option) => ({ value: option.value, label: option.label }))}
+            />
+        </>
+    );
+}
+
 function FieldSet({
     config,
     row,
+    dashboard,
     onSubmit,
     submitLabel,
 }: {
     config: ResourceConfig;
     row?: Row;
+    dashboard: DashboardPayload;
     onSubmit: (values: Record<string, string>) => Promise<void>;
     submitLabel: string;
 }) {
@@ -356,12 +419,18 @@ function FieldSet({
                         <Checkbox name={field.field} defaultChecked={Boolean(row?.[field.field])} />
                     ) : field.type === 'color' ? (
                         <ColorField field={field} row={row} />
+                    ) : field.type === 'select' ? (
+                        <SelectField field={field} row={row} dashboard={dashboard} />
                     ) : (
                         <Input
                             name={field.field}
                             type={field.type || 'text'}
                             required={index === 0}
-                            defaultValue={inputValue(field, row?.[field.field])}
+                            defaultValue={
+                                row
+                                    ? inputValue(field, row[field.field])
+                                    : (field.defaultValue?.() ?? inputValue(field, undefined))
+                            }
                         />
                     )}
                 </Form.Item>
@@ -376,11 +445,13 @@ function FieldSet({
 function Editor({
     config,
     row,
+    dashboard,
     onClose,
     onSaved,
 }: {
     config: ResourceConfig;
     row?: Row;
+    dashboard: DashboardPayload;
     onClose: () => void;
     onSaved: (values: Record<string, string>) => Promise<void>;
 }) {
@@ -395,6 +466,7 @@ function Editor({
             <FieldSet
                 config={config}
                 row={row}
+                dashboard={dashboard}
                 onSubmit={async (values) => {
                     onClose();
                     await onSaved(values);
@@ -729,9 +801,15 @@ function SettingsResourcePage({
                             <span className="text-xs opacity-60">No color</span>
                         );
                     }
-                    return field.type === 'datetime-local'
-                        ? formatDateTime(String(value || ''))
-                        : String(value ?? '');
+                    if (field.type === 'datetime-local') return formatDateTime(String(value || ''));
+                    if (field.type === 'select' && field.options) {
+                        const options = field.options(dashboard);
+                        return (
+                            options.find((option) => option.value === String(value ?? ''))?.label ??
+                            String(value ?? '')
+                        );
+                    }
+                    return String(value ?? '');
                 },
             })),
         ...(config.kind === 'inventory-type'
@@ -1157,6 +1235,7 @@ function SettingsResourcePage({
                 <Editor
                     config={config}
                     row={editing || undefined}
+                    dashboard={dashboard}
                     onClose={closeEditor}
                     onSaved={save}
                 />
