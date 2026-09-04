@@ -2370,6 +2370,8 @@ function ProgramDetail({
         }
         setDuplicateError('');
         setDuplicateBusy(true);
+        setDuplicateOpen(false);
+        setDuplicating(true);
         try {
             showSavingBadge(true);
             const nextSessions =
@@ -2380,12 +2382,12 @@ function ProgramDetail({
                 buildDuplicateProgramInput(request, dashboard.me.Email, nextSessions),
                 generateRequestId(),
             );
-            setDuplicateOpen(false);
-            setDuplicating(true);
             await refreshDashboard();
             navigateToProgram(created.Id);
         } catch (e) {
             setDuplicateError(e instanceof Error ? e.message : String(e));
+            setDuplicating(false);
+            setDuplicateOpen(true);
         } finally {
             setDuplicateBusy(false);
             showSavingBadge(false);
