@@ -3803,7 +3803,7 @@ function InventoryDetail({
                         setItemError('');
                     }}>
                     <div className="grid gap-3">
-                        <QrScanner onScan={scanInventoryType} onError={setItemError} />
+                        <QrScanner onScan={scanInventoryType} />
                         {itemError && <Typography.Text type="danger">{itemError}</Typography.Text>}
                     </div>
                 </Modal>
