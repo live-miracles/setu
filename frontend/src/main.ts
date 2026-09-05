@@ -26,13 +26,14 @@ async function boot(): Promise<void> {
 
     try {
         await refreshDashboard();
-        setAppLoading(false);
     } catch (err) {
         showErrorAlert(err);
         const container = document.getElementById('app-content');
         if (container) {
             container.textContent = err instanceof Error ? err.message : String(err);
         }
+    } finally {
+        setAppLoading(false);
     }
 }
 

@@ -147,9 +147,11 @@ function Shell() {
                         />
                     </Space>
                 </Header>
-                <Content id="app-content" className="app-content">
-                    {appLoading && <AppLoading />}
-                </Content>
+                <Content id="app-content" className="app-content" />
+                {/* The router replaces #app-content's children imperatively, so the
+                    overlay has to sit outside it — React can only unmount nodes that
+                    are still where it left them. */}
+                {appLoading && <AppLoading />}
                 <nav
                     id="mobile-dock"
                     data-authenticated-nav
