@@ -3670,6 +3670,7 @@ function InventoryDetail({
             </DetailSection>
             <DetailSection
                 title="Image"
+                className="inventory-image-section"
                 action={
                     editable && (
                         <>

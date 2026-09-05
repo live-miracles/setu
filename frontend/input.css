@@ -878,12 +878,24 @@ body {
     overflow: hidden;
 }
 
+.inventory-image-section > .ant-card {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.inventory-image-section > .ant-card > .ant-card-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
 .inventory-request-image-frame {
     display: flex;
-    width: 240px;
-    height: 240px;
-    max-width: 100%;
-    margin-inline: auto;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 240px;
     align-items: center;
     justify-content: center;
     overflow: hidden;
@@ -891,10 +903,8 @@ body {
 }
 
 .inventory-request-image {
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
     margin-inline: auto;
     object-fit: contain;
     object-position: center;
@@ -1256,7 +1266,7 @@ a.record-block:focus-visible {
 .inventory-type-detail-image img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
 }
 
 .inventory-type-card-actions {
