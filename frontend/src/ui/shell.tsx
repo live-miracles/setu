@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import appLogo from '../../assets/logo.png';
 import { refreshDashboard } from '../router';
 import { showErrorAlert } from './feedback';
-import { AppLoading } from './app-loading';
+import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 
 const { Header, Content } = Layout;
 
@@ -48,6 +48,7 @@ function Shell() {
     const [selectedSection, setSelectedSection] = useState(sectionFromUrl);
     const [role, setRole] = useState<UserRole | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [appLoading, setAppLoading] = useState(true);
 
     useEffect(() => {
         const syncSelection = () => setSelectedSection(sectionFromUrl());
@@ -55,10 +56,14 @@ function Shell() {
         const syncRole = () =>
             setRole((document.documentElement.dataset.userRole as UserRole | undefined) || null);
         window.addEventListener('setu:role', syncRole);
+        const syncAppLoading = (event: Event) =>
+            setAppLoading((event as CustomEvent<boolean>).detail === true);
+        window.addEventListener(APP_LOADING_EVENT, syncAppLoading);
         syncRole();
         return () => {
             window.removeEventListener('setu:navigation', syncSelection);
             window.removeEventListener('setu:role', syncRole);
+            window.removeEventListener(APP_LOADING_EVENT, syncAppLoading);
         };
     }, []);
 
@@ -143,7 +148,7 @@ function Shell() {
                     </Space>
                 </Header>
                 <Content id="app-content" className="app-content">
-                    <AppLoading />
+                    {appLoading && <AppLoading />}
                 </Content>
                 <nav
                     id="mobile-dock"

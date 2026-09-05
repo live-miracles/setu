@@ -4,6 +4,7 @@ import { initializeBrowserLocation, initRouter, refreshDashboard, wireNav } from
 import { ROUTER_CONFIG } from './sections';
 import { setState } from './state';
 import { showErrorAlert } from './ui/feedback';
+import { setAppLoading } from './ui/app-loading';
 import { mountAppShell } from './ui/shell';
 
 // Production entry point — the module esbuild bundles into src/JavaScript.html.
@@ -25,6 +26,7 @@ async function boot(): Promise<void> {
 
     try {
         await refreshDashboard();
+        setAppLoading(false);
     } catch (err) {
         showErrorAlert(err);
         const container = document.getElementById('app-content');

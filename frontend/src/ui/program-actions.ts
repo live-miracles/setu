@@ -69,6 +69,7 @@ export function getProgramRequestActions(
         return (['submit', 'approve', 'reject', 'cancel'] as ProgramRequestAction[]).filter(
             (action) =>
                 canTransitionProgramRequest(request.Status, action) &&
+                (action !== 'approve' || Boolean(request.PlaceId)) &&
                 (action !== 'cancel' || canCancelProgram(request)),
         );
     }

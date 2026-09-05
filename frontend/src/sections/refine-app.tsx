@@ -17,7 +17,6 @@ import {
     Pagination,
     Select,
     Space,
-    Spin,
     Tag,
     Table,
     Typography,
@@ -64,7 +63,7 @@ import {
 } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { AppLoading } from '../ui/app-loading';
+import { AppLoading, setAppLoading } from '../ui/app-loading';
 import {
     defaultNameFromEmail,
     formatDateTime,
@@ -1889,252 +1888,252 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         );
     });
     return (
-        <Spin spinning={save.busy} tip="Creating…">
-            <form
-                id="refine-request-form"
-                className="grid gap-3"
-                noValidate
-                onSubmit={async (e) => {
-                    const created = await save.run(e);
-                    if (!created) return;
-                    const id = createRecordDestination(kind, created.Id);
-                    if (kind === 'programs') navigateToProgram(id);
-                    else if (kind === 'inventory') navigateToInventoryRequest(id);
-                    else navigateToTicket(id);
-                }}>
-                {kind !== 'programs' && (
+        <form
+            id="refine-request-form"
+            className="grid gap-3"
+            noValidate
+            onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+                setAppLoading(true);
+                await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                const created = await save.run();
+                if (!created) {
+                    setAppLoading(false);
+                    return;
+                }
+                const id = createRecordDestination(kind, created.Id);
+                if (kind === 'programs') navigateToProgram(id);
+                else if (kind === 'inventory') navigateToInventoryRequest(id);
+                else navigateToTicket(id);
+                setAppLoading(false);
+            }}>
+            {kind !== 'programs' && (
+                <TextField
+                    name="name"
+                    label={kind === 'tickets' ? 'Title' : 'Event / Purpose'}
+                    required
+                />
+            )}
+            {kind === 'tickets' && <TextField name="description" label="Description" />}
+            {kind === 'inventory' && (
+                <>
+                    <TextField name="startDate" label="Start date" type="date" required />
+                    <TextField name="endDate" label="End date" type="date" required />
+                    {canApprove(dashboard.me) && (
+                        <AntForm.Item label="Requested by" required>
+                            <input type="hidden" name="userId" value={requestedBy} required />
+                            <Select
+                                value={requestedBy}
+                                onChange={selectRequester}
+                                style={{ width: '100%' }}>
+                                {users.map((user) => (
+                                    <Select.Option key={user.Email} value={user.Email}>
+                                        {user.Name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </AntForm.Item>
+                    )}
+                    <AntForm.Item label="Department" required>
+                        <input type="hidden" name="departmentId" value={departmentId} required />
+                        <Select
+                            value={departmentId}
+                            onChange={selectDepartment}
+                            style={{ width: '100%' }}>
+                            {dashboard.departments.map((department) => (
+                                <Select.Option key={department.Id} value={department.Id}>
+                                    {department.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
+                    <TextField
+                        name="leadEmail"
+                        label="Lead email"
+                        type="email"
+                        value={leadEmail}
+                        required
+                        onChange={(event) => setLeadEmail(event.target.value)}
+                    />
+                </>
+            )}
+            {kind === 'programs' && (
+                <>
+                    <AntForm.Item label="Language" required>
+                        <input type="hidden" name="language" value={language} required />
+                        <Select
+                            value={language || undefined}
+                            onChange={setLanguage}
+                            style={{ width: '100%' }}
+                            placeholder="Select language">
+                            {dashboard.programLanguages.map((language) => (
+                                <Select.Option key={language.Name} value={language.Name}>
+                                    {language.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
+                    <AntForm.Item label="Type" required>
+                        <input type="hidden" name="type" value={programType} />
+                        <Select
+                            value={programType}
+                            onChange={setProgramType}
+                            style={{ width: '100%' }}>
+                            {programTypeOptions(dashboard.programTypes).map((type) => (
+                                <Select.Option key={type} value={type}>
+                                    {type}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
                     <TextField
                         name="name"
-                        label={kind === 'tickets' ? 'Title' : 'Event / Purpose'}
-                        required
+                        label="Program title"
+                        required={programType === OTHER_PROGRAM_TYPE}
                     />
-                )}
-                {kind === 'tickets' && <TextField name="description" label="Description" />}
-                {kind === 'inventory' && (
-                    <>
-                        <TextField name="startDate" label="Start date" type="date" required />
-                        <TextField name="endDate" label="End date" type="date" required />
-                        {canApprove(dashboard.me) && (
-                            <AntForm.Item label="Requested by" required>
-                                <input type="hidden" name="userId" value={requestedBy} required />
-                                <Select
-                                    value={requestedBy}
-                                    onChange={selectRequester}
-                                    style={{ width: '100%' }}>
-                                    {users.map((user) => (
-                                        <Select.Option key={user.Email} value={user.Email}>
-                                            {user.Name}
-                                        </Select.Option>
-                                    ))}
-                                </Select>
-                            </AntForm.Item>
-                        )}
-                        <AntForm.Item label="Department" required>
-                            <input
-                                type="hidden"
-                                name="departmentId"
-                                value={departmentId}
-                                required
-                            />
+                    {canApprove(dashboard.me) && (
+                        <AntForm.Item label="Requested by" required>
+                            <input type="hidden" name="userId" value={requestedBy} required />
                             <Select
-                                value={departmentId}
-                                onChange={selectDepartment}
+                                value={requestedBy}
+                                onChange={selectRequester}
                                 style={{ width: '100%' }}>
-                                {dashboard.departments.map((department) => (
-                                    <Select.Option key={department.Id} value={department.Id}>
-                                        {department.Name}
+                                {users.map((user) => (
+                                    <Select.Option key={user.Email} value={user.Email}>
+                                        {user.Name}
                                     </Select.Option>
                                 ))}
                             </Select>
                         </AntForm.Item>
-                        <TextField
-                            name="leadEmail"
-                            label="Lead email"
-                            type="email"
-                            value={leadEmail}
-                            required
-                            onChange={(event) => setLeadEmail(event.target.value)}
-                        />
-                    </>
-                )}
-                {kind === 'programs' && (
-                    <>
-                        <AntForm.Item label="Language" required>
-                            <input type="hidden" name="language" value={language} required />
-                            <Select
-                                value={language || undefined}
-                                onChange={setLanguage}
-                                style={{ width: '100%' }}
-                                placeholder="Select language">
-                                {dashboard.programLanguages.map((language) => (
-                                    <Select.Option key={language.Name} value={language.Name}>
-                                        {language.Name}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </AntForm.Item>
-                        <AntForm.Item label="Type" required>
-                            <input type="hidden" name="type" value={programType} />
-                            <Select
-                                value={programType}
-                                onChange={setProgramType}
-                                style={{ width: '100%' }}>
-                                {programTypeOptions(dashboard.programTypes).map((type) => (
-                                    <Select.Option key={type} value={type}>
-                                        {type}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </AntForm.Item>
-                        <TextField
-                            name="name"
-                            label="Program title"
-                            required={programType === OTHER_PROGRAM_TYPE}
-                        />
-                        {canApprove(dashboard.me) && (
-                            <AntForm.Item label="Requested by" required>
-                                <input type="hidden" name="userId" value={requestedBy} required />
-                                <Select
-                                    value={requestedBy}
-                                    onChange={selectRequester}
-                                    style={{ width: '100%' }}>
-                                    {users.map((user) => (
-                                        <Select.Option key={user.Email} value={user.Email}>
-                                            {user.Name}
-                                        </Select.Option>
-                                    ))}
-                                </Select>
-                            </AntForm.Item>
-                        )}
-                        <AntForm.Item label="Department" required>
-                            <input
-                                type="hidden"
-                                name="departmentId"
-                                value={departmentId}
-                                required
-                            />
-                            <Select
-                                value={departmentId}
-                                onChange={selectDepartment}
-                                style={{ width: '100%' }}>
-                                {dashboard.departments.map((department) => (
-                                    <Select.Option key={department.Id} value={department.Id}>
-                                        {department.Name}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </AntForm.Item>
-                        <TextField
-                            name="leadEmail"
-                            label="Lead email"
-                            type="email"
-                            value={leadEmail}
-                            required
-                            onChange={(event) => setLeadEmail(event.target.value)}
-                        />
-                        {sessionDrafts.map((sessionDraft, index) => (
-                            <AntCard
-                                key={index}
-                                size="small"
-                                title={`Session ${index + 1}`}
-                                extra={
-                                    sessionDrafts.length > 1 ? (
-                                        <Button
-                                            type="text"
-                                            danger
-                                            icon={<DeleteOutlined />}
-                                            aria-label={`Remove session ${index + 1}`}
-                                            onClick={() =>
-                                                setSessionDrafts((current) =>
-                                                    current.filter(
-                                                        (_, currentIndex) => currentIndex !== index,
-                                                    ),
-                                                )
-                                            }
-                                        />
-                                    ) : null
-                                }>
-                                <div className="grid gap-3">
-                                    <AntForm.Item label="Session type" required>
-                                        <Select
-                                            value={sessionDraft.Type || undefined}
-                                            onChange={(value) =>
-                                                setSessionDrafts((current) =>
-                                                    current.map((item, currentIndex) =>
-                                                        currentIndex === index
-                                                            ? { ...item, Type: value }
-                                                            : item,
-                                                    ),
-                                                )
-                                            }
-                                            style={{ width: '100%' }}
-                                            placeholder="Select type">
-                                            {dashboard.sessionTypes.map((type) => (
-                                                <Select.Option key={type.Name} value={type.Name}>
-                                                    {type.Name}
-                                                </Select.Option>
-                                            ))}
-                                        </Select>
-                                    </AntForm.Item>
-                                    <AntForm.Item label="Start" required>
-                                        <Input
-                                            type="datetime-local"
-                                            value={sessionDraft.StartDateTime.slice(0, 16)}
-                                            onChange={(event) =>
-                                                setSessionDrafts((current) =>
-                                                    current.map((item, currentIndex) =>
-                                                        currentIndex === index
-                                                            ? {
-                                                                  ...item,
-                                                                  StartDateTime: event.target.value,
-                                                              }
-                                                            : item,
-                                                    ),
-                                                )
-                                            }
-                                            required
-                                        />
-                                    </AntForm.Item>
-                                    <AntForm.Item label="End" required>
-                                        <Input
-                                            type="datetime-local"
-                                            value={sessionDraft.EndDateTime.slice(0, 16)}
-                                            onChange={(event) =>
-                                                setSessionDrafts((current) =>
-                                                    current.map((item, currentIndex) =>
-                                                        currentIndex === index
-                                                            ? {
-                                                                  ...item,
-                                                                  EndDateTime: event.target.value,
-                                                              }
-                                                            : item,
-                                                    ),
-                                                )
-                                            }
-                                            required
-                                        />
-                                    </AntForm.Item>
-                                </div>
-                            </AntCard>
-                        ))}
-                        <Button
-                            type="dashed"
-                            icon={<PlusOutlined />}
-                            onClick={() =>
-                                setSessionDrafts((current) => [
-                                    ...current,
-                                    defaultSessionDraft(current),
-                                ])
+                    )}
+                    <AntForm.Item label="Department" required>
+                        <input type="hidden" name="departmentId" value={departmentId} required />
+                        <Select
+                            value={departmentId}
+                            onChange={selectDepartment}
+                            style={{ width: '100%' }}>
+                            {dashboard.departments.map((department) => (
+                                <Select.Option key={department.Id} value={department.Id}>
+                                    {department.Name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </AntForm.Item>
+                    <TextField
+                        name="leadEmail"
+                        label="Lead email"
+                        type="email"
+                        value={leadEmail}
+                        required
+                        onChange={(event) => setLeadEmail(event.target.value)}
+                    />
+                    {sessionDrafts.map((sessionDraft, index) => (
+                        <AntCard
+                            key={index}
+                            size="small"
+                            title={`Session ${index + 1}`}
+                            extra={
+                                sessionDrafts.length > 1 ? (
+                                    <Button
+                                        type="text"
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        aria-label={`Remove session ${index + 1}`}
+                                        onClick={() =>
+                                            setSessionDrafts((current) =>
+                                                current.filter(
+                                                    (_, currentIndex) => currentIndex !== index,
+                                                ),
+                                            )
+                                        }
+                                    />
+                                ) : null
                             }>
-                            Add session
-                        </Button>
-                    </>
-                )}
-                <div>
-                    <SaveFooter label="Save" busy={save.busy} errorMessage={save.errorMessage} />
-                </div>
-            </form>
-        </Spin>
+                            <div className="grid gap-3">
+                                <AntForm.Item label="Session type" required>
+                                    <Select
+                                        value={sessionDraft.Type || undefined}
+                                        onChange={(value) =>
+                                            setSessionDrafts((current) =>
+                                                current.map((item, currentIndex) =>
+                                                    currentIndex === index
+                                                        ? { ...item, Type: value }
+                                                        : item,
+                                                ),
+                                            )
+                                        }
+                                        style={{ width: '100%' }}
+                                        placeholder="Select type">
+                                        {dashboard.sessionTypes.map((type) => (
+                                            <Select.Option key={type.Name} value={type.Name}>
+                                                {type.Name}
+                                            </Select.Option>
+                                        ))}
+                                    </Select>
+                                </AntForm.Item>
+                                <AntForm.Item label="Start" required>
+                                    <Input
+                                        type="datetime-local"
+                                        value={sessionDraft.StartDateTime.slice(0, 16)}
+                                        onChange={(event) =>
+                                            setSessionDrafts((current) =>
+                                                current.map((item, currentIndex) =>
+                                                    currentIndex === index
+                                                        ? {
+                                                              ...item,
+                                                              StartDateTime: event.target.value,
+                                                          }
+                                                        : item,
+                                                ),
+                                            )
+                                        }
+                                        required
+                                    />
+                                </AntForm.Item>
+                                <AntForm.Item label="End" required>
+                                    <Input
+                                        type="datetime-local"
+                                        value={sessionDraft.EndDateTime.slice(0, 16)}
+                                        onChange={(event) =>
+                                            setSessionDrafts((current) =>
+                                                current.map((item, currentIndex) =>
+                                                    currentIndex === index
+                                                        ? {
+                                                              ...item,
+                                                              EndDateTime: event.target.value,
+                                                          }
+                                                        : item,
+                                                ),
+                                            )
+                                        }
+                                        required
+                                    />
+                                </AntForm.Item>
+                            </div>
+                        </AntCard>
+                    ))}
+                    <Button
+                        type="dashed"
+                        icon={<PlusOutlined />}
+                        onClick={() =>
+                            setSessionDrafts((current) => [
+                                ...current,
+                                defaultSessionDraft(current),
+                            ])
+                        }>
+                        Add session
+                    </Button>
+                </>
+            )}
+            <div>
+                <SaveFooter label="Save" busy={save.busy} errorMessage={save.errorMessage} />
+            </div>
+        </form>
     );
 }
 
@@ -2483,6 +2482,8 @@ function ProgramDetail({
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
     const actions = getProgramRequestActions(request, dashboard.me);
+    const needsAllocation =
+        canApprove(dashboard.me) && request.Status === 'submitted' && !request.PlaceId;
     const sessionRows = sessions.map((session, index) => ({
         ...session,
         key: `${session.StartDateTime}-${index}`,
@@ -2556,10 +2557,17 @@ function ProgramDetail({
                             Reschedule
                         </Button>
                     )}
-                    <WorkflowActions
-                        actions={actions}
-                        onAction={(action) => setPendingAction(action as ProgramRequestAction)}
-                    />
+                    {actions.length > 0 && (
+                        <WorkflowActions
+                            actions={actions}
+                            onAction={(action) => setPendingAction(action as ProgramRequestAction)}
+                        />
+                    )}
+                    {needsAllocation && (
+                        <Button type="primary" onClick={() => setEditing(true)}>
+                            Allocate
+                        </Button>
+                    )}
                     {deletable && (
                         <Button
                             type="primary"
@@ -3997,6 +4005,7 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
     const actions = (['close', 'reopen'] as TicketAction[]).filter((action) =>
         canTransitionTicket(ticket.Status, action),
     );
+    const needsAssignment = !ticket.AssigneeId;
     const perform = async (action: TicketAction) => {
         try {
             showSavingBadge(true);
@@ -4013,10 +4022,19 @@ function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: Das
         <DetailLayout
             title={`TKT-${ticket.DisplayId} · ${ticket.Title || 'Untitled ticket'}`}
             action={
-                <WorkflowActions
-                    actions={actions}
-                    onAction={(action) => setPendingAction(action as TicketAction)}
-                />
+                <Space wrap>
+                    {needsAssignment && (
+                        <Button type="primary" onClick={() => setEditing(true)}>
+                            Assign
+                        </Button>
+                    )}
+                    {actions.length > 0 && (
+                        <WorkflowActions
+                            actions={actions}
+                            onAction={(action) => setPendingAction(action as TicketAction)}
+                        />
+                    )}
+                </Space>
             }>
             <DetailSection
                 title="Details"

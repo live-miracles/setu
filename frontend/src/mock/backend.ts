@@ -2179,6 +2179,7 @@ const mockHandlers: Record<string, (...args: any[]) => any> = {
                 actorName + ' submitted this request.',
             );
         } else if (action === 'approve') {
+            if (!request.PlaceId) throw new Error('A place must be assigned before approval.');
             request.Status = 'approved';
             mockInsertActionComment(
                 'program',

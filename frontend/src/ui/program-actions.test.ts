@@ -117,6 +117,13 @@ export function runProgramActionAssertions(): void {
     );
     assert(
         getProgramRequestActions(
+            { ...source, Status: 'submitted', PlaceId: '', placeName: '' },
+            user('approver'),
+        ).join(',') === 'reject,cancel',
+        'approvers should not approve submitted programs without an assigned place',
+    );
+    assert(
+        getProgramRequestActions(
             { ...source, Status: 'draft' },
             user('user', 'other@example.com'),
         ).join(',') === '',

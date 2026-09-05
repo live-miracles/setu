@@ -570,6 +570,8 @@ function performProgramRequestAction(
                 if (action === 'approve') {
                     if (request.Status !== 'submitted')
                         throw new ValidationError('invalid_transition');
+                    if (!request.PlaceId)
+                        throw new ValidationError('A place must be assigned before approval.');
                     computedStatus = 'approved';
                     Tables.ProgramRequests.updateById(requestId, { Status: computedStatus });
                     insertActionComment(

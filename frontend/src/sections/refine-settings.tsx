@@ -968,6 +968,7 @@ function SettingsResourcePage({
                 </DetailSection>
                 <DetailSection
                     title="Image"
+                    className="inventory-image-section"
                     action={
                         canEdit ? (
                             <>
@@ -1010,13 +1011,14 @@ function SettingsResourcePage({
                             </>
                         ) : null
                     }>
-                    <div className="inventory-type-detail-image">
+                    <div className="inventory-request-image-frame">
                         {imageUrlForDriveId(String(selectedInventoryType.ImageId || '')) ? (
                             <img
                                 src={imageUrlForDriveId(
                                     String(selectedInventoryType.ImageId || ''),
                                 )}
                                 alt={String(selectedInventoryType.Name || '')}
+                                className="inventory-request-image"
                             />
                         ) : (
                             <span>No photo</span>
