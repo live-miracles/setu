@@ -7,6 +7,7 @@
     "scripts": {
         "dev": "node build-tools/dev.mjs",
         "build": "node build-tools/build.mjs",
+        "build:vercel": "node build-tools/vercel.mjs",
         "build:backend": "node build-tools/build-backend.mjs",
         "pages": "node build-tools/pages.mjs",
         "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json",
@@ -34,6 +35,7 @@
         "@refinedev/antd": "^6.0.3",
         "@refinedev/core": "^5.0.12",
         "@refinedev/react-hook-form": "^5.0.4",
+        "@supabase/supabase-js": "^2.115.0",
         "antd": "^5.29.3",
         "qr-scanner": "^1.4.2",
         "qrcode": "^1.5.4",

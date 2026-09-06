@@ -6,6 +6,7 @@ import { setState } from './state';
 import { showErrorAlert } from './ui/feedback';
 import { setAppLoading } from './ui/app-loading';
 import { mountAppShell } from './ui/shell';
+import { ensureAuthenticated, isSupabaseConfigured } from './supabase';
 
 // Production entry point — the module esbuild bundles into src/JavaScript.html.
 // Deliberately tiny: it hands the routing table to the router and starts the
@@ -13,6 +14,16 @@ import { mountAppShell } from './ui/shell';
 // never ship (see dev.ts for the entry point that does pull it in).
 
 async function boot(): Promise<void> {
+    // `npm run dev` supplies the in-memory backend. Every other build is a
+    // top-level Supabase app and must complete OAuth before it requests data.
+    if (!(window as any).googleMock) {
+        if (!isSupabaseConfigured()) {
+            throw new Error(
+                'Setu is not configured. This deployment is missing its Supabase environment values.',
+            );
+        }
+        await ensureAuthenticated();
+    }
     mountAppShell();
     initRouter(ROUTER_CONFIG);
 
@@ -38,5 +49,11 @@ async function boot(): Promise<void> {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    boot();
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+        void navigator.serviceWorker.register('/sw.js');
+    }
+    void boot().catch((err) => {
+        const container = document.getElementById('app-shell');
+        if (container) container.textContent = err instanceof Error ? err.message : String(err);
+    });
 });

@@ -1,30 +1,36 @@
-// The only file that talks to the backend. `google.script.run` is injected
-// automatically by the Apps Script HTML service runtime when this page is
-// served from script.google.com — outside that runtime (local dev via
-// `npm run dev`) `google` is undefined, so we fall back to `googleMock`
-// (mock/backend.ts), which replicates the exact same
-// `.withSuccessHandler().withFailureHandler().<fnName>()` chain against
-// in-memory data. Every call site in the render modules is identical either
-// way.
-declare const google: { script: { run: any } } | undefined;
+import { supabase } from './supabase';
+
+// The UI talks to exactly one application API. Local development retains the
+// in-memory backend, while deployed builds invoke the protected Supabase Edge
+// Function. This removes the Apps Script-only `google.script.run` transport
+// without making every screen know about HTTP, auth tokens, or provider SDKs.
 
 type AsyncApi = { [K in keyof Api]: (...args: Parameters<Api[K]>) => Promise<ReturnType<Api[K]>> };
 
-function getScriptRunner(): any {
-    const runner = typeof google !== 'undefined' && google ? google : (window as any).googleMock;
-    return runner.script.run;
+function mockRunner(): any | null {
+    return (window as any).googleMock?.script?.run || null;
 }
 
 function callBackend<K extends keyof Api>(
     fnName: K,
     ...args: Parameters<Api[K]>
 ): Promise<ReturnType<Api[K]>> {
-    return new Promise((resolve, reject) => {
-        getScriptRunner()
-            .withSuccessHandler((data: ReturnType<Api[K]>) => resolve(data))
-            .withFailureHandler((error: unknown) => reject(error))
-            [fnName](...args);
-    });
+    const runner = mockRunner();
+    if (runner) {
+        return new Promise((resolve, reject) => {
+            runner
+                .withSuccessHandler((data: ReturnType<Api[K]>) => resolve(data))
+                .withFailureHandler((error: unknown) => reject(error))
+                [fnName](...args);
+        });
+    }
+
+    return supabase()
+        .functions.invoke('api', { body: { operation: fnName, args } })
+        .then(({ data, error }) => {
+            if (error) throw error;
+            return data as ReturnType<Api[K]>;
+        });
 }
 
 export const api: AsyncApi = {
