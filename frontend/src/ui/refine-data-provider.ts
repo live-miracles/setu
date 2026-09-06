@@ -2,11 +2,11 @@ import type { DataProvider } from '@refinedev/core';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 
-// The provider keeps Refine resources on the same Apps Script transport as
+// The provider keeps Refine resources on the same Supabase API boundary as
 // the rest of the application. It is deliberately small: these resources
 // only need CRUD, while authentication and authorization stay server-side.
-export const appsScriptDataProvider = {
-    getApiUrl: () => 'google.script.run',
+export const setuDataProvider = {
+    getApiUrl: () => 'supabase/functions/v1/api',
     getList: async ({ resource }: any) => {
         const lists: Record<string, () => Promise<unknown[]>> = {
             departments: () => api.listDepartments(),
@@ -36,7 +36,7 @@ export const appsScriptDataProvider = {
         };
     },
     getOne: async ({ resource, id }: any) => {
-        const result = await appsScriptDataProvider.getList({
+        const result = await setuDataProvider.getList({
             resource,
             pagination: { currentPage: 1, pageSize: 1000 },
             sorters: [],

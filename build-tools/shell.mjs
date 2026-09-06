@@ -1,7 +1,6 @@
-// Shared pieces of the three builds. `npm run build` (build.mjs) emits the
-// Apps Script HTML shell; `npm run dev` (dev.mjs) emits a plain static page
-// for the local server; `npm run pages` (pages.mjs) emits the public demo and
-// production assets CI publishes to gh-pages. All three render
+// Shared pieces of the builds. `npm run build` (build.mjs) emits the Apps
+// Script HTML shell and `npm run dev` (dev.mjs) emits a plain static page for
+// the local Supabase-backed app. Both render
 // frontend/shell.html — one copy of the page chrome, rather than a template
 // per target that has to be kept identical by hand.
 import { execFileSync } from 'node:child_process';
@@ -11,8 +10,6 @@ import path from 'node:path';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const distDir = path.join(root, 'frontend/dist');
-/** What CI publishes to the gh-pages branch — see build-tools/pages.mjs. */
-export const siteDir = path.join(root, 'site');
 
 const TITLE = 'Setu';
 const PACKAGE_VERSION = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
@@ -101,39 +98,20 @@ export function renderInlineDevShell({ script, style }) {
 }
 
 /**
- * The page GitHub Pages serves out of site/. Also a top-level document, but
- * unlike dev it ships alongside the icons directory, so the tag can just point
- * at the real file and let the browser cache it — this page is loaded by
- * strangers over the network, not by one person on localhost.
- */
-export function renderDemoShell() {
-    return renderShell({
-        title: TITLE,
-        favicon: '<link rel="icon" type="image/png" href="icons/icon-192.png" />',
-        head: '<link rel="stylesheet" href="app.css" />',
-        body: '<script src="app.js"></script>',
-    });
-}
-
-/**
- * esbuild options shared by the three builds. Two things vary, and they vary
+ * esbuild options shared by the two builds. Two things vary, and they vary
  * independently — hence a mode rather than a dev/prod boolean:
  *
- *   entry point — dev.ts pulls in the mock backend, main.ts does not, so the
- *     deployed bundle cannot contain mock data no matter what. `demo` is the
- *     mock entry point built to production settings: that is the whole point
- *     of it, a real build of the real UI with nothing behind it.
- *   output — prod is validated in memory; dev, demo, and the public production
- *     asset build write files a server or GitHub Pages hands out.
+ *   entry point — all builds use main.ts so local and deployed code exercise
+ *     the same Supabase transport.
+ *   output — prod is validated in memory; dev writes files for the local
+ *     server.
  *
- * @param {'dev' | 'demo' | 'prod'} mode
+ * @param {'dev' | 'prod'} mode
  */
 export function esbuildOptions(mode) {
     const optimized = mode !== 'dev';
     return {
-        entryPoints: [
-            path.join(root, mode === 'prod' ? 'frontend/src/main.ts' : 'frontend/src/dev.ts'),
-        ],
+        entryPoints: [path.join(root, 'frontend/src/main.ts')],
         bundle: true,
         // The bundle runs as one external script in an Apps Script iframe, so
         // it must declare nothing and leak nothing to global scope.
@@ -149,7 +127,7 @@ export function esbuildOptions(mode) {
         sourcemap: optimized ? false : 'inline',
         ...(mode === 'prod'
             ? { write: false, outfile: 'app.js' }
-            : { outfile: path.join(mode === 'dev' ? distDir : siteDir, 'app.js') }),
+            : { outfile: path.join(distDir, 'app.js') }),
     };
 }
 

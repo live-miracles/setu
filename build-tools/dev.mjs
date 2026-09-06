@@ -1,7 +1,6 @@
 // Dev server: esbuild + Tailwind in watch mode behind a static file server
-// on http://localhost:3000. No clasp, no Google account, no Sheet — the entry
-// point is frontend/src/dev.ts, which pulls in the in-memory mock backend in
-// place of google.script.run.
+// on http://localhost:3000. It runs the same Supabase-backed frontend as
+// Vercel; configure local or development-project credentials in .env.local.
 //
 // Builds are automatic; the page is not. Reload the tab yourself once the
 // rebuild logs — that trade buys a server with no watcher of its own, no
@@ -19,6 +18,14 @@ import {
     TAILWIND_BIN,
     TAILWIND_ARGS,
 } from './shell.mjs';
+
+const supabaseUrl = process.env.SETU_SUPABASE_URL || '';
+const supabasePublishableKey = process.env.SETU_SUPABASE_PUBLISHABLE_KEY || '';
+if (!supabaseUrl || !supabasePublishableKey) {
+    throw new Error(
+        'Missing SETU_SUPABASE_URL or SETU_SUPABASE_PUBLISHABLE_KEY. Copy .env.example to .env.local and configure a Supabase development project.',
+    );
+}
 
 // `PORT=3001 npm run dev` when something else already holds the default.
 const PORT = Number(process.env.PORT) || 3000;
@@ -108,7 +115,13 @@ server.on('error', (err) => {
 
 server.listen(PORT, () => console.log(`[server] http://localhost:${PORT}`));
 
-const ctx = await esbuild.context(esbuildOptions('dev'));
+const ctx = await esbuild.context({
+    ...esbuildOptions('dev'),
+    define: {
+        __SETU_SUPABASE_URL__: JSON.stringify(supabaseUrl),
+        __SETU_SUPABASE_PUBLISHABLE_KEY__: JSON.stringify(supabasePublishableKey),
+    },
+});
 await ctx.watch();
 
 // `--watch=always` rather than `--watch`: plain --watch stops the moment

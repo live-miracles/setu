@@ -3,12 +3,12 @@ import { useNotificationProvider } from '@refinedev/antd';
 import { App as AntApp, ConfigProvider } from 'antd';
 import { useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { appsScriptDataProvider } from './refine-data-provider';
+import { setuDataProvider } from './refine-data-provider';
 import { setErrorNotifier } from './feedback';
 
-// Refine is intentionally headless here. Apps Script serves one inlined HTML
-// document, so the app keeps its existing transport and visual tokens while
-// Refine owns the resource boundary for the new React surfaces.
+// Refine is intentionally headless here. The app keeps its existing transport
+// and visual tokens while Refine owns the resource boundary for the React
+// surfaces.
 const roots = new WeakMap<HTMLElement, { host: HTMLElement; root: Root }>();
 
 export function mountRefinePage(container: HTMLElement, page: ReactNode, resource: string): void {
@@ -62,7 +62,7 @@ function RefineRootContent({ page, resource }: { page: ReactNode; resource: stri
     }, [notification]);
     return (
         <Refine
-            dataProvider={appsScriptDataProvider}
+            dataProvider={setuDataProvider}
             notificationProvider={notificationProvider}
             resources={[{ name: resource, list: `/${resource}` }]}
             options={{ syncWithLocation: false }}>

@@ -482,9 +482,8 @@ interface CreateBlockInput {
 }
 
 // ---------------------------------------------------------------------------
-// The full google.script.run contract. Backend functions must match these
-// signatures; the frontend's api.ts typed wrapper is authored directly against
-// this type.
+// The application API contract. The frontend's typed wrapper and the Edge
+// Function operation dispatcher are authored directly against these signatures.
 // ---------------------------------------------------------------------------
 
 interface Api {

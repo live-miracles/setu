@@ -8,22 +8,15 @@ import { setAppLoading } from './ui/app-loading';
 import { mountAppShell } from './ui/shell';
 import { ensureAuthenticated, isSupabaseConfigured } from './supabase';
 
-// Production entry point — the module esbuild bundles into src/JavaScript.html.
-// Deliberately tiny: it hands the routing table to the router and starts the
-// app. Nothing it imports reaches mock/backend.ts, which is why the mock can
-// never ship (see dev.ts for the entry point that does pull it in).
+// Application entry point for both local development and Vercel.
 
 async function boot(): Promise<void> {
-    // `npm run dev` supplies the in-memory backend. Every other build is a
-    // top-level Supabase app and must complete OAuth before it requests data.
-    if (!(window as any).googleMock) {
-        if (!isSupabaseConfigured()) {
-            throw new Error(
-                'Setu is not configured. This deployment is missing its Supabase environment values.',
-            );
-        }
-        await ensureAuthenticated();
+    if (!isSupabaseConfigured()) {
+        throw new Error(
+            'Setu is not configured. This deployment is missing its Supabase environment values.',
+        );
     }
+    await ensureAuthenticated();
     mountAppShell();
     initRouter(ROUTER_CONFIG);
 

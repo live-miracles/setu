@@ -1,30 +1,15 @@
 import { supabase } from './supabase';
 
-// The UI talks to exactly one application API. Local development retains the
-// in-memory backend, while deployed builds invoke the protected Supabase Edge
-// Function. This removes the Apps Script-only `google.script.run` transport
-// without making every screen know about HTTP, auth tokens, or provider SDKs.
+// The UI talks to exactly one application API: the protected Supabase Edge
+// Function. Local development uses the same path as Vercel, so the database,
+// RLS policies and backend implementation are always the source of truth.
 
 type AsyncApi = { [K in keyof Api]: (...args: Parameters<Api[K]>) => Promise<ReturnType<Api[K]>> };
-
-function mockRunner(): any | null {
-    return (window as any).googleMock?.script?.run || null;
-}
 
 function callBackend<K extends keyof Api>(
     fnName: K,
     ...args: Parameters<Api[K]>
 ): Promise<ReturnType<Api[K]>> {
-    const runner = mockRunner();
-    if (runner) {
-        return new Promise((resolve, reject) => {
-            runner
-                .withSuccessHandler((data: ReturnType<Api[K]>) => resolve(data))
-                .withFailureHandler((error: unknown) => reject(error))
-                [fnName](...args);
-        });
-    }
-
     return supabase()
         .functions.invoke('api', { body: { operation: fnName, args } })
         .then(({ data, error }) => {
