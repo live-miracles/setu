@@ -315,7 +315,12 @@ export function ActionConfirmation({
         </Modal>
     );
 }
-function useSave<T>(action: () => Promise<T>, close?: () => void, optimistic = false) {
+function useSave<T>(
+    action: () => Promise<T>,
+    close?: () => void,
+    optimistic = false,
+    refreshAfterSave = true,
+) {
     const [busy, setBusy] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     return {
@@ -341,7 +346,7 @@ function useSave<T>(action: () => Promise<T>, close?: () => void, optimistic = f
             try {
                 const result = await action();
                 close?.();
-                await refreshDashboard();
+                if (refreshAfterSave) await refreshDashboard();
                 return result;
             } catch (e) {
                 setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -1606,6 +1611,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     const [result, setResult] = useState<Paginated<any> | null>(null);
     const [loading, setLoading] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const rows = result?.items || [];
     const open = (id: string) =>
         isInventory
@@ -1726,6 +1732,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             {filter}
         </Space>
     );
+    if (submitting) return <AppLoading />;
     return (
         <Page
             className="antd-page-board"
@@ -1790,7 +1797,16 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                 <Modal
                     title={`New ${isInventory ? 'inventory request' : isProgram ? 'program request' : 'ticket'}`}
                     close={() => setCreating(false)}>
-                    <CreateRecord kind={kind} dashboard={dashboard} />
+                    <CreateRecord
+                        kind={kind}
+                        dashboard={dashboard}
+                        onClose={() => setCreating(false)}
+                        onSubmitStart={() => {
+                            setCreating(false);
+                            setSubmitting(true);
+                        }}
+                        onSubmitEnd={() => setSubmitting(false)}
+                    />
                 </Modal>
             )}
         </Page>
@@ -1801,7 +1817,18 @@ function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     return <RequestBoard kind={kind} dashboard={dashboard} />;
 }
 
-function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
+function CreateRecord({
+    kind,
+    dashboard,
+    onClose,
+    onSubmitStart,
+    onSubmitEnd,
+}: Props & {
+    kind: 'inventory' | 'programs' | 'tickets';
+    onClose: () => void;
+    onSubmitStart?: () => void;
+    onSubmitEnd?: () => void;
+}) {
     const [users, setUsers] = useState<UserDTO[]>([]);
     const [language, setLanguage] = useState(dashboard.programLanguages[0]?.Name || '');
     const [requestedBy, setRequestedBy] = useState(dashboard.me.Email);
@@ -1811,6 +1838,7 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             ?.LeadEmail || '';
     const [leadEmail, setLeadEmail] = useState(initialLeadEmail);
     const [programType, setProgramType] = useState(OTHER_PROGRAM_TYPE);
+    const formData = useRef<FormData | null>(null);
     const [sessionDrafts, setSessionDrafts] = useState<ProgramSession[]>(() => [
         defaultSessionDraft([]),
     ]);
@@ -1830,63 +1858,70 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         const requester = users.find((user) => user.Email === email);
         if (requester) selectDepartment(requester.DepartmentId);
     };
-    const save = useSave(async (): Promise<{ Id: string }> => {
-        const d = new FormData(document.getElementById('refine-request-form') as HTMLFormElement);
-        const name = String(d.get('name') || '');
-        if (kind === 'tickets')
-            return api.createTicket(
-                { title: name, description: String(d.get('description') || '') },
-                generateRequestId(),
+    const save = useSave(
+        async (): Promise<{ Id: string }> => {
+            const d =
+                formData.current ||
+                new FormData(document.getElementById('refine-request-form') as HTMLFormElement);
+            const name = String(d.get('name') || '');
+            if (kind === 'tickets')
+                return api.createTicket(
+                    { title: name, description: String(d.get('description') || '') },
+                    generateRequestId(),
+                );
+            if (kind === 'inventory')
+                return api.createInventoryRequest(
+                    {
+                        name,
+                        userId: requestedBy,
+                        startDate: String(d.get('startDate')),
+                        endDate: String(d.get('endDate')),
+                        items: [],
+                        imageId: '',
+                        departmentId,
+                        leadEmail: String(d.get('leadEmail') || leadEmail),
+                        participants: '',
+                    },
+                    generateRequestId(),
+                );
+            const invalidSession = sessionDrafts.find(
+                (session) =>
+                    !session.Type ||
+                    !session.StartDateTime ||
+                    !session.EndDateTime ||
+                    new Date(session.EndDateTime) <= new Date(session.StartDateTime),
             );
-        if (kind === 'inventory')
-            return api.createInventoryRequest(
+            if (invalidSession) {
+                throw new Error(
+                    !invalidSession.Type
+                        ? 'Session type is required.'
+                        : 'Session end must be after its start.',
+                );
+            }
+            return api.createProgramRequest(
                 {
                     name,
+                    language: String(d.get('language') || ''),
+                    type: programType,
                     userId: requestedBy,
-                    startDate: String(d.get('startDate')),
-                    endDate: String(d.get('endDate')),
-                    items: [],
-                    imageId: '',
+                    placeId: '',
+                    sessions: sessionDrafts.map((session) => ({
+                        name: session.Name,
+                        type: session.Type,
+                        startDateTime: session.StartDateTime,
+                        endDateTime: session.EndDateTime,
+                    })),
                     departmentId,
-                    leadEmail: String(d.get('leadEmail') || leadEmail),
+                    leadEmail: String(d.get('leadEmail') || ''),
                     participants: '',
                 },
                 generateRequestId(),
             );
-        const invalidSession = sessionDrafts.find(
-            (session) =>
-                !session.Type ||
-                !session.StartDateTime ||
-                !session.EndDateTime ||
-                new Date(session.EndDateTime) <= new Date(session.StartDateTime),
-        );
-        if (invalidSession) {
-            throw new Error(
-                !invalidSession.Type
-                    ? 'Session type is required.'
-                    : 'Session end must be after its start.',
-            );
-        }
-        return api.createProgramRequest(
-            {
-                name,
-                language: String(d.get('language') || ''),
-                type: programType,
-                userId: requestedBy,
-                placeId: '',
-                sessions: sessionDrafts.map((session) => ({
-                    name: session.Name,
-                    type: session.Type,
-                    startDateTime: session.StartDateTime,
-                    endDateTime: session.EndDateTime,
-                })),
-                departmentId,
-                leadEmail: String(d.get('leadEmail') || ''),
-                participants: '',
-            },
-            generateRequestId(),
-        );
-    });
+        },
+        undefined,
+        false,
+        false,
+    );
     return (
         <form
             id="refine-request-form"
@@ -1899,18 +1934,26 @@ function CreateRecord({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                     form.reportValidity();
                     return;
                 }
-                setAppLoading(true);
-                await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-                const created = await save.run();
-                if (!created) {
-                    setAppLoading(false);
-                    return;
+                formData.current = new FormData(form);
+                if (onSubmitStart) onSubmitStart();
+                else {
+                    setAppLoading(true);
+                    onClose();
                 }
-                const id = createRecordDestination(kind, created.Id);
-                if (kind === 'programs') navigateToProgram(id);
-                else if (kind === 'inventory') navigateToInventoryRequest(id);
-                else navigateToTicket(id);
-                setAppLoading(false);
+                try {
+                    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                    const created = await save.run();
+                    if (!created) return;
+                    await refreshDashboard();
+                    const id = createRecordDestination(kind, created.Id);
+                    if (kind === 'programs') navigateToProgram(id);
+                    else if (kind === 'inventory') navigateToInventoryRequest(id);
+                    else navigateToTicket(id);
+                    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                } finally {
+                    if (onSubmitEnd) onSubmitEnd();
+                    else setAppLoading(false);
+                }
             }}>
             {kind !== 'programs' && (
                 <TextField
@@ -2182,10 +2225,11 @@ function ProgramDetail({
         UserId: request.UserId,
         Status: request.Status,
     });
-    const [availablePlaceIds, setAvailablePlaceIds] = useState<string[]>(
-        dashboard.places.map((place) => place.Id),
-    );
+    const [availablePlaceIds, setAvailablePlaceIds] = useState<string[]>([]);
+    const [availablePlacesLoading, setAvailablePlacesLoading] = useState(true);
     useEffect(() => {
+        setAvailablePlacesLoading(true);
+        setAvailablePlaceIds([]);
         api.getAvailablePlaces(
             request.Id,
             sessions.map((session) => ({
@@ -2196,18 +2240,13 @@ function ProgramDetail({
             })),
         )
             .then((places) => setAvailablePlaceIds(places.map((place) => place.Id)))
-            .catch(error);
+            .catch(error)
+            .finally(() => setAvailablePlacesLoading(false));
     }, [request.Id, sessions]);
     const availablePlaceOptions = dashboard.places.filter((place) =>
         availablePlaceIds.includes(place.Id),
     );
-    const placeOptions =
-        values.PlaceId && !availablePlaceOptions.some((p) => p.Id === values.PlaceId)
-            ? [
-                  ...availablePlaceOptions,
-                  dashboard.places.find((p) => p.Id === values.PlaceId),
-              ].filter((p): p is Place => Boolean(p))
-            : availablePlaceOptions;
+    const placeOptions = availablePlaceOptions;
     useEffect(() => {
         if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
     }, [dashboard.me]);
@@ -2564,7 +2603,10 @@ function ProgramDetail({
                         />
                     )}
                     {needsAllocation && (
-                        <Button type="primary" onClick={() => setEditing(true)}>
+                        <Button
+                            type="primary"
+                            disabled={canApprove(dashboard.me) && availablePlacesLoading}
+                            onClick={() => setEditing(true)}>
                             Allocate
                         </Button>
                     )}
@@ -2587,6 +2629,7 @@ function ProgramDetail({
                         <Button
                             type="primary"
                             icon={<EditOutlined />}
+                            disabled={canApprove(dashboard.me) && availablePlacesLoading}
                             onClick={() => setEditing(true)}
                             aria-label="Edit program"
                             title="Edit program"
@@ -2755,6 +2798,7 @@ function ProgramDetail({
                                 value={values.PlaceId}
                                 onChange={(value) => update('PlaceId', value)}
                                 disabled={!canApprove(dashboard.me)}
+                                loading={availablePlacesLoading}
                                 style={{ width: '100%' }}>
                                 <Select.Option value="">No place</Select.Option>
                                 {placeOptions.map((p) => (
@@ -4184,7 +4228,7 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
         );
     if (!row)
         return params.get('mode') === 'create' ? (
-            <CreateRecord kind={kind} dashboard={dashboard} />
+            <CreateRecord kind={kind} dashboard={dashboard} onClose={back} />
         ) : (
             <Page title="Not found">
                 <Card title="Record not found">
