@@ -6,14 +6,32 @@ import { supabase } from './supabase';
 
 type AsyncApi = { [K in keyof Api]: (...args: Parameters<Api[K]>) => Promise<ReturnType<Api[K]>> };
 
+// The Edge Function reports its error as a JSON body (`{ error: "..." }`),
+// but supabase-js's own error.message is just a generic "non-2xx status
+// code" — useless in a screenshot. Recover the real message plus the
+// operation name and HTTP status so a bug report is debuggable on its own.
+async function describeApiError(fnName: string, error: unknown, response?: Response): Promise<Error> {
+    let detail = error instanceof Error ? error.message : String(error);
+    if (response) {
+        try {
+            const body = await response.json();
+            if (body && typeof body.error === 'string') detail = body.error;
+        } catch {
+            // Response body wasn't JSON (e.g. a relay/network failure) — keep the fallback detail.
+        }
+    }
+    const status = response?.status ? ` (HTTP ${response.status})` : '';
+    return new Error(`${fnName}${status}: ${detail}`);
+}
+
 function callBackend<K extends keyof Api>(
     fnName: K,
     ...args: Parameters<Api[K]>
 ): Promise<ReturnType<Api[K]>> {
     return supabase()
         .functions.invoke('api', { body: { operation: fnName, args } })
-        .then(({ data, error }) => {
-            if (error) throw error;
+        .then(async ({ data, error, response }) => {
+            if (error) throw await describeApiError(String(fnName), error, response);
             return data as ReturnType<Api[K]>;
         });
 }

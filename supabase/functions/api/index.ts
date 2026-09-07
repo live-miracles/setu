@@ -41,9 +41,9 @@ async function profilesFor(
     return new Map(rows.map((profile) => [profile.id, profile]));
 }
 
-async function currentUser(client: SupabaseClient): Promise<Row> {
+async function currentUser(client: SupabaseClient, userId: string): Promise<Row> {
     const [profile, departments] = await Promise.all([
-        client.from('profiles').select('*').single(),
+        client.from('profiles').select('*').eq('id', userId).single(),
         client.from('departments').select('*'),
     ]);
     return userDto(
@@ -70,7 +70,7 @@ async function updateOwnProfile(
         changes.phone = String(patch.phone).trim();
     }
     if (patch.whatsapp !== undefined) changes.whatsapp = String(patch.whatsapp || '').trim();
-    if (!Object.keys(changes).length) return currentUser(client);
+    if (!Object.keys(changes).length) return currentUser(client, userId);
     const updated = result(
         await admin.from('profiles').update(changes).eq('id', userId).select('*').single(),
     ) as Row;
@@ -78,9 +78,13 @@ async function updateOwnProfile(
     return userDto(updated, new Map(departments.map((x) => [x.id, x])));
 }
 
-async function dashboard(client: SupabaseClient, admin: SupabaseClient): Promise<Row> {
+async function dashboard(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+): Promise<Row> {
     const responses = await Promise.all([
-        client.from('profiles').select('*').single(),
+        client.from('profiles').select('*').eq('id', userId).single(),
         client.from('departments').select('*').order('name'),
         client.from('places').select('*').order('name'),
         client.from('inventory_types').select('*').order('name'),
@@ -315,8 +319,10 @@ Deno.serve(async (request) => {
     const body = (await request.json()) as RequestBody;
     const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
     try {
-        if (body.operation === 'whoAmI') return respond(await currentUser(client));
-        if (body.operation === 'getDashboard') return respond(await dashboard(client, admin));
+        if (body.operation === 'whoAmI') return respond(await currentUser(client, authData.user.id));
+        if (body.operation === 'getDashboard') {
+            return respond(await dashboard(client, admin, authData.user.id));
+        }
         if (body.operation === 'updateOwnProfile') {
             return respond(await updateOwnProfile(client, admin, authData.user.id, body.args?.[0]));
         }
