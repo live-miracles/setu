@@ -8,15 +8,24 @@
 // document, so everything has to arrive inlined — esbuild's iife output is
 // exactly that, and the old numeric filename prefixes that used to define
 // concatenation order are now just the import graph.
-import { rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
-import { root, esbuildOptions, renderProdShell } from './shell.mjs';
+import { root, compileCss, esbuildOptions, renderInlineProdShell } from './shell.mjs';
 
 console.log('Bundling frontend TypeScript...');
-await esbuild.build(esbuildOptions('prod'));
-rmSync(path.join(root, 'src/Stylesheet.html'), { force: true });
-rmSync(path.join(root, 'src/JavaScript.html'), { force: true });
-writeFileSync(path.join(root, 'src/Index.html'), renderProdShell());
+const javascript = await esbuild.build(esbuildOptions('prod'));
+const stylesheetPath = path.join(root, 'src/Stylesheet.html');
 
-console.log('Legacy shell build complete: src/Index.html');
+compileCss(stylesheetPath);
+writeFileSync(
+    path.join(root, 'src', 'Index.html'),
+    renderInlineProdShell({
+        script: javascript.outputFiles[0].text,
+        style: readFileSync(stylesheetPath, 'utf8'),
+    }),
+);
+rmSync(stylesheetPath, { force: true });
+rmSync(path.join(root, 'src/JavaScript.html'), { force: true });
+
+console.log('Legacy shell build complete: src/Index.html (assets inlined)');

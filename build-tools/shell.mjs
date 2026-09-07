@@ -12,8 +12,6 @@ export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const distDir = path.join(root, 'frontend/dist');
 
 const TITLE = 'Setu';
-const PACKAGE_VERSION = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
-const PROD_ASSET_BASE = 'https://live-miracles.github.io/setu/prod';
 
 /**
  * The dev tab icon, inlined as a data URI. Dev serves a top-level document,
@@ -55,16 +53,6 @@ function inlineScript(script) {
             /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
             (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
         );
-}
-
-/** The page Apps Script serves — assets are hosted on GitHub Pages. */
-export function renderProdShell() {
-    return renderShell({
-        title: TITLE,
-        favicon: '',
-        head: `<link rel="stylesheet" href="${PROD_ASSET_BASE}/app.css?v=${PACKAGE_VERSION}" />`,
-        body: `<script src="${PROD_ASSET_BASE}/app.js?v=${PACKAGE_VERSION}"></script>`,
-    });
 }
 
 /** The Apps Script page with assets embedded in Index.html. */
