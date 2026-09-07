@@ -45,33 +45,62 @@ cp .env.example .env.local
 ```
 
 Edit `.env.local` with the URL and publishable/anon key for the Supabase
-development project:
+development project. In the Supabase dashboard, open the project (if your
+organization has more than one, confirm which is the shared *development*
+project before continuing — do not point `.env.local` at a production
+project), then go to **Project Settings → API Keys**, "Publishable and secret
+API keys" tab:
 
 ```env
 SETU_SUPABASE_URL=https://<project-ref>.supabase.co
-SETU_SUPABASE_PUBLISHABLE_KEY=<publishable-or-anon-key>
+SETU_SUPABASE_PUBLISHABLE_KEY=<the "Publishable key" value shown there>
 ```
 
-`.env.local` is ignored by Git. Never put a service-role key or OAuth secret
-in it.
+`.env.local` is ignored by Git. Never put a service-role/secret key or OAuth
+secret in it — only the publishable key is safe to use here.
 
 ### 2. Configure Supabase Auth
 
-In the Supabase dashboard for the development project:
+The frontend signs users in with Google OAuth, which needs an OAuth client in
+Google Cloud plus matching config in Supabase. Do this before your first
+sign-in attempt — see the note at the end of step 3 if you already tried
+signing in.
 
-1. Enable Google under Authentication → Providers.
-2. Set the site URL to `http://localhost:3000` and add it to the allowed
-   redirect URLs.
-3. In Google Cloud, add the Supabase callback URL shown by the provider
-   settings (typically `https://<project-ref>.supabase.co/auth/v1/callback`) to
-   the OAuth client's authorized redirect URIs.
+**In Google Cloud Console** ([APIs & Credentials](https://console.cloud.google.com/apis/credentials)):
 
-The frontend signs users in with Google OAuth. Without this provider setup,
-the browser will show `Unsupported provider: provider is not enabled`.
+1. Pick or create a GCP project for this app. If prompted, configure the
+   OAuth consent screen first (app name, support email) — this is a one-time
+   step per GCP project. While the app is in "Testing" mode, only accounts
+   you explicitly add as test users can sign in.
+2. **Create Credentials → OAuth client ID** → Application type **Web
+   application**.
+3. Under **Authorized JavaScript origins**, add `http://localhost:3000`.
+4. Under **Authorized redirect URIs**, add the callback URL shown in the
+   Supabase panel from the next step, typically
+   `https://<project-ref>.supabase.co/auth/v1/callback`.
+5. Click **Create**. Google shows a **Client ID**
+   (`....apps.googleusercontent.com`) and **Client Secret** (`GOCSPX-...`) —
+   keep this tab open, you'll need both in the next step.
+
+**In the Supabase dashboard**, under **Authentication → Sign In / Providers**
+(this section may just be labeled "Providers" in older dashboard versions),
+scroll to **Auth Providers** and click **Google**:
+
+1. Paste the Client ID into **Client IDs** and the Client Secret into
+   **Client Secret (for OAuth)**.
+2. Leave **Skip nonce checks** and **Allow users without an email** off —
+   they're workarounds for platforms Setu doesn't need (native iOS flows,
+   providers that omit email).
+3. Toggle **Enable Sign in with Google** on, then **Save**.
+
+Without this provider setup, the browser will show
+`Unsupported provider: provider is not enabled`.
 
 ### 3. Apply the schema and deploy the API
 
-Authenticate the Supabase CLI and connect it to the development project:
+Authenticate the Supabase CLI and connect it to the development project.
+`supabase login` opens a browser tab to authorize the CLI — run it from an
+interactive terminal, not a non-interactive/CI shell:
 
 ```bash
 npx supabase login
@@ -81,9 +110,14 @@ npx supabase secrets set SETU_APP_ORIGIN=http://localhost:3000
 npx supabase functions deploy api
 ```
 
-`db push` applies the checked-in migrations. The Supabase runtime supplies its
-standard function credentials; `SETU_APP_ORIGIN` is required for the API's
-CORS policy.
+`db push` applies the checked-in migrations, including the trigger that
+creates a `profiles` row for each new Supabase Auth user. `SETU_APP_ORIGIN`
+is required for the API's CORS policy.
+
+**Complete this step before your first Google sign-in.** If you already
+signed in earlier (e.g. while testing the OAuth setup in step 2, before
+`db push` had run), your `auth.users` row exists but has no matching
+`profiles` row — see [Troubleshooting](#troubleshooting) below.
 
 ### 4. Run the frontend
 
@@ -109,7 +143,52 @@ There is no mock backend. If the Edge Function reports that an operation has
 not been migrated, that operation still needs to be ported from the legacy
 Apps Script implementation.
 
+## Troubleshooting
+
+**Browser shows "Something went wrong / Failed to send a request to the Edge
+Function"**: the `api` function isn't deployed to your linked project yet.
+Run `npx supabase functions deploy api` (step 3).
+
+**Browser shows "Something went wrong / Edge Function returned a non-2xx
+status code"**: check the function logs in the Supabase dashboard
+(**Edge Functions → api → Logs**). An error there reading `Cannot coerce the
+result to a single JSON object` means a `.single()` query got zero rows —
+almost always because the signed-in user has no matching `public.profiles`
+row. This happens if you signed in before running `db push`, since the
+profile-creation trigger only fires for auth users created *after* the
+trigger exists. Fix it by backfilling the missing row(s) for any existing
+`auth.users` from the Supabase dashboard's SQL Editor:
+
+```sql
+insert into public.profiles (id, email, name)
+select u.id, coalesce(u.email, ''),
+  coalesce(u.raw_user_meta_data ->> 'full_name', u.raw_user_meta_data ->> 'name', '')
+from auth.users u
+left join public.profiles p on p.id = u.id
+where p.id is null;
+```
+
+This only inserts rows for users missing a profile, so it's safe to re-run.
+New sign-ins after `db push` don't need this — the trigger handles them
+automatically.
+
+If every account has a profile and you still see this error only for an
+`admin`/`approver` account: the `profiles` RLS policy lets admins/approvers
+read every profile row, so an unfiltered `select('*').single()` query for
+"my own profile" can return more than one row. The Edge Function code
+filters explicitly by `.eq('id', userId)` before `.single()` for this
+reason — if you're extending `supabase/functions/api/index.ts`, follow the
+same pattern rather than relying on RLS alone to narrow a `.single()` query.
+
+**Browser shows "Unsupported provider: provider is not enabled"**: the
+Google provider isn't turned on yet, or Client ID/Secret aren't saved — see
+step 2.
+
 ## Deploy to Vercel
+
+Not required for local development — `npm run dev` (step 4 above) runs the
+full app against your Supabase dev project without Vercel. This section only
+applies when you're ready to deploy a preview or production build.
 
 Connect the repository to Vercel and set these environment variables for the
 appropriate Vercel environments (Preview and Production):
