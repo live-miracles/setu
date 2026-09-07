@@ -1,14 +1,11 @@
 {
     "name": "setu",
     "version": "0.2.42",
-    "description": "Setu — a Google Apps Script + Google Sheets internal ops app.",
+    "description": "Setu — an internal operations app migrating to Supabase and Vercel.",
     "private": true,
     "type": "module",
     "scripts": {
         "dev": "node --env-file-if-exists=.env.local build-tools/dev.mjs",
-        "supabase:start": "supabase start",
-        "supabase:reset": "supabase db reset",
-        "supabase:serve": "supabase functions serve api --env-file supabase/.env.local",
         "build": "node build-tools/build.mjs",
         "build:vercel": "node build-tools/vercel.mjs",
         "build:backend": "node build-tools/build-backend.mjs",
@@ -27,6 +24,7 @@
         "@types/qrcode": "^1.5.6",
         "esbuild": "^0.25.0",
         "prettier": "^3.3.3",
+        "supabase": "^2.116.0",
         "tailwindcss": "^4.0.0",
         "typescript": "^5.5.4"
     },

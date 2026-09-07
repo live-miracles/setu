@@ -1,5 +1,5 @@
-# Local Supabase configuration. Project-specific values and all secrets belong
-# in the Supabase dashboard or local .env files, never in this repository.
+# Supabase CLI project configuration. Project-specific values and all secrets
+# belong in the Supabase dashboard or local environment files, never here.
 project_id = "setu"
 
 [api]
