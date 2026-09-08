@@ -1,3 +1,4 @@
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 // The UI talks to exactly one application API: the protected Supabase Edge
@@ -12,6 +13,7 @@ type AsyncApi = { [K in keyof Api]: (...args: Parameters<Api[K]>) => Promise<Ret
 // operation name and HTTP status so a bug report is debuggable on its own.
 async function describeApiError(fnName: string, error: unknown, response?: Response): Promise<Error> {
     let detail = error instanceof Error ? error.message : String(error);
+    let hint = '';
     if (response) {
         try {
             const body = await response.json();
@@ -19,9 +21,19 @@ async function describeApiError(fnName: string, error: unknown, response?: Respo
         } catch {
             // Response body wasn't JSON (e.g. a relay/network failure) — keep the fallback detail.
         }
+    } else if (error instanceof FunctionsFetchError) {
+        // The browser's fetch() never got a response at all — supabase-js can't say why
+        // (that detail is only visible in the Network tab), but the two common causes are
+        // the function not being deployed, or its CORS origin not matching this domain.
+        hint = ' — check the Edge Function is deployed and its CORS origin matches this domain';
+    } else if (error instanceof FunctionsRelayError) {
+        hint = " — Supabase's relay couldn't reach the function; check its logs in the dashboard";
+    }
+    if (error instanceof FunctionsHttpError || error instanceof FunctionsFetchError || error instanceof FunctionsRelayError) {
+        detail = `[${error.name}] ${detail}`;
     }
     const status = response?.status ? ` (HTTP ${response.status})` : '';
-    return new Error(`${fnName}${status}: ${detail}`);
+    return new Error(`${fnName}${status}: ${detail}${hint}`);
 }
 
 function callBackend<K extends keyof Api>(

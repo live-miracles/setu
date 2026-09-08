@@ -184,29 +184,63 @@ same pattern rather than relying on RLS alone to narrow a `.single()` query.
 Google provider isn't turned on yet, or Client ID/Secret aren't saved — see
 step 2.
 
+**Signing in on a Vercel deployment redirects to `localhost` instead of the
+app**: that project's Supabase Auth **Site URL** is still pointing at the
+local dev default. See [Deploy to Vercel](#deploy-to-vercel) step 2.
+
 ## Deploy to Vercel
 
 Not required for local development — `npm run dev` (step 4 above) runs the
 full app against your Supabase dev project without Vercel. This section only
-applies when you're ready to deploy a preview or production build.
+applies when you're ready to deploy a preview or production build, and it
+typically uses its own Supabase project rather than the shared development
+project from step 1.
 
-Connect the repository to Vercel and set these environment variables for the
-appropriate Vercel environments (Preview and Production):
+### 1. Connect the repository to Vercel
+
+Set these environment variables for the appropriate Vercel environments
+(Preview and Production):
 
 - `SETU_SUPABASE_URL`
 - `SETU_SUPABASE_PUBLISHABLE_KEY`
 
 Vercel uses `npm run build:vercel` and publishes `web/` as configured in
-`vercel.json`. Add the deployed Vercel URL to Supabase Auth's site and redirect
-URL settings, and configure the Google OAuth client for that URL where
-required. Set the API's CORS origin and deploy the Edge Function and database
-migrations separately with the Supabase CLI or CI:
+`vercel.json`.
+
+### 2. Point Supabase Auth at the Vercel domain
+
+In the Supabase dashboard, for the project this Vercel deployment uses, go to
+**Authentication → URL Configuration**:
+
+- Set **Site URL** to the deployed domain, e.g. `https://<vercel-domain>`.
+- Add that same URL to **Redirect URLs** (use `https://<vercel-domain>/**`,
+  or `https://*.vercel.app/**` to also cover preview deployments).
+
+Skip this and Google sign-in still completes, but the browser is sent back to
+whatever Site URL happens to be set — often `http://localhost:3000`, left
+over from local dev — instead of the Vercel domain.
+
+Also add the Vercel domain to the Google OAuth client from step 2 above:
+under **Authorized JavaScript origins**, add `https://<vercel-domain>`. The
+**Authorized redirect URIs** entry doesn't need to change — Google always
+redirects to the Supabase callback URL, not the app directly.
+
+### 3. Deploy the database and API to this project
+
+Vercel only builds and serves `web/`; the database schema and Edge Function
+are deployed separately. Run these against the same project used in step 1
+(pass `--project-ref <project-ref>` if it isn't the CLI's currently linked
+project):
 
 ```bash
-npx supabase secrets set SETU_APP_ORIGIN=https://<vercel-domain>
-npx supabase functions deploy api
-npx supabase db push
+npx supabase secrets set SETU_APP_ORIGIN=https://<vercel-domain> --project-ref <project-ref>
+npx supabase functions deploy api --project-ref <project-ref>
+npx supabase db push --project-ref <project-ref>
 ```
+
+Skipping this step is the most common cause of a newly connected Vercel
+deployment showing "Something went wrong / getDashboard: Failed to send a
+request to the Edge Function" — see [Troubleshooting](#troubleshooting).
 
 ## Migration status
 

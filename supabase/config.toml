@@ -7,10 +7,5 @@ enabled = true
 schemas = ["public", "storage"]
 extra_search_path = ["public", "extensions"]
 
-[auth]
-enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000", "https://*.vercel.app"]
-
 [storage]
 enabled = true
