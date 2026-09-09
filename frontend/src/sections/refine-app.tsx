@@ -8,7 +8,6 @@ import {
 } from 'react';
 import {
     useCreate,
-    useCustom,
     useCustomMutation,
     useDelete,
     useInvalidate,
@@ -19,11 +18,9 @@ import {
 import {
     Button,
     Card as AntCard,
-    Divider,
     Empty as AntEmpty,
     Form as AntForm,
     Input,
-    Modal as AntModal,
     Pagination,
     Select,
     Space,
@@ -36,9 +33,7 @@ import {
     CameraOutlined,
     DeleteOutlined,
     EditOutlined,
-    LeftOutlined,
     PlusOutlined,
-    RightOutlined,
     SearchOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
@@ -50,8 +45,6 @@ import {
     navigateBackToSection,
     navigateToProgram,
     navigateToPrograms,
-    navigateToRequestList,
-    navigateToRoster,
     navigateToUser,
     refreshDashboard,
     replaceWorkbenchUrl,
@@ -59,7 +52,6 @@ import {
     programRequestUrl,
     userUrl,
 } from '../router';
-import { isPlainLeftClick } from '../ui/link-click';
 import {
     WORKBENCH_SEARCH_QUERY_PARAM,
     WORKBENCH_STATUS_QUERY_PARAM,
@@ -69,14 +61,13 @@ import {
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
-import { formatDateTime, formatProgramSessionSchedule, formatTimeOfDay } from '../ui/format';
+import { formatDateTime, formatProgramSessionSchedule } from '../ui/format';
 import { formatDateTimeLocal, formatLocalDateOnly } from '../ui/date';
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
     getShiftTypeTimes,
 } from '../ui/roster-table';
-import { buildCalendarTableModel } from '../ui/calendar-table';
 import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
@@ -91,9 +82,6 @@ import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
 import { UserBlock } from '../ui/user-block';
-import homeHeroImage from '../../assets/home-hero.avif';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
@@ -102,6 +90,19 @@ import {
     shiftProgramSessions,
 } from '../ui/program-actions';
 import { canApprove, canManageConfig, canTransitionInventoryRequest } from '../workflows';
+import {
+    ActionConfirmation,
+    Card,
+    Empty,
+    Modal,
+    Page,
+    SaveFooter,
+    Submit,
+    TextField,
+    useSave,
+} from './refine-shared';
+import { Home } from './home';
+import { Calendar } from './calendar';
 
 type Props = { dashboard: DashboardPayload };
 const OTHER_PROGRAM_TYPE = 'Other';
@@ -130,12 +131,6 @@ function formatProgramName(language: string, type: string, title: string): strin
     return [language, type.toLowerCase() === OTHER_PROGRAM_TYPE.toLowerCase() ? '' : type, title]
         .filter(Boolean)
         .join(' ');
-}
-
-function blockCoversDate(block: Block, isoDate: string): boolean {
-    const startDate = block.StartDateTime.slice(0, 10);
-    const endDate = block.EndDateTime.slice(0, 10);
-    return startDate <= isoDate && endDate >= isoDate;
 }
 
 function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession {
@@ -169,461 +164,11 @@ function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession {
     };
 }
 
-function Page({
-    title,
-    headingContent,
-    action,
-    className,
-    hideHeading = false,
-    children,
-}: {
-    title: string;
-    headingContent?: ReactNode;
-    action?: ReactNode;
-    className?: string;
-    hideHeading?: boolean;
-    children: ReactNode;
-}) {
-    return (
-        <section className={`antd-page${className ? ` ${className}` : ''}`}>
-            {!hideHeading && (
-                <div className="antd-page-heading">
-                    <div>
-                        <Typography.Title level={2}>{title}</Typography.Title>
-                    </div>
-                    {headingContent}
-                    {action}
-                </div>
-            )}
-            {children}
-        </section>
-    );
-}
-function Card({
-    title,
-    action,
-    className,
-    children,
-}: {
-    title: ReactNode;
-    action?: ReactNode;
-    className?: string;
-    children: ReactNode;
-}) {
-    return (
-        <AntCard title={title} extra={action} className={className}>
-            {children}
-        </AntCard>
-    );
-}
-function Empty({ children = 'Nothing here yet.' }: { children?: ReactNode }) {
-    return <AntEmpty description={children} />;
-}
-function Submit({ label = 'Save', busy }: { label?: string; busy?: boolean }) {
-    return (
-        <Button type="primary" htmlType="submit" loading={busy}>
-            {label}
-        </Button>
-    );
-}
-
-function SaveFooter({
-    label,
-    busy,
-    errorMessage,
-}: {
-    label: string;
-    busy?: boolean;
-    errorMessage?: string;
-}) {
-    return (
-        <div className="flex items-center gap-2">
-            <Submit label={label} busy={busy} />
-            {errorMessage && (
-                <Typography.Text type="danger" className="text-sm">
-                    {errorMessage}
-                </Typography.Text>
-            )}
-        </div>
-    );
-}
-function Modal({
-    title,
-    children,
-    close,
-}: {
-    title: string;
-    children: ReactNode;
-    close: () => void;
-}) {
-    return (
-        <AntModal open title={title} onCancel={close} footer={null} destroyOnHidden>
-            {children}
-        </AntModal>
-    );
-}
-export function ActionConfirmation({
-    action,
-    description,
-    onConfirm,
-    onCancel,
-}: {
-    action: string;
-    description?: string;
-    onConfirm: () => Promise<void>;
-    onCancel: () => void;
-}) {
-    const label = action.charAt(0).toUpperCase() + action.slice(1);
-    return (
-        <Modal title={`Confirm ${label}`} close={onCancel}>
-            <form
-                className="grid gap-3"
-                onSubmit={async (event) => {
-                    event.preventDefault();
-                    await onConfirm();
-                }}>
-                <p>
-                    {description ||
-                        `Are you sure you want to ${action.toLowerCase()} this request?`}
-                </p>
-                <div className="flex justify-end gap-2">
-                    <Button onClick={onCancel}>No</Button>
-                    <Button type="primary" htmlType="submit">
-                        Yes
-                    </Button>
-                </div>
-            </form>
-        </Modal>
-    );
-}
-function useSave<T>(
-    action: () => Promise<T>,
-    close?: () => void,
-    optimistic = false,
-    refreshAfterSave = true,
-) {
-    const [busy, setBusy] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
-    return {
-        busy,
-        errorMessage,
-        run: async (event?: FormEvent) => {
-            event?.preventDefault();
-            if (event) {
-                const form = event.currentTarget as HTMLFormElement;
-                if (!form.checkValidity()) {
-                    form.reportValidity();
-                    return false;
-                }
-            }
-            setErrorMessage('');
-            setBusy(true);
-            if (optimistic) {
-                close?.();
-                setBusy(false);
-                void action().catch((e) => showErrorAlert(e));
-                return null;
-            }
-            try {
-                const result = await action();
-                close?.();
-                if (refreshAfterSave) await refreshDashboard();
-                return result;
-            } catch (e) {
-                setErrorMessage(e instanceof Error ? e.message : String(e));
-                return null;
-            } finally {
-                setBusy(false);
-            }
-        },
-    };
-}
-function TextField({
-    name,
-    label,
-    value,
-    type = 'text',
-    required = false,
-    pattern,
-    title,
-    onChange,
-}: {
-    name: string;
-    label: string;
-    value?: string | number;
-    type?: string;
-    required?: boolean;
-    pattern?: string;
-    title?: string;
-    onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
-}) {
-    return (
-        <AntForm.Item label={label} required={required} className="antd-form-item">
-            <Input
-                name={name}
-                type={type}
-                value={onChange ? (value ?? '') : undefined}
-                defaultValue={onChange ? undefined : (value ?? '')}
-                required={required}
-                pattern={pattern}
-                title={title}
-                onChange={onChange}
-            />
-        </AntForm.Item>
-    );
-}
-
 const INTERNATIONAL_PHONE_PATTERN = '\\+[1-9][0-9]{7,14}';
 const INTERNATIONAL_PHONE_TITLE =
     'Enter a valid phone number with country code using digits only, for example +919000000000.';
 function isValidInternationalPhone(phone: string): boolean {
     return /^\+[1-9]\d{7,14}$/.test(phone);
-}
-
-function Home({ dashboard }: Props) {
-    const pendingProgramRequests = dashboard.programRequests.filter((request) =>
-        ['draft', 'submitted'].includes(request.Status),
-    );
-    const todayIso = formatLocalDateOnly(new Date());
-    const tomorrowDate = new Date();
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowIso = formatLocalDateOnly(tomorrowDate);
-    const shortDate = (dateIso: string) =>
-        new Date(`${dateIso}T00:00:00`).toLocaleDateString(undefined, {
-            day: 'numeric',
-            month: 'short',
-        });
-    const shiftsForDate = (dateIso: string) =>
-        dashboard.upcomingRosters
-            .filter((roster) => roster.StartDate <= dateIso && roster.EndDate >= dateIso)
-            .sort((a, b) =>
-                `${a.StartTime}|${a.Name}|${a.userName}`.localeCompare(
-                    `${b.StartTime}|${b.Name}|${b.userName}`,
-                ),
-            );
-    const todayShifts = shiftsForDate(todayIso);
-    const tomorrowShifts = shiftsForDate(tomorrowIso);
-    const recentComments = [
-        ...dashboard.programRequests.flatMap((request) =>
-            request.comments.map((comment) => ({
-                comment,
-                request,
-                kind: 'programs' as const,
-            })),
-        ),
-        ...dashboard.inventoryRequests.flatMap((request) =>
-            request.comments.map((comment) => ({
-                comment,
-                request,
-                kind: 'inventory' as const,
-            })),
-        ),
-    ]
-        .sort(
-            (a, b) =>
-                new Date(b.comment.Timestamp).getTime() - new Date(a.comment.Timestamp).getTime(),
-        )
-        .slice(0, 8);
-    const sectionTitle = (title: string, count: number) => (
-        <Space size="small">
-            <span>{title}</span>
-            <Tag>{count}</Tag>
-        </Space>
-    );
-    const sectionAction = (title: string, onClick: () => void) => (
-        <Button
-            type="primary"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={onClick}
-            aria-label={`Open ${title}`}
-            title={`Open ${title}`}
-        />
-    );
-    return (
-        <Page title="Home" hideHeading>
-            <section
-                className="home-section home-hero"
-                style={{ backgroundImage: `url(${homeHeroImage})` }}
-                aria-labelledby="home-hero-title">
-                <div className="home-hero-content">
-                    <Typography.Title id="home-hero-title" level={1}>
-                        Setu
-                    </Typography.Title>
-                    <Typography.Paragraph>Your operations, connected.</Typography.Paragraph>
-                </div>
-            </section>
-            <div className="home-section antd-two-column">
-                <Card title={null}>
-                    {dashboard.homeContent.Guidelines ? (
-                        <div className="guidelines-markdown text-sm text-black/75">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {dashboard.homeContent.Guidelines}
-                            </ReactMarkdown>
-                        </div>
-                    ) : (
-                        <Empty />
-                    )}
-                </Card>
-                <Card title={null}>
-                    <Typography.Title level={5}>
-                        Today&apos;s shifts ({shortDate(todayIso)})
-                    </Typography.Title>
-                    {todayShifts.map((shift) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={shift.Id}
-                            onClick={navigateToRoster}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Typography.Text strong>
-                                    {shift.Name} · {shift.userName || 'Unassigned'}
-                                </Typography.Text>
-                                <Typography.Text>
-                                    {[
-                                        formatTimeOfDay(shift.StartTime),
-                                        formatTimeOfDay(shift.EndTime),
-                                    ]
-                                        .filter(Boolean)
-                                        .join(' – ')}
-                                </Typography.Text>
-                            </Space>
-                        </Button>
-                    ))}
-                    {!todayShifts.length && <Empty />}
-                    <Divider className="home-shifts-divider" />
-                    <Typography.Title level={5}>
-                        Tomorrow&apos;s shifts ({shortDate(tomorrowIso)})
-                    </Typography.Title>
-                    {tomorrowShifts.map((shift) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={shift.Id}
-                            onClick={navigateToRoster}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Typography.Text strong>
-                                    {shift.Name} · {shift.userName || 'Unassigned'}
-                                </Typography.Text>
-                                <Typography.Text>
-                                    {[
-                                        formatTimeOfDay(shift.StartTime),
-                                        formatTimeOfDay(shift.EndTime),
-                                    ]
-                                        .filter(Boolean)
-                                        .join(' – ')}
-                                </Typography.Text>
-                            </Space>
-                        </Button>
-                    ))}
-                    {!tomorrowShifts.length && <Empty />}
-                </Card>
-            </div>
-            <div className="home-section antd-two-column">
-                <Card
-                    title={sectionTitle('Pending program requests', pendingProgramRequests.length)}
-                    className="home-scroll-card"
-                    action={sectionAction('Pending program requests', () =>
-                        navigateToRequestList('programs'),
-                    )}>
-                    {pendingProgramRequests.map((request) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={request.Id}
-                            href={programRequestUrl(request.Id)}
-                            onClick={(event) => {
-                                if (!isPlainLeftClick(event)) return;
-                                event.preventDefault();
-                                navigateToProgram(request.Id);
-                            }}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Typography.Text strong>
-                                    REQ-{request.DisplayId} · {request.Name}
-                                </Typography.Text>
-                                <Tag>{request.Status}</Tag>
-                            </Space>
-                        </Button>
-                    ))}
-                    {!pendingProgramRequests.length && <Empty />}
-                </Card>
-                <Card
-                    title={sectionTitle(
-                        'Ongoing Inventory Requests',
-                        dashboard.inventoryRequests.length,
-                    )}
-                    className="home-scroll-card"
-                    action={sectionAction('Ongoing Inventory Requests', () =>
-                        navigateToRequestList('inventory'),
-                    )}>
-                    {dashboard.inventoryRequests.map((r) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={r.Id}
-                            href={inventoryRequestUrl(r.Id)}
-                            onClick={(event) => {
-                                if (!isPlainLeftClick(event)) return;
-                                event.preventDefault();
-                                navigateToInventoryRequest(r.Id);
-                            }}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Typography.Text strong>
-                                    REQ-{r.DisplayId} · {r.Name}
-                                </Typography.Text>
-                                <Tag>{r.Status}</Tag>
-                            </Space>
-                        </Button>
-                    ))}
-                    {!dashboard.inventoryRequests.length && <Empty />}
-                </Card>
-            </div>
-            <div className="home-section antd-two-column">
-                <Card title="Recent comments" className="home-recent-comments">
-                    {recentComments.length ? (
-                        recentComments.map(({ comment, request, kind }) => {
-                            const href =
-                                kind === 'programs'
-                                    ? programRequestUrl(request.Id)
-                                    : inventoryRequestUrl(request.Id);
-                            const openRequest = () =>
-                                kind === 'programs'
-                                    ? navigateToProgram(request.Id)
-                                    : navigateToInventoryRequest(request.Id);
-                            return (
-                                <Button
-                                    key={comment.Id}
-                                    type="text"
-                                    block
-                                    className="antd-list-button"
-                                    href={href}
-                                    onClick={(event) => {
-                                        if (!isPlainLeftClick(event)) return;
-                                        event.preventDefault();
-                                        openRequest();
-                                    }}>
-                                    <Typography.Text strong>
-                                        REQ-{request.DisplayId} · {request.Name}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary">
-                                        {comment.userName || comment.UserId} ·{' '}
-                                        {formatDateTime(comment.Timestamp)}
-                                    </Typography.Text>
-                                    <div className="home-comment-message">{comment.Message}</div>
-                                </Button>
-                            );
-                        })
-                    ) : (
-                        <Empty />
-                    )}
-                </Card>
-            </div>
-        </Page>
-    );
 }
 
 function Profile({ dashboard, registration = false }: Props & { registration?: boolean }) {
@@ -1288,171 +833,6 @@ function Roster({ dashboard }: Props) {
                 />
             )}
             {(creating || editing) && <Form row={editing} />}
-        </Page>
-    );
-}
-
-function Calendar({ dashboard }: Props) {
-    const [month, setMonth] = useState(() => {
-        const today = new Date();
-        return new Date(today.getFullYear(), today.getMonth(), 1);
-    });
-    const year = month.getFullYear();
-    const monthNumber = month.getMonth() + 1;
-    const todayIso = formatLocalDateOnly(new Date());
-    const monthStartIso = formatLocalDateOnly(month);
-    const monthEndIso = formatLocalDateOnly(new Date(year, monthNumber, 0));
-    // Refine keys this query by (operation, args), so each month gets its own
-    // cache entry automatically — paging back to a month already visited this
-    // session renders instantly, with no hand-rolled cache/version bookkeeping.
-    const { result, query } = useCustom<CalendarMonthPayload>({
-        url: 'getCalendarMonth',
-        method: 'get',
-        meta: { operation: 'getCalendarMonth', args: [year, monthNumber] },
-    });
-    const monthData = query.isSuccess ? result.data : null;
-    const loading = query.isLoading;
-    const calendarPrograms = monthData?.programs || [];
-    const calendarPlaces = monthData?.places || dashboard.places;
-    const calendar = buildCalendarTableModel(
-        calendarPrograms,
-        calendarPlaces,
-        dashboard.programTypes,
-        todayIso,
-        monthStartIso,
-        monthEndIso,
-        dashboard.blocks,
-    );
-    return (
-        <Page
-            title="Calendar"
-            className="calendar-page"
-            headingContent={
-                <Space>
-                    <Button
-                        type="text"
-                        icon={<LeftOutlined />}
-                        onClick={() => setMonth(new Date(year, month.getMonth() - 1, 1))}
-                        aria-label="Previous month"
-                        title="Previous month"
-                    />
-                    <Typography.Text strong>
-                        {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                    </Typography.Text>
-                    <Button
-                        type="text"
-                        icon={<RightOutlined />}
-                        onClick={() => setMonth(new Date(year, month.getMonth() + 1, 1))}
-                        aria-label="Next month"
-                        title="Next month"
-                    />
-                </Space>
-            }>
-            {/* A refresh keeps the grid up: only a month we have nothing for yet
-                is worth replacing with a loading line. */}
-            {loading && !monthData ? (
-                <Typography.Text type="secondary">Loading calendar…</Typography.Text>
-            ) : calendar.rows.length ? (
-                <div className="calendar-table-scroll">
-                    <table className="calendar-table">
-                        <thead>
-                            <tr>
-                                <th scope="col" className="calendar-date-header">
-                                    Date
-                                </th>
-                                {calendar.places.map((place) => (
-                                    <th
-                                        key={place.Id}
-                                        scope="col"
-                                        className="calendar-place-header">
-                                        {place.Name}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {calendar.rows.map((row) =>
-                                (() => {
-                                    const globalBlock = dashboard.blocks.some(
-                                        (block) =>
-                                            !block.Place && blockCoversDate(block, row.isoDate),
-                                    );
-                                    return (
-                                        <tr
-                                            key={row.isoDate}
-                                            className={[
-                                                row.isoDate === todayIso
-                                                    ? 'calendar-today-row'
-                                                    : '',
-                                                globalBlock ? 'calendar-blocked-row' : '',
-                                            ]
-                                                .filter(Boolean)
-                                                .join(' ')}>
-                                            <th scope="row" className="calendar-date-cell">
-                                                {row.label}
-                                            </th>
-                                            {row.places.map((place) => {
-                                                const placeBlocked =
-                                                    !globalBlock &&
-                                                    dashboard.blocks.some(
-                                                        (block) =>
-                                                            block.Place === place.placeId &&
-                                                            blockCoversDate(block, row.isoDate),
-                                                    );
-                                                return (
-                                                    <td
-                                                        key={`${row.isoDate}-${place.placeId}`}
-                                                        className={`calendar-place-cell${
-                                                            placeBlocked
-                                                                ? ' calendar-blocked-place-cell'
-                                                                : ''
-                                                        }`}>
-                                                        {place.blocks.map((block) => (
-                                                            <a
-                                                                key={block.programId}
-                                                                className="calendar-program-block"
-                                                                href={programRequestUrl(
-                                                                    block.programId,
-                                                                )}
-                                                                style={{
-                                                                    backgroundColor: block.color
-                                                                        ? `${block.color}26`
-                                                                        : undefined,
-                                                                }}
-                                                                onClick={(event) => {
-                                                                    if (!isPlainLeftClick(event))
-                                                                        return;
-                                                                    event.preventDefault();
-                                                                    navigateToProgram(
-                                                                        block.programId,
-                                                                    );
-                                                                }}
-                                                                aria-label={`Open ${block.title}`}>
-                                                                <span className="calendar-program-title">
-                                                                    {block.title}
-                                                                </span>
-                                                                {block.sessions.map((session) => (
-                                                                    <span
-                                                                        key={`${session.startDateTime}-${session.label}`}
-                                                                        className="calendar-session-line">
-                                                                        {session.label}
-                                                                    </span>
-                                                                ))}
-                                                            </a>
-                                                        ))}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    );
-                                })(),
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            ) : (
-                <Empty>No approved programs scheduled.</Empty>
-            )}
         </Page>
     );
 }

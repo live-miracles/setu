@@ -52,7 +52,7 @@ import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { UserBlock } from '../ui/user-block';
 import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
-import { ActionConfirmation } from './refine-app';
+import { ActionConfirmation } from './refine-shared';
 
 type Field = {
     field: string;
