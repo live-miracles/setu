@@ -1173,6 +1173,8 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
     const [domain, setDomain] = useState('');
     const [loading, setLoading] = useState(canEdit);
     const [saving, setSaving] = useState(false);
+    const [domainEditorOpen, setDomainEditorOpen] = useState(false);
+    const [domainError, setDomainError] = useState('');
 
     useEffect(() => {
         if (!canEdit) return;
@@ -1196,8 +1198,16 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
     async function addDomain(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const normalized = domain.trim().toLowerCase().replace(/^@/, '');
-        if (!normalized) return;
+        if (!normalized) {
+            setDomainError('Enter a domain.');
+            return;
+        }
+        if (domains.some((entry) => entry.domain === normalized)) {
+            setDomainError('That domain is already allowed.');
+            return;
+        }
         setSaving(true);
+        setDomainError('');
         try {
             const added = await api.createAllowedEmailDomain(
                 { domain: normalized },
@@ -1207,8 +1217,9 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
                 [...current, added].sort((a, b) => a.domain.localeCompare(b.domain)),
             );
             setDomain('');
+            setDomainEditorOpen(false);
         } catch (error) {
-            showErrorAlert(error);
+            setDomainError(error instanceof Error ? error.message : String(error));
         } finally {
             setSaving(false);
         }
@@ -1220,7 +1231,7 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
             await api.deleteAllowedEmailDomain(value, generateRequestId());
             setDomains((current) => current.filter((entry) => entry.domain !== value));
         } catch (error) {
-            showErrorAlert(error);
+            setDomainError(error instanceof Error ? error.message : String(error));
         } finally {
             setSaving(false);
         }
@@ -1233,28 +1244,68 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
                     ? 'Only users with an email address from one of these domains can sign in.'
                     : 'No domains are configured. Users from any email domain can sign in.'}
             </Typography.Paragraph>
-            <Space wrap>
+            <div className="flex flex-wrap items-center gap-2">
                 {domains.map((entry) => (
                     <Tag
                         key={entry.domain}
                         closable={!saving}
-                        onClose={() => void removeDomain(entry.domain)}>
+                        onClose={(event) => {
+                            event.preventDefault();
+                            void removeDomain(entry.domain);
+                        }}>
                         {entry.domain}
                     </Tag>
                 ))}
-            </Space>
-            <form className="mt-4 flex gap-2" onSubmit={addDomain}>
-                <Input
-                    value={domain}
-                    onChange={(event) => setDomain(event.target.value)}
-                    placeholder="myorg.com"
-                    aria-label="Email domain"
-                    type="text"
+                <Button
+                    type="primary"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    disabled={saving}
+                    aria-label="Add allowed email domain"
+                    title="Add allowed email domain"
+                    onClick={() => {
+                        setDomainError('');
+                        setDomainEditorOpen(true);
+                    }}
                 />
-                <Button type="primary" htmlType="submit" loading={saving} disabled={!domain.trim()}>
-                    Add domain
-                </Button>
-            </form>
+                {domainError && (
+                    <Typography.Text type="danger" className="basis-full text-sm">
+                        {domainError}
+                    </Typography.Text>
+                )}
+            </div>
+            {domainEditorOpen && (
+                <Modal
+                    open
+                    title="Add allowed email domain"
+                    footer={null}
+                    destroyOnHidden
+                    onCancel={() => {
+                        if (!saving) setDomainEditorOpen(false);
+                    }}>
+                    <form className="grid gap-3" onSubmit={addDomain}>
+                        <Form.Item label="Domain" required>
+                            <Input
+                                type="text"
+                                value={domain}
+                                autoFocus
+                                placeholder="myorg.com"
+                                onChange={(event) => setDomain(event.target.value)}
+                            />
+                        </Form.Item>
+                        <div className="flex items-center gap-2">
+                            <Button type="primary" htmlType="submit" loading={saving}>
+                                Add
+                            </Button>
+                            {domainError && (
+                                <Typography.Text type="danger" className="text-sm">
+                                    {domainError}
+                                </Typography.Text>
+                            )}
+                        </div>
+                    </form>
+                </Modal>
+            )}
         </Card>
     );
 }

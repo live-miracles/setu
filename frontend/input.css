@@ -1190,6 +1190,10 @@ a.record-block:focus-visible {
     padding: 0.75rem;
 }
 
+.request-block-content {
+    width: 100%;
+}
+
 .request-block-heading {
     width: 100%;
     display: flex;

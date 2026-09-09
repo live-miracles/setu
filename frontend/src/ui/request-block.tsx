@@ -31,7 +31,7 @@ export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlo
     const program = kind === 'program';
     return (
         <BlockCard className="request-block" href={href} onClick={onClick}>
-            <Space direction="vertical" size={2}>
+            <Space direction="vertical" size={2} className="request-block-content">
                 <div className="request-block-heading">
                     <Space size="small" wrap>
                         <Typography.Text type="secondary">
