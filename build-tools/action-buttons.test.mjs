@@ -4,7 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = readFileSync(path.join(root, 'frontend/src/sections/refine-app.tsx'), 'utf8');
+const source = [
+    readFileSync(path.join(root, 'frontend/src/sections/refine-app.tsx'), 'utf8'),
+    readFileSync(path.join(root, 'frontend/src/sections/detail-shared.tsx'), 'utf8'),
+].join('\n');
 
 assert.doesNotMatch(
     source,
