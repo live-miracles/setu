@@ -7,6 +7,28 @@ static app; its API boundary is a Supabase Edge Function backed by Postgres.
 It covers equipment and program requests, tickets and comments, roster
 scheduling, inventory, programs, home content, and user settings.
 
+## Free-tier deployment
+
+This architecture can run on the free tiers of Supabase and Vercel for both
+the Setu and Setu Dev environments, within each provider's current quotas and
+terms. Supabase hosts the database, Storage, Edge Functions, and the 10-minute
+`pg_cron` job; Vercel only serves the static frontend. Supabase's current Free
+plan includes two active projects, 500,000 Edge Function invocations, 1 GB of
+file storage, and 500 MB of database storage per project. Free projects may be
+paused after inactivity, so the first request after a pause can be slower.
+
+Comment email delivery also depends on the email provider's limits. The
+current Resend Free plan includes 3,000 transactional emails per month with a
+100-email daily limit. The application intentionally treats delivery as
+best-effort and does not retry failed messages. Vercel's Hobby plan has its
+own usage limits and is intended for personal, non-commercial use, so check
+Vercel's current terms if this becomes a commercial deployment.
+
+See the providers' current plan details before relying on these numbers:
+[Supabase pricing](https://supabase.com/pricing),
+[Vercel pricing](https://vercel.com/pricing), and
+[Resend pricing](https://resend.com/pricing/).
+
 ## Architecture
 
 ```text
