@@ -111,6 +111,7 @@ const PROGRAM_REQUEST_STATUSES: ProgramRequestStatus[] = [
     'rejected',
     'cancelled',
 ];
+const requesterOptionLabel = (user: UserDTO): string => `${user.Name} <${user.Email}>`;
 const error = (e: unknown) => showErrorAlert(e);
 
 function programTypeOptions(programTypes: ProgramType[], current = ''): string[] {
@@ -1631,7 +1632,8 @@ function CreateRecord({
         queryOptions: { enabled: canApprove(dashboard.me) },
     });
     const users = usersResult.data;
-    const [language, setLanguage] = useState(dashboard.programLanguages[0]?.Name || '');
+    const [language, setLanguage] = useState('');
+    const [languageError, setLanguageError] = useState(false);
     const [requestedBy, setRequestedBy] = useState(dashboard.me.Email);
     const [departmentId, setDepartmentId] = useState(dashboard.me.DepartmentId);
     const initialLeadEmail =
@@ -1732,16 +1734,20 @@ function CreateRecord({
                     form.reportValidity();
                     return;
                 }
-                formData.current = new FormData(form);
-                if (onSubmitStart) onSubmitStart();
-                else {
-                    setAppLoading(true);
-                    onClose();
+                if (kind === 'programs' && !language) {
+                    setLanguageError(true);
+                    return;
                 }
+                formData.current = new FormData(form);
                 try {
                     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
                     const created = await save.run();
                     if (!created) return;
+                    if (onSubmitStart) onSubmitStart();
+                    else {
+                        setAppLoading(true);
+                        onClose();
+                    }
                     await refreshDashboard();
                     const id = createRecordDestination(kind, created.Id);
                     if (kind === 'programs') navigateToProgram(id);
@@ -1766,7 +1772,7 @@ function CreateRecord({
                                 style={{ width: '100%' }}>
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
-                                        {user.Name}
+                                        {requesterOptionLabel(user)}
                                     </Select.Option>
                                 ))}
                             </Select>
@@ -1801,7 +1807,10 @@ function CreateRecord({
                         <input type="hidden" name="language" value={language} required />
                         <Select
                             value={language || undefined}
-                            onChange={setLanguage}
+                            onChange={(value) => {
+                                setLanguage(value);
+                                setLanguageError(false);
+                            }}
                             style={{ width: '100%' }}
                             placeholder="Select language">
                             {dashboard.programLanguages.map((language) => (
@@ -1810,6 +1819,9 @@ function CreateRecord({
                                 </Select.Option>
                             ))}
                         </Select>
+                        {languageError && (
+                            <Typography.Text type="danger">Language is required.</Typography.Text>
+                        )}
                     </AntForm.Item>
                     <AntForm.Item label="Type" required>
                         <input type="hidden" name="type" value={programType} />
@@ -1838,7 +1850,7 @@ function CreateRecord({
                                 style={{ width: '100%' }}>
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
-                                        {user.Name}
+                                        {requesterOptionLabel(user)}
                                     </Select.Option>
                                 ))}
                             </Select>
@@ -2582,7 +2594,7 @@ function ProgramDetail({
                                     style={{ width: '100%' }}>
                                     {users.map((u) => (
                                         <Select.Option key={u.Email} value={u.Email}>
-                                            {u.Name}
+                                            {requesterOptionLabel(u)}
                                         </Select.Option>
                                     ))}
                                 </Select>
@@ -3538,7 +3550,7 @@ function InventoryDetail({
                                     style={{ width: '100%' }}>
                                     {users.map((user) => (
                                         <Select.Option key={user.Email} value={user.Email}>
-                                            {user.Name}
+                                            {requesterOptionLabel(user)}
                                         </Select.Option>
                                     ))}
                                 </Select>

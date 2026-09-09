@@ -43,13 +43,25 @@ const CONTENT_TYPES = {
     '.js': 'text/javascript; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
     '.map': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
+// These assets are tracked frontend files rather than watcher outputs, but
+// the local app references them from the site root just like the production
+// build does. Keep the list explicit so arbitrary files under frontend/ are
+// never exposed by the dev server.
+const STATIC_ASSETS = new Map([
+    ['/manifest.webmanifest', path.join(root, 'frontend/manifest.webmanifest')],
+    ['/sw.js', path.join(root, 'frontend/sw.js')],
+    ['/icons/icon-192.png', path.join(root, 'frontend/icons/icon-192.png')],
+    ['/icons/icon-512.png', path.join(root, 'frontend/icons/icon-512.png')],
+]);
+
 // The only paths the watchers actually produce. Browsers speculatively ask
-// for plenty this server will never have — /favicon.ico, Chrome DevTools'
-// /.well-known/ handshake, /sw.js if any project ever registered a service
-// worker on this port — and a 404 for those is the correct answer, not a
-// problem worth a line in the log.
+// for plenty this server will never have — /favicon.ico and Chrome DevTools'
+// /.well-known/ handshake, for example — and a 404 for those is the correct
+// answer, not a problem worth a line in the log.
 const BUILT_ASSETS = new Set(['/app.js', '/app.css']);
 
 const server = createServer((req, res) => {
@@ -76,6 +88,21 @@ const server = createServer((req, res) => {
         }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(page);
+        return;
+    }
+
+    const staticAsset = STATIC_ASSETS.get(pathname);
+    if (staticAsset) {
+        try {
+            const body = readFileSync(staticAsset);
+            res.writeHead(200, {
+                'Content-Type':
+                    CONTENT_TYPES[path.extname(staticAsset)] ?? 'application/octet-stream',
+            });
+            res.end(body);
+        } catch {
+            res.writeHead(404, { 'Content-Type': 'text/plain' }).end(`Not found: ${pathname}\n`);
+        }
         return;
     }
 

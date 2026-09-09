@@ -571,6 +571,13 @@ body {
     max-width: none;
 }
 
+.app-content-departments > .refine-page > .antd-page,
+.app-content-departments > .refine-page > .antd-settings-compact,
+.app-content-departments > .refine-page > .ant-app > .antd-page,
+.app-content-departments > .refine-page > .ant-app > .antd-settings-compact {
+    max-width: none;
+}
+
 .app-content.app-content-users {
     max-width: none;
 }
