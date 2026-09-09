@@ -5,8 +5,8 @@
     --font-sans: 'Avenir Next', Avenir, 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
     --font-serif: Georgia, 'Times New Roman', ui-serif, serif;
     --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
-    --color-error: #b85c62;
-    --color-error-content: #fffaf0;
+    --color-error: var(--setu-error);
+    --color-error-content: var(--setu-surface);
 }
 
 :root {
@@ -14,6 +14,21 @@
     --setu-surface: #fffaf0;
     --setu-ink: #29251f;
     --setu-line: #d8cdb9;
+    --setu-accent: #c84f12;
+    --setu-accent-hover: #b84710;
+    --setu-error: #b85c62;
+    --setu-error-hover: #a64b53;
+    --setu-error-active: #923d46;
+    --setu-error-bg: #f8e8ea;
+    --setu-error-bg-hover: #f3dce0;
+    --setu-error-border: #ddaeb2;
+    --setu-error-border-hover: #d0969d;
+    --setu-error-text: #9f424a;
+    --setu-error-text-hover: #8d3740;
+    --setu-hero: #536b61;
+    --setu-hero-text: var(--setu-surface);
+    --setu-positive: #b9dfbd;
+    --setu-blocked: #e98b8b;
 }
 
 html,
@@ -88,7 +103,7 @@ body {
 }
 
 .guidelines-markdown a {
-    color: #b84710;
+    color: var(--setu-accent-hover);
     text-decoration: underline;
 }
 
@@ -193,6 +208,15 @@ body {
     overflow-wrap: anywhere;
 }
 
+.antd-full-width {
+    width: 100%;
+}
+
+.home-list-row {
+    width: 100%;
+    justify-content: space-between;
+}
+
 .roster-table-scroll {
     width: 100%;
     max-height: calc(100vh - 9rem);
@@ -260,11 +284,11 @@ body {
 
 .roster-table .roster-today-row > th,
 .roster-table .roster-today-row > td {
-    background: color-mix(in srgb, #b9dfbd 35%, var(--setu-paper));
+    background: color-mix(in srgb, var(--setu-positive) 35%, var(--setu-paper));
 }
 
 .roster-table .roster-today-row > .roster-date-cell {
-    background: color-mix(in srgb, #b9dfbd 45%, var(--setu-surface));
+    background: color-mix(in srgb, var(--setu-positive) 45%, var(--setu-surface));
 }
 
 .roster-table .roster-empty-cell {
@@ -356,30 +380,30 @@ body {
 
 .calendar-table .calendar-today-row > th,
 .calendar-table .calendar-today-row > td {
-    background: color-mix(in srgb, #b9dfbd 35%, var(--setu-paper));
+    background: color-mix(in srgb, var(--setu-positive) 35%, var(--setu-paper));
 }
 
 .calendar-table .calendar-today-row > .calendar-date-cell {
-    background: color-mix(in srgb, #b9dfbd 45%, var(--setu-surface));
+    background: color-mix(in srgb, var(--setu-positive) 45%, var(--setu-surface));
 }
 
 .calendar-table .calendar-blocked-row > th,
 .calendar-table .calendar-blocked-row > td,
 .calendar-table .calendar-blocked-place-cell {
-    background: color-mix(in srgb, #e98b8b 30%, var(--setu-paper));
+    background: color-mix(in srgb, var(--setu-blocked) 30%, var(--setu-paper));
 }
 
 .calendar-table .calendar-blocked-row > .calendar-date-cell {
-    background: color-mix(in srgb, #e98b8b 38%, var(--setu-surface));
+    background: color-mix(in srgb, var(--setu-blocked) 38%, var(--setu-surface));
 }
 
 .calendar-table .calendar-today-row.calendar-blocked-row > th,
 .calendar-table .calendar-today-row.calendar-blocked-row > td,
 .calendar-table .calendar-today-row > .calendar-blocked-place-cell {
-    background-color: color-mix(in srgb, #b9dfbd 45%, var(--setu-paper));
+    background-color: color-mix(in srgb, var(--setu-positive) 45%, var(--setu-paper));
     background-image: radial-gradient(
         circle,
-        color-mix(in srgb, #e98b8b 85%, transparent) 34%,
+        color-mix(in srgb, var(--setu-blocked) 85%, transparent) 34%,
         transparent 35%
     );
     background-size: 32px 32px;
@@ -552,14 +576,7 @@ body {
     text-align: center;
 }
 
-.app-content-settings > .refine-page > .antd-page,
-.app-content.app-content-settings > .refine-page > .antd-page,
-.app-content-settings > .refine-page > .antd-settings-compact,
-.app-content.app-content-settings > .refine-page > .antd-settings-compact,
-.app-content-settings > .refine-page > .ant-app > .antd-page,
-.app-content.app-content-settings > .refine-page > .ant-app > .antd-page,
-.app-content-settings > .refine-page > .ant-app > .antd-settings-compact,
-.app-content.app-content-settings > .refine-page > .ant-app > .antd-settings-compact {
+.app-content-settings > .refine-page :is(.antd-page, .antd-settings-compact) {
     width: 100%;
     max-width: 50rem;
     margin-inline: auto;
@@ -571,32 +588,27 @@ body {
     margin-inline: auto;
 }
 
-.app-content.app-content-departments {
+.app-content-departments {
     max-width: none;
 }
 
-.app-content-departments > .refine-page > .antd-page,
-.app-content-departments > .refine-page > .antd-settings-compact,
-.app-content-departments > .refine-page > .ant-app > .antd-page,
-.app-content-departments > .refine-page > .ant-app > .antd-settings-compact {
+.app-content-departments > .refine-page :is(.antd-page, .antd-settings-compact) {
     max-width: none;
 }
 
-.app-content.app-content-users {
+.app-content-users {
     max-width: none;
 }
 
-.app-content-users > .refine-page > .detail-page,
-.app-content-users > .refine-page > .ant-app > .detail-page {
+.app-content-users > .refine-page .detail-page {
     max-width: none;
 }
 
-.app-content-users > .refine-page > .users-list-page,
-.app-content-users > .refine-page > .ant-app > .users-list-page {
+.app-content-users > .refine-page .users-list-page {
     max-width: none;
 }
 
-.app-content.app-content-inventory-types {
+.app-content-inventory-types {
     max-width: none;
 }
 
@@ -756,7 +768,7 @@ body {
     justify-content: space-between;
     border: 1px solid color-mix(in srgb, var(--setu-line) 75%, transparent);
     border-radius: 0.75rem;
-    background-color: #536b61;
+    background-color: var(--setu-hero);
     background-position: center;
     background-size: cover;
     box-shadow: 0 0.75rem 2rem rgb(41 37 31 / 10%);
@@ -778,7 +790,7 @@ body {
 .home-hero-content {
     max-width: 28rem;
     padding: 2rem;
-    color: #fffaf0;
+    color: var(--setu-hero-text);
 }
 
 .home-hero-content .ant-typography {
@@ -1010,13 +1022,13 @@ a.record-block {
 .record-block[role='button']:focus-visible,
 a.record-block:hover,
 a.record-block:focus-visible {
-    border-color: color-mix(in srgb, #c84f12 55%, var(--setu-line));
+    border-color: color-mix(in srgb, var(--setu-accent) 55%, var(--setu-line));
     box-shadow: 0 0.25rem 0.75rem rgb(41 37 31 / 8%);
 }
 
 .record-block[role='button']:focus-visible,
 a.record-block:focus-visible {
-    outline: 2px solid #c84f12;
+    outline: 2px solid var(--setu-accent);
     outline-offset: 2px;
 }
 
@@ -1311,13 +1323,13 @@ a.record-block:focus-visible {
     }
 
     .app-mobile-nav-item.is-selected {
-        color: #b84710;
+        color: var(--setu-accent-hover);
         font-weight: 700;
-        background: color-mix(in srgb, #b84710 10%, transparent);
+        background: color-mix(in srgb, var(--setu-accent-hover) 10%, transparent);
     }
 
     .app-mobile-nav-item:focus-visible {
-        outline: 2px solid #b84710;
+        outline: 2px solid var(--setu-accent-hover);
         outline-offset: -2px;
     }
 

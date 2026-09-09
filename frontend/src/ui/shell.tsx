@@ -7,32 +7,43 @@ import {
     UserOutlined,
 } from '@ant-design/icons';
 import { createRoot } from 'react-dom/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import appLogo from '../../assets/logo.png';
-import { refreshDashboard } from '../router';
+import { refreshDashboard, type SectionKey } from '../router';
 import { showErrorAlert } from './feedback';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 
 const { Header, Content } = Layout;
 
-const profileSettingsItems = [
-    { key: 'roster', label: <span data-nav-section="roster">Roster</span> },
-    { key: 'users', label: <span data-nav-section="users">Users</span> },
-    { key: 'departments', label: <span data-nav-section="departments">Departments</span> },
-    { key: 'places', label: <span data-nav-section="places">Places</span> },
-    {
-        key: 'inventory-types',
-        label: <span data-nav-section="inventory-types">Inventory types</span>,
-    },
-    { key: 'blocks', label: <span data-nav-section="blocks">Blocks</span> },
-    { key: 'home-content', label: <span data-nav-section="home-content">Other settings</span> },
+type NavItem = { key: SectionKey; label: string; icon?: ReactNode };
+
+const primaryNavItems: NavItem[] = [
+    { key: 'programs', label: 'Programs', icon: <AppstoreOutlined /> },
+    { key: 'calendar', label: 'Calendar', icon: <CalendarOutlined /> },
+    { key: 'inventory', label: 'Inventory', icon: <InboxOutlined /> },
 ];
 
+const profileNavItems: NavItem[] = [
+    { key: 'profile', label: 'Profile' },
+    { key: 'roster', label: 'Roster' },
+    { key: 'users', label: 'Users' },
+    { key: 'departments', label: 'Departments' },
+    { key: 'places', label: 'Places' },
+    { key: 'inventory-types', label: 'Inventory types' },
+    { key: 'blocks', label: 'Blocks' },
+    { key: 'home-content', label: 'Other settings' },
+];
+
+function navLabel(item: NavItem) {
+    return <span data-nav-section={item.key}>{item.label}</span>;
+}
+
 function profileMenuItems(role: UserRole | null) {
-    return [
-        { key: 'profile', label: <span data-nav-section="profile">Profile</span> },
-        ...(role === 'admin' || role === 'approver' ? profileSettingsItems : []),
-    ];
+    const visibleItems =
+        role === 'admin' || role === 'approver'
+            ? profileNavItems
+            : profileNavItems.filter((item) => item.key === 'profile');
+    return visibleItems.map((item) => ({ key: item.key, label: navLabel(item) }));
 }
 
 function navigate(section: string) {
@@ -93,23 +104,11 @@ function Shell() {
                         className="app-main-menu"
                         style={{ display: 'none' }}
                         selectedKeys={[selectedSection]}
-                        items={[
-                            {
-                                key: 'programs',
-                                icon: <AppstoreOutlined />,
-                                label: <span data-nav-section="programs">Programs</span>,
-                            },
-                            {
-                                key: 'calendar',
-                                icon: <CalendarOutlined />,
-                                label: <span data-nav-section="calendar">Calendar</span>,
-                            },
-                            {
-                                key: 'inventory',
-                                icon: <InboxOutlined />,
-                                label: <span data-nav-section="inventory">Inventory</span>,
-                            },
-                        ]}
+                        items={primaryNavItems.map((item) => ({
+                            key: item.key,
+                            icon: item.icon,
+                            label: navLabel(item),
+                        }))}
                         onClick={({ key }) => navigate(key)}
                     />
                     <Space className="app-actions">
@@ -152,11 +151,7 @@ function Shell() {
                     className="app-mobile-menu"
                     style={{ display: 'none' }}
                     aria-label="Main navigation">
-                    {[
-                        { key: 'programs', label: 'Programs', icon: <AppstoreOutlined /> },
-                        { key: 'calendar', label: 'Calendar', icon: <CalendarOutlined /> },
-                        { key: 'inventory', label: 'Inventory', icon: <InboxOutlined /> },
-                    ].map((item) => (
+                    {primaryNavItems.map((item) => (
                         <button
                             key={item.key}
                             type="button"

@@ -47,6 +47,71 @@ function sectionAction(title: string, onClick: () => void) {
     );
 }
 
+type RequestKind = 'programs' | 'inventory';
+type HomeRequest = {
+    Id: string;
+    DisplayId: number;
+    Name: string;
+    Status: string;
+};
+
+function HomeLinkList<T>({
+    items,
+    getKey,
+    getHref,
+    onOpen,
+    render,
+}: {
+    items: T[];
+    getKey: (item: T) => string;
+    getHref: (item: T) => string;
+    onOpen: (item: T) => void;
+    render: (item: T) => React.ReactNode;
+}) {
+    if (!items.length) return <EmptyState />;
+    return items.map((item) => (
+        <Button
+            key={getKey(item)}
+            type="text"
+            block
+            className="antd-list-button"
+            href={getHref(item)}
+            onClick={(event) => {
+                if (!isPlainLeftClick(event)) return;
+                event.preventDefault();
+                onOpen(item);
+            }}>
+            {render(item)}
+        </Button>
+    ));
+}
+
+function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: RequestKind }) {
+    const hrefFor = (request: HomeRequest) =>
+        kind === 'programs' ? programRequestUrl(request.Id) : inventoryRequestUrl(request.Id);
+    const openRequest = (request: HomeRequest) =>
+        kind === 'programs'
+            ? navigateToProgram(request.Id)
+            : navigateToInventoryRequest(request.Id);
+
+    return (
+        <HomeLinkList
+            items={requests}
+            getKey={(request) => request.Id}
+            getHref={hrefFor}
+            onOpen={openRequest}
+            render={(request) => (
+                <Space className="home-list-row">
+                    <Typography.Text strong>
+                        REQ-{request.DisplayId} · {request.Name}
+                    </Typography.Text>
+                    <Tag>{request.Status}</Tag>
+                </Space>
+            )}
+        />
+    );
+}
+
 export function Home({ dashboard }: Props) {
     const pendingProgramRequests = dashboard.programRequests.filter((request) =>
         ['draft', 'submitted'].includes(request.Status),
@@ -120,7 +185,7 @@ export function Home({ dashboard }: Props) {
                             className="antd-list-button"
                             key={shift.Id}
                             onClick={navigateToRoster}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                            <Space className="home-list-row">
                                 <Typography.Text strong>
                                     {shift.Name} · {shift.userName || 'Unassigned'}
                                 </Typography.Text>
@@ -147,7 +212,7 @@ export function Home({ dashboard }: Props) {
                             className="antd-list-button"
                             key={shift.Id}
                             onClick={navigateToRoster}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                            <Space className="home-list-row">
                                 <Typography.Text strong>
                                     {shift.Name} · {shift.userName || 'Unassigned'}
                                 </Typography.Text>
@@ -172,27 +237,7 @@ export function Home({ dashboard }: Props) {
                     extra={sectionAction('Pending program requests', () =>
                         navigateToRequestList('programs'),
                     )}>
-                    {pendingProgramRequests.map((request) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={request.Id}
-                            href={programRequestUrl(request.Id)}
-                            onClick={(event) => {
-                                if (!isPlainLeftClick(event)) return;
-                                event.preventDefault();
-                                navigateToProgram(request.Id);
-                            }}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Typography.Text strong>
-                                    REQ-{request.DisplayId} · {request.Name}
-                                </Typography.Text>
-                                <Tag>{request.Status}</Tag>
-                            </Space>
-                        </Button>
-                    ))}
-                    {!pendingProgramRequests.length && <EmptyState />}
+                    <HomeRequestList requests={pendingProgramRequests} kind="programs" />
                 </Card>
                 <Card
                     title={sectionTitle(
@@ -203,67 +248,37 @@ export function Home({ dashboard }: Props) {
                     extra={sectionAction('Ongoing Inventory Requests', () =>
                         navigateToRequestList('inventory'),
                     )}>
-                    {dashboard.inventoryRequests.map((request) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={request.Id}
-                            href={inventoryRequestUrl(request.Id)}
-                            onClick={(event) => {
-                                if (!isPlainLeftClick(event)) return;
-                                event.preventDefault();
-                                navigateToInventoryRequest(request.Id);
-                            }}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Typography.Text strong>
-                                    REQ-{request.DisplayId} · {request.Name}
-                                </Typography.Text>
-                                <Tag>{request.Status}</Tag>
-                            </Space>
-                        </Button>
-                    ))}
-                    {!dashboard.inventoryRequests.length && <EmptyState />}
+                    <HomeRequestList requests={dashboard.inventoryRequests} kind="inventory" />
                 </Card>
             </div>
             <div className="home-section">
                 <Card title="Recent comments" className="home-recent-comments">
-                    {recentComments.length ? (
-                        recentComments.map(({ comment, request, kind }) => {
-                            const href =
-                                kind === 'programs'
-                                    ? programRequestUrl(request.Id)
-                                    : inventoryRequestUrl(request.Id);
-                            const openRequest = () =>
-                                kind === 'programs'
-                                    ? navigateToProgram(request.Id)
-                                    : navigateToInventoryRequest(request.Id);
-                            return (
-                                <Button
-                                    key={comment.Id}
-                                    type="text"
-                                    block
-                                    className="antd-list-button"
-                                    href={href}
-                                    onClick={(event) => {
-                                        if (!isPlainLeftClick(event)) return;
-                                        event.preventDefault();
-                                        openRequest();
-                                    }}>
-                                    <Typography.Text strong>
-                                        REQ-{request.DisplayId} · {request.Name}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary">
-                                        {comment.userName || comment.UserId} ·{' '}
-                                        {formatDateTime(comment.Timestamp)}
-                                    </Typography.Text>
-                                    <div className="home-comment-message">{comment.Message}</div>
-                                </Button>
-                            );
-                        })
-                    ) : (
-                        <EmptyState />
-                    )}
+                    <HomeLinkList
+                        items={recentComments}
+                        getKey={({ comment }) => comment.Id}
+                        getHref={({ request, kind }) =>
+                            kind === 'programs'
+                                ? programRequestUrl(request.Id)
+                                : inventoryRequestUrl(request.Id)
+                        }
+                        onOpen={({ request, kind }) =>
+                            kind === 'programs'
+                                ? navigateToProgram(request.Id)
+                                : navigateToInventoryRequest(request.Id)
+                        }
+                        render={({ comment, request }) => (
+                            <>
+                                <Typography.Text strong>
+                                    REQ-{request.DisplayId} · {request.Name}
+                                </Typography.Text>
+                                <Typography.Text type="secondary">
+                                    {comment.userName || comment.UserId} ·{' '}
+                                    {formatDateTime(comment.Timestamp)}
+                                </Typography.Text>
+                                <div className="home-comment-message">{comment.Message}</div>
+                            </>
+                        )}
+                    />
                 </Card>
             </div>
         </Page>

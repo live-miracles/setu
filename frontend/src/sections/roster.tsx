@@ -115,7 +115,7 @@ export function Roster({ dashboard }: Props) {
                         <Select
                             value={shiftTypeName}
                             onChange={selectShiftType}
-                            style={{ width: '100%' }}>
+                            className="antd-full-width">
                             <Select.Option value="" disabled>
                                 Select a shift
                             </Select.Option>
@@ -128,7 +128,7 @@ export function Roster({ dashboard }: Props) {
                     </AntForm.Item>
                     <AntForm.Item label="Assignee" required>
                         <input type="hidden" name="userId" value={userId} required />
-                        <Select value={userId} onChange={setUserId} style={{ width: '100%' }}>
+                        <Select value={userId} onChange={setUserId} className="antd-full-width">
                             <Select.Option value="" disabled>
                                 Select an assignee
                             </Select.Option>

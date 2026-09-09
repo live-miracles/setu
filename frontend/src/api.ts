@@ -35,87 +35,16 @@ function callBackend<K extends keyof Api>(
         });
 }
 
-export const api: AsyncApi = {
-    whoAmI: (...args) => callBackend('whoAmI', ...args),
-    getDashboard: (...args) => callBackend('getDashboard', ...args),
+function callBackendOperation(fnName: keyof Api, args: unknown[]): Promise<unknown> {
+    return callBackend(fnName, ...(args as never));
+}
 
-    listUsers: (...args) => callBackend('listUsers', ...args),
-    updateUser: (...args) => callBackend('updateUser', ...args),
-    deleteUser: (...args) => callBackend('deleteUser', ...args),
-    updateOwnProfile: (...args) => callBackend('updateOwnProfile', ...args),
-
-    listDepartments: (...args) => callBackend('listDepartments', ...args),
-    createDepartment: (...args) => callBackend('createDepartment', ...args),
-    updateDepartment: (...args) => callBackend('updateDepartment', ...args),
-    deleteDepartment: (...args) => callBackend('deleteDepartment', ...args),
-
-    listPlaces: (...args) => callBackend('listPlaces', ...args),
-    createPlace: (...args) => callBackend('createPlace', ...args),
-    updatePlace: (...args) => callBackend('updatePlace', ...args),
-    deletePlace: (...args) => callBackend('deletePlace', ...args),
-
-    getHomeContent: (...args) => callBackend('getHomeContent', ...args),
-    updateHomeContent: (...args) => callBackend('updateHomeContent', ...args),
-
-    getSettings: (...args) => callBackend('getSettings', ...args),
-    listAllowedEmailDomains: (...args) => callBackend('listAllowedEmailDomains', ...args),
-    createAllowedEmailDomain: (...args) => callBackend('createAllowedEmailDomain', ...args),
-    deleteAllowedEmailDomain: (...args) => callBackend('deleteAllowedEmailDomain', ...args),
-    createShiftType: (...args) => callBackend('createShiftType', ...args),
-    updateShiftType: (...args) => callBackend('updateShiftType', ...args),
-    deleteShiftType: (...args) => callBackend('deleteShiftType', ...args),
-
-    createProgramType: (...args) => callBackend('createProgramType', ...args),
-    updateProgramType: (...args) => callBackend('updateProgramType', ...args),
-    deleteProgramType: (...args) => callBackend('deleteProgramType', ...args),
-
-    createProgramLanguage: (...args) => callBackend('createProgramLanguage', ...args),
-    updateProgramLanguage: (...args) => callBackend('updateProgramLanguage', ...args),
-    deleteProgramLanguage: (...args) => callBackend('deleteProgramLanguage', ...args),
-
-    createSessionType: (...args) => callBackend('createSessionType', ...args),
-    updateSessionType: (...args) => callBackend('updateSessionType', ...args),
-    deleteSessionType: (...args) => callBackend('deleteSessionType', ...args),
-
-    listBlocks: (...args) => callBackend('listBlocks', ...args),
-    createBlock: (...args) => callBackend('createBlock', ...args),
-    updateBlock: (...args) => callBackend('updateBlock', ...args),
-    deleteBlock: (...args) => callBackend('deleteBlock', ...args),
-
-    listRosters: (...args) => callBackend('listRosters', ...args),
-    createRoster: (...args) => callBackend('createRoster', ...args),
-    updateRoster: (...args) => callBackend('updateRoster', ...args),
-    deleteRoster: (...args) => callBackend('deleteRoster', ...args),
-
-    listInventoryTypes: (...args) => callBackend('listInventoryTypes', ...args),
-    createInventoryType: (...args) => callBackend('createInventoryType', ...args),
-    updateInventoryType: (...args) => callBackend('updateInventoryType', ...args),
-    deleteInventoryType: (...args) => callBackend('deleteInventoryType', ...args),
-
-    listInventoryRequests: (...args) => callBackend('listInventoryRequests', ...args),
-    getInventoryRequest: (...args) => callBackend('getInventoryRequest', ...args),
-    createInventoryRequest: (...args) => callBackend('createInventoryRequest', ...args),
-    updateInventoryRequest: (...args) => callBackend('updateInventoryRequest', ...args),
-    updateInventoryRequestParticipants: (...args) =>
-        callBackend('updateInventoryRequestParticipants', ...args),
-    deleteInventoryRequest: (...args) => callBackend('deleteInventoryRequest', ...args),
-    performInventoryRequestAction: (...args) =>
-        callBackend('performInventoryRequestAction', ...args),
-
-    listProgramRequests: (...args) => callBackend('listProgramRequests', ...args),
-    getProgramRequest: (...args) => callBackend('getProgramRequest', ...args),
-    getAvailablePlaces: (...args) => callBackend('getAvailablePlaces', ...args),
-    getCalendarMonth: (...args) => callBackend('getCalendarMonth', ...args),
-    createProgramRequest: (...args) => callBackend('createProgramRequest', ...args),
-    updateProgramRequest: (...args) => callBackend('updateProgramRequest', ...args),
-    updateProgramRequestParticipants: (...args) =>
-        callBackend('updateProgramRequestParticipants', ...args),
-    deleteProgramRequest: (...args) => callBackend('deleteProgramRequest', ...args),
-    performProgramRequestAction: (...args) => callBackend('performProgramRequestAction', ...args),
-
-    addComment: (...args) => callBackend('addComment', ...args),
-
-    uploadImage: (...args) => callBackend('uploadImage', ...args),
-    createImageUploadUrl: (...args) => callBackend('createImageUploadUrl', ...args),
-    getImageUrl: (...args) => callBackend('getImageUrl', ...args),
-};
+// Api is a deliberately typed facade over one HTTP operation endpoint. A
+// proxy keeps the public `api.method(...)` ergonomics while ensuring every
+// operation gets the same auth, headers, error handling, and serialization.
+export const api: AsyncApi = new Proxy({} as AsyncApi, {
+    get:
+        (_target, property: string) =>
+        (...args: unknown[]) =>
+            callBackendOperation(property as keyof Api, args),
+});

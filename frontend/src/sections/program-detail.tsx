@@ -597,7 +597,7 @@ export function ProgramDetail({
                             <Select
                                 value={values.Language || undefined}
                                 onChange={(value) => update('Language', value)}
-                                style={{ width: '100%' }}
+                                className="antd-full-width"
                                 placeholder="Select language">
                                 {dashboard.programLanguages.map((language) => (
                                     <Select.Option key={language.Name} value={language.Name}>
@@ -618,7 +618,7 @@ export function ProgramDetail({
                             <Select
                                 value={values.Type}
                                 onChange={(value) => update('Type', value)}
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 {programTypeOptions(dashboard.programTypes, values.Type).map(
                                     (type) => (
                                         <Select.Option key={type} value={type}>
@@ -633,7 +633,7 @@ export function ProgramDetail({
                                 value={values.Status}
                                 onChange={(value) => update('Status', value)}
                                 disabled={!canApprove(dashboard.me)}
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 {PROGRAM_REQUEST_STATUSES.map((status) => (
                                     <Select.Option key={status} value={status}>
                                         {status}
@@ -647,7 +647,7 @@ export function ProgramDetail({
                                 onChange={(value) => update('PlaceId', value)}
                                 disabled={!canApprove(dashboard.me)}
                                 loading={availablePlacesLoading}
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 <Select.Option value="">No place</Select.Option>
                                 {placeOptions.map((p) => (
                                     <Select.Option key={p.Id} value={p.Id}>
@@ -662,7 +662,7 @@ export function ProgramDetail({
                                 <Select
                                     value={values.UserId}
                                     onChange={(value) => update('UserId', value)}
-                                    style={{ width: '100%' }}>
+                                    className="antd-full-width">
                                     {users.map((u) => (
                                         <Select.Option key={u.Email} value={u.Email}>
                                             {requesterOptionLabel(u)}
@@ -681,7 +681,7 @@ export function ProgramDetail({
                             <Select
                                 value={values.DepartmentId}
                                 onChange={(value) => update('DepartmentId', value)}
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 {dashboard.departments.map((d) => (
                                     <Select.Option key={d.Id} value={d.Id}>
                                         {d.Name}
@@ -809,7 +809,7 @@ function SessionForm({
                         clearTypeError();
                     }}
                     status={typeError ? 'error' : undefined}
-                    style={{ width: '100%' }}>
+                    className="antd-full-width">
                     <Select.Option value="" disabled>
                         Select type
                     </Select.Option>

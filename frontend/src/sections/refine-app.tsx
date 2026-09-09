@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useOne } from '@refinedev/core';
 import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
+import { Controller, useForm } from 'react-hook-form';
 import { api } from '../api';
 import { navigateToInventoryRequests, navigateToPrograms } from '../router';
 import { mountRefinePage } from '../ui/refine';
@@ -15,38 +16,41 @@ import { Roster } from './roster';
 import { CreateRecord, RequestTable } from './requests';
 import { ProgramDetail } from './program-detail';
 import { InventoryDetail } from './inventory-detail';
-import { Card, Page, SaveFooter, TextField, useSave } from './refine-shared';
+import { Card, Page, SaveFooter, TextField, useRHFSave } from './refine-shared';
 import { Home } from './home';
 import { Calendar } from './calendar';
 
 type Props = { dashboard: DashboardPayload };
+type ProfileFormValues = {
+    name: string;
+    departmentId: string;
+    phone: string;
+    whatsapp: string;
+};
+
 function Profile({ dashboard, registration = false }: Props & { registration?: boolean }) {
     const me = dashboard.me;
-    const [departmentId, setDepartmentId] = useState(me.DepartmentId);
-    const save = useSave(
-        async () => {
-            const form = document.getElementById(
-                registration ? 'registration-form' : 'profile-form',
-            ) as HTMLFormElement;
-            const d = new FormData(form);
-            const phone = String(d.get('phone') || '');
-            const departmentIdValue = String(d.get('departmentId') || '');
-            if (!isValidInternationalPhone(phone)) {
-                throw new Error(INTERNATIONAL_PHONE_TITLE);
-            }
-            const whatsapp = String(d.get('whatsapp') || '');
-            if (!isValidInternationalPhone(whatsapp)) {
-                throw new Error(INTERNATIONAL_PHONE_TITLE);
-            }
-            const profile = {
-                name: String(d.get('name')),
-                departmentId: departmentIdValue,
-                phone,
-                whatsapp,
-            };
-            await api.updateOwnProfile(profile);
+    const form = useForm<ProfileFormValues>({
+        defaultValues: {
+            name: me.Name,
+            departmentId: me.DepartmentId,
+            phone: me.Phone,
+            whatsapp: me.Whatsapp,
         },
-        undefined,
+    });
+    const save = useRHFSave(
+        form,
+        async (values) => {
+            if (!isValidInternationalPhone(values.phone)) {
+                form.setError('phone', { message: INTERNATIONAL_PHONE_TITLE });
+                throw new Error(INTERNATIONAL_PHONE_TITLE);
+            }
+            if (!isValidInternationalPhone(values.whatsapp)) {
+                form.setError('whatsapp', { message: INTERNATIONAL_PHONE_TITLE });
+                throw new Error(INTERNATIONAL_PHONE_TITLE);
+            }
+            await api.updateOwnProfile(values);
+        },
         false,
     );
     return (
@@ -68,39 +72,61 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                     id={registration ? 'registration-form' : 'profile-form'}
                     className="grid gap-3"
                     noValidate
-                    onSubmit={save.run}>
-                    <TextField name="name" label="Name" value={me.Name} required />
+                    onSubmit={save.onSubmit}>
+                    <TextField
+                        name="name"
+                        label="Name"
+                        required
+                        registration={form.register('name', { required: 'Name is required' })}
+                        error={form.formState.errors.name?.message}
+                    />
                     <AntForm.Item label="Department">
-                        <input type="hidden" name="departmentId" value={departmentId} />
-                        <Select
-                            value={departmentId}
-                            onChange={setDepartmentId}
-                            style={{ width: '100%' }}>
-                            <Select.Option value="">No department</Select.Option>
-                            {dashboard.departments.map((d) => (
-                                <Select.Option key={d.Id} value={d.Id}>
-                                    {d.Name}
-                                </Select.Option>
-                            ))}
-                        </Select>
+                        <Controller
+                            name="departmentId"
+                            control={form.control}
+                            render={({ field }) => (
+                                <Select {...field} className="antd-full-width">
+                                    <Select.Option value="">No department</Select.Option>
+                                    {dashboard.departments.map((d) => (
+                                        <Select.Option key={d.Id} value={d.Id}>
+                                            {d.Name}
+                                        </Select.Option>
+                                    ))}
+                                </Select>
+                            )}
+                        />
                     </AntForm.Item>
                     <TextField
                         name="phone"
                         label="Phone"
                         type="tel"
-                        value={me.Phone}
                         required
                         pattern={INTERNATIONAL_PHONE_PATTERN}
                         title={INTERNATIONAL_PHONE_TITLE}
+                        registration={form.register('phone', {
+                            required: 'Phone is required',
+                            pattern: {
+                                value: new RegExp(INTERNATIONAL_PHONE_PATTERN),
+                                message: INTERNATIONAL_PHONE_TITLE,
+                            },
+                        })}
+                        error={form.formState.errors.phone?.message}
                     />
                     <TextField
                         name="whatsapp"
                         label="WhatsApp"
                         type="tel"
-                        value={me.Whatsapp}
                         required
                         pattern={INTERNATIONAL_PHONE_PATTERN}
                         title={INTERNATIONAL_PHONE_TITLE}
+                        registration={form.register('whatsapp', {
+                            required: 'WhatsApp is required',
+                            pattern: {
+                                value: new RegExp(INTERNATIONAL_PHONE_PATTERN),
+                                message: INTERNATIONAL_PHONE_TITLE,
+                            },
+                        })}
+                        error={form.formState.errors.whatsapp?.message}
                     />
                     <div>
                         <SaveFooter

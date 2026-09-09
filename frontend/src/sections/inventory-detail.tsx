@@ -570,7 +570,7 @@ export function InventoryDetail({
                                 <Select
                                     value={values.UserId}
                                     onChange={(value) => update('UserId', value)}
-                                    style={{ width: '100%' }}>
+                                    className="antd-full-width">
                                     {users.map((user) => (
                                         <Select.Option key={user.Email} value={user.Email}>
                                             {requesterOptionLabel(user)}
@@ -589,7 +589,7 @@ export function InventoryDetail({
                             <Select
                                 value={values.DepartmentId}
                                 onChange={(value) => update('DepartmentId', value)}
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 {dashboard.departments.map((department) => (
                                     <Select.Option key={department.Id} value={department.Id}>
                                         {department.Name}
@@ -655,7 +655,7 @@ export function InventoryDetail({
                                         InventoryTypeId: value,
                                     }))
                                 }
-                                style={{ width: '100%' }}
+                                className="antd-full-width"
                                 placeholder="Select inventory type">
                                 {dashboard.inventoryTypes.map((type) => (
                                     <Select.Option key={type.Id} value={type.Id}>
@@ -696,7 +696,7 @@ export function InventoryDetail({
                                         Condition: value as ReturnCondition | '',
                                     }))
                                 }
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 <Select.Option value="">Not specified</Select.Option>
                                 <Select.Option value="returned">Returned</Select.Option>
                                 <Select.Option value="damaged">Damaged</Select.Option>

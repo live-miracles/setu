@@ -156,7 +156,7 @@ export function QrScanner({ onScan }: { onScan: (decodedValue: string) => void }
                                 label: camera.label || `Camera ${index + 1}`,
                             }))}
                             onChange={(value) => void selectCamera(value)}
-                            style={{ width: '100%' }}
+                            className="antd-full-width"
                         />
                     </label>
                 )

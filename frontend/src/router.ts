@@ -24,7 +24,7 @@ import { canApprove } from './workflows';
 // back into them.
 
 // Settings pages are reached from the navbar dropdown rather than the main nav.
-type SectionKey =
+export type SectionKey =
     | 'home'
     | 'roster'
     | 'inventory'

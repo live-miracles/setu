@@ -301,7 +301,7 @@ function SelectField({ field, row }: { field: Field; row?: Row }) {
             <Select
                 value={selected}
                 onChange={setSelected}
-                style={{ width: '100%' }}
+                className="antd-full-width"
                 options={options.map((option) => ({ value: option.value, label: option.label }))}
             />
         </>

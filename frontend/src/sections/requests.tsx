@@ -424,7 +424,7 @@ export function CreateRecord({
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
                                         {requesterOptionLabel(user)}
@@ -438,7 +438,7 @@ export function CreateRecord({
                         <Select
                             value={departmentId}
                             onChange={selectDepartment}
-                            style={{ width: '100%' }}>
+                            className="antd-full-width">
                             {dashboard.departments.map((department) => (
                                 <Select.Option key={department.Id} value={department.Id}>
                                     {department.Name}
@@ -466,7 +466,7 @@ export function CreateRecord({
                                 setLanguage(value);
                                 setLanguageError(false);
                             }}
-                            style={{ width: '100%' }}
+                            className="antd-full-width"
                             placeholder="Select language">
                             {dashboard.programLanguages.map((language) => (
                                 <Select.Option key={language.Name} value={language.Name}>
@@ -483,7 +483,7 @@ export function CreateRecord({
                         <Select
                             value={programType}
                             onChange={setProgramType}
-                            style={{ width: '100%' }}>
+                            className="antd-full-width">
                             {programTypeOptions(dashboard.programTypes).map((type) => (
                                 <Select.Option key={type} value={type}>
                                     {type}
@@ -502,7 +502,7 @@ export function CreateRecord({
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
-                                style={{ width: '100%' }}>
+                                className="antd-full-width">
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
                                         {requesterOptionLabel(user)}
@@ -516,7 +516,7 @@ export function CreateRecord({
                         <Select
                             value={departmentId}
                             onChange={selectDepartment}
-                            style={{ width: '100%' }}>
+                            className="antd-full-width">
                             {dashboard.departments.map((department) => (
                                 <Select.Option key={department.Id} value={department.Id}>
                                     {department.Name}
@@ -567,7 +567,7 @@ export function CreateRecord({
                                                 ),
                                             )
                                         }
-                                        style={{ width: '100%' }}
+                                        className="antd-full-width"
                                         placeholder="Select type">
                                         {dashboard.sessionTypes.map((type) => (
                                             <Select.Option key={type.Name} value={type.Name}>

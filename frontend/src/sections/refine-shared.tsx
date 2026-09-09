@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import type { FieldValues, UseFormRegisterReturn, UseFormReturn } from 'react-hook-form';
 import {
     Button,
     Card as AntCard,
@@ -180,6 +181,29 @@ export function useSave<T>(
         },
     };
 }
+
+export function useRHFSave<T extends FieldValues>(
+    form: UseFormReturn<T>,
+    action: (values: T) => Promise<void>,
+    refreshAfterSave = true,
+) {
+    const [busy, setBusy] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const onSubmit = form.handleSubmit(async (values) => {
+        setErrorMessage('');
+        setBusy(true);
+        try {
+            await action(values);
+            if (refreshAfterSave) await refreshDashboard();
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : String(error));
+        } finally {
+            setBusy(false);
+        }
+    });
+    return { busy, errorMessage, onSubmit };
+}
+
 export function TextField({
     name,
     label,
@@ -189,6 +213,8 @@ export function TextField({
     pattern,
     title,
     onChange,
+    registration,
+    error,
 }: {
     name: string;
     label: string;
@@ -198,10 +224,18 @@ export function TextField({
     pattern?: string;
     title?: string;
     onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
+    registration?: UseFormRegisterReturn;
+    error?: string;
 }) {
     return (
-        <AntForm.Item label={label} required={required} className="antd-form-item">
+        <AntForm.Item
+            label={label}
+            required={required}
+            className="antd-form-item"
+            validateStatus={error ? 'error' : undefined}
+            help={error}>
             <Input
+                {...registration}
                 name={name}
                 type={type}
                 value={onChange ? (value ?? '') : undefined}
