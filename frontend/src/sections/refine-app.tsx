@@ -412,18 +412,27 @@ function Home({ dashboard }: Props) {
             );
     const todayShifts = shiftsForDate(todayIso);
     const tomorrowShifts = shiftsForDate(tomorrowIso);
-    const summaryCards = [
-        {
-            label: 'Programs',
-            count: pendingProgramRequests.length,
-            onClick: () => navigateToRequestList('programs'),
-        },
-        {
-            label: 'Inventory',
-            count: dashboard.inventoryRequests.length,
-            onClick: () => navigateToRequestList('inventory'),
-        },
-    ];
+    const recentComments = [
+        ...dashboard.programRequests.flatMap((request) =>
+            request.comments.map((comment) => ({
+                comment,
+                request,
+                kind: 'programs' as const,
+            })),
+        ),
+        ...dashboard.inventoryRequests.flatMap((request) =>
+            request.comments.map((comment) => ({
+                comment,
+                request,
+                kind: 'inventory' as const,
+            })),
+        ),
+    ]
+        .sort(
+            (a, b) =>
+                new Date(b.comment.Timestamp).getTime() - new Date(a.comment.Timestamp).getTime(),
+        )
+        .slice(0, 8);
     const sectionTitle = (title: string, count: number) => (
         <Space size="small">
             <span>{title}</span>
@@ -451,20 +460,6 @@ function Home({ dashboard }: Props) {
                         Setu
                     </Typography.Title>
                     <Typography.Paragraph>Your operations, connected.</Typography.Paragraph>
-                </div>
-                <div className="antd-stat-grid home-summary-grid">
-                    {summaryCards.map((card) => (
-                        <AntCard
-                            key={card.label}
-                            className="home-summary-card"
-                            hoverable={Boolean(card.onClick)}
-                            onClick={card.onClick}>
-                            <Space size="small">
-                                <Typography.Text>{card.label}</Typography.Text>
-                                <Tag>{card.count}</Tag>
-                            </Space>
-                        </AntCard>
-                    ))}
                 </div>
             </section>
             <div className="home-section antd-two-column">
@@ -594,6 +589,46 @@ function Home({ dashboard }: Props) {
                         </Button>
                     ))}
                     {!dashboard.inventoryRequests.length && <Empty />}
+                </Card>
+            </div>
+            <div className="home-section antd-two-column">
+                <Card title="Recent comments" className="home-recent-comments">
+                    {recentComments.length ? (
+                        recentComments.map(({ comment, request, kind }) => {
+                            const href =
+                                kind === 'programs'
+                                    ? programRequestUrl(request.Id)
+                                    : inventoryRequestUrl(request.Id);
+                            const openRequest = () =>
+                                kind === 'programs'
+                                    ? navigateToProgram(request.Id)
+                                    : navigateToInventoryRequest(request.Id);
+                            return (
+                                <Button
+                                    key={comment.Id}
+                                    type="text"
+                                    block
+                                    className="antd-list-button"
+                                    href={href}
+                                    onClick={(event) => {
+                                        if (!isPlainLeftClick(event)) return;
+                                        event.preventDefault();
+                                        openRequest();
+                                    }}>
+                                    <Typography.Text strong>
+                                        REQ-{request.DisplayId} · {request.Name}
+                                    </Typography.Text>
+                                    <Typography.Text type="secondary">
+                                        {comment.userName || comment.UserId} ·{' '}
+                                        {formatDateTime(comment.Timestamp)}
+                                    </Typography.Text>
+                                    <div className="home-comment-message">{comment.Message}</div>
+                                </Button>
+                            );
+                        })
+                    ) : (
+                        <Empty />
+                    )}
                 </Card>
             </div>
         </Page>

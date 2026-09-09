@@ -78,7 +78,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
         idField: 'Id',
         list: simpleList(() => api.listDepartments()),
         create: (v) => api.createDepartment(v as CreateDepartmentInput, generateRequestId()),
-        update: (id, v) => api.updateDepartment(id, v as CreateDepartmentInput, generateRequestId()),
+        update: (id, v) =>
+            api.updateDepartment(id, v as CreateDepartmentInput, generateRequestId()),
         deleteOne: (id) => api.deleteDepartment(id, generateRequestId()),
     },
     places: {
@@ -163,7 +164,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
             return { data: result.items as unknown as Row[], total: result.totalCount };
         },
         getOne: (id) => api.getInventoryRequest(id) as unknown as Promise<Row>,
-        create: (v) => api.createInventoryRequest(v as CreateInventoryRequestInput, generateRequestId()),
+        create: (v) =>
+            api.createInventoryRequest(v as CreateInventoryRequestInput, generateRequestId()),
         update: (id, v) =>
             api.updateInventoryRequest(id, v as UpdateInventoryRequestInput, generateRequestId()),
         deleteOne: (id) => api.deleteInventoryRequest(id, generateRequestId()),
@@ -178,7 +180,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
             return { data: result.items as unknown as Row[], total: result.totalCount };
         },
         getOne: (id) => api.getProgramRequest(id) as unknown as Promise<Row>,
-        create: (v) => api.createProgramRequest(v as CreateProgramRequestInput, generateRequestId()),
+        create: (v) =>
+            api.createProgramRequest(v as CreateProgramRequestInput, generateRequestId()),
         update: (id, v) =>
             api.updateProgramRequest(id, v as UpdateProgramRequestInput, generateRequestId()),
         deleteOne: (id) => api.deleteProgramRequest(id, generateRequestId()),
