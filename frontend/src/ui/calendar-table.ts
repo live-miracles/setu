@@ -1,4 +1,5 @@
-const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+import { addDays, formatWeekdayDate, isValidHexColor, parseDateOnly, toIsoDate } from './date';
+
 const UNASSIGNED_PLACE_ID = 'calendar-unassigned-place';
 
 export interface CalendarSessionLine {
@@ -30,40 +31,13 @@ export interface CalendarTableModel {
     places: Place[];
 }
 
-function parseDateOnly(value: string): Date | null {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    if (!match) return null;
-    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-    return date.getFullYear() === Number(match[1]) &&
-        date.getMonth() === Number(match[2]) - 1 &&
-        date.getDate() === Number(match[3])
-        ? date
-        : null;
-}
-
 function dateFromDateTime(value: string): Date | null {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function toIsoDate(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function addDays(date: Date, days: number): Date {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-}
-
 function formatDate(isoDate: string): string {
-    const date = parseDateOnly(isoDate);
-    if (!date) return isoDate;
-    return `${WEEKDAY_NAMES[date.getDay()]}, ${date.toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-    })}`;
+    return formatWeekdayDate(isoDate);
 }
 
 function formatTime(value: string): string {
@@ -79,10 +53,6 @@ function sessionDate(session: ProgramSession): string | null {
 
 function sessionSortValue(session: ProgramSession): string {
     return `${session.StartDateTime}|${session.EndDateTime}|${session.Type}|${session.Name}`;
-}
-
-function isValidColor(value: string): boolean {
-    return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
 }
 
 function programTitle(program: ProgramRequestDTO): string {
@@ -206,7 +176,8 @@ export function buildCalendarTableModel(
                             startDateTime: session.StartDateTime,
                         })),
                         color:
-                            program.Type.toLowerCase() === 'other' || !isValidColor(configuredColor)
+                            program.Type.toLowerCase() === 'other' ||
+                            !isValidHexColor(configuredColor)
                                 ? ''
                                 : configuredColor.trim(),
                     };

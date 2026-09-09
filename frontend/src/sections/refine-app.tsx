@@ -70,6 +70,7 @@ import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
 import { formatDateTime, formatProgramSessionSchedule, formatTimeOfDay } from '../ui/format';
+import { formatDateTimeLocal, formatLocalDateOnly } from '../ui/date';
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
@@ -129,16 +130,6 @@ function formatProgramName(language: string, type: string, title: string): strin
     return [language, type.toLowerCase() === OTHER_PROGRAM_TYPE.toLowerCase() ? '' : type, title]
         .filter(Boolean)
         .join(' ');
-}
-
-function formatDateTimeLocal(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function formatLocalDateOnly(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function blockCoversDate(block: Block, isoDate: string): boolean {

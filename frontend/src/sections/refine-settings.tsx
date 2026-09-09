@@ -39,6 +39,7 @@ import { DEPARTMENT_QUERY_PARAM, INVENTORY_TYPE_QUERY_PARAM } from '../config';
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
+import { formatDateTimeLocal } from '../ui/date';
 import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
 import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
@@ -243,22 +244,17 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
 };
 
-function formatDateTimeLocalValue(date: Date): string {
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
-}
-
 function todayAt(hours: number, minutes = 0): string {
     const date = new Date();
     date.setHours(hours, minutes, 0, 0);
-    return formatDateTimeLocalValue(date);
+    return formatDateTimeLocal(date);
 }
 
 function inputValue(field: Field, raw: unknown): string {
     if (field.type !== 'datetime-local') return String(raw ?? '');
     const date = new Date(String(raw || ''));
     if (Number.isNaN(date.getTime())) return String(raw || '').slice(0, 16);
-    return formatDateTimeLocalValue(date);
+    return formatDateTimeLocal(date);
 }
 
 function ColorField({ row, field }: { row?: Row; field: Field }) {

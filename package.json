@@ -7,6 +7,7 @@
     "scripts": {
         "dev": "node --env-file-if-exists=.env.local build-tools/dev.mjs",
         "build": "node build-tools/build.mjs",
+        "test": "node --test build-tools/*.test.mjs",
         "build:vercel": "node build-tools/vercel.mjs",
         "build:backend": "node build-tools/build-backend.mjs",
         "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json",

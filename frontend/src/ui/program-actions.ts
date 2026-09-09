@@ -1,23 +1,5 @@
 import { canApprove, canTransitionProgramRequest } from '../workflows';
-
-function localDateToDayNumber(date: string): number {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-    if (!match) throw new Error('A valid date is required.');
-    const value = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-    if (
-        value.getFullYear() !== Number(match[1]) ||
-        value.getMonth() !== Number(match[2]) - 1 ||
-        value.getDate() !== Number(match[3])
-    ) {
-        throw new Error('A valid date is required.');
-    }
-    return value.getTime();
-}
-
-function formatLocalDate(value: Date): string {
-    const pad = (part: number) => String(part).padStart(2, '0');
-    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-}
+import { localDateToDayNumber, toIsoDate } from './date';
 
 function shiftLocalDateTime(value: string, dayDelta: number): string {
     getLocalDateFromSession(value);
@@ -25,7 +7,7 @@ function shiftLocalDateTime(value: string, dayDelta: number): string {
     if (!match) throw new Error('A valid session date is required.');
     const shifted = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
     shifted.setDate(shifted.getDate() + dayDelta);
-    return formatLocalDate(shifted) + match[4];
+    return toIsoDate(shifted) + match[4];
 }
 
 export function buildDuplicateProgramInput(

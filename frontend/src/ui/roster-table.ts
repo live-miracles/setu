@@ -1,4 +1,5 @@
 import { formatTimeOfDay } from './format';
+import { addDays, formatWeekdayDate, isValidHexColor, parseDateOnly, toIsoDate } from './date';
 
 export interface RosterTableShift {
     roster: RosterDTO;
@@ -28,40 +29,8 @@ export interface RosterTableModel {
     volunteers: RosterTableVolunteer[];
 }
 
-const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function parseDateOnly(value: string): Date | null {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    if (!match) return null;
-    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-    if (
-        date.getFullYear() !== Number(match[1]) ||
-        date.getMonth() !== Number(match[2]) - 1 ||
-        date.getDate() !== Number(match[3])
-    ) {
-        return null;
-    }
-    return date;
-}
-
-function addDays(date: Date, days: number): Date {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-}
-
-function toIsoDate(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 export function formatRosterTableDate(dateIso: string): string {
-    const date = parseDateOnly(dateIso);
-    if (!date) return dateIso;
-    return `${WEEKDAY_NAMES[date.getDay()]}, ${date.toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-    })}`;
+    return formatWeekdayDate(dateIso);
 }
 
 export function formatRosterTableTimes(roster: RosterDTO): string {
@@ -78,10 +47,6 @@ export function getShiftTypeTimes(
     return shiftType
         ? { startTime: shiftType.DefaultStartTime, endTime: shiftType.DefaultEndTime }
         : null;
-}
-
-function isValidColor(value: string): boolean {
-    return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
 }
 
 function shiftSortValue(roster: RosterDTO): string {
@@ -114,7 +79,7 @@ export function buildRosterTableModel(
     const shiftColors = new Map(
         shiftTypes.map((shiftType) => [
             shiftType.Name.toLowerCase(),
-            isValidColor(shiftType.Color || '') ? shiftType.Color.trim() : '',
+            isValidHexColor(shiftType.Color || '') ? shiftType.Color.trim() : '',
         ]),
     );
 
