@@ -7,6 +7,16 @@ import {
     type ReactNode,
 } from 'react';
 import {
+    useCreate,
+    useCustom,
+    useCustomMutation,
+    useDelete,
+    useInvalidate,
+    useList,
+    useOne,
+    useUpdate,
+} from '@refinedev/core';
+import {
     Button,
     Card as AntCard,
     Divider,
@@ -42,16 +52,11 @@ import {
     navigateToPrograms,
     navigateToRequestList,
     navigateToRoster,
-    navigateToTicket,
-    navigateToTickets,
     navigateToUser,
-    runOptimisticDashboardUpdate,
-    runOptimisticRequestAction,
     refreshDashboard,
     replaceWorkbenchUrl,
     inventoryRequestUrl,
     programRequestUrl,
-    ticketUrl,
     userUrl,
 } from '../router';
 import { isPlainLeftClick } from '../ui/link-click';
@@ -64,12 +69,7 @@ import {
 import { mountRefinePage } from '../ui/refine';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
-import {
-    defaultNameFromEmail,
-    formatDateTime,
-    formatProgramSessionSchedule,
-    formatTimeOfDay,
-} from '../ui/format';
+import { formatDateTime, formatProgramSessionSchedule, formatTimeOfDay } from '../ui/format';
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
@@ -80,20 +80,14 @@ import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
-import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
+import { prepareInventoryImage } from '../ui/inventory-image';
+import { RequestImage } from '../ui/request-image';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
 import { RequestBlock } from '../ui/request-block';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
-import {
-    cacheList,
-    calendarMonthCacheKey,
-    getCachedList,
-    getListCacheVersion,
-    requestListCacheKey,
-} from '../ui/list-cache';
 import { UserBlock } from '../ui/user-block';
 import homeHeroImage from '../../assets/home-hero.avif';
 import ReactMarkdown from 'react-markdown';
@@ -105,13 +99,7 @@ import {
     getProgramRequestActions,
     shiftProgramSessions,
 } from '../ui/program-actions';
-import {
-    canApprove,
-    canManageConfig,
-    canTransitionInventoryRequest,
-    canTransitionTicket,
-    canUseTickets,
-} from '../workflows';
+import { canApprove, canManageConfig, canTransitionInventoryRequest } from '../workflows';
 
 type Props = { dashboard: DashboardPayload };
 const OTHER_PROGRAM_TYPE = 'Other';
@@ -403,7 +391,6 @@ function Home({ dashboard }: Props) {
     const pendingProgramRequests = dashboard.programRequests.filter((request) =>
         ['draft', 'submitted'].includes(request.Status),
     );
-    const ongoingTickets = dashboard.tickets.filter((ticket) => ticket.Status !== 'closed');
     const todayIso = formatLocalDateOnly(new Date());
     const tomorrowDate = new Date();
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -434,15 +421,6 @@ function Home({ dashboard }: Props) {
             count: dashboard.inventoryRequests.length,
             onClick: () => navigateToRequestList('inventory'),
         },
-        ...(canUseTickets(dashboard.me)
-            ? [
-                  {
-                      label: 'Tickets',
-                      count: ongoingTickets.length,
-                      onClick: () => navigateToRequestList('tickets'),
-                  },
-              ]
-            : []),
     ];
     const sectionTitle = (title: string, count: number) => (
         <Space size="small">
@@ -616,38 +594,6 @@ function Home({ dashboard }: Props) {
                     {!dashboard.inventoryRequests.length && <Empty />}
                 </Card>
             </div>
-            <div className="home-section antd-two-column">
-                {canUseTickets(dashboard.me) && (
-                    <Card
-                        title={sectionTitle('Ongoing tickets', ongoingTickets.length)}
-                        className="home-scroll-card"
-                        action={sectionAction('Ongoing tickets', () =>
-                            navigateToRequestList('tickets'),
-                        )}>
-                        {ongoingTickets.map((ticket) => (
-                            <Button
-                                type="text"
-                                block
-                                className="antd-list-button"
-                                key={ticket.Id}
-                                href={ticketUrl(ticket.Id)}
-                                onClick={(event) => {
-                                    if (!isPlainLeftClick(event)) return;
-                                    event.preventDefault();
-                                    navigateToTicket(ticket.Id);
-                                }}>
-                                <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                                    <Typography.Text strong>
-                                        TKT-{ticket.DisplayId} {ticket.Title}
-                                    </Typography.Text>
-                                    <Tag color="blue">{ticket.Status}</Tag>
-                                </Space>
-                            </Button>
-                        ))}
-                        {!ongoingTickets.length && <Empty />}
-                    </Card>
-                )}
-            </div>
         </Page>
     );
 }
@@ -676,41 +622,10 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
                 phone,
                 whatsapp,
             };
-            if (registration) {
-                await api.updateOwnProfile(profile);
-                return;
-            }
-            await runOptimisticDashboardUpdate(
-                (previous) => {
-                    const departmentName =
-                        dashboard.departments.find((d) => d.Id === profile.departmentId)?.Name ||
-                        '';
-                    return Object.assign({}, previous, {
-                        me: Object.assign({}, previous.me, {
-                            Name: profile.name,
-                            DepartmentId: profile.departmentId,
-                            Phone: profile.phone,
-                            Whatsapp: profile.whatsapp,
-                            departmentName,
-                        }),
-                        users: previous.users.map((user) =>
-                            user.Email === previous.me.Email
-                                ? Object.assign({}, user, {
-                                      Name: profile.name,
-                                      DepartmentId: profile.departmentId,
-                                      Phone: profile.phone,
-                                      Whatsapp: profile.whatsapp,
-                                      departmentName,
-                                  })
-                                : user,
-                        ),
-                    });
-                },
-                () => api.updateOwnProfile(profile),
-            );
+            await api.updateOwnProfile(profile);
         },
         undefined,
-        !registration,
+        false,
     );
     return (
         <Page title={registration ? 'Welcome' : 'Profile'} hideHeading>
@@ -778,93 +693,48 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
     );
 }
 
+// Edit-only: users self-register on first sign-in (see the
+// on_auth_user_created trigger) rather than being pre-provisioned by an
+// admin, so there is no "Add user" flow.
 function UserForm({
     dashboard,
     user,
     close,
 }: {
     dashboard: DashboardPayload;
-    user?: UserDTO;
+    user: UserDTO;
     close: () => void;
 }) {
-    const [role, setRole] = useState<UserRole>(user?.Role || 'user');
-    const [departmentId, setDepartmentId] = useState(user?.DepartmentId || '');
-    const [email, setEmail] = useState('');
-    const [name, setName] = useState(user?.Name || '');
-    const [nameEdited, setNameEdited] = useState(Boolean(user));
-    const save = useSave(
-        async () => {
-            const d = new FormData(document.getElementById('refine-user-form') as HTMLFormElement);
-            const values = {
-                name: String(d.get('name')),
-                role: String(d.get('role')) as UserRole,
-                departmentId: String(d.get('departmentId') || ''),
-                phone: String(d.get('phone') || ''),
-                whatsapp: String(d.get('whatsapp') || ''),
-            };
-            if (!isValidInternationalPhone(values.phone)) {
-                throw new Error(INTERNATIONAL_PHONE_TITLE);
-            }
-            if (!isValidInternationalPhone(values.whatsapp)) {
-                throw new Error(INTERNATIONAL_PHONE_TITLE);
-            }
-            if (user) {
-                await runOptimisticDashboardUpdate(
-                    (previous) =>
-                        Object.assign({}, previous, {
-                            users: previous.users.map((item) =>
-                                item.Email === user.Email
-                                    ? Object.assign({}, item, {
-                                          Name: values.name,
-                                          Role: values.role,
-                                          DepartmentId: values.departmentId,
-                                          Phone: values.phone,
-                                          Whatsapp: values.whatsapp,
-                                          departmentName:
-                                              dashboard.departments.find(
-                                                  (d) => d.Id === values.departmentId,
-                                              )?.Name || '',
-                                      })
-                                    : item,
-                            ),
-                        }),
-                    () => api.updateUser(user.Email, values),
-                );
-            } else
-                await api.createUser(
-                    { email: String(d.get('email')).toLowerCase(), ...values },
-                    generateRequestId(),
-                );
-        },
-        close,
-        Boolean(user),
-    );
+    const [role, setRole] = useState<UserRole>(user.Role);
+    const [departmentId, setDepartmentId] = useState(user.DepartmentId);
+    const { mutateAsync: updateUser } = useUpdate();
+    const save = useSave(async () => {
+        const d = new FormData(document.getElementById('refine-user-form') as HTMLFormElement);
+        const values = {
+            name: String(d.get('name')),
+            role: String(d.get('role')) as UserRole,
+            departmentId: String(d.get('departmentId') || ''),
+            phone: String(d.get('phone') || ''),
+            whatsapp: String(d.get('whatsapp') || ''),
+        };
+        if (!isValidInternationalPhone(values.phone)) {
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
+        if (!isValidInternationalPhone(values.whatsapp)) {
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
+        await updateUser({
+            resource: 'users',
+            id: user.Email,
+            values,
+            successNotification: false,
+            errorNotification: false,
+        });
+    }, close);
     return (
-        <Modal title={user ? 'Edit user' : 'Add user'} close={close}>
+        <Modal title="Edit user" close={close}>
             <form id="refine-user-form" className="grid gap-3" noValidate onSubmit={save.run}>
-                {!user && (
-                    <TextField
-                        name="email"
-                        label="Email"
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(event) => {
-                            setEmail(event.target.value);
-                            if (!nameEdited) setName(defaultNameFromEmail(event.target.value));
-                        }}
-                    />
-                )}
-                <TextField
-                    name="name"
-                    label="Name"
-                    value={name}
-                    required
-                    onChange={(event) => {
-                        setNameEdited(true);
-                        setName(event.target.value);
-                    }}
-                />
+                <TextField name="name" label="Name" value={user.Name} required />
                 <AntForm.Item label="Role" required>
                     <input type="hidden" name="role" value={role} required />
                     <Select value={role} onChange={setRole} style={{ width: '100%' }}>
@@ -895,7 +765,7 @@ function UserForm({
                     name="phone"
                     label="Phone"
                     type="tel"
-                    value={user?.Phone}
+                    value={user.Phone}
                     required
                     pattern={INTERNATIONAL_PHONE_PATTERN}
                     title={INTERNATIONAL_PHONE_TITLE}
@@ -904,17 +774,13 @@ function UserForm({
                     name="whatsapp"
                     label="WhatsApp"
                     type="tel"
-                    value={user?.Whatsapp}
+                    value={user.Whatsapp}
                     required
                     pattern={INTERNATIONAL_PHONE_PATTERN}
                     title={INTERNATIONAL_PHONE_TITLE}
                 />
                 <div>
-                    <SaveFooter
-                        label={user ? 'Save' : 'Add'}
-                        busy={save.busy}
-                        errorMessage={save.errorMessage}
-                    />
+                    <SaveFooter label="Save" busy={save.busy} errorMessage={save.errorMessage} />
                 </div>
             </form>
         </Modal>
@@ -923,14 +789,16 @@ function UserForm({
 function Users({ dashboard }: Props) {
     const [editing, setEditing] = useState<UserDTO | undefined>();
     const [deleting, setDeleting] = useState<UserDTO | null>(null);
-    const [creating, setCreating] = useState(false);
+    const { mutateAsync: deleteUser } = useDelete();
+    const { result } = useList({ resource: 'users', pagination: { mode: 'off' } });
+    const users = result.data as UserDTO[];
     const selectedUserId = new URLSearchParams(window.location.search).get(USER_QUERY_PARAM);
     const selectedUser = selectedUserId
-        ? dashboard.users.find((user) => user.Email === selectedUserId) || null
+        ? users.find((user) => user.Email === selectedUserId) || null
         : null;
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
-    const shown = dashboard.users;
+    const shown = users;
     const filteredUsers = shown.filter((user) =>
         matchesSearch(appliedSearch, [
             user.Name,
@@ -968,15 +836,6 @@ function Users({ dashboard }: Props) {
                     title="Search users"
                 />
             </Space>
-            {canManageConfig(dashboard.me) && (
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => setCreating(true)}
-                    aria-label="Add user"
-                    title="Add user"
-                />
-            )}
         </div>
     );
     const userDetail = selectedUser && (
@@ -1080,21 +939,19 @@ function Users({ dashboard }: Props) {
                     description={`Are you sure you want to delete ${deleting.Name}?`}
                     onCancel={() => setDeleting(null)}
                     onConfirm={async () => {
-                        await api.deleteUser(deleting.Email, generateRequestId());
+                        await deleteUser({
+                            resource: 'users',
+                            id: deleting.Email,
+                            successNotification: false,
+                            errorNotification: false,
+                        });
                         setDeleting(null);
                         await refreshDashboard();
                     }}
                 />
             )}
-            {(creating || editing) && (
-                <UserForm
-                    dashboard={dashboard}
-                    user={editing}
-                    close={() => {
-                        setCreating(false);
-                        setEditing(undefined);
-                    }}
-                />
+            {editing && (
+                <UserForm dashboard={dashboard} user={editing} close={() => setEditing(undefined)} />
             )}
         </>
     );
@@ -1105,19 +962,27 @@ function Roster({ dashboard }: Props) {
     const [editing, setEditing] = useState<RosterDTO>();
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<RosterDTO | null>(null);
-    const [users, setUsers] = useState<UserDTO[]>([]);
+    const { mutateAsync: deleteRoster } = useDelete();
+    const { result: usersResult } = useList<UserDTO>({
+        resource: 'users',
+        pagination: { mode: 'off' },
+        queryOptions: { enabled: canEdit },
+    });
+    const users = usersResult.data;
     const rosterStartDate = new Date();
     rosterStartDate.setDate(rosterStartDate.getDate() - 2);
     const rosterStartIso = formatLocalDateOnly(rosterStartDate);
     const todayIso = formatLocalDateOnly(new Date());
+    // Reads dashboard.upcomingRosters rather than useList({resource: 'rosters'})
+    // on purpose: the grid needs every upcoming shift, unpaginated, while the
+    // 'rosters' resource (api.listRosters) is a paginated, full-history list
+    // built for a future admin roster listing — a different shape, not just
+    // a different fetch mechanism. Only the mutations below go through it.
     const rosterTable = buildRosterTableModel(
         dashboard.upcomingRosters,
         dashboard.shiftTypes,
         rosterStartIso,
     );
-    useEffect(() => {
-        if (canEdit) api.listUsers().then(setUsers).catch(error);
-    }, [canEdit]);
     const Form = ({ row }: { row?: RosterDTO }) => {
         const [userId, setUserId] = useState(row?.UserId || '');
         const initialShiftType = dashboard.shiftTypes.find(
@@ -1137,49 +1002,28 @@ function Roster({ dashboard }: Props) {
             setStartTime(times.startTime);
             setEndTime(times.endTime);
         };
-        const save = useSave(
-            async () => {
-                const d = new FormData(
-                    document.getElementById('refine-roster-form') as HTMLFormElement,
-                );
-                const v = {
-                    name: String(d.get('name')),
-                    startDate: String(d.get('startDate')),
-                    endDate: String(d.get('endDate')),
-                    startTime: String(d.get('startTime') || ''),
-                    endTime: String(d.get('endTime') || ''),
-                    userId: String(d.get('userId') || ''),
-                };
-                if (row) {
-                    await runOptimisticDashboardUpdate(
-                        (previous) =>
-                            Object.assign({}, previous, {
-                                upcomingRosters: previous.upcomingRosters.map((item) =>
-                                    item.Id === row.Id
-                                        ? Object.assign({}, item, {
-                                              Name: v.name,
-                                              StartDate: v.startDate,
-                                              EndDate: v.endDate,
-                                              StartTime: v.startTime,
-                                              EndTime: v.endTime,
-                                              UserId: v.userId,
-                                              userName:
-                                                  dashboard.users.find((u) => u.Email === v.userId)
-                                                      ?.Name || item.userName,
-                                          })
-                                        : item,
-                                ),
-                            }),
-                        () => api.updateRoster(row.Id, v, generateRequestId()),
-                    );
-                } else await api.createRoster(v, generateRequestId());
-            },
-            () => {
-                setCreating(false);
-                setEditing(undefined);
-            },
-            Boolean(row),
-        );
+        const { mutateAsync: createRoster } = useCreate();
+        const { mutateAsync: updateRoster } = useUpdate();
+        const save = useSave(async () => {
+            const d = new FormData(document.getElementById('refine-roster-form') as HTMLFormElement);
+            const v = {
+                name: String(d.get('name')),
+                startDate: String(d.get('startDate')),
+                endDate: String(d.get('endDate')),
+                startTime: String(d.get('startTime') || ''),
+                endTime: String(d.get('endTime') || ''),
+                userId: String(d.get('userId') || ''),
+            };
+            const mutateOptions = { successNotification: false, errorNotification: false } as const;
+            if (row) {
+                await updateRoster({ resource: 'rosters', id: row.Id, values: v, ...mutateOptions });
+            } else {
+                await createRoster({ resource: 'rosters', values: v, ...mutateOptions });
+            }
+        }, () => {
+            setCreating(false);
+            setEditing(undefined);
+        });
         return (
             <Modal
                 title={row ? 'Edit shift' : 'Schedule a shift'}
@@ -1387,7 +1231,12 @@ function Roster({ dashboard }: Props) {
                     description="Are you sure you want to delete this shift?"
                     onCancel={() => setDeleting(null)}
                     onConfirm={async () => {
-                        await api.deleteRoster(deleting.Id, generateRequestId());
+                        await deleteRoster({
+                            resource: 'rosters',
+                            id: deleting.Id,
+                            successNotification: false,
+                            errorNotification: false,
+                        });
                         setDeleting(null);
                         await refreshDashboard();
                     }}
@@ -1403,47 +1252,21 @@ function Calendar({ dashboard }: Props) {
         const today = new Date();
         return new Date(today.getFullYear(), today.getMonth(), 1);
     });
-    // Tagged with the month it was fetched for so a paged-away month's programs
-    // never render under the month the user is now looking at.
-    const [loaded, setLoaded] = useState<{ key: string; payload: CalendarMonthPayload } | null>(
-        null,
-    );
-    const [loading, setLoading] = useState(false);
     const year = month.getFullYear();
     const monthNumber = month.getMonth() + 1;
     const todayIso = formatLocalDateOnly(new Date());
     const monthStartIso = formatLocalDateOnly(month);
     const monthEndIso = formatLocalDateOnly(new Date(year, monthNumber, 0));
-    const cacheKey = calendarMonthCacheKey(year, monthNumber);
-    useEffect(() => {
-        let cancelled = false;
-        const cached = getCachedList<CalendarMonthPayload>(cacheKey);
-        if (cached) {
-            setLoaded({ key: cacheKey, payload: cached });
-            setLoading(false);
-            return () => {
-                cancelled = true;
-            };
-        }
-
-        setLoading(true);
-        const requestCacheVersion = getListCacheVersion();
-        api.getCalendarMonth(year, monthNumber)
-            .then((next) => {
-                cacheList(cacheKey, next, requestCacheVersion);
-                // Months are paged through faster than Apps Script answers, so
-                // only the newest request may write to the grid.
-                if (!cancelled) setLoaded({ key: cacheKey, payload: next });
-            })
-            .catch(error)
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [cacheKey, dashboard, year, monthNumber]);
-    const monthData = loaded && loaded.key === cacheKey ? loaded.payload : null;
+    // Refine keys this query by (operation, args), so each month gets its own
+    // cache entry automatically — paging back to a month already visited this
+    // session renders instantly, with no hand-rolled cache/version bookkeeping.
+    const { result, query } = useCustom<CalendarMonthPayload>({
+        url: 'getCalendarMonth',
+        method: 'get',
+        meta: { operation: 'getCalendarMonth', args: [year, monthNumber] },
+    });
+    const monthData = query.isSuccess ? result.data : null;
+    const loading = query.isLoading;
     const calendarPrograms = monthData?.programs || [];
     const calendarPlaces = monthData?.places || dashboard.places;
     const calendar = buildCalendarTableModel(
@@ -1589,7 +1412,7 @@ function Calendar({ dashboard }: Props) {
     );
 }
 
-function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
+function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
     const isInventory = kind === 'inventory';
     const isProgram = kind === 'programs';
     const params = new URLSearchParams(window.location.search);
@@ -1600,28 +1423,41 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     const [view, setView] = useState(params.get(WORKBENCH_VIEW_QUERY_PARAM) || 'active');
     const statuses = isInventory
         ? ['draft', 'submitted', 'approved', 'issued', 'closed', 'rejected', 'cancelled']
-        : isProgram
-          ? ['draft', 'submitted', 'approved', 'rejected', 'cancelled']
-          : ['unassigned', 'pending', 'closed'];
+        : ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => {
         const value = params.get(WORKBENCH_STATUS_QUERY_PARAM);
         return value ? value.split(',').filter((status) => statuses.includes(status)) : statuses;
     });
     const [page, setPage] = useState(1);
-    const [result, setResult] = useState<Paginated<any> | null>(null);
-    const [loading, setLoading] = useState(false);
     const [creating, setCreating] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const rows = result?.items || [];
-    const open = (id: string) =>
-        isInventory
-            ? navigateToInventoryRequest(id)
-            : isProgram
-              ? navigateToProgram(id)
-              : navigateToTicket(id);
+    const pageSize = 25;
+    const resource = isInventory ? 'inventory-requests' : 'program-requests';
+    const dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
+    const { result, query } = useList<InventoryRequestDTO | ProgramRequestDTO>({
+        resource,
+        pagination: { currentPage: page, pageSize },
+        filters: [
+            { field: 'q', operator: 'eq', value: appliedSearch },
+            {
+                field: 'statuses',
+                operator: 'eq',
+                // An empty checkbox selection is different from an omitted filter;
+                // the backend's explicit sentinel keeps it from meaning "all".
+                value: selectedStatuses.length ? selectedStatuses : ['__none__'],
+            },
+            ...(isProgram
+                ? [{ field: 'dateScope', operator: 'eq' as const, value: dateScope }]
+                : []),
+        ],
+        sorters: [{ field: isProgram ? 'sessionStart' : 'startDate', order: 'asc' }],
+    });
+    const rows = result.data;
+    const loading = query.isLoading;
+    const open = (id: string) => (isInventory ? navigateToInventoryRequest(id) : navigateToProgram(id));
     const hrefFor = (id: string) =>
-        isInventory ? inventoryRequestUrl(id) : isProgram ? programRequestUrl(id) : ticketUrl(id);
-    const title = isInventory ? 'Inventory' : isProgram ? 'Programs' : 'Tickets';
+        isInventory ? inventoryRequestUrl(id) : programRequestUrl(id);
+    const title = isInventory ? 'Inventory' : 'Programs';
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
         const url = new URL(window.location.href);
@@ -1629,55 +1465,6 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
         else url.searchParams.delete(key);
         replaceWorkbenchUrl(url);
     };
-    useEffect(() => {
-        let cancelled = false;
-        const query: any = {
-            q: appliedSearch,
-            // An empty checkbox selection is different from an omitted filter;
-            // the backend's explicit sentinel keeps it from meaning "all".
-            statuses: selectedStatuses.length ? selectedStatuses : ['__none__'],
-            sortBy: isProgram ? 'sessionStart' : isInventory ? 'startDate' : 'id',
-            sortDirection: 'asc',
-        };
-        if (isProgram)
-            query.dateScope = view === 'past' ? 'past' : view === 'active' ? 'ongoing-future' : '';
-
-        const cacheKey = requestListCacheKey(
-            kind,
-            page,
-            appliedSearch,
-            selectedStatuses,
-            query.dateScope,
-        );
-        const cached = getCachedList<Paginated<any>>(cacheKey);
-        if (cached) {
-            setResult(cached);
-            setLoading(false);
-            return () => {
-                cancelled = true;
-            };
-        }
-
-        setLoading(true);
-        const requestCacheVersion = getListCacheVersion();
-        const request = isInventory
-            ? api.listInventoryRequests(page, query)
-            : isProgram
-              ? api.listProgramRequests(page, query)
-              : api.listTickets(page, query);
-        request
-            .then((next) => {
-                cacheList(cacheKey, next, requestCacheVersion);
-                if (!cancelled) setResult(next);
-            })
-            .catch(error)
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [appliedSearch, dashboard, isInventory, isProgram, kind, page, selectedStatuses, view]);
 
     const filter = (
         <Space wrap>
@@ -1762,7 +1549,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                             href={hrefFor(row.Id)}
                             onClick={() => open(row.Id)}
                         />
-                    ) : isInventory ? (
+                    ) : (
                         <RequestBlock
                             key={row.Id}
                             kind="inventory"
@@ -1771,23 +1558,14 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
                             href={hrefFor(row.Id)}
                             onClick={() => open(row.Id)}
                         />
-                    ) : (
-                        <RequestBlock
-                            key={row.Id}
-                            kind="ticket"
-                            row={row as TicketDTO}
-                            dashboard={dashboard}
-                            href={hrefFor(row.Id)}
-                            onClick={() => open(row.Id)}
-                        />
                     ),
                 )}
                 {!loading && !rows.length && <AntEmpty description="No requests" />}
-                {result && result.totalCount > result.pageSize && (
+                {(result.total ?? 0) > pageSize && (
                     <Pagination
-                        current={result.page}
-                        pageSize={result.pageSize}
-                        total={result.totalCount}
+                        current={page}
+                        pageSize={pageSize}
+                        total={result.total ?? 0}
                         showSizeChanger={false}
                         onChange={setPage}
                     />
@@ -1795,7 +1573,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
             </div>
             {creating && (
                 <Modal
-                    title={`New ${isInventory ? 'inventory request' : isProgram ? 'program request' : 'ticket'}`}
+                    title={`New ${isInventory ? 'inventory request' : 'program request'}`}
                     close={() => setCreating(false)}>
                     <CreateRecord
                         kind={kind}
@@ -1813,7 +1591,7 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     );
 }
 
-function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
+function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
     return <RequestBoard kind={kind} dashboard={dashboard} />;
 }
 
@@ -1824,12 +1602,17 @@ function CreateRecord({
     onSubmitStart,
     onSubmitEnd,
 }: Props & {
-    kind: 'inventory' | 'programs' | 'tickets';
+    kind: 'inventory' | 'programs';
     onClose: () => void;
     onSubmitStart?: () => void;
     onSubmitEnd?: () => void;
 }) {
-    const [users, setUsers] = useState<UserDTO[]>([]);
+    const { result: usersResult } = useList<UserDTO>({
+        resource: 'users',
+        pagination: { mode: 'off' },
+        queryOptions: { enabled: canApprove(dashboard.me) },
+    });
+    const users = usersResult.data;
     const [language, setLanguage] = useState(dashboard.programLanguages[0]?.Name || '');
     const [requestedBy, setRequestedBy] = useState(dashboard.me.Email);
     const [departmentId, setDepartmentId] = useState(dashboard.me.DepartmentId);
@@ -1842,11 +1625,6 @@ function CreateRecord({
     const [sessionDrafts, setSessionDrafts] = useState<ProgramSession[]>(() => [
         defaultSessionDraft([]),
     ]);
-    useEffect(() => {
-        if ((kind === 'programs' || kind === 'inventory') && canApprove(dashboard.me)) {
-            api.listUsers().then(setUsers).catch(error);
-        }
-    }, [dashboard.me, kind]);
     const leadEmailForDepartment = (id: string) =>
         dashboard.departments.find((department) => department.Id === id)?.LeadEmail || '';
     const selectDepartment = (id: string) => {
@@ -1858,20 +1636,18 @@ function CreateRecord({
         const requester = users.find((user) => user.Email === email);
         if (requester) selectDepartment(requester.DepartmentId);
     };
+    const { mutateAsync: createRecord } = useCreate();
     const save = useSave(
         async (): Promise<{ Id: string }> => {
             const d =
                 formData.current ||
                 new FormData(document.getElementById('refine-request-form') as HTMLFormElement);
             const name = String(d.get('name') || '');
-            if (kind === 'tickets')
-                return api.createTicket(
-                    { title: name, description: String(d.get('description') || '') },
-                    generateRequestId(),
-                );
-            if (kind === 'inventory')
-                return api.createInventoryRequest(
-                    {
+            const mutateOptions = { successNotification: false, errorNotification: false } as const;
+            if (kind === 'inventory') {
+                const created = await createRecord({
+                    resource: 'inventory-requests',
+                    values: {
                         name,
                         userId: requestedBy,
                         startDate: String(d.get('startDate')),
@@ -1882,8 +1658,10 @@ function CreateRecord({
                         leadEmail: String(d.get('leadEmail') || leadEmail),
                         participants: '',
                     },
-                    generateRequestId(),
-                );
+                    ...mutateOptions,
+                });
+                return created.data as unknown as { Id: string };
+            }
             const invalidSession = sessionDrafts.find(
                 (session) =>
                     !session.Type ||
@@ -1898,8 +1676,9 @@ function CreateRecord({
                         : 'Session end must be after its start.',
                 );
             }
-            return api.createProgramRequest(
-                {
+            const created = await createRecord({
+                resource: 'program-requests',
+                values: {
                     name,
                     language: String(d.get('language') || ''),
                     type: programType,
@@ -1915,8 +1694,9 @@ function CreateRecord({
                     leadEmail: String(d.get('leadEmail') || ''),
                     participants: '',
                 },
-                generateRequestId(),
-            );
+                ...mutateOptions,
+            });
+            return created.data as unknown as { Id: string };
         },
         undefined,
         false,
@@ -1947,22 +1727,14 @@ function CreateRecord({
                     await refreshDashboard();
                     const id = createRecordDestination(kind, created.Id);
                     if (kind === 'programs') navigateToProgram(id);
-                    else if (kind === 'inventory') navigateToInventoryRequest(id);
-                    else navigateToTicket(id);
+                    else navigateToInventoryRequest(id);
                     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
                 } finally {
                     if (onSubmitEnd) onSubmitEnd();
                     else setAppLoading(false);
                 }
             }}>
-            {kind !== 'programs' && (
-                <TextField
-                    name="name"
-                    label={kind === 'tickets' ? 'Title' : 'Event / Purpose'}
-                    required
-                />
-            )}
-            {kind === 'tickets' && <TextField name="description" label="Description" />}
+            {kind !== 'programs' && <TextField name="name" label="Event / Purpose" required />}
             {kind === 'inventory' && (
                 <>
                     <TextField name="startDate" label="Start date" type="date" required />
@@ -2187,6 +1959,13 @@ function ProgramDetail({
     request: ProgramRequestDTO;
     dashboard: DashboardPayload;
 }) {
+    const { mutateAsync: updateProgramRequest } = useUpdate();
+    const { mutateAsync: createProgramRequest } = useCreate();
+    const { mutateAsync: deleteProgramRequest } = useDelete();
+    const { mutateAsync: customMutate } = useCustomMutation();
+    const invalidate = useInvalidate();
+    const invalidateThisRequest = () =>
+        invalidate({ resource: 'program-requests', id: request.Id, invalidates: ['list', 'many', 'detail'] });
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
@@ -2213,7 +1992,12 @@ function ProgramDetail({
     const [rescheduleDate, setRescheduleDate] = useState(() =>
         request.sessions.length ? getLocalDateFromSession(request.sessions[0].StartDateTime) : '',
     );
-    const [users, setUsers] = useState<UserDTO[]>([]);
+    const { result: usersResult } = useList<UserDTO>({
+        resource: 'users',
+        pagination: { mode: 'off' },
+        queryOptions: { enabled: canApprove(dashboard.me) },
+    });
+    const users = usersResult.data;
     const [values, setValues] = useState({
         Name: request.Name,
         Language: request.Language,
@@ -2247,45 +2031,34 @@ function ProgramDetail({
         availablePlaceIds.includes(place.Id),
     );
     const placeOptions = availablePlaceOptions;
-    useEffect(() => {
-        if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
-    }, [dashboard.me]);
     const persistSessions = async (nextSessions: ProgramSession[]) => {
         try {
             showSavingBadge(true);
-            await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        programRequests: previous.programRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, { sessions: nextSessions })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateProgramRequest(
-                        request.Id,
-                        {
-                            name: values.Name,
-                            language: values.Language,
-                            type: values.Type,
-                            userId: values.UserId,
-                            placeId: values.PlaceId,
-                            departmentId: values.DepartmentId,
-                            leadEmail: values.LeadEmail,
-                            participants: values.Participants,
-                            status: values.Status,
-                            sessions: nextSessions.map((s) => ({
-                                name: s.Name,
-                                type: s.Type,
-                                startDateTime: s.StartDateTime,
-                                endDateTime: s.EndDateTime,
-                            })),
-                        },
-                        generateRequestId(),
-                    ),
-            );
+            await updateProgramRequest({
+                resource: 'program-requests',
+                id: request.Id,
+                values: {
+                    name: values.Name,
+                    language: values.Language,
+                    type: values.Type,
+                    userId: values.UserId,
+                    placeId: values.PlaceId,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    status: values.Status,
+                    sessions: nextSessions.map((s) => ({
+                        name: s.Name,
+                        type: s.Type,
+                        startDateTime: s.StartDateTime,
+                        endDateTime: s.EndDateTime,
+                    })),
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
             setSessions(nextSessions);
+            await refreshDashboard();
         } catch (e) {
             error(e);
         } finally {
@@ -2294,57 +2067,29 @@ function ProgramDetail({
     };
     const save = useSave(
         () =>
-            runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        programRequests: previous.programRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, {
-                                      Name: values.Name,
-                                      Language: values.Language,
-                                      Type: values.Type,
-                                      UserId: values.UserId,
-                                      PlaceId: values.PlaceId,
-                                      DepartmentId: values.DepartmentId,
-                                      LeadEmail: values.LeadEmail,
-                                      sessions,
-                                      userName:
-                                          users.find((u) => u.Email === values.UserId)?.Name ||
-                                          item.userName,
-                                      placeName:
-                                          dashboard.places.find((p) => p.Id === values.PlaceId)
-                                              ?.Name || '',
-                                      departmentName:
-                                          dashboard.departments.find(
-                                              (d) => d.Id === values.DepartmentId,
-                                          )?.Name || '',
-                                  })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateProgramRequest(
-                        request.Id,
-                        {
-                            name: values.Name,
-                            language: values.Language,
-                            type: values.Type,
-                            userId: values.UserId,
-                            placeId: values.PlaceId,
-                            departmentId: values.DepartmentId,
-                            leadEmail: values.LeadEmail,
-                            participants: values.Participants,
-                            status: values.Status,
-                            sessions: sessions.map((s) => ({
-                                name: s.Name,
-                                type: s.Type,
-                                startDateTime: s.StartDateTime,
-                                endDateTime: s.EndDateTime,
-                            })),
-                        },
-                        generateRequestId(),
-                    ),
-            ).catch((e) => {
+            updateProgramRequest({
+                resource: 'program-requests',
+                id: request.Id,
+                values: {
+                    name: values.Name,
+                    language: values.Language,
+                    type: values.Type,
+                    userId: values.UserId,
+                    placeId: values.PlaceId,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    status: values.Status,
+                    sessions: sessions.map((s) => ({
+                        name: s.Name,
+                        type: s.Type,
+                        startDateTime: s.StartDateTime,
+                        endDateTime: s.EndDateTime,
+                    })),
+                },
+                successNotification: false,
+                errorNotification: false,
+            }).catch((e) => {
                 setValues({
                     Name: request.Name,
                     Language: request.Language,
@@ -2360,34 +2105,25 @@ function ProgramDetail({
                 throw e;
             }),
         () => setEditing(false),
-        true,
     );
     const saveParticipants = async (participants: string[]) => {
         const serialized = participants.join(', ');
         showSavingBadge(true);
         try {
-            await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        programRequests: previous.programRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, {
-                                      participants: serialized
-                                          .split(',')
-                                          .map((email) => email.trim().toLowerCase())
-                                          .filter(Boolean),
-                                  })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateProgramRequestParticipants(
-                        request.Id,
-                        { participants: serialized },
-                        generateRequestId(),
-                    ),
-            );
+            await customMutate({
+                url: 'updateProgramRequestParticipants',
+                method: 'post',
+                values: {},
+                meta: {
+                    operation: 'updateProgramRequestParticipants',
+                    args: [request.Id, { participants: serialized }, generateRequestId()],
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
             setValues((current) => ({ ...current, Participants: serialized }));
+            await invalidateThisRequest();
+            await refreshDashboard();
         } finally {
             showSavingBadge(false);
         }
@@ -2416,12 +2152,14 @@ function ProgramDetail({
                 sessions.length && duplicateDate
                     ? shiftProgramSessions(sessions, duplicateDate)
                     : sessions;
-            const created = await api.createProgramRequest(
-                buildDuplicateProgramInput(request, dashboard.me.Email, nextSessions),
-                generateRequestId(),
-            );
+            const created = await createProgramRequest({
+                resource: 'program-requests',
+                values: buildDuplicateProgramInput(request, dashboard.me.Email, nextSessions),
+                successNotification: false,
+                errorNotification: false,
+            });
             await refreshDashboard();
-            navigateToProgram(created.Id);
+            navigateToProgram((created.data as unknown as { Id: string }).Id);
         } catch (e) {
             setDuplicateError(e instanceof Error ? e.message : String(e));
             setDuplicating(false);
@@ -2435,42 +2173,32 @@ function ProgramDetail({
         async () => {
             if (!rescheduleDate) throw new Error('Select a new first session date.');
             const nextSessions = shiftProgramSessions(sessions, rescheduleDate);
-            await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        programRequests: previous.programRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, { sessions: nextSessions })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateProgramRequest(
-                        request.Id,
-                        {
-                            name: values.Name,
-                            language: values.Language,
-                            type: values.Type,
-                            userId: values.UserId,
-                            placeId: values.PlaceId,
-                            departmentId: values.DepartmentId,
-                            leadEmail: values.LeadEmail,
-                            participants: values.Participants,
-                            status: values.Status,
-                            sessions: nextSessions.map((s) => ({
-                                name: s.Name,
-                                type: s.Type,
-                                startDateTime: s.StartDateTime,
-                                endDateTime: s.EndDateTime,
-                            })),
-                        },
-                        generateRequestId(),
-                    ),
-            );
+            await updateProgramRequest({
+                resource: 'program-requests',
+                id: request.Id,
+                values: {
+                    name: values.Name,
+                    language: values.Language,
+                    type: values.Type,
+                    userId: values.UserId,
+                    placeId: values.PlaceId,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    status: values.Status,
+                    sessions: nextSessions.map((s) => ({
+                        name: s.Name,
+                        type: s.Type,
+                        startDateTime: s.StartDateTime,
+                        endDateTime: s.EndDateTime,
+                    })),
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
             setSessions(nextSessions);
         },
         () => setRescheduling(false),
-        true,
     );
     const editSession = (index: number | null) => {
         setSessionIndex(index);
@@ -2509,9 +2237,19 @@ function ProgramDetail({
     const perform = async (action: ProgramRequestAction) => {
         try {
             showSavingBadge(true);
-            await runOptimisticRequestAction('program', request.Id, action, () =>
-                api.performProgramRequestAction(request.Id, action, '', generateRequestId()),
-            );
+            await customMutate({
+                url: 'performProgramRequestAction',
+                method: 'post',
+                values: {},
+                meta: {
+                    operation: 'performProgramRequestAction',
+                    args: [request.Id, action, '', generateRequestId()],
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
+            await invalidateThisRequest();
+            await refreshDashboard();
         } catch (e) {
             error(e);
         } finally {
@@ -2715,7 +2453,12 @@ function ProgramDetail({
                     onConfirm={async () => {
                         try {
                             showSavingBadge(true);
-                            await api.deleteProgramRequest(request.Id, generateRequestId());
+                            await deleteProgramRequest({
+                                resource: 'program-requests',
+                                id: request.Id,
+                                successNotification: false,
+                                errorNotification: false,
+                            });
                             setPendingDelete(false);
                             await refreshDashboard();
                             navigateToPrograms();
@@ -3236,6 +2979,12 @@ function InventoryDetail({
     request: InventoryRequestDTO;
     dashboard: DashboardPayload;
 }) {
+    const { mutateAsync: updateInventoryRequest } = useUpdate();
+    const { mutateAsync: deleteInventoryRequest } = useDelete();
+    const { mutateAsync: customMutate } = useCustomMutation();
+    const invalidate = useInvalidate();
+    const invalidateThisRequest = () =>
+        invalidate({ resource: 'inventory-requests', id: request.Id, invalidates: ['list', 'many', 'detail'] });
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
@@ -3270,10 +3019,12 @@ function InventoryDetail({
         Participants: request.participants.join(', '),
         UserId: request.UserId,
     });
-    const [users, setUsers] = useState<UserDTO[]>([]);
-    useEffect(() => {
-        if (canApprove(dashboard.me)) api.listUsers().then(setUsers).catch(error);
-    }, [dashboard.me]);
+    const { result: usersResult } = useList<UserDTO>({
+        resource: 'users',
+        pagination: { mode: 'off' },
+        queryOptions: { enabled: canApprove(dashboard.me) },
+    });
+    const users = usersResult.data;
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
     const persistItems = async (nextItems: InventoryItemDTO[]): Promise<boolean> => {
@@ -3282,35 +3033,27 @@ function InventoryDetail({
             setItemError('');
             showSavingBadge(true);
             setItems(nextItems);
-            await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        inventoryRequests: previous.inventoryRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, { items: nextItems })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateInventoryRequest(
-                        request.Id,
-                        {
-                            name: values.Name,
-                            userId: values.UserId,
-                            startDate: values.StartDate,
-                            endDate: values.EndDate,
-                            departmentId: values.DepartmentId,
-                            leadEmail: values.LeadEmail,
-                            participants: values.Participants,
-                            items: nextItems.map((item) => ({
-                                inventoryTypeId: item.InventoryTypeId,
-                                quantity: item.Quantity,
-                                condition: item.Condition,
-                            })),
-                        },
-                        generateRequestId(),
-                    ),
-            );
+            await updateInventoryRequest({
+                resource: 'inventory-requests',
+                id: request.Id,
+                values: {
+                    name: values.Name,
+                    userId: values.UserId,
+                    startDate: values.StartDate,
+                    endDate: values.EndDate,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    items: nextItems.map((item) => ({
+                        inventoryTypeId: item.InventoryTypeId,
+                        quantity: item.Quantity,
+                        condition: item.Condition,
+                    })),
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
+            await refreshDashboard();
             return true;
         } catch (e) {
             setItems(previousItems);
@@ -3337,50 +3080,26 @@ function InventoryDetail({
     };
     const save = useSave(
         () =>
-            runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        inventoryRequests: previous.inventoryRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, {
-                                      Name: values.Name,
-                                      UserId: values.UserId,
-                                      StartDate: values.StartDate,
-                                      EndDate: values.EndDate,
-                                      DepartmentId: values.DepartmentId,
-                                      LeadEmail: values.LeadEmail,
-                                      items,
-                                      userName:
-                                          users.find((u) => u.Email === values.UserId)?.Name ||
-                                          item.userName,
-                                      departmentName:
-                                          dashboard.departments.find(
-                                              (d) => d.Id === values.DepartmentId,
-                                          )?.Name || '',
-                                  })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateInventoryRequest(
-                        request.Id,
-                        {
-                            name: values.Name,
-                            userId: values.UserId,
-                            startDate: values.StartDate,
-                            endDate: values.EndDate,
-                            departmentId: values.DepartmentId,
-                            leadEmail: values.LeadEmail,
-                            participants: values.Participants,
-                            items: items.map((item) => ({
-                                inventoryTypeId: item.InventoryTypeId,
-                                quantity: item.Quantity,
-                                condition: item.Condition,
-                            })),
-                        },
-                        generateRequestId(),
-                    ),
-            ).catch((e) => {
+            updateInventoryRequest({
+                resource: 'inventory-requests',
+                id: request.Id,
+                values: {
+                    name: values.Name,
+                    userId: values.UserId,
+                    startDate: values.StartDate,
+                    endDate: values.EndDate,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    items: items.map((item) => ({
+                        inventoryTypeId: item.InventoryTypeId,
+                        quantity: item.Quantity,
+                        condition: item.Condition,
+                    })),
+                },
+                successNotification: false,
+                errorNotification: false,
+            }).catch((e) => {
                 setValues({
                     Name: request.Name,
                     StartDate: request.StartDate,
@@ -3394,34 +3113,25 @@ function InventoryDetail({
                 throw e;
             }),
         () => setEditing(false),
-        true,
     );
     const saveParticipants = async (participants: string[]) => {
         const serialized = participants.join(', ');
         showSavingBadge(true);
         try {
-            await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        inventoryRequests: previous.inventoryRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, {
-                                      participants: serialized
-                                          .split(',')
-                                          .map((email) => email.trim().toLowerCase())
-                                          .filter(Boolean),
-                                  })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateInventoryRequestParticipants(
-                        request.Id,
-                        { participants: serialized },
-                        generateRequestId(),
-                    ),
-            );
+            await customMutate({
+                url: 'updateInventoryRequestParticipants',
+                method: 'post',
+                values: {},
+                meta: {
+                    operation: 'updateInventoryRequestParticipants',
+                    args: [request.Id, { participants: serialized }, generateRequestId()],
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
             setValues((current) => ({ ...current, Participants: serialized }));
+            await invalidateThisRequest();
+            await refreshDashboard();
         } finally {
             showSavingBadge(false);
         }
@@ -3491,36 +3201,28 @@ function InventoryDetail({
                 prepared.mimeType,
             );
             setImageId(nextImageId);
-            await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        inventoryRequests: previous.inventoryRequests.map((item) =>
-                            item.Id === request.Id
-                                ? Object.assign({}, item, { ImageId: nextImageId })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateInventoryRequest(
-                        request.Id,
-                        {
-                            name: values.Name,
-                            userId: values.UserId,
-                            startDate: values.StartDate,
-                            endDate: values.EndDate,
-                            departmentId: values.DepartmentId,
-                            leadEmail: values.LeadEmail,
-                            participants: values.Participants,
-                            imageId: nextImageId,
-                            items: items.map((item) => ({
-                                inventoryTypeId: item.InventoryTypeId,
-                                quantity: item.Quantity,
-                                condition: item.Condition,
-                            })),
-                        },
-                        generateRequestId(),
-                    ),
-            );
+            await updateInventoryRequest({
+                resource: 'inventory-requests',
+                id: request.Id,
+                values: {
+                    name: values.Name,
+                    userId: values.UserId,
+                    startDate: values.StartDate,
+                    endDate: values.EndDate,
+                    departmentId: values.DepartmentId,
+                    leadEmail: values.LeadEmail,
+                    participants: values.Participants,
+                    imageId: nextImageId,
+                    items: items.map((item) => ({
+                        inventoryTypeId: item.InventoryTypeId,
+                        quantity: item.Quantity,
+                        condition: item.Condition,
+                    })),
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
+            await refreshDashboard();
         } catch (e) {
             error(e);
         } finally {
@@ -3536,15 +3238,19 @@ function InventoryDetail({
     const perform = async (action: InventoryRequestAction) => {
         try {
             showSavingBadge(true);
-            await runOptimisticRequestAction('inventory', request.Id, action, () =>
-                api.performInventoryRequestAction(
-                    request.Id,
-                    action,
-                    '',
-                    null,
-                    generateRequestId(),
-                ),
-            );
+            await customMutate({
+                url: 'performInventoryRequestAction',
+                method: 'post',
+                values: {},
+                meta: {
+                    operation: 'performInventoryRequestAction',
+                    args: [request.Id, action, '', null, generateRequestId()],
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
+            await invalidateThisRequest();
+            await refreshDashboard();
         } catch (e) {
             error(e);
         } finally {
@@ -3757,15 +3463,12 @@ function InventoryDetail({
                     )
                 }>
                 <div className="inventory-request-image-frame">
-                    {imageUrlForDriveId(imageId) ? (
-                        <img
-                            src={imageUrlForDriveId(imageId)}
-                            alt="Inventory request"
-                            className="inventory-request-image"
-                        />
-                    ) : (
-                        <Typography.Text type="secondary">No image added.</Typography.Text>
-                    )}
+                    <RequestImage
+                        imageId={imageId}
+                        alt="Inventory request"
+                        className="inventory-request-image"
+                        fallback={<Typography.Text type="secondary">No image added.</Typography.Text>}
+                    />
                 </div>
             </DetailSection>
             <DetailSection className="activity-detail-section">
@@ -3898,14 +3601,11 @@ function InventoryDetail({
                             </Select>
                             {selectedInventoryType && (
                                 <div className="inventory-type-detail-image mt-3">
-                                    {imageUrlForDriveId(selectedInventoryType.ImageId) ? (
-                                        <img
-                                            src={imageUrlForDriveId(selectedInventoryType.ImageId)}
-                                            alt={selectedInventoryType.Name}
-                                        />
-                                    ) : (
-                                        <span>No photo</span>
-                                    )}
+                                    <RequestImage
+                                        imageId={selectedInventoryType.ImageId}
+                                        alt={selectedInventoryType.Name}
+                                        fallback={<span>No photo</span>}
+                                    />
                                 </div>
                             )}
                         </AntForm.Item>
@@ -3977,7 +3677,12 @@ function InventoryDetail({
                     onConfirm={async () => {
                         try {
                             showSavingBadge(true);
-                            await api.deleteInventoryRequest(request.Id, generateRequestId());
+                            await deleteInventoryRequest({
+                                resource: 'inventory-requests',
+                                id: request.Id,
+                                successNotification: false,
+                                errorNotification: false,
+                            });
                             setPendingDelete(false);
                             await refreshDashboard();
                             navigateToInventoryRequests();
@@ -3993,240 +3698,31 @@ function InventoryDetail({
     );
 }
 
-function TicketDetail({ ticket, dashboard }: { ticket: TicketDTO; dashboard: DashboardPayload }) {
-    const [editing, setEditing] = useState(false);
-    const [pendingAction, setPendingAction] = useState<TicketAction | null>(null);
-    const [values, setValues] = useState({
-        Title: ticket.Title,
-        Description: ticket.Description,
-        AssigneeId: ticket.AssigneeId,
-    });
-    const eligibleAssignees = dashboard.users.filter(canUseTickets);
-    const save = useSave(
-        () =>
-            runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        tickets: previous.tickets.map((item) =>
-                            item.Id === ticket.Id
-                                ? Object.assign({}, item, {
-                                      Title: values.Title,
-                                      Description: values.Description,
-                                      AssigneeId: values.AssigneeId,
-                                      assigneeName:
-                                          eligibleAssignees.find(
-                                              (user) => user.Email === values.AssigneeId,
-                                          )?.Name || '',
-                                      Status:
-                                          values.AssigneeId !== ticket.AssigneeId
-                                              ? 'pending'
-                                              : ticket.Status,
-                                  })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateTicket(
-                        ticket.Id,
-                        {
-                            title: values.Title,
-                            description: values.Description,
-                            assigneeId: values.AssigneeId,
-                        },
-                        generateRequestId(),
-                    ),
-            ).catch((e) => {
-                setValues({
-                    Title: ticket.Title,
-                    Description: ticket.Description,
-                    AssigneeId: ticket.AssigneeId,
-                });
-                throw e;
-            }),
-        () => setEditing(false),
-        true,
-    );
-    const actions = (['close', 'reopen'] as TicketAction[]).filter((action) =>
-        canTransitionTicket(ticket.Status, action),
-    );
-    const needsAssignment = !ticket.AssigneeId;
-    const perform = async (action: TicketAction) => {
-        try {
-            showSavingBadge(true);
-            await runOptimisticRequestAction('ticket', ticket.Id, action, () =>
-                api.performTicketAction(ticket.Id, action, null, generateRequestId()),
-            );
-        } catch (e) {
-            error(e);
-        } finally {
-            showSavingBadge(false);
-        }
-    };
-    return (
-        <DetailLayout
-            title={`TKT-${ticket.DisplayId} · ${ticket.Title || 'Untitled ticket'}`}
-            action={
-                <Space wrap>
-                    {needsAssignment && (
-                        <Button type="primary" onClick={() => setEditing(true)}>
-                            Assign
-                        </Button>
-                    )}
-                    {actions.length > 0 && (
-                        <WorkflowActions
-                            actions={actions}
-                            onAction={(action) => setPendingAction(action as TicketAction)}
-                        />
-                    )}
-                </Space>
-            }>
-            <DetailSection
-                title="Details"
-                action={
-                    <Button
-                        type="primary"
-                        icon={<EditOutlined />}
-                        onClick={() => setEditing(true)}
-                        aria-label="Edit ticket"
-                        title="Edit ticket"
-                    />
-                }>
-                <DetailFields
-                    fields={[
-                        [
-                            'Status',
-                            <Tag color="blue" key="status">
-                                {ticket.Status}
-                            </Tag>,
-                        ],
-                        ['Title', ticket.Title],
-                        ['Assigned to', ticket.assigneeName || 'Unassigned'],
-                    ]}
-                />
-                <div className="mt-4 sm:col-span-2">
-                    <dt className="text-xs font-semibold text-black/50">Description</dt>
-                    <dd className="mt-1 whitespace-pre-wrap text-sm">
-                        {ticket.Description || 'No description.'}
-                    </dd>
-                </div>
-            </DetailSection>
-            <DetailSection className="activity-detail-section">
-                <Activity requestId={ticket.Id} initialComments={ticket.comments} />
-            </DetailSection>
-            {editing && (
-                <Modal title="Edit ticket" close={() => setEditing(false)}>
-                    <form className="grid gap-3" noValidate onSubmit={save.run}>
-                        <TextField
-                            name="title"
-                            label="Title"
-                            value={values.Title}
-                            required
-                            onChange={(e) => setValues({ ...values, Title: e.target.value })}
-                        />
-                        <AntForm.Item label="Description">
-                            <Input.TextArea
-                                value={values.Description}
-                                onChange={(e) =>
-                                    setValues({ ...values, Description: e.target.value })
-                                }
-                                rows={5}
-                            />
-                        </AntForm.Item>
-                        <AntForm.Item label="Assigned volunteer">
-                            <Select
-                                value={values.AssigneeId || undefined}
-                                placeholder="Select a volunteer"
-                                onChange={(assigneeId) =>
-                                    setValues({ ...values, AssigneeId: assigneeId })
-                                }
-                                style={{ width: '100%' }}>
-                                {eligibleAssignees.map((user) => (
-                                    <Select.Option key={user.Email} value={user.Email}>
-                                        {user.Name}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </AntForm.Item>
-                        <div>
-                            <SaveFooter
-                                label="Save"
-                                busy={save.busy}
-                                errorMessage={save.errorMessage}
-                            />
-                        </div>
-                    </form>
-                </Modal>
-            )}
-            {pendingAction && (
-                <ActionConfirmation
-                    action={pendingAction}
-                    onCancel={() => setPendingAction(null)}
-                    onConfirm={async () => {
-                        setPendingAction(null);
-                        void perform(pendingAction);
-                    }}
-                />
-            )}
-        </DetailLayout>
-    );
-}
-
-function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 'tickets' }) {
+function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
     const params = new URLSearchParams(window.location.search);
-    const id = params.get(
-        kind === 'inventory'
-            ? 'inventoryRequest'
-            : kind === 'programs'
-              ? 'programRequest'
-              : 'ticket',
-    );
-    const rows: any[] =
-        kind === 'inventory'
-            ? dashboard.inventoryRequests
-            : kind === 'programs'
-              ? dashboard.programRequests
-              : dashboard.tickets;
-    const dashboardRow = rows.find((r) => r.Id === id);
-    const hasDashboardRow = Boolean(dashboardRow);
-    const [loadedInventoryRequest, setLoadedInventoryRequest] =
-        useState<InventoryRequestDTO | null>(null);
-    const [loadingInventoryRequest, setLoadingInventoryRequest] = useState(false);
-    useEffect(() => {
-        if (kind !== 'inventory' || !id || hasDashboardRow) {
-            setLoadedInventoryRequest(null);
-            setLoadingInventoryRequest(false);
-            return;
-        }
-        let cancelled = false;
-        setLoadedInventoryRequest(null);
-        setLoadingInventoryRequest(true);
-        api.getInventoryRequest(id)
-            .then((request) => {
-                if (!cancelled) setLoadedInventoryRequest(request);
-            })
-            .catch(() => undefined)
-            .finally(() => {
-                if (!cancelled) setLoadingInventoryRequest(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [hasDashboardRow, id, kind]);
-    const row = dashboardRow || (kind === 'inventory' ? loadedInventoryRequest : null);
-    const [pendingAction, setPendingAction] = useState<string | null>(null);
-    const back =
-        kind === 'inventory'
-            ? navigateToInventoryRequests
-            : kind === 'programs'
-              ? navigateToPrograms
-              : navigateToTickets;
-    if (!row && loadingInventoryRequest)
+    const id = params.get(kind === 'inventory' ? 'inventoryRequest' : 'programRequest');
+    const resource = kind === 'inventory' ? 'inventory-requests' : 'program-requests';
+    // Fetches this one record through the resource's own getOne operation
+    // rather than finding it in dashboard.inventoryRequests/programRequests —
+    // that array is truncated to the most recently active requests, so an
+    // older one wouldn't be found there even though it still exists.
+    const { result: row, query } = useOne<InventoryRequestDTO | ProgramRequestDTO>({
+        resource,
+        id: id || '',
+        queryOptions: { enabled: Boolean(id) },
+        // A missing/deleted record is a normal "not found" navigation state
+        // here, not something to alert the user about with a toast.
+        errorNotification: false,
+    });
+    const back = kind === 'inventory' ? navigateToInventoryRequests : navigateToPrograms;
+    if (id && query.isLoading) {
         return (
             <Page title="Loading request…">
                 <Typography.Text>Loading request…</Typography.Text>
             </Page>
         );
-    if (!row)
+    }
+    if (!row) {
         return params.get('mode') === 'create' ? (
             <CreateRecord kind={kind} dashboard={dashboard} onClose={back} />
         ) : (
@@ -4236,77 +3732,10 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' | 
                 </Card>
             </Page>
         );
+    }
     if (kind === 'inventory')
-        return <InventoryDetail request={row as InventoryRequestDTO} dashboard={dashboard} />;
-    if (kind === 'tickets') return <TicketDetail ticket={row as TicketDTO} dashboard={dashboard} />;
-    const title = row.Name;
-    const actions = ['submit', 'approve', 'reject', 'cancel'];
-    const applyAction = async (action: string) => {
-        try {
-            showSavingBadge(true);
-            await runOptimisticRequestAction('program', row.Id, action, () =>
-                api.performProgramRequestAction(
-                    row.Id,
-                    action as ProgramRequestAction,
-                    '',
-                    generateRequestId(),
-                ),
-            );
-        } catch (e) {
-            error(e);
-        } finally {
-            showSavingBadge(false);
-        }
-    };
-    return (
-        <DetailLayout
-            title={title}
-            action={
-                <Button type="link" onClick={back}>
-                    Back
-                </Button>
-            }>
-            <DetailSection title="Details">
-                <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                        <dt className="text-xs text-black/50">Status</dt>
-                        <dd>
-                            <Tag>{row.Status}</Tag>
-                        </dd>
-                    </div>
-                    <div>
-                        <dt className="text-xs text-black/50">Requested by</dt>
-                        <dd>{row.userName || row.assigneeName || '—'}</dd>
-                    </div>
-                    <div className="sm:col-span-2">
-                        <dt className="text-xs text-black/50">Description</dt>
-                        <dd className="whitespace-pre-wrap">
-                            {row.Description || 'No description.'}
-                        </dd>
-                    </div>
-                </dl>
-            </DetailSection>
-            <DetailSection title="Actions">
-                <div className="flex flex-wrap gap-2">
-                    {actions.map((action) => (
-                        <Button size="small" key={action} onClick={() => setPendingAction(action)}>
-                            {action}
-                        </Button>
-                    ))}
-                </div>
-            </DetailSection>
-            {pendingAction && (
-                <ActionConfirmation
-                    action={pendingAction}
-                    onCancel={() => setPendingAction(null)}
-                    onConfirm={async () => {
-                        setPendingAction(null);
-                        void applyAction(pendingAction);
-                    }}
-                />
-            )}
-        </DetailLayout>
-    );
+        return <InventoryDetail key={row.Id} request={row as InventoryRequestDTO} dashboard={dashboard} />;
+    return <ProgramDetail key={row.Id} request={row as ProgramRequestDTO} dashboard={dashboard} />;
 }
 
 export function renderRefineApp(
@@ -4315,46 +3744,22 @@ export function renderRefineApp(
     dashboard: DashboardPayload,
 ): void {
     const params = new URLSearchParams(window.location.search);
-    if (section === 'programs' && params.get('programRequest')) {
-        const request = dashboard.programRequests.find(
-            (item) => item.Id === params.get('programRequest'),
-        );
-        if (request) {
-            mountRefinePage(
-                container,
-                <ProgramDetail key={request.Id} request={request} dashboard={dashboard} />,
-                'programs',
-            );
-            return;
-        }
-    }
     let page: ReactNode;
     if (section === 'home') page = <Home dashboard={dashboard} />;
     else if (section === 'profile') page = <Profile dashboard={dashboard} />;
     else if (section === 'users') page = <Users dashboard={dashboard} />;
     else if (section === 'roster') page = <Roster dashboard={dashboard} />;
     else if (section === 'calendar') page = <Calendar dashboard={dashboard} />;
-    else if (['inventory', 'programs', 'tickets'].includes(section)) {
+    else if (['inventory', 'programs'].includes(section)) {
         const detail =
-            Boolean(
-                params.get(
-                    section === 'inventory'
-                        ? 'inventoryRequest'
-                        : section === 'programs'
-                          ? 'programRequest'
-                          : 'ticket',
-                ),
-            ) || params.get('mode') === 'create';
+            Boolean(params.get(section === 'inventory' ? 'inventoryRequest' : 'programRequest')) ||
+            params.get('mode') === 'create';
         page = detail ? (
-            <Detail
-                key={section}
-                kind={section as 'inventory' | 'programs' | 'tickets'}
-                dashboard={dashboard}
-            />
+            <Detail key={section} kind={section as 'inventory' | 'programs'} dashboard={dashboard} />
         ) : (
             <RequestTable
                 key={section}
-                kind={section as 'inventory' | 'programs' | 'tickets'}
+                kind={section as 'inventory' | 'programs'}
                 dashboard={dashboard}
             />
         );

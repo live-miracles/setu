@@ -1,8 +1,7 @@
 // Client-side transition guards, mirroring the source app's
 // src/domain/workflows.ts and kept in sync with the server-side state
-// machines in Inventory.ts/Programs.ts/Tickets.ts. These only decide which
-// action buttons the UI offers — the backend remains the authoritative
-// check.
+// machines in Inventory.ts/Programs.ts. These only decide which action
+// buttons the UI offers — the backend remains the authoritative check.
 
 const INVENTORY_REQUEST_TRANSITIONS: Record<InventoryRequestStatus, InventoryRequestAction[]> = {
     draft: ['submit', 'cancel'],
@@ -39,18 +38,6 @@ export function canTransitionProgramRequest(
     return (PROGRAM_REQUEST_TRANSITIONS[status] || []).indexOf(action) !== -1;
 }
 
-// 'assign' has no status precondition server-side (an admin can reassign a
-// ticket from any state), so it's offered from every status.
-const TICKET_TRANSITIONS: Record<TicketStatus, TicketAction[]> = {
-    unassigned: ['assign', 'close'],
-    pending: ['assign', 'close'],
-    closed: ['assign', 'reopen'],
-};
-
-export function canTransitionTicket(status: TicketStatus, action: TicketAction): boolean {
-    return (TICKET_TRANSITIONS[status] || []).indexOf(action) !== -1;
-}
-
 export function isRequestOverdue(request: InventoryRequestDTO): boolean {
     if (request.Status !== 'issued' || !request.EndDate) return false;
     return new Date(request.EndDate).getTime() < Date.now();
@@ -66,11 +53,5 @@ export function canManageConfig(me: UserDTO): boolean {
 }
 
 export function canApprove(me: UserDTO): boolean {
-    return me.Role === 'admin' || me.Role === 'approver';
-}
-
-// The ticket board is restricted to admins and approvers, so the nav entry,
-// Home stat, and assignee picker all gate on this.
-export function canUseTickets(me: UserDTO): boolean {
     return me.Role === 'admin' || me.Role === 'approver';
 }

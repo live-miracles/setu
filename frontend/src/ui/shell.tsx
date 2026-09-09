@@ -4,7 +4,6 @@ import {
     CalendarOutlined,
     InboxOutlined,
     ReloadOutlined,
-    ToolOutlined,
     UserOutlined,
 } from '@ant-design/icons';
 import { createRoot } from 'react-dom/client';
@@ -110,11 +109,6 @@ function Shell() {
                                 icon: <InboxOutlined />,
                                 label: <span data-nav-section="inventory">Inventory</span>,
                             },
-                            {
-                                key: 'tickets',
-                                icon: <ToolOutlined />,
-                                label: <span data-nav-section="tickets">Tickets</span>,
-                            },
                         ]}
                         onClick={({ key }) => navigate(key)}
                     />
@@ -162,7 +156,6 @@ function Shell() {
                         { key: 'programs', label: 'Programs', icon: <AppstoreOutlined /> },
                         { key: 'calendar', label: 'Calendar', icon: <CalendarOutlined /> },
                         { key: 'inventory', label: 'Inventory', icon: <InboxOutlined /> },
-                        { key: 'tickets', label: 'Tickets', icon: <ToolOutlined /> },
                     ].map((item) => (
                         <button
                             key={item.key}

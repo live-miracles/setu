@@ -491,7 +491,6 @@ interface Api {
     getDashboard(): DashboardPayload;
 
     listUsers(): UserDTO[];
-    createUser(input: CreateUserInput, requestId: string): UserDTO;
     updateUser(userId: string, patch: UpdateUserInput): UserDTO;
     deleteUser(userId: string, requestId: string): void;
     updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO;
@@ -600,16 +599,6 @@ interface Api {
         dedupeRequestId: string,
     ): ProgramRequestStatus;
 
-    listTickets(page: number, query?: TicketQuery): Paginated<TicketDTO>;
-    getTicket(id: string): TicketDTO;
-    createTicket(input: CreateTicketInput, requestId: string): TicketDTO;
-    updateTicket(id: string, input: UpdateTicketInput, requestId: string): TicketDTO;
-    performTicketAction(
-        ticketId: string,
-        action: TicketAction,
-        assigneeId: string | null,
-        dedupeRequestId: string,
-    ): TicketStatus;
     addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO;
 
     uploadImage(
@@ -618,4 +607,10 @@ interface Api {
         mimeType: string,
         previousImageId?: string,
     ): string;
+
+    // The bucket backing uploadImage is private, so a stored image id/path
+    // needs a fresh signed URL to actually render — this has no equivalent
+    // in the source app, whose Drive-hosted images were fetchable directly
+    // by id.
+    getImageUrl(imageId: string): string;
 }

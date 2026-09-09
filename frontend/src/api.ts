@@ -53,7 +53,6 @@ export const api: AsyncApi = {
     getDashboard: (...args) => callBackend('getDashboard', ...args),
 
     listUsers: (...args) => callBackend('listUsers', ...args),
-    createUser: (...args) => callBackend('createUser', ...args),
     updateUser: (...args) => callBackend('updateUser', ...args),
     deleteUser: (...args) => callBackend('deleteUser', ...args),
     updateOwnProfile: (...args) => callBackend('updateOwnProfile', ...args),
@@ -124,12 +123,8 @@ export const api: AsyncApi = {
     deleteProgramRequest: (...args) => callBackend('deleteProgramRequest', ...args),
     performProgramRequestAction: (...args) => callBackend('performProgramRequestAction', ...args),
 
-    listTickets: (...args) => callBackend('listTickets', ...args),
-    getTicket: (...args) => callBackend('getTicket', ...args),
-    createTicket: (...args) => callBackend('createTicket', ...args),
-    updateTicket: (...args) => callBackend('updateTicket', ...args),
-    performTicketAction: (...args) => callBackend('performTicketAction', ...args),
     addComment: (...args) => callBackend('addComment', ...args),
 
     uploadImage: (...args) => callBackend('uploadImage', ...args),
+    getImageUrl: (...args) => callBackend('getImageUrl', ...args),
 };

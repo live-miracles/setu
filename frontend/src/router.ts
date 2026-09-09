@@ -6,7 +6,6 @@ import {
     INVENTORY_REQUEST_QUERY_PARAM,
     PLACE_QUERY_PARAM,
     PROGRAM_REQUEST_QUERY_PARAM,
-    TICKET_QUERY_PARAM,
     USER_QUERY_PARAM,
     WORKBENCH_DIRECTION_QUERY_PARAM,
     WORKBENCH_MODE_QUERY_PARAM,
@@ -16,8 +15,7 @@ import {
     WORKBENCH_VIEW_QUERY_PARAM,
 } from './config';
 import { getState, setState } from './state';
-import { canApprove, canUseTickets } from './workflows';
-import { clearListCache } from './ui/list-cache';
+import { canApprove } from './workflows';
 
 // The routing core: it owns navigation, role gating and the nav chrome, but
 // deliberately imports no section. The table of renderers is handed to it by
@@ -32,7 +30,6 @@ type SectionKey =
     | 'inventory'
     | 'programs'
     | 'calendar'
-    | 'tickets'
     | 'profile'
     | 'users'
     | 'departments'
@@ -133,94 +130,9 @@ function requireConfig(): RouterConfig {
 const CONFIG_SECTIONS: SectionKey[] = ['departments', 'places', 'inventory-types', 'home-content'];
 
 export async function refreshDashboard(): Promise<void> {
-    clearListCache();
     const dashboard = await api.getDashboard();
     setState({ dashboard });
     await renderCurrentSection();
-}
-
-type OptimisticRequestKind = 'inventory' | 'program' | 'ticket';
-
-const OPTIMISTIC_STATUS: Record<string, string> = {
-    submit: 'submitted',
-    approve: 'approved',
-    reject: 'rejected',
-    issue: 'issued',
-    return: 'returned',
-    close: 'closed',
-    cancel: 'cancelled',
-    reopen: 'pending',
-};
-
-/** Apply a reversible dashboard mutation before Apps Script responds.
- *
- * The server remains authoritative: a successful mutation triggers a quiet
- * refresh, while a failed one restores the previous dashboard and rethrows.
- */
-export async function runOptimisticDashboardUpdate(
-    update: (dashboard: DashboardPayload) => DashboardPayload,
-    operation: () => Promise<unknown>,
-): Promise<void> {
-    const previous = getState().dashboard;
-    if (!previous) return operation().then(() => undefined);
-    setState({ dashboard: update(previous) });
-    await renderCurrentSection();
-
-    try {
-        await operation();
-    } catch (error) {
-        setState({ dashboard: previous });
-        await renderCurrentSection();
-        void refreshDashboard().catch(() => undefined);
-        throw error;
-    }
-
-    void refreshDashboard().catch(() => undefined);
-}
-
-/**
- * Apply a small, reversible dashboard mutation before Apps Script responds.
- * The server remains authoritative: a successful mutation triggers a quiet
- * refresh, while a failed one restores the previous dashboard and rethrows so
- * the caller can show its existing error notification.
- */
-export async function runOptimisticRequestAction(
-    kind: OptimisticRequestKind,
-    id: string,
-    action: string,
-    operation: () => Promise<unknown>,
-): Promise<void> {
-    const status = OPTIMISTIC_STATUS[action];
-    await runOptimisticDashboardUpdate(
-        (previous) =>
-            Object.assign({}, previous, {
-                inventoryRequests:
-                    kind === 'inventory'
-                        ? previous.inventoryRequests.map((request) =>
-                              request.Id === id && status
-                                  ? Object.assign({}, request, { Status: status })
-                                  : request,
-                          )
-                        : previous.inventoryRequests,
-                programRequests:
-                    kind === 'program'
-                        ? previous.programRequests.map((request) =>
-                              request.Id === id && status
-                                  ? Object.assign({}, request, { Status: status })
-                                  : request,
-                          )
-                        : previous.programRequests,
-                tickets:
-                    kind === 'ticket'
-                        ? previous.tickets.map((ticket) =>
-                              ticket.Id === id && status
-                                  ? Object.assign({}, ticket, { Status: status })
-                                  : ticket,
-                          )
-                        : previous.tickets,
-            }),
-        operation,
-    );
 }
 
 export async function renderCurrentSection(): Promise<void> {
@@ -247,19 +159,17 @@ export async function renderCurrentSection(): Promise<void> {
 
     const sectionKey = resolveSection(section, dashboard);
     const params = new URLSearchParams(window.location.search);
-    const isWorkbenchSection = ['inventory', 'programs', 'tickets'].indexOf(sectionKey) !== -1;
+    const isWorkbenchSection = ['inventory', 'programs'].indexOf(sectionKey) !== -1;
     const isWorkbenchDetail =
         isWorkbenchSection &&
         (params.get(WORKBENCH_MODE_QUERY_PARAM) === 'create' ||
             Boolean(params.get(INVENTORY_REQUEST_QUERY_PARAM)) ||
-            Boolean(params.get(PROGRAM_REQUEST_QUERY_PARAM)) ||
-            Boolean(params.get(TICKET_QUERY_PARAM)));
+            Boolean(params.get(PROGRAM_REQUEST_QUERY_PARAM)));
     const isWorkbenchBrowse =
         isWorkbenchSection &&
         !params.get(WORKBENCH_MODE_QUERY_PARAM) &&
         !params.get(INVENTORY_REQUEST_QUERY_PARAM) &&
-        !params.get(PROGRAM_REQUEST_QUERY_PARAM) &&
-        !params.get(TICKET_QUERY_PARAM);
+        !params.get(PROGRAM_REQUEST_QUERY_PARAM);
     const isHome = sectionKey === 'home';
     const isSettingsSection = [
         'users',
@@ -307,16 +217,14 @@ function renderNavIdentity(dashboard: DashboardPayload): void {
 // Which sections the signed-in role may open at all. Home, Inventory,
 // Programs and Profile are open to everyone; the rest are role-gated, and
 // the backend enforces the same thing (requireApprover in Admin.ts and
-// Roster.ts, requireAdmin for the config writes, requireTicketAccess in
-// Tickets.ts).
+// Roster.ts, requireAdmin for the config writes).
 function canOpenSection(section: SectionKey, me: UserDTO): boolean {
     if (CONFIG_SECTIONS.indexOf(section) !== -1) return canApprove(me);
     if (section === 'users' || section === 'roster' || section === 'blocks') return canApprove(me);
-    if (section === 'tickets') return canUseTickets(me);
     return true;
 }
 
-// A saved `?section=tickets` link (or the browser's back button) can name a
+// A saved `?section=roster` link (or the browser's back button) can name a
 // section the signed-in role can't open — whose renderer would then make an
 // API call it isn't allowed to make — so it resolves to Home instead of
 // failing mid-render. Unknown keys (including the retired `admin`) land on
@@ -345,7 +253,6 @@ function toggleRoleNavVisibility(dashboard: DashboardPayload): void {
 const WORKBENCH_QUERY_PARAMS = [
     INVENTORY_REQUEST_QUERY_PARAM,
     PROGRAM_REQUEST_QUERY_PARAM,
-    TICKET_QUERY_PARAM,
     WORKBENCH_MODE_QUERY_PARAM,
     WORKBENCH_VIEW_QUERY_PARAM,
     WORKBENCH_SEARCH_QUERY_PARAM,
@@ -399,7 +306,6 @@ function navigateTo(section: SectionKey, options: NavigationOptions = {}): void 
     } else {
         url.searchParams.delete(INVENTORY_REQUEST_QUERY_PARAM);
         url.searchParams.delete(PROGRAM_REQUEST_QUERY_PARAM);
-        url.searchParams.delete(TICKET_QUERY_PARAM);
         url.searchParams.delete(WORKBENCH_MODE_QUERY_PARAM);
     }
     if (options.selectedParam && options.selectedId) {
@@ -464,24 +370,8 @@ export function navigateToProgramCreate(): void {
     navigateTo('programs', { mode: 'create', preserveWorkbench: true });
 }
 
-export function navigateToTicket(ticketId: string): void {
-    navigateTo('tickets', {
-        selectedParam: TICKET_QUERY_PARAM,
-        selectedId: ticketId,
-        preserveWorkbench: true,
-    });
-}
-
-export function ticketUrl(ticketId: string): string {
-    return detailUrl('tickets', TICKET_QUERY_PARAM, ticketId);
-}
-
-export function navigateToTickets(): void {
-    navigateBackToWorkbench('tickets');
-}
-
 /** Open a request list from a peer page (such as Home), preserving browser Back history. */
-export function navigateToRequestList(section: 'inventory' | 'programs' | 'tickets'): void {
+export function navigateToRequestList(section: 'inventory' | 'programs'): void {
     navigateTo(section);
 }
 
@@ -517,10 +407,6 @@ export function navigateToInventoryType(inventoryTypeId: string): void {
 
 export function navigateBackToSection(section: SectionKey): void {
     navigateTo(section, { replace: true });
-}
-
-export function navigateToTicketCreate(): void {
-    navigateTo('tickets', { mode: 'create', preserveWorkbench: true });
 }
 
 function navigateBackToWorkbench(section: SectionKey): void {

@@ -11,7 +11,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 
 export const USER_ROLE_SUMMARIES: Record<UserRole, string> = {
     admin: 'Full access, including settings and roles',
-    approver: 'Approves requests, assigns tickets, schedules shifts',
+    approver: 'Approves requests, schedules shifts',
     viewer: 'Sees every request but approves none',
     user: 'Sees only their own requests',
 };

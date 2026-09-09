@@ -36,6 +36,7 @@
         "@refinedev/core": "^5.0.12",
         "@refinedev/react-hook-form": "^5.0.4",
         "@supabase/supabase-js": "^2.115.0",
+        "@tanstack/react-query": "^5.81.5",
         "antd": "^5.29.3",
         "qr-scanner": "^1.4.2",
         "qrcode": "^1.5.4",

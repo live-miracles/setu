@@ -1,4 +1,4 @@
-import { fitImageWithinBounds, imageUrlForDriveId } from './inventory-image';
+import { fitImageWithinBounds } from './inventory-image';
 
 function assert(condition: boolean, message: string): void {
     if (!condition) throw new Error(message);
@@ -19,11 +19,4 @@ export function runInventoryImageAssertions(): void {
 
     const small = fitImageWithinBounds(320, 200);
     assert(small.width === 320 && small.height === 200, 'small images are not enlarged');
-
-    assert(imageUrlForDriveId('') === '', 'empty image IDs should not produce a preview URL');
-    assert(
-        imageUrlForDriveId('drive/id') ===
-            'https://drive.google.com/thumbnail?id=drive%2Fid&sz=w1000',
-        'Drive IDs should be URL encoded in preview URLs',
-    );
 }

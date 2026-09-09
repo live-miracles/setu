@@ -19,17 +19,6 @@ export function fitImageWithinBounds(
     };
 }
 
-export function imageUrlForDriveId(imageId: string): string {
-    const value = imageId.trim();
-    // `uc?export=view` may return a Drive HTML/permission page when it is
-    // embedded in the Apps Script iframe. Drive's thumbnail endpoint is
-    // intended for image previews and works for files shared with link-view
-    // access, including files uploaded before this URL was introduced.
-    return value
-        ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(value)}&sz=w1000`
-        : '';
-}
-
 function encodeJpeg(canvas: HTMLCanvasElement): {
     base64Data: string;
     mimeType: typeof JPEG_MIME_TYPE;

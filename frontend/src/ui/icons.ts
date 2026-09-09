@@ -7,7 +7,6 @@ export type IconName =
     | 'calendar'
     | 'box'
     | 'clapper'
-    | 'ticket'
     | 'user'
     | 'shield'
     | 'plus'
@@ -33,7 +32,6 @@ const ICON_PATHS: Record<IconName, string> = {
     box: '<path d="M3.5 8 12 4l8.5 4L12 12 3.5 8Z" /><path d="M3.5 8v8L12 20l8.5-4V8" /><path d="M12 12v8" />',
     clapper:
         '<path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9Z" /><path d="M4 9 5 5h3l-1 4Z" /><path d="M9.5 9 10.5 5h3l-1 4Z" /><path d="M15 9l1-4h3l-1 4Z" />',
-    ticket: '<rect x="3" y="6" width="18" height="12" rx="2" /><line x1="9" y1="6" x2="9" y2="18" stroke-dasharray="2.2 2.2" />',
     user: '<circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3.2-6 7-6s7 2.5 7 6" />',
     shield: '<path d="M12 3.5 5 6v5.5c0 5 3 8 7 9 4-1 7-4 7-9V6l-7-2.5Z" /><path d="M9 12l2 2 4-4" />',
     plus: '<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />',

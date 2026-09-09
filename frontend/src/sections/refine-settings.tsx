@@ -1,11 +1,11 @@
 import {
     useEffect,
-    useRef,
     useState,
     type ChangeEvent,
     type FormEvent,
     type ReactNode,
 } from 'react';
+import { useCreate, useDelete, useList, useUpdate } from '@refinedev/core';
 import {
     Button,
     Card,
@@ -30,14 +30,12 @@ import {
     UploadOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
-import { generateRequestId } from '../ids';
 import {
     navigateBackToSection,
     navigateToDepartment,
     navigateToInventoryRequest,
     navigateToInventoryType,
     navigateToProgram,
-    runOptimisticDashboardUpdate,
     refreshDashboard,
     inventoryRequestUrl,
     programRequestUrl,
@@ -51,7 +49,8 @@ import { matchesSearch } from '../ui/search';
 import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
-import { imageUrlForDriveId, prepareInventoryImage } from '../ui/inventory-image';
+import { prepareInventoryImage } from '../ui/inventory-image';
+import { RequestImage } from '../ui/request-image';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { UserBlock } from '../ui/user-block';
 import { BlockCard } from '../ui/block-card';
@@ -63,7 +62,12 @@ type Field = {
     label: string;
     type?: string;
     hiddenInTable?: boolean;
-    options?: (dashboard: DashboardPayload) => Array<{ value: string; label: string }>;
+    // Names another RESOURCES entry (and refine-data-provider.ts resource)
+    // whose rows populate this select — resolved via its own useList rather
+    // than the shared dashboard blob. optionsLabel adds a blank/"All ..."
+    // entry ahead of the fetched rows when set.
+    optionsResource?: string;
+    optionsLabel?: string;
     // Only used when adding a new row (never overrides an existing row's value).
     defaultValue?: () => string;
 };
@@ -88,22 +92,26 @@ interface ResourceConfig {
     addLabel: string;
     emptyMessage: string;
     fields: Field[];
-    rows: (dashboard: DashboardPayload) => Row[];
     // Most resources are keyed by a generated Id. Program languages have no
     // Id column — the name itself is the identifier — so this lets the
     // shared table below key/match/save rows without every resource needing
     // one.
     rowKey?: (row: Row) => string;
-    create: (values: Record<string, string>) => Promise<unknown>;
-    update: (id: string, values: Record<string, string>) => Promise<unknown>;
-    remove: (id: string) => Promise<unknown>;
+    // Postgres's `order by name` isn't locale/numeric-aware (e.g. "Room 10"
+    // would sort before "Room 2") — resources that need that go through this
+    // instead of relying on the backend's ordering.
+    sortRows?: (rows: Row[]) => Row[];
+    toInput: (values: Record<string, string>) => Record<string, unknown>;
 }
 
-const requestId = () => generateRequestId();
 const rowKeyOf = (config: ResourceConfig, row: Row): string =>
     config.rowKey ? config.rowKey(row) : String(row.Id);
 const value = (data: FormData, field: Field) => String(data.get(field.field) || '');
 const iso = (raw: string) => (raw ? new Date(raw).toISOString() : '');
+// Every settings resource's create/update payload has the same shape (see
+// refine-data-provider.ts, which does the actual api.ts call + dedupe id) —
+// this only translates the form's uppercase field names (matching
+// fields[].field) into the lowercase CreateXInput/UpdateXInput shape.
 const RESOURCES: Record<string, ResourceConfig> = {
     departments: {
         kind: 'department',
@@ -115,19 +123,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'ShortName', label: 'Short name' },
             { field: 'LeadEmail', label: 'Lead email', type: 'email' },
         ],
-        rows: (d) => d.departments,
-        create: (v) =>
-            api.createDepartment(
-                { name: v.Name, shortName: v.ShortName, leadEmail: v.LeadEmail },
-                requestId(),
-            ),
-        update: (id, v) =>
-            api.updateDepartment(
-                id,
-                { name: v.Name, shortName: v.ShortName, leadEmail: v.LeadEmail },
-                requestId(),
-            ),
-        remove: (id) => api.deleteDepartment(id, requestId()),
+        toInput: (v) => ({ name: v.Name, shortName: v.ShortName, leadEmail: v.LeadEmail }),
     },
     places: {
         kind: 'place',
@@ -135,13 +131,14 @@ const RESOURCES: Record<string, ResourceConfig> = {
         addLabel: 'Add place',
         emptyMessage: 'No places yet.',
         fields: [{ field: 'Name', label: 'Name' }],
-        rows: (d) =>
-            [...d.places].sort((a, b) =>
-                a.Name.localeCompare(b.Name, undefined, { numeric: true, sensitivity: 'base' }),
+        sortRows: (rows) =>
+            [...rows].sort((a, b) =>
+                String(a.Name).localeCompare(String(b.Name), undefined, {
+                    numeric: true,
+                    sensitivity: 'base',
+                }),
             ),
-        create: (v) => api.createPlace({ name: v.Name }, requestId()),
-        update: (id, v) => api.updatePlace(id, { name: v.Name }, requestId()),
-        remove: (id) => api.deletePlace(id, requestId()),
+        toInput: (v) => ({ name: v.Name }),
     },
     'inventory-types': {
         kind: 'inventory-type',
@@ -158,29 +155,12 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 hiddenInTable: true,
             },
         ],
-        rows: (d) => d.inventoryTypes,
-        create: (v) =>
-            api.createInventoryType(
-                {
-                    name: v.Name,
-                    description: v.Description,
-                    requestable: true,
-                    totalQuantity: Number(v.TotalQuantity || 0),
-                },
-                requestId(),
-            ),
-        update: (id, v) =>
-            api.updateInventoryType(
-                id,
-                {
-                    name: v.Name,
-                    description: v.Description,
-                    requestable: true,
-                    totalQuantity: Number(v.TotalQuantity || 0),
-                },
-                requestId(),
-            ),
-        remove: (id) => api.deleteInventoryType(id, requestId()),
+        toInput: (v) => ({
+            name: v.Name,
+            description: v.Description,
+            requestable: true,
+            totalQuantity: Number(v.TotalQuantity || 0),
+        }),
     },
     blocks: {
         kind: 'block',
@@ -205,35 +185,16 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 field: 'Place',
                 label: 'Place (optional)',
                 type: 'select',
-                options: (d) =>
-                    [{ value: '', label: 'All places' }].concat(
-                        d.places.map((place) => ({ value: place.Id, label: place.Name })),
-                    ),
+                optionsResource: 'places',
+                optionsLabel: 'All places',
             },
         ],
-        rows: (d) => d.blocks,
-        create: (v) =>
-            api.createBlock(
-                {
-                    name: v.Name,
-                    startDateTime: iso(v.StartDateTime),
-                    endDateTime: iso(v.EndDateTime),
-                    place: v.Place,
-                },
-                requestId(),
-            ),
-        update: (id, v) =>
-            api.updateBlock(
-                id,
-                {
-                    name: v.Name,
-                    startDateTime: iso(v.StartDateTime),
-                    endDateTime: iso(v.EndDateTime),
-                    place: v.Place,
-                },
-                requestId(),
-            ),
-        remove: (id) => api.deleteBlock(id, requestId()),
+        toInput: (v) => ({
+            name: v.Name,
+            startDateTime: iso(v.StartDateTime),
+            endDateTime: iso(v.EndDateTime),
+            place: v.Place,
+        }),
     },
     'shift-types': {
         kind: 'shift-type',
@@ -246,30 +207,13 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'DefaultEndTime', label: 'End time', type: 'time' },
             { field: 'Color', label: 'Color', type: 'color' },
         ],
-        rows: (d) => d.shiftTypes,
         rowKey: (row) => String(row.Name),
-        create: (v) =>
-            api.createShiftType(
-                {
-                    name: v.Name,
-                    defaultStartTime: v.DefaultStartTime,
-                    defaultEndTime: v.DefaultEndTime,
-                    color: v.Color,
-                },
-                requestId(),
-            ),
-        update: (name, v) =>
-            api.updateShiftType(
-                name,
-                {
-                    name: v.Name,
-                    defaultStartTime: v.DefaultStartTime,
-                    defaultEndTime: v.DefaultEndTime,
-                    color: v.Color,
-                },
-                requestId(),
-            ),
-        remove: (name) => api.deleteShiftType(name, requestId()),
+        toInput: (v) => ({
+            name: v.Name,
+            defaultStartTime: v.DefaultStartTime,
+            defaultEndTime: v.DefaultEndTime,
+            color: v.Color,
+        }),
     },
     'program-types': {
         kind: 'program-type',
@@ -280,12 +224,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'Name', label: 'Name' },
             { field: 'Color', label: 'Color', type: 'color' },
         ],
-        rows: (d) => d.programTypes,
         rowKey: (row) => String(row.Name),
-        create: (v) => api.createProgramType({ name: v.Name, color: v.Color }, requestId()),
-        update: (name, v) =>
-            api.updateProgramType(name, { name: v.Name, color: v.Color }, requestId()),
-        remove: (name) => api.deleteProgramType(name, requestId()),
+        toInput: (v) => ({ name: v.Name, color: v.Color }),
     },
     'program-languages': {
         kind: 'program-language',
@@ -293,11 +233,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
         addLabel: 'Add language',
         emptyMessage: 'No languages configured yet.',
         fields: [{ field: 'Name', label: 'Name' }],
-        rows: (d) => d.programLanguages,
         rowKey: (row) => String(row.Name),
-        create: (v) => api.createProgramLanguage({ name: v.Name }, requestId()),
-        update: (name, v) => api.updateProgramLanguage(name, { name: v.Name }, requestId()),
-        remove: (name) => api.deleteProgramLanguage(name, requestId()),
+        toInput: (v) => ({ name: v.Name }),
     },
     'session-types': {
         kind: 'session-type',
@@ -305,11 +242,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
         addLabel: 'Add session type',
         emptyMessage: 'No session types configured yet.',
         fields: [{ field: 'Name', label: 'Name' }],
-        rows: (d) => d.sessionTypes,
         rowKey: (row) => String(row.Name),
-        create: (v) => api.createSessionType({ name: v.Name }, requestId()),
-        update: (name, v) => api.updateSessionType(name, { name: v.Name }, requestId()),
-        remove: (name) => api.deleteSessionType(name, requestId()),
+        toInput: (v) => ({ name: v.Name }),
     },
 };
 
@@ -356,16 +290,15 @@ function ColorField({ row, field }: { row?: Row; field: Field }) {
     );
 }
 
-function SelectField({
-    field,
-    row,
-    dashboard,
-}: {
-    field: Field;
-    row?: Row;
-    dashboard: DashboardPayload;
-}) {
-    const options = field.options?.(dashboard) || [];
+function SelectField({ field, row }: { field: Field; row?: Row }) {
+    const { result } = useList({ resource: field.optionsResource || '', pagination: { mode: 'off' } });
+    const options = [
+        ...(field.optionsLabel ? [{ value: '', label: field.optionsLabel }] : []),
+        ...(result.data as Row[]).map((option) => ({
+            value: String(option.Id ?? option.Name ?? ''),
+            label: String(option.Name ?? option.Id ?? ''),
+        })),
+    ];
     const [selected, setSelected] = useState(String(row?.[field.field] ?? ''));
     return (
         <>
@@ -383,13 +316,11 @@ function SelectField({
 function FieldSet({
     config,
     row,
-    dashboard,
     onSubmit,
     submitLabel,
 }: {
     config: ResourceConfig;
     row?: Row;
-    dashboard: DashboardPayload;
     onSubmit: (values: Record<string, string>) => Promise<void>;
     submitLabel: string;
 }) {
@@ -420,7 +351,7 @@ function FieldSet({
                     ) : field.type === 'color' ? (
                         <ColorField field={field} row={row} />
                     ) : field.type === 'select' ? (
-                        <SelectField field={field} row={row} dashboard={dashboard} />
+                        <SelectField field={field} row={row} />
                     ) : (
                         <Input
                             name={field.field}
@@ -445,28 +376,25 @@ function FieldSet({
 function Editor({
     config,
     row,
-    dashboard,
     onClose,
     onSaved,
 }: {
     config: ResourceConfig;
     row?: Row;
-    dashboard: DashboardPayload;
     onClose: () => void;
     onSaved: (values: Record<string, string>) => Promise<void>;
 }) {
-    const resourceName = config.addLabel.replace(/^Add /, '');
+    const resourceLabel = config.addLabel.replace(/^Add /, '');
     return (
         <Modal
             open
-            title={row ? `Edit ${resourceName}` : config.addLabel}
+            title={row ? `Edit ${resourceLabel}` : config.addLabel}
             onCancel={onClose}
             footer={null}
             destroyOnHidden>
             <FieldSet
                 config={config}
                 row={row}
-                dashboard={dashboard}
                 onSubmit={async (values) => {
                     onClose();
                     await onSaved(values);
@@ -479,20 +407,41 @@ function Editor({
 
 function SettingsResourcePage({
     config,
+    resourceName,
     dashboard,
     compact = false,
 }: {
     config: ResourceConfig;
+    resourceName: string;
     dashboard: DashboardPayload;
     compact?: boolean;
 }) {
     const canEdit = dashboard.me.Role === 'admin';
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
-    const editorOpenRef = useRef(false);
-    const pendingRefreshRef = useRef(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
-    const rows = config.rows(dashboard);
+    const { result } = useList({ resource: resourceName, pagination: { mode: 'off' } });
+    const rawRows = result.data as Row[];
+    const rows = config.sortRows ? config.sortRows(rawRows) : rawRows;
+    const { mutateAsync: createRow } = useCreate();
+    const { mutateAsync: updateRow } = useUpdate();
+    const { mutateAsync: deleteRow } = useDelete();
+    // blocks' Place field is the only select today — its options come from
+    // its own useList (called unconditionally like every other hook here;
+    // `enabled: false` skips the request for every other resource kind)
+    // rather than the shared dashboard blob.
+    const selectField = config.fields.find((f) => f.type === 'select' && f.optionsResource);
+    const { result: selectOptionsResult } = useList({
+        resource: selectField?.optionsResource || '',
+        pagination: { mode: 'off' },
+        queryOptions: { enabled: Boolean(selectField) },
+    });
+    const selectOptionLabelById = new Map(
+        (selectOptionsResult.data as Row[]).map((row) => [
+            String(row.Id ?? row.Name ?? ''),
+            String(row.Name ?? row.Id ?? ''),
+        ]),
+    );
     const detailId =
         config.kind === 'department'
             ? new URLSearchParams(window.location.search).get(DEPARTMENT_QUERY_PARAM)
@@ -510,22 +459,11 @@ function SettingsResourcePage({
     const filterSearch =
         config.kind === 'department' || config.kind === 'inventory-type' ? appliedSearch : search;
     const filteredRows = rows.filter((row) => matchesSearch(filterSearch, Object.values(row)));
-    const beginCreate = () => {
-        editorOpenRef.current = true;
-        setCreating(true);
-    };
-    const beginEdit = (row: Row) => {
-        editorOpenRef.current = true;
-        setEditing(row);
-    };
+    const beginCreate = () => setCreating(true);
+    const beginEdit = (row: Row) => setEditing(row);
     const closeEditor = () => {
-        editorOpenRef.current = false;
         setCreating(false);
         setEditing(null);
-        if (pendingRefreshRef.current) {
-            pendingRefreshRef.current = false;
-            void refreshDashboard().catch(showErrorAlert);
-        }
     };
     useEffect(() => {
         if (config.kind !== 'inventory-type' || !selectedInventoryType) {
@@ -547,53 +485,24 @@ function SettingsResourcePage({
     async function save(values: Record<string, string>) {
         showSavingBadge(true);
         try {
+            const mutateOptions = { successNotification: false, errorNotification: false } as const;
+            const payload = config.toInput(values);
             if (!editing) {
-                await config.create(values);
-                if (editorOpenRef.current) pendingRefreshRef.current = true;
-                else await refreshDashboard();
-                return;
+                await createRow({ resource: resourceName, values: payload, ...mutateOptions });
+            } else {
+                await updateRow({
+                    resource: resourceName,
+                    id: rowKeyOf(config, editing),
+                    values: payload,
+                    ...mutateOptions,
+                });
             }
-            const row = editing;
-            await runOptimisticDashboardUpdate(
-                (previous) => {
-                    const updateRows = (rows: Row[]) =>
-                        rows.map((item) =>
-                            rowKeyOf(config, item) === rowKeyOf(config, row)
-                                ? Object.assign({}, item, values)
-                                : item,
-                        );
-                    if (config.kind === 'department')
-                        return Object.assign({}, previous, {
-                            departments: updateRows(previous.departments),
-                        });
-                    if (config.kind === 'place')
-                        return Object.assign({}, previous, {
-                            places: updateRows(previous.places),
-                        });
-                    if (config.kind === 'inventory-type')
-                        return Object.assign({}, previous, {
-                            inventoryTypes: updateRows(previous.inventoryTypes),
-                        });
-                    if (config.kind === 'block')
-                        return Object.assign({}, previous, { blocks: updateRows(previous.blocks) });
-                    if (config.kind === 'shift-type')
-                        return Object.assign({}, previous, {
-                            shiftTypes: updateRows(previous.shiftTypes),
-                        });
-                    if (config.kind === 'program-type')
-                        return Object.assign({}, previous, {
-                            programTypes: updateRows(previous.programTypes),
-                        });
-                    if (config.kind === 'program-language')
-                        return Object.assign({}, previous, {
-                            programLanguages: updateRows(previous.programLanguages),
-                        });
-                    return Object.assign({}, previous, {
-                        sessionTypes: updateRows(previous.sessionTypes),
-                    });
-                },
-                () => config.update(rowKeyOf(config, row), values),
-            );
+            // Refine's own query cache already refetches this page's list on
+            // success; refreshDashboard also keeps the shared dashboard blob
+            // in sync for pages that still cross-reference this resource
+            // from there (e.g. a department/place picker) and haven't been
+            // migrated to Refine's hooks yet.
+            await refreshDashboard();
         } finally {
             showSavingBadge(false);
         }
@@ -601,40 +510,13 @@ function SettingsResourcePage({
     async function remove(row: Row) {
         showSavingBadge(true);
         try {
-            await runOptimisticDashboardUpdate(
-                (previous) => {
-                    const filterRows = (rows: Row[]) =>
-                        rows.filter((item) => rowKeyOf(config, item) !== rowKeyOf(config, row));
-                    if (config.kind === 'department')
-                        return Object.assign({}, previous, {
-                            departments: filterRows(previous.departments),
-                        });
-                    if (config.kind === 'place')
-                        return Object.assign({}, previous, { places: filterRows(previous.places) });
-                    if (config.kind === 'inventory-type')
-                        return Object.assign({}, previous, {
-                            inventoryTypes: filterRows(previous.inventoryTypes),
-                        });
-                    if (config.kind === 'block')
-                        return Object.assign({}, previous, { blocks: filterRows(previous.blocks) });
-                    if (config.kind === 'shift-type')
-                        return Object.assign({}, previous, {
-                            shiftTypes: filterRows(previous.shiftTypes),
-                        });
-                    if (config.kind === 'program-type')
-                        return Object.assign({}, previous, {
-                            programTypes: filterRows(previous.programTypes),
-                        });
-                    if (config.kind === 'program-language')
-                        return Object.assign({}, previous, {
-                            programLanguages: filterRows(previous.programLanguages),
-                        });
-                    return Object.assign({}, previous, {
-                        sessionTypes: filterRows(previous.sessionTypes),
-                    });
-                },
-                () => config.remove(rowKeyOf(config, row)),
-            );
+            await deleteRow({
+                resource: resourceName,
+                id: rowKeyOf(config, row),
+                successNotification: false,
+                errorNotification: false,
+            });
+            await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -651,28 +533,20 @@ function SettingsResourcePage({
                 prepared.mimeType,
                 String(row.ImageId || ''),
             );
-            await runOptimisticDashboardUpdate(
-                (previous) =>
-                    Object.assign({}, previous, {
-                        inventoryTypes: previous.inventoryTypes.map((item) =>
-                            item.Id === row.Id
-                                ? Object.assign({}, item, { ImageId: imageId })
-                                : item,
-                        ),
-                    }),
-                () =>
-                    api.updateInventoryType(
-                        row.Id,
-                        {
-                            name: String(row.Name || ''),
-                            description: String(row.Description || ''),
-                            requestable: row.Requestable !== false,
-                            totalQuantity: Number(row.TotalQuantity || 0),
-                            imageId,
-                        },
-                        requestId(),
-                    ),
-            );
+            await updateRow({
+                resource: resourceName,
+                id: row.Id,
+                values: {
+                    name: String(row.Name || ''),
+                    description: String(row.Description || ''),
+                    requestable: row.Requestable !== false,
+                    totalQuantity: Number(row.TotalQuantity || 0),
+                    imageId,
+                },
+                successNotification: false,
+                errorNotification: false,
+            });
+            await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -802,12 +676,8 @@ function SettingsResourcePage({
                         );
                     }
                     if (field.type === 'datetime-local') return formatDateTime(String(value || ''));
-                    if (field.type === 'select' && field.options) {
-                        const options = field.options(dashboard);
-                        return (
-                            options.find((option) => option.value === String(value ?? ''))?.label ??
-                            String(value ?? '')
-                        );
+                    if (field.type === 'select' && field.optionsResource) {
+                        return selectOptionLabelById.get(String(value ?? '')) ?? String(value ?? '');
                     }
                     return String(value ?? '');
                 },
@@ -842,7 +712,6 @@ function SettingsResourcePage({
                 {filteredRows.map((row) => {
                     const available = Number(row.availableQuantity ?? 0);
                     const total = Number(row.TotalQuantity ?? 0);
-                    const imageUrl = imageUrlForDriveId(String(row.ImageId || ''));
                     return (
                         <BlockCard
                             key={row.Id}
@@ -860,11 +729,11 @@ function SettingsResourcePage({
                                 </span>
                             </div>
                             <div className="inventory-type-card-image">
-                                {imageUrl ? (
-                                    <img src={imageUrl} alt={String(row.Name || '')} />
-                                ) : (
-                                    <span>No photo</span>
-                                )}
+                                <RequestImage
+                                    imageId={String(row.ImageId || '')}
+                                    alt={String(row.Name || '')}
+                                    fallback={<span>No photo</span>}
+                                />
                             </div>
                         </BlockCard>
                     );
@@ -1012,17 +881,12 @@ function SettingsResourcePage({
                         ) : null
                     }>
                     <div className="inventory-request-image-frame">
-                        {imageUrlForDriveId(String(selectedInventoryType.ImageId || '')) ? (
-                            <img
-                                src={imageUrlForDriveId(
-                                    String(selectedInventoryType.ImageId || ''),
-                                )}
-                                alt={String(selectedInventoryType.Name || '')}
-                                className="inventory-request-image"
-                            />
-                        ) : (
-                            <span>No photo</span>
-                        )}
+                        <RequestImage
+                            imageId={String(selectedInventoryType.ImageId || '')}
+                            alt={String(selectedInventoryType.Name || '')}
+                            className="inventory-request-image"
+                            fallback={<span>No photo</span>}
+                        />
                     </div>
                 </DetailSection>
                 <DetailSection
@@ -1237,7 +1101,6 @@ function SettingsResourcePage({
                 <Editor
                     config={config}
                     row={editing || undefined}
-                    dashboard={dashboard}
                     onClose={closeEditor}
                     onSaved={save}
                 />
@@ -1255,11 +1118,14 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
         setSavingGuidelines(true);
         const data = new FormData(event.currentTarget);
         const guidelines = String(data.get('guidelines') || '');
-        void runOptimisticDashboardUpdate(
-            (previous) => Object.assign({}, previous, { homeContent: { Guidelines: guidelines } }),
-            () => api.updateHomeContent({ guidelines }),
-        ).catch(showErrorAlert);
-        setSavingGuidelines(false);
+        try {
+            await api.updateHomeContent({ guidelines });
+            await refreshDashboard();
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setSavingGuidelines(false);
+        }
     }
 
     return (
@@ -1286,6 +1152,7 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                     <SettingsResourcePage
                         key={key}
                         config={RESOURCES[key]}
+                        resourceName={key}
                         dashboard={dashboard}
                         compact
                     />
@@ -1306,5 +1173,9 @@ export function renderRefineSettings(
     }
     const config = RESOURCES[key];
     if (!config) throw new Error(`Unknown settings resource: ${key}`);
-    mountRefinePage(container, <SettingsResourcePage config={config} dashboard={dashboard} />, key);
+    mountRefinePage(
+        container,
+        <SettingsResourcePage config={config} resourceName={key} dashboard={dashboard} />,
+        key,
+    );
 }

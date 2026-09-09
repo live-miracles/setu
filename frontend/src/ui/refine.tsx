@@ -3,6 +3,7 @@ import { useNotificationProvider } from '@refinedev/antd';
 import { App as AntApp, ConfigProvider } from 'antd';
 import { useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { queryClient } from '../query-client';
 import { setuDataProvider } from './refine-data-provider';
 import { setErrorNotifier } from './feedback';
 
@@ -65,7 +66,11 @@ function RefineRootContent({ page, resource }: { page: ReactNode; resource: stri
             dataProvider={setuDataProvider}
             notificationProvider={notificationProvider}
             resources={[{ name: resource, list: `/${resource}` }]}
-            options={{ syncWithLocation: false }}>
+            // Refine always renders its own QueryClientProvider around
+            // `children` — passing our instance here (rather than wrapping
+            // from outside, which it would just shadow) is what makes it
+            // share the one cache with the imperative code in router.ts.
+            options={{ syncWithLocation: false, reactQuery: { clientConfig: queryClient } }}>
             {page}
         </Refine>
     );
