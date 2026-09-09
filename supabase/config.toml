@@ -5,6 +5,10 @@ project_id = "setu"
 [functions.email-dispatcher]
 verify_jwt = false
 
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/restrict_user_by_email_domain"
+
 [api]
 enabled = true
 schemas = ["public", "storage"]

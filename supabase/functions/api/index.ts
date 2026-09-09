@@ -51,6 +51,16 @@ async function requireApprover(client: SupabaseClient, userId: string): Promise<
     return profile;
 }
 
+async function emailDomainAllowed(admin: SupabaseClient, email: string): Promise<boolean> {
+    return Boolean(result(await admin.rpc('is_email_domain_allowed', { candidate_email: email })));
+}
+
+async function requireAllowedEmailDomain(admin: SupabaseClient, email: string): Promise<void> {
+    if (!(await emailDomainAllowed(admin, email))) {
+        throw new Error('Access is restricted to approved email domains.');
+    }
+}
+
 // Replaces the Apps Script backend's CacheService-based dedupe (Dedupe.ts):
 // the insert into idempotency_keys is the atomic claim (a retried call with
 // the same scope+requestId hits the primary key and is detected below), the
@@ -972,6 +982,57 @@ async function getSettings(client: SupabaseClient): Promise<Row> {
         programLanguages: (result(languagesRes) as Row[]).map((x) => ({ Name: x.name })),
         sessionTypes: (result(sessionTypesRes) as Row[]).map((x) => ({ Name: x.name })),
     };
+}
+
+async function listAllowedEmailDomains(client: SupabaseClient, userId: string): Promise<Row[]> {
+    await requireAdmin(client, userId);
+    const rows = result(
+        await client.from('allowed_email_domains').select('*').order('domain'),
+    ) as Row[];
+    return rows.map((row) => ({ domain: row.domain, enabled: row.enabled }));
+}
+
+async function createAllowedEmailDomain(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    await requireAdmin(client, userId);
+    const domain = requireNonEmpty(input.domain, 'Email domain is required.')
+        .toLowerCase()
+        .replace(/^@/, '');
+    if (!/^[^@\s]+\.[^@\s]+$/.test(domain)) throw new Error('Enter a valid email domain.');
+    const { result: row } = await withLockedDedupe(
+        admin,
+        'allowed-email-domain:create',
+        requestId,
+        async () =>
+            result(
+                await admin.from('allowed_email_domains').insert({ domain }).select('*').single(),
+                'That email domain is already allowed.',
+            ),
+    );
+    return { domain: row.domain, enabled: row.enabled };
+}
+
+async function deleteAllowedEmailDomain(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    domain: string,
+    requestId: string,
+): Promise<void> {
+    await requireAdmin(client, userId);
+    await withLockedDedupe(admin, 'allowed-email-domain:delete:' + domain, requestId, async () => {
+        const { error } = await admin
+            .from('allowed_email_domains')
+            .delete()
+            .eq('domain', domain.toLowerCase().replace(/^@/, ''));
+        if (error) throw new Error(error.message);
+        return null;
+    });
 }
 
 async function getHomeContent(client: SupabaseClient): Promise<Row> {
@@ -2948,6 +3009,7 @@ Deno.serve(async (request) => {
     const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
     const args = body.args || [];
     try {
+        await requireAllowedEmailDomain(admin, authData.user.email || '');
         switch (body.operation) {
             case 'whoAmI':
                 return respond(await currentUser(client, authData.user.id));
@@ -3255,6 +3317,27 @@ Deno.serve(async (request) => {
                 return respond(await listInventoryTypes(client));
             case 'getSettings':
                 return respond(await getSettings(client));
+            case 'listAllowedEmailDomains':
+                return respond(await listAllowedEmailDomains(client, authData.user.id));
+            case 'createAllowedEmailDomain':
+                return respond(
+                    await createAllowedEmailDomain(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
+                );
+            case 'deleteAllowedEmailDomain':
+                await deleteAllowedEmailDomain(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
+                return respond(null);
             case 'getHomeContent':
                 return respond(await getHomeContent(client));
             case 'listBlocks':

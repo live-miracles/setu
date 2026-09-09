@@ -58,6 +58,9 @@ export const api: AsyncApi = {
     updateHomeContent: (...args) => callBackend('updateHomeContent', ...args),
 
     getSettings: (...args) => callBackend('getSettings', ...args),
+    listAllowedEmailDomains: (...args) => callBackend('listAllowedEmailDomains', ...args),
+    createAllowedEmailDomain: (...args) => callBackend('createAllowedEmailDomain', ...args),
+    deleteAllowedEmailDomain: (...args) => callBackend('deleteAllowedEmailDomain', ...args),
     createShiftType: (...args) => callBackend('createShiftType', ...args),
     updateShiftType: (...args) => callBackend('updateShiftType', ...args),
     deleteShiftType: (...args) => callBackend('deleteShiftType', ...args),

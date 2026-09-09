@@ -204,6 +204,11 @@ interface SettingsPayload {
     sessionTypes: SessionType[];
 }
 
+interface AllowedEmailDomain {
+    domain: string;
+    enabled: boolean;
+}
+
 interface FailedEmail {
     Id: string;
     Timestamp: string;
@@ -509,6 +514,9 @@ interface Api {
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;
 
     getSettings(): SettingsPayload;
+    listAllowedEmailDomains(): AllowedEmailDomain[];
+    createAllowedEmailDomain(input: { domain: string }, requestId: string): AllowedEmailDomain;
+    deleteAllowedEmailDomain(domain: string, requestId: string): void;
     createShiftType(input: CreateShiftTypeInput, requestId: string): ShiftType;
     updateShiftType(name: string, input: CreateShiftTypeInput, requestId: string): ShiftType;
     deleteShiftType(name: string, requestId: string): void;

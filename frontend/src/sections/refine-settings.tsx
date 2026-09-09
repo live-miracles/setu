@@ -24,6 +24,7 @@ import {
     UploadOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
+import { generateRequestId } from '../ids';
 import {
     navigateBackToSection,
     navigateToDepartment,
@@ -1150,6 +1151,7 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                     )}
                 </form>
             </Card>
+            <AllowedEmailDomainsPage dashboard={dashboard} />
             {(['shift-types', 'program-types', 'program-languages', 'session-types'] as const).map(
                 (key) => (
                     <SettingsResourcePage
@@ -1162,6 +1164,98 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                 ),
             )}
         </section>
+    );
+}
+
+function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload }) {
+    const canEdit = dashboard.me.Role === 'admin';
+    const [domains, setDomains] = useState<AllowedEmailDomain[]>([]);
+    const [domain, setDomain] = useState('');
+    const [loading, setLoading] = useState(canEdit);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (!canEdit) return;
+        let active = true;
+        void api
+            .listAllowedEmailDomains()
+            .then((rows) => {
+                if (active) setDomains(rows);
+            })
+            .catch(showErrorAlert)
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [canEdit]);
+
+    if (!canEdit) return null;
+
+    async function addDomain(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const normalized = domain.trim().toLowerCase().replace(/^@/, '');
+        if (!normalized) return;
+        setSaving(true);
+        try {
+            const added = await api.createAllowedEmailDomain(
+                { domain: normalized },
+                generateRequestId(),
+            );
+            setDomains((current) =>
+                [...current, added].sort((a, b) => a.domain.localeCompare(b.domain)),
+            );
+            setDomain('');
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function removeDomain(value: string) {
+        setSaving(true);
+        try {
+            await api.deleteAllowedEmailDomain(value, generateRequestId());
+            setDomains((current) => current.filter((entry) => entry.domain !== value));
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <Card title="Allowed email domains" className="settings-form-card" loading={loading}>
+            <Typography.Paragraph type="secondary">
+                {domains.length
+                    ? 'Only users with an email address from one of these domains can sign in.'
+                    : 'No domains are configured. Users from any email domain can sign in.'}
+            </Typography.Paragraph>
+            <Space wrap>
+                {domains.map((entry) => (
+                    <Tag
+                        key={entry.domain}
+                        closable={!saving}
+                        onClose={() => void removeDomain(entry.domain)}>
+                        {entry.domain}
+                    </Tag>
+                ))}
+            </Space>
+            <form className="mt-4 flex gap-2" onSubmit={addDomain}>
+                <Input
+                    value={domain}
+                    onChange={(event) => setDomain(event.target.value)}
+                    placeholder="myorg.com"
+                    aria-label="Email domain"
+                    type="text"
+                />
+                <Button type="primary" htmlType="submit" loading={saving} disabled={!domain.trim()}>
+                    Add domain
+                </Button>
+            </form>
+        </Card>
     );
 }
 

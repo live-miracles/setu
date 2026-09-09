@@ -147,6 +147,17 @@ rows, marks successful deliveries as `sent`, and marks failures as terminal
 If any of `RESEND_API_KEY`, `EMAIL_FROM`, or `EMAIL_DISPATCH_SECRET` is empty,
 the dispatcher immediately returns without claiming or sending any queue rows.
 
+Email-domain access control
+
+The Admin Settings page manages the allowed email domains. An empty list keeps
+the app open to all domains; adding the first domain switches the app to
+allowlist mode. The migration creates the Supabase `Before User Created` Auth
+Hook function. For hosted projects, enable it once in **Authentication →
+Hooks** using the Postgres function
+`public.restrict_user_by_email_domain` (the checked-in `supabase/config.toml`
+contains the equivalent local configuration). A refreshed page is enough for
+an existing session to pick up a changed allowlist.
+
 `db push` applies the checked-in migrations, including the trigger that
 creates a `profiles` row for each new Supabase Auth user. `SETU_APP_ORIGIN`
 is required for the API's CORS policy.
