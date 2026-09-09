@@ -1,5 +1,4 @@
-import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { supabase, supabaseHttpConfig } from './supabase';
 
 // The UI talks to exactly one application API: the protected Supabase Edge
 // Function. Local development uses the same path as Vercel, so the database,
@@ -7,43 +6,31 @@ import { supabase } from './supabase';
 
 type AsyncApi = { [K in keyof Api]: (...args: Parameters<Api[K]>) => Promise<ReturnType<Api[K]>> };
 
-// The Edge Function reports its error as a JSON body (`{ error: "..." }`),
-// but supabase-js's own error.message is just a generic "non-2xx status
-// code" — useless in a screenshot. Recover the real message plus the
-// operation name and HTTP status so a bug report is debuggable on its own.
-async function describeApiError(fnName: string, error: unknown, response?: Response): Promise<Error> {
-    let detail = error instanceof Error ? error.message : String(error);
-    let hint = '';
-    if (response) {
-        try {
-            const body = await response.json();
-            if (body && typeof body.error === 'string') detail = body.error;
-        } catch {
-            // Response body wasn't JSON (e.g. a relay/network failure) — keep the fallback detail.
-        }
-    } else if (error instanceof FunctionsFetchError) {
-        // The browser's fetch() never got a response at all — supabase-js can't say why
-        // (that detail is only visible in the Network tab), but the two common causes are
-        // the function not being deployed, or its CORS origin not matching this domain.
-        hint = ' — check the Edge Function is deployed and its CORS origin matches this domain';
-    } else if (error instanceof FunctionsRelayError) {
-        hint = " — Supabase's relay couldn't reach the function; check its logs in the dashboard";
-    }
-    if (error instanceof FunctionsHttpError || error instanceof FunctionsFetchError || error instanceof FunctionsRelayError) {
-        detail = `[${error.name}] ${detail}`;
-    }
-    const status = response?.status ? ` (HTTP ${response.status})` : '';
-    return new Error(`${fnName}${status}: ${detail}${hint}`);
-}
-
 function callBackend<K extends keyof Api>(
     fnName: K,
     ...args: Parameters<Api[K]>
 ): Promise<ReturnType<Api[K]>> {
     return supabase()
-        .functions.invoke('api', { body: { operation: fnName, args } })
-        .then(async ({ data, error, response }) => {
-            if (error) throw await describeApiError(String(fnName), error, response);
+        .auth.getSession()
+        .then(async ({ data: sessionData, error: sessionError }) => {
+            if (sessionError) throw sessionError;
+            const token = sessionData.session?.access_token;
+            if (!token) throw new Error(`${String(fnName)}: authentication is required`);
+            const { url, publishableKey } = supabaseHttpConfig();
+            const response = await fetch(`${url}/functions/v1/api/${String(fnName)}`, {
+                method: 'POST',
+                headers: {
+                    apikey: publishableKey,
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ args }),
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok)
+                throw new Error(
+                    `${String(fnName)} (HTTP ${response.status}): ${data?.error || 'Unable to complete the request.'}`,
+                );
             return data as ReturnType<Api[K]>;
         });
 }
@@ -126,5 +113,6 @@ export const api: AsyncApi = {
     addComment: (...args) => callBackend('addComment', ...args),
 
     uploadImage: (...args) => callBackend('uploadImage', ...args),
+    createImageUploadUrl: (...args) => callBackend('createImageUploadUrl', ...args),
     getImageUrl: (...args) => callBackend('getImageUrl', ...args),
 };

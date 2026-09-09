@@ -46,7 +46,7 @@ cp .env.example .env.local
 
 Edit `.env.local` with the URL and publishable/anon key for the Supabase
 development project. In the Supabase dashboard, open the project (if your
-organization has more than one, confirm which is the shared *development*
+organization has more than one, confirm which is the shared _development_
 project before continuing — do not point `.env.local` at a production
 project), then go to **Project Settings → API Keys**, "Publishable and secret
 API keys" tab:
@@ -108,7 +108,22 @@ npx supabase link --project-ref <project-ref>
 npx supabase db push
 npx supabase secrets set SETU_APP_ORIGIN=http://localhost:3000
 npx supabase functions deploy api
+npx supabase functions deploy email-dispatcher
 ```
+
+Comment email delivery
+
+Comments enqueue email rows transactionally in `email_outbox`. Deploy the
+`email-dispatcher` function with `RESEND_API_KEY`, `EMAIL_FROM`, and a shared
+`EMAIL_DISPATCH_SECRET`. Schedule an authenticated POST to the function every
+10 minutes using the checked-in Supabase Cron/pg_net job. Store the project
+URL in Vault as `setu_project_url` and the same dispatch secret used by the
+function as `setu_email_dispatch_secret`. The dispatcher claims at most 100 pending
+rows, marks successful deliveries as `sent`, and marks failures as terminal
+`failed` rows; failed mail is intentionally not retried.
+
+If any of `RESEND_API_KEY`, `EMAIL_FROM`, or `EMAIL_DISPATCH_SECRET` is empty,
+the dispatcher immediately returns without claiming or sending any queue rows.
 
 `db push` applies the checked-in migrations, including the trigger that
 creates a `profiles` row for each new Supabase Auth user. `SETU_APP_ORIGIN`
@@ -155,7 +170,7 @@ status code"**: check the function logs in the Supabase dashboard
 result to a single JSON object` means a `.single()` query got zero rows —
 almost always because the signed-in user has no matching `public.profiles`
 row. This happens if you signed in before running `db push`, since the
-profile-creation trigger only fires for auth users created *after* the
+profile-creation trigger only fires for auth users created _after_ the
 trigger exists. Fix it by backfilling the missing row(s) for any existing
 `auth.users` from the Supabase dashboard's SQL Editor:
 

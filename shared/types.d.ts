@@ -607,6 +607,7 @@ interface Api {
         mimeType: string,
         previousImageId?: string,
     ): string;
+    createImageUploadUrl(fileName: string, mimeType: string): { path: string; token: string };
 
     // The bucket backing uploadImage is private, so a stored image id/path
     // needs a fresh signed URL to actually render — this has no equivalent

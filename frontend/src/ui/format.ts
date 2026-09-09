@@ -29,15 +29,15 @@ export const MONTH_SHORT_NAMES = [
     'Dec',
 ];
 
-// Formats a plain 'YYYY-MM-DD' string without Date conversion, which would
-// risk shifting the displayed day for viewers west of UTC.
 function formatDateOnly(dateStr: string): string {
-    const parts = (dateStr || '').split('-');
-    if (parts.length !== 3) return dateStr || '';
-    const [year, month, day] = parts;
-    const monthIdx = Number(month) - 1;
-    if (monthIdx < 0 || monthIdx > 11 || isNaN(Number(day))) return dateStr;
-    return `${MONTH_SHORT_NAMES[monthIdx]} ${Number(day)}, ${year}`;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr || '')) return dateStr || '';
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC',
+    }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
 export function formatTimeOfDay(time: string): string {
@@ -85,7 +85,11 @@ export function formatProgramSessionSchedule(startIso: string, endIso: string): 
         return [formatDateTime(startIso), formatDateTime(endIso)].filter(Boolean).join(' – ');
     }
 
-    const dateLabel = (date: Date) => `${MONTH_SHORT_NAMES[date.getMonth()]} ${date.getDate()}`;
+    const dateLabel = (date: Date) =>
+        new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+        }).format(date);
     const startTime = formatTimeOfDay(
         `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
     );
@@ -111,7 +115,7 @@ export function formatProgramDateRange(sessions: ProgramSession[]): string {
     const last = dates[dates.length - 1];
     const format = (date: Date) => ({
         day: date.getDate(),
-        month: MONTH_SHORT_NAMES[date.getMonth()],
+        month: new Intl.DateTimeFormat(undefined, { month: 'short' }).format(date),
         year: date.getFullYear(),
     });
     const start = format(first);

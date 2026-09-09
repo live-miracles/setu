@@ -9,6 +9,19 @@ function configuredValue(value: string | undefined): string {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+export function supabaseHttpConfig(): { url: string; publishableKey: string } {
+    return {
+        url: configuredValue(
+            typeof __SETU_SUPABASE_URL__ === 'undefined' ? '' : __SETU_SUPABASE_URL__,
+        ),
+        publishableKey: configuredValue(
+            typeof __SETU_SUPABASE_PUBLISHABLE_KEY__ === 'undefined'
+                ? ''
+                : __SETU_SUPABASE_PUBLISHABLE_KEY__,
+        ),
+    };
+}
+
 export function isSupabaseConfigured(): boolean {
     return Boolean(
         configuredValue(
@@ -24,14 +37,7 @@ export function isSupabaseConfigured(): boolean {
 
 export function supabase(): SupabaseClient {
     if (client) return client;
-    const url = configuredValue(
-        typeof __SETU_SUPABASE_URL__ === 'undefined' ? '' : __SETU_SUPABASE_URL__,
-    );
-    const publishableKey = configuredValue(
-        typeof __SETU_SUPABASE_PUBLISHABLE_KEY__ === 'undefined'
-            ? ''
-            : __SETU_SUPABASE_PUBLISHABLE_KEY__,
-    );
+    const { url, publishableKey } = supabaseHttpConfig();
     if (!url || !publishableKey) {
         throw new Error(
             'Setu is not configured. Set SETU_SUPABASE_URL and SETU_SUPABASE_PUBLISHABLE_KEY for this deployment.',

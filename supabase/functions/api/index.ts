@@ -99,7 +99,11 @@ async function withLockedDedupe<T>(
             .eq('request_id', requestId);
         return { duplicate: false, result: value };
     } catch (error) {
-        await admin.from('idempotency_keys').delete().eq('scope', scope).eq('request_id', requestId);
+        await admin
+            .from('idempotency_keys')
+            .delete()
+            .eq('scope', scope)
+            .eq('request_id', requestId);
         throw error;
     }
 }
@@ -157,7 +161,7 @@ async function updateOwnProfile(
     if (patch.whatsapp !== undefined) changes.whatsapp = String(patch.whatsapp || '').trim();
     if (!Object.keys(changes).length) return currentUser(client, userId);
     const updated = result(
-        await admin.from('profiles').update(changes).eq('id', userId).select('*').single(),
+        await client.from('profiles').update(changes).eq('id', userId).select('*').single(),
     ) as Row;
     const departments = result(await client.from('departments').select('*')) as Row[];
     return userDto(updated, new Map(departments.map((x) => [x.id, x])));
@@ -182,21 +186,28 @@ async function createDepartment(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, 'department:create', requestId, async () => {
-        const row = result(
-            await admin
-                .from('departments')
-                .insert({
-                    name,
-                    short_name: String(input.shortName || ''),
-                    lead_email: String(input.leadEmail || '').trim().toLowerCase(),
-                })
-                .select('*')
-                .single(),
-            'A department with this name already exists.',
-        ) as Row;
-        return departmentDto(row);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'department:create',
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('departments')
+                    .insert({
+                        name,
+                        short_name: String(input.shortName || ''),
+                        lead_email: String(input.leadEmail || '')
+                            .trim()
+                            .toLowerCase(),
+                    })
+                    .select('*')
+                    .single(),
+                'A department with this name already exists.',
+            ) as Row;
+            return departmentDto(row);
+        },
+    );
     return dto;
 }
 
@@ -210,22 +221,29 @@ async function updateDepartment(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, 'department:update:' + id, requestId, async () => {
-        const row = result(
-            await admin
-                .from('departments')
-                .update({
-                    name,
-                    short_name: String(input.shortName || ''),
-                    lead_email: String(input.leadEmail || '').trim().toLowerCase(),
-                })
-                .eq('id', id)
-                .select('*')
-                .single(),
-            'A department with this name already exists.',
-        ) as Row;
-        return departmentDto(row);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'department:update:' + id,
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('departments')
+                    .update({
+                        name,
+                        short_name: String(input.shortName || ''),
+                        lead_email: String(input.leadEmail || '')
+                            .trim()
+                            .toLowerCase(),
+                    })
+                    .eq('id', id)
+                    .select('*')
+                    .single(),
+                'A department with this name already exists.',
+            ) as Row;
+            return departmentDto(row);
+        },
+    );
     return dto;
 }
 
@@ -273,13 +291,18 @@ async function updatePlace(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, 'place:update:' + id, requestId, async () => {
-        const row = result(
-            await admin.from('places').update({ name }).eq('id', id).select('*').single(),
-            'A place with this name already exists.',
-        ) as Row;
-        return { Id: row.id, Name: row.name };
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'place:update:' + id,
+        requestId,
+        async () => {
+            const row = result(
+                await admin.from('places').update({ name }).eq('id', id).select('*').single(),
+                'A place with this name already exists.',
+            ) as Row;
+            return { Id: row.id, Name: row.name };
+        },
+    );
     return dto;
 }
 
@@ -321,24 +344,30 @@ async function createInventoryType(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    if (!(Number(input.totalQuantity) >= 0)) throw new Error('Total quantity must not be negative.');
-    const { result: dto } = await withLockedDedupe(admin, 'inventory-type:create', requestId, async () => {
-        const row = result(
-            await admin
-                .from('inventory_types')
-                .insert({
-                    name,
-                    description: String(input.description || ''),
-                    requestable: input.requestable !== false,
-                    image_path: String(input.imageId || ''),
-                    total_quantity: Number(input.totalQuantity),
-                })
-                .select('*')
-                .single(),
-            'An inventory type with this name already exists.',
-        ) as Row;
-        return inventoryTypeDto(client, row);
-    });
+    if (!(Number(input.totalQuantity) >= 0))
+        throw new Error('Total quantity must not be negative.');
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'inventory-type:create',
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('inventory_types')
+                    .insert({
+                        name,
+                        description: String(input.description || ''),
+                        requestable: input.requestable !== false,
+                        image_path: String(input.imageId || ''),
+                        total_quantity: Number(input.totalQuantity),
+                    })
+                    .select('*')
+                    .single(),
+                'An inventory type with this name already exists.',
+            ) as Row;
+            return inventoryTypeDto(client, row);
+        },
+    );
     return dto;
 }
 
@@ -352,28 +381,37 @@ async function updateInventoryType(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    if (!(Number(input.totalQuantity) >= 0)) throw new Error('Total quantity must not be negative.');
-    const { result: dto } = await withLockedDedupe(admin, 'inventory-type:update:' + id, requestId, async () => {
-        const existing = result(
-            await admin.from('inventory_types').select('*').eq('id', id).single(),
-        ) as Row;
-        const row = result(
-            await admin
-                .from('inventory_types')
-                .update({
-                    name,
-                    description: String(input.description || ''),
-                    requestable: input.requestable !== false,
-                    image_path: input.imageId === undefined ? existing.image_path : String(input.imageId || ''),
-                    total_quantity: Number(input.totalQuantity),
-                })
-                .eq('id', id)
-                .select('*')
-                .single(),
-            'An inventory type with this name already exists.',
-        ) as Row;
-        return inventoryTypeDto(client, row);
-    });
+    if (!(Number(input.totalQuantity) >= 0))
+        throw new Error('Total quantity must not be negative.');
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'inventory-type:update:' + id,
+        requestId,
+        async () => {
+            const existing = result(
+                await admin.from('inventory_types').select('*').eq('id', id).single(),
+            ) as Row;
+            const row = result(
+                await admin
+                    .from('inventory_types')
+                    .update({
+                        name,
+                        description: String(input.description || ''),
+                        requestable: input.requestable !== false,
+                        image_path:
+                            input.imageId === undefined
+                                ? existing.image_path
+                                : String(input.imageId || ''),
+                        total_quantity: Number(input.totalQuantity),
+                    })
+                    .eq('id', id)
+                    .select('*')
+                    .single(),
+                'An inventory type with this name already exists.',
+            ) as Row;
+            return inventoryTypeDto(client, row);
+        },
+    );
     return dto;
 }
 
@@ -426,9 +464,15 @@ async function updateUser(
         await admin
             .from('profiles')
             .update({
-                name: patch.name !== undefined ? requireNonEmpty(patch.name, 'Name is required.') : target.name,
+                name:
+                    patch.name !== undefined
+                        ? requireNonEmpty(patch.name, 'Name is required.')
+                        : target.name,
                 role: patch.role !== undefined ? patch.role : target.role,
-                department_id: patch.departmentId !== undefined ? patch.departmentId || null : target.department_id,
+                department_id:
+                    patch.departmentId !== undefined
+                        ? patch.departmentId || null
+                        : target.department_id,
                 phone: patch.phone !== undefined ? String(patch.phone) : target.phone,
                 whatsapp: patch.whatsapp !== undefined ? String(patch.whatsapp) : target.whatsapp,
             })
@@ -475,27 +519,32 @@ async function createShiftType(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, 'shift-type:create', requestId, async () => {
-        const row = result(
-            await admin
-                .from('shift_types')
-                .insert({
-                    name,
-                    color: String(input.color || '').trim(),
-                    default_start_time: input.defaultStartTime,
-                    default_end_time: input.defaultEndTime,
-                })
-                .select('*')
-                .single(),
-            'A shift type with this name already exists.',
-        ) as Row;
-        return {
-            Name: row.name,
-            Color: row.color,
-            DefaultStartTime: String(row.default_start_time).slice(0, 5),
-            DefaultEndTime: String(row.default_end_time).slice(0, 5),
-        };
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'shift-type:create',
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('shift_types')
+                    .insert({
+                        name,
+                        color: String(input.color || '').trim(),
+                        default_start_time: input.defaultStartTime,
+                        default_end_time: input.defaultEndTime,
+                    })
+                    .select('*')
+                    .single(),
+                'A shift type with this name already exists.',
+            ) as Row;
+            return {
+                Name: row.name,
+                Color: row.color,
+                DefaultStartTime: String(row.default_start_time).slice(0, 5),
+                DefaultEndTime: String(row.default_end_time).slice(0, 5),
+            };
+        },
+    );
     return dto;
 }
 
@@ -509,28 +558,33 @@ async function updateShiftType(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const newName = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, 'shift-type:update:' + name, requestId, async () => {
-        const row = result(
-            await admin
-                .from('shift_types')
-                .update({
-                    name: newName,
-                    color: String(input.color || '').trim(),
-                    default_start_time: input.defaultStartTime,
-                    default_end_time: input.defaultEndTime,
-                })
-                .eq('name', name)
-                .select('*')
-                .single(),
-            'A shift type with this name already exists.',
-        ) as Row;
-        return {
-            Name: row.name,
-            Color: row.color,
-            DefaultStartTime: String(row.default_start_time).slice(0, 5),
-            DefaultEndTime: String(row.default_end_time).slice(0, 5),
-        };
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'shift-type:update:' + name,
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('shift_types')
+                    .update({
+                        name: newName,
+                        color: String(input.color || '').trim(),
+                        default_start_time: input.defaultStartTime,
+                        default_end_time: input.defaultEndTime,
+                    })
+                    .eq('name', name)
+                    .select('*')
+                    .single(),
+                'A shift type with this name already exists.',
+            ) as Row;
+            return {
+                Name: row.name,
+                Color: row.color,
+                DefaultStartTime: String(row.default_start_time).slice(0, 5),
+                DefaultEndTime: String(row.default_end_time).slice(0, 5),
+            };
+        },
+    );
     return dto;
 }
 
@@ -567,17 +621,26 @@ async function createNamedOption(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, scope + ':create', requestId, async () => {
-        const row = result(
-            await admin
-                .from(table)
-                .insert(table === 'program_types' ? { name, color: String(input.color || '').trim() } : { name })
-                .select('*')
-                .single(),
-            `A ${label} with this name already exists.`,
-        ) as Row;
-        return namedOptionDto(table, row);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        scope + ':create',
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from(table)
+                    .insert(
+                        table === 'program_types'
+                            ? { name, color: String(input.color || '').trim() }
+                            : { name },
+                    )
+                    .select('*')
+                    .single(),
+                `A ${label} with this name already exists.`,
+            ) as Row;
+            return namedOptionDto(table, row);
+        },
+    );
     return dto;
 }
 
@@ -594,22 +657,27 @@ async function updateNamedOption(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const newName = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, scope + ':update:' + name, requestId, async () => {
-        const row = result(
-            await admin
-                .from(table)
-                .update(
-                    table === 'program_types'
-                        ? { name: newName, color: String(input.color || '').trim() }
-                        : { name: newName },
-                )
-                .eq('name', name)
-                .select('*')
-                .single(),
-            `A ${label} with this name already exists.`,
-        ) as Row;
-        return namedOptionDto(table, row);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        scope + ':update:' + name,
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from(table)
+                    .update(
+                        table === 'program_types'
+                            ? { name: newName, color: String(input.color || '').trim() }
+                            : { name: newName },
+                    )
+                    .eq('name', name)
+                    .select('*')
+                    .single(),
+                `A ${label} with this name already exists.`,
+            ) as Row;
+            return namedOptionDto(table, row);
+        },
+    );
     return dto;
 }
 
@@ -655,7 +723,13 @@ async function createBlock(
                 .select('*')
                 .single(),
         ) as Row;
-        return { Id: row.id, Name: row.name, Place: row.place, StartDateTime: row.start_at, EndDateTime: row.end_at };
+        return {
+            Id: row.id,
+            Name: row.name,
+            Place: row.place,
+            StartDateTime: row.start_at,
+            EndDateTime: row.end_at,
+        };
     });
     return dto;
 }
@@ -673,22 +747,33 @@ async function updateBlock(
     const startDateTime = requireNonEmpty(input.startDateTime, 'Start is required.');
     const endDateTime = requireNonEmpty(input.endDateTime, 'End is required.');
     if (endDateTime <= startDateTime) throw new Error('Block end must be after start.');
-    const { result: dto } = await withLockedDedupe(admin, 'block:update:' + id, requestId, async () => {
-        const row = result(
-            await admin
-                .from('blocks')
-                .update({
-                    name,
-                    start_at: startDateTime,
-                    end_at: endDateTime,
-                    place: String(input.place || ''),
-                })
-                .eq('id', id)
-                .select('*')
-                .single(),
-        ) as Row;
-        return { Id: row.id, Name: row.name, Place: row.place, StartDateTime: row.start_at, EndDateTime: row.end_at };
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'block:update:' + id,
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('blocks')
+                    .update({
+                        name,
+                        start_at: startDateTime,
+                        end_at: endDateTime,
+                        place: String(input.place || ''),
+                    })
+                    .eq('id', id)
+                    .select('*')
+                    .single(),
+            ) as Row;
+            return {
+                Id: row.id,
+                Name: row.name,
+                Place: row.place,
+                StartDateTime: row.start_at,
+                EndDateTime: row.end_at,
+            };
+        },
+    );
     return dto;
 }
 
@@ -809,13 +894,12 @@ async function commentsByTargetFor(
     targetType: 'inventory_request' | 'program_request' | 'ticket',
 ): Promise<Map<string, Row[]>> {
     const comments = result(
-        await client
-            .from('comments')
-            .select('*')
-            .eq('target_type', targetType)
-            .order('created_at'),
+        await client.from('comments').select('*').eq('target_type', targetType).order('created_at'),
     ) as Row[];
-    const profilesById = await profilesFor(admin, comments.map((x) => x.author_id));
+    const profilesById = await profilesFor(
+        admin,
+        comments.map((x) => x.author_id),
+    );
     const byTarget = new Map<string, Row[]>();
     comments.forEach((x) => {
         const values = byTarget.get(x.target_id) || [];
@@ -832,7 +916,12 @@ async function commentsByTargetFor(
 
 async function listDepartments(client: SupabaseClient): Promise<Row[]> {
     const rows = result(await client.from('departments').select('*').order('name')) as Row[];
-    return rows.map((x) => ({ Id: x.id, Name: x.name, ShortName: x.short_name, LeadEmail: x.lead_email }));
+    return rows.map((x) => ({
+        Id: x.id,
+        Name: x.name,
+        ShortName: x.short_name,
+        LeadEmail: x.lead_email,
+    }));
 }
 
 async function listPlaces(client: SupabaseClient): Promise<Row[]> {
@@ -876,14 +965,19 @@ async function getSettings(client: SupabaseClient): Promise<Row> {
             DefaultStartTime: String(x.default_start_time).slice(0, 5),
             DefaultEndTime: String(x.default_end_time).slice(0, 5),
         })),
-        programTypes: (result(programTypesRes) as Row[]).map((x) => ({ Name: x.name, Color: x.color })),
+        programTypes: (result(programTypesRes) as Row[]).map((x) => ({
+            Name: x.name,
+            Color: x.color,
+        })),
         programLanguages: (result(languagesRes) as Row[]).map((x) => ({ Name: x.name })),
         sessionTypes: (result(sessionTypesRes) as Row[]).map((x) => ({ Name: x.name })),
     };
 }
 
 async function getHomeContent(client: SupabaseClient): Promise<Row> {
-    const home = result(await client.from('home_content').select('*').eq('id', true).single()) as Row;
+    const home = result(
+        await client.from('home_content').select('*').eq('id', true).single(),
+    ) as Row;
     return { Guidelines: home.guidelines };
 }
 
@@ -914,14 +1008,21 @@ async function listUsers(client: SupabaseClient, userId: string): Promise<Row[]>
     return profiles.map((x) => userDto(x, departmentsById));
 }
 
-async function listRosters(client: SupabaseClient, admin: SupabaseClient, page: number): Promise<Row> {
+async function listRosters(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    page: number,
+): Promise<Row> {
     // Full history, not just upcoming — that's dashboard()'s upcomingRosters
     // preview; this is the paginated listing behind the Roster page. RLS
     // ("approvers read rosters") already limits this to approvers/admins.
     const rosters = (result(await client.from('rosters').select('*')) as Row[]).sort((a, b) =>
         String(b.start_at).localeCompare(String(a.start_at)),
     );
-    const profilesById = await profilesFor(admin, rosters.map((x) => x.user_id));
+    const profilesById = await profilesFor(
+        admin,
+        rosters.map((x) => x.user_id),
+    );
     const dtos = rosters.map((x) => ({
         Id: x.id,
         Name: x.name,
@@ -960,7 +1061,11 @@ async function requireValidRosterInput(admin: SupabaseClient, input: Row): Promi
     if (input.endDate < input.startDate) throw new Error('End date must not be before start date.');
     requireNonEmpty(input.name, 'Name is required.');
     const email = requireNonEmpty(input.userId, 'User is required.').toLowerCase();
-    const { data, error } = await admin.from('profiles').select('*').eq('email', email).maybeSingle();
+    const { data, error } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('User not found.');
     return data;
@@ -1005,22 +1110,27 @@ async function updateRoster(
 ): Promise<Row> {
     await requireApprover(client, userId);
     const user = await requireValidRosterInput(admin, input);
-    const { result: dto } = await withLockedDedupe(admin, 'roster:update:' + id, requestId, async () => {
-        const row = result(
-            await admin
-                .from('rosters')
-                .update({
-                    name: String(input.name).trim(),
-                    start_at: combineDateTime(input.startDate, input.startTime),
-                    end_at: combineDateTime(input.endDate, input.endTime),
-                    user_id: user.id,
-                })
-                .eq('id', id)
-                .select('*')
-                .single(),
-        ) as Row;
-        return rosterDto(row, user);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'roster:update:' + id,
+        requestId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('rosters')
+                    .update({
+                        name: String(input.name).trim(),
+                        start_at: combineDateTime(input.startDate, input.startTime),
+                        end_at: combineDateTime(input.endDate, input.endTime),
+                        user_id: user.id,
+                    })
+                    .eq('id', id)
+                    .select('*')
+                    .single(),
+            ) as Row;
+            return rosterDto(row, user);
+        },
+    );
     return dto;
 }
 
@@ -1049,7 +1159,10 @@ interface RequestOwner {
     participantIds: string[];
 }
 
-async function findRequestOwner(admin: SupabaseClient, requestId: string): Promise<RequestOwner | null> {
+async function findRequestOwner(
+    admin: SupabaseClient,
+    requestId: string,
+): Promise<RequestOwner | null> {
     const inventoryRes = await admin
         .from('inventory_requests')
         .select('requester_id')
@@ -1113,7 +1226,9 @@ async function addComment(
     const canComment =
         owner.kind === 'ticket'
             ? isApprover
-            : isApprover || owner.requesterId === actor.id || owner.participantIds.indexOf(actor.id) !== -1;
+            : isApprover ||
+              owner.requesterId === actor.id ||
+              owner.participantIds.indexOf(actor.id) !== -1;
     if (!canComment) throw new Error('You do not have access to this request.');
 
     const { result: comment } = await withLockedDedupe(
@@ -1122,7 +1237,7 @@ async function addComment(
         dedupeRequestId,
         async () => {
             const created = result(
-                await admin
+                await client
                     .from('comments')
                     .insert({
                         target_type: owner.kind,
@@ -1351,7 +1466,11 @@ async function insertActionComment(
 }
 
 async function requireRequesterProfile(admin: SupabaseClient, email: string): Promise<Row> {
-    const { data, error } = await admin.from('profiles').select('*').eq('email', email).maybeSingle();
+    const { data, error } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('Requester not found.');
     return data;
@@ -1447,36 +1566,49 @@ async function createInventoryRequest(
         throw new Error('End date must be on or after start date.');
     }
     const items = await validateInventoryItems(admin, input.items || []);
-    const department = await requireDepartment(admin, requireNonEmpty(input.departmentId, 'Department is required.'));
+    const department = await requireDepartment(
+        admin,
+        requireNonEmpty(input.departmentId, 'Department is required.'),
+    );
     const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
     const participantEmails = parseParticipants(input.participants);
 
-    const { result: dto } = await withLockedDedupe(admin, 'inventory_request:create', requestId, async () => {
-        const created = result(
-            await admin
-                .from('inventory_requests')
-                .insert({
-                    name,
-                    requester_id: requestedBy.id,
-                    start_date: input.startDate,
-                    end_date: input.endDate,
-                    status: 'draft',
-                    image_path: String(input.imageId || ''),
-                    department_id: department.id,
-                    lead_email: leadEmail,
-                })
-                .select('*')
-                .single(),
-        ) as Row;
-        if (items.length) {
-            const { error } = await admin
-                .from('inventory_request_items')
-                .insert(items.map((item) => ({ ...item, request_id: created.id })));
-            if (error) throw new Error(error.message);
-        }
-        await replaceParticipants(admin, 'inventory_request_participants', created.id, participantEmails);
-        return getInventoryRequest(client, admin, created.id);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'inventory_request:create',
+        requestId,
+        async () => {
+            const created = result(
+                await admin
+                    .from('inventory_requests')
+                    .insert({
+                        name,
+                        requester_id: requestedBy.id,
+                        start_date: input.startDate,
+                        end_date: input.endDate,
+                        status: 'draft',
+                        image_path: String(input.imageId || ''),
+                        department_id: department.id,
+                        lead_email: leadEmail,
+                    })
+                    .select('*')
+                    .single(),
+            ) as Row;
+            if (items.length) {
+                const { error } = await admin
+                    .from('inventory_request_items')
+                    .insert(items.map((item) => ({ ...item, request_id: created.id })));
+                if (error) throw new Error(error.message);
+            }
+            await replaceParticipants(
+                admin,
+                'inventory_request_participants',
+                created.id,
+                participantEmails,
+            );
+            return getInventoryRequest(client, admin, created.id);
+        },
+    );
     return dto;
 }
 
@@ -1497,46 +1629,62 @@ async function updateInventoryRequest(
         throw new Error('End date must be on or after start date.');
     }
     const items = await validateInventoryItems(admin, input.items || []);
-    const department = await requireDepartment(admin, requireNonEmpty(input.departmentId, 'Department is required.'));
+    const department = await requireDepartment(
+        admin,
+        requireNonEmpty(input.departmentId, 'Department is required.'),
+    );
     const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
     const participantEmails = parseParticipants(input.participants);
 
-    const { result: dto } = await withLockedDedupe(admin, 'inventory_request:update:' + id, requestId, async () => {
-        const [existingRes, participantsRes] = await Promise.all([
-            admin.from('inventory_requests').select('*').eq('id', id).single(),
-            admin.from('inventory_request_participants').select('*').eq('request_id', id),
-        ]);
-        const existing = result(existingRes) as Row;
-        const existingParticipants = result(participantsRes) as Row[];
-        const isOwner =
-            existing.requester_id === actor.id ||
-            existingParticipants.some((p) => p.profile_id === actor.id);
-        if (!(isApprover || (isOwner && existing.status === 'draft'))) {
-            throw new Error('You are not allowed to edit this request.');
-        }
-        if (existing.requester_id !== requestedBy.id && !isApprover) {
-            throw new Error('You cannot reassign the requester.');
-        }
-        const updated = result(
-            await admin
-                .from('inventory_requests')
-                .update({
-                    name,
-                    requester_id: requestedBy.id,
-                    start_date: input.startDate,
-                    end_date: input.endDate,
-                    department_id: department.id,
-                    lead_email: leadEmail,
-                    image_path: input.imageId === undefined ? existing.image_path : String(input.imageId || ''),
-                })
-                .eq('id', id)
-                .select('*')
-                .single(),
-        ) as Row;
-        await replaceInventoryRequestItems(admin, id, items);
-        await replaceParticipants(admin, 'inventory_request_participants', id, participantEmails);
-        return updated;
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'inventory_request:update:' + id,
+        requestId,
+        async () => {
+            const [existingRes, participantsRes] = await Promise.all([
+                admin.from('inventory_requests').select('*').eq('id', id).single(),
+                admin.from('inventory_request_participants').select('*').eq('request_id', id),
+            ]);
+            const existing = result(existingRes) as Row;
+            const existingParticipants = result(participantsRes) as Row[];
+            const isOwner =
+                existing.requester_id === actor.id ||
+                existingParticipants.some((p) => p.profile_id === actor.id);
+            if (!(isApprover || (isOwner && existing.status === 'draft'))) {
+                throw new Error('You are not allowed to edit this request.');
+            }
+            if (existing.requester_id !== requestedBy.id && !isApprover) {
+                throw new Error('You cannot reassign the requester.');
+            }
+            const updated = result(
+                await admin
+                    .from('inventory_requests')
+                    .update({
+                        name,
+                        requester_id: requestedBy.id,
+                        start_date: input.startDate,
+                        end_date: input.endDate,
+                        department_id: department.id,
+                        lead_email: leadEmail,
+                        image_path:
+                            input.imageId === undefined
+                                ? existing.image_path
+                                : String(input.imageId || ''),
+                    })
+                    .eq('id', id)
+                    .select('*')
+                    .single(),
+            ) as Row;
+            await replaceInventoryRequestItems(admin, id, items);
+            await replaceParticipants(
+                admin,
+                'inventory_request_participants',
+                id,
+                participantEmails,
+            );
+            return updated;
+        },
+    );
     return getInventoryRequest(client, admin, dto.id);
 }
 
@@ -1625,7 +1773,8 @@ async function performInventoryRequestAction(
 
             if (action === 'submit') {
                 const isOwner =
-                    request.requester_id === actor.id || participants.some((p) => p.profile_id === actor.id);
+                    request.requester_id === actor.id ||
+                    participants.some((p) => p.profile_id === actor.id);
                 if (!isOwner || request.status !== 'draft') throw new Error('Invalid transition.');
                 const { count } = await admin
                     .from('inventory_request_items')
@@ -1639,15 +1788,22 @@ async function performInventoryRequestAction(
                 if (action === 'approve') {
                     if (request.status !== 'submitted') throw new Error('Invalid transition.');
                     computedStatus = 'approved';
-                    await narrate(actor.name + ' approved this request.' + (note ? ' ' + note : ''));
+                    await narrate(
+                        actor.name + ' approved this request.' + (note ? ' ' + note : ''),
+                    );
                 } else if (action === 'reject') {
                     if (request.status !== 'submitted') throw new Error('Invalid transition.');
                     computedStatus = 'rejected';
-                    await narrate(actor.name + ' rejected this request.' + (note ? ' ' + note : ''));
+                    await narrate(
+                        actor.name + ' rejected this request.' + (note ? ' ' + note : ''),
+                    );
                 } else if (action === 'issue') {
                     if (request.status !== 'approved') throw new Error('Invalid transition.');
                     const items = result(
-                        await admin.from('inventory_request_items').select('*').eq('request_id', id),
+                        await admin
+                            .from('inventory_request_items')
+                            .select('*')
+                            .eq('request_id', id),
                     ) as Row[];
                     const types = result(await admin.from('inventory_types').select('*')) as Row[];
                     const typesById = new Map(types.map((t) => [t.id, t]));
@@ -1656,7 +1812,8 @@ async function performInventoryRequestAction(
                         const type = typesById.get(item.inventory_type_id);
                         if (!type) throw new Error('Inventory type not found.');
                         const available = type.total_quantity - (deductions.get(type.id) || 0);
-                        if (available < item.quantity) throw new Error('Insufficient inventory available.');
+                        if (available < item.quantity)
+                            throw new Error('Insufficient inventory available.');
                         deductions.set(type.id, (deductions.get(type.id) || 0) + item.quantity);
                     }
                     computedStatus = 'issued';
@@ -1666,12 +1823,17 @@ async function performInventoryRequestAction(
                         throw new Error('Invalid transition.');
                     }
                     computedStatus = 'cancelled';
-                    await narrate(actor.name + ' cancelled this request.' + (note ? ' ' + note : ''));
+                    await narrate(
+                        actor.name + ' cancelled this request.' + (note ? ' ' + note : ''),
+                    );
                 } else if (action === 'close') {
                     if (['rejected', 'cancelled'].indexOf(request.status) === -1) {
                         if (request.status !== 'issued') throw new Error('Invalid transition.');
                         const items = result(
-                            await admin.from('inventory_request_items').select('*').eq('request_id', id),
+                            await admin
+                                .from('inventory_request_items')
+                                .select('*')
+                                .eq('request_id', id),
                         ) as Row[];
                         if (!items.length || items.some((item) => !item.return_condition)) {
                             throw new Error('Every item needs a return condition.');
@@ -1712,7 +1874,8 @@ async function deleteInventoryRequest(
         const request = result(requestRes) as Row;
         const participants = result(participantsRes) as Row[];
         const owner =
-            request.requester_id === actor.id || participants.some((p) => p.profile_id === actor.id);
+            request.requester_id === actor.id ||
+            participants.some((p) => p.profile_id === actor.id);
         if (!isApprover && !owner) throw new Error('You are not allowed to delete this request.');
         if (request.status !== 'draft' && request.status !== 'cancelled') {
             throw new Error('This request can no longer be deleted.');
@@ -1728,7 +1891,12 @@ async function deleteInventoryRequest(
 // ---------------------------------------------------------------------------
 
 function programSessionDto(x: Row): Row {
-    return { Name: x.name || '', Type: x.session_type, StartDateTime: x.start_at, EndDateTime: x.end_at };
+    return {
+        Name: x.name || '',
+        Type: x.session_type,
+        StartDateTime: x.start_at,
+        EndDateTime: x.end_at,
+    };
 }
 
 function programRequestDto(
@@ -1793,13 +1961,14 @@ async function listProgramRequests(
     page: number,
     query: Row,
 ): Promise<Row> {
-    const [placesRes, departmentsRes, requestsRes, sessionsRes, participantsRes] = await Promise.all([
-        client.from('places').select('*'),
-        client.from('departments').select('*'),
-        client.from('program_requests').select('*'),
-        client.from('program_sessions').select('*').order('start_at'),
-        client.from('program_request_participants').select('*'),
-    ]);
+    const [placesRes, departmentsRes, requestsRes, sessionsRes, participantsRes] =
+        await Promise.all([
+            client.from('places').select('*'),
+            client.from('departments').select('*'),
+            client.from('program_requests').select('*'),
+            client.from('program_sessions').select('*').order('start_at'),
+            client.from('program_request_participants').select('*'),
+        ]);
     const placesById = new Map((result(placesRes) as Row[]).map((x) => [x.id, x]));
     const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
     const requests = result(requestsRes) as Row[];
@@ -1948,7 +2117,12 @@ function sessionsOverlapWithBuffer(
     return ls < re + bufferMs && rs < le + bufferMs;
 }
 
-function rangesOverlap(leftStart: string, leftEnd: string, rightStart: string, rightEnd: string): boolean {
+function rangesOverlap(
+    leftStart: string,
+    leftEnd: string,
+    rightStart: string,
+    rightEnd: string,
+): boolean {
     return leftStart < rightEnd && rightStart < leftEnd;
 }
 
@@ -1976,7 +2150,13 @@ async function assertPlaceAvailability(
     const bufferMs = 60 * 60 * 1000;
     const conflict = otherSessions.some((other) =>
         sessions.some((session) =>
-            sessionsOverlapWithBuffer(session.start_at, session.end_at, other.start_at, other.end_at, bufferMs),
+            sessionsOverlapWithBuffer(
+                session.start_at,
+                session.end_at,
+                other.start_at,
+                other.end_at,
+                bufferMs,
+            ),
         ),
     );
     if (conflict) {
@@ -1988,7 +2168,10 @@ async function assertPlaceAvailability(
 
 // Blocks with no place set apply to every non-approver submission — ported
 // from assertProgramSessionsNotBlockedForUser in Programs.ts.
-async function assertProgramSessionsNotBlockedForUser(admin: SupabaseClient, sessions: Row[]): Promise<void> {
+async function assertProgramSessionsNotBlockedForUser(
+    admin: SupabaseClient,
+    sessions: Row[],
+): Promise<void> {
     const blocks = result(await admin.from('blocks').select('*').eq('place', '')) as Row[];
     const blocking = blocks.find((block) =>
         sessions.some((session) =>
@@ -2048,11 +2231,7 @@ async function getAvailablePlaces(
 // they're the requester/a participant, so this reads through `admin` rather
 // than the RLS-scoped `client` (which would narrow a plain `user` down to
 // just their own requests, same as the request-detail pages already do).
-async function getCalendarMonth(
-    admin: SupabaseClient,
-    year: number,
-    month: number,
-): Promise<Row> {
+async function getCalendarMonth(admin: SupabaseClient, year: number, month: number): Promise<Row> {
     const [placesRes, departmentsRes, requestsRes] = await Promise.all([
         admin.from('places').select('*').order('name'),
         admin.from('departments').select('*'),
@@ -2068,12 +2247,18 @@ async function getCalendarMonth(
               admin.from('program_sessions').select('*').in('request_id', requestIds),
               admin.from('program_request_participants').select('*').in('request_id', requestIds),
           ])
-        : [{ data: [], error: null }, { data: [], error: null }];
+        : [
+              { data: [], error: null },
+              { data: [], error: null },
+          ];
     const sessions = result(sessionsRows) as Row[];
     const participants = result(participantRows) as Row[];
     const sessionsByRequest = groupByKey(sessions, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
-    const profilesById = await profilesFor(admin, requests.map((r) => r.requester_id));
+    const profilesById = await profilesFor(
+        admin,
+        requests.map((r) => r.requester_id),
+    );
     const monthStart = Date.UTC(year, month - 1, 1);
     const monthEnd = Date.UTC(year, month, 1);
     const programs: Row[] = [];
@@ -2082,7 +2267,9 @@ async function getCalendarMonth(
         const monthSessions = allSessions.filter((s) => {
             const start = Date.parse(s.start_at);
             const end = Date.parse(s.end_at);
-            return !Number.isNaN(start) && !Number.isNaN(end) && start < monthEnd && end > monthStart;
+            return (
+                !Number.isNaN(start) && !Number.isNaN(end) && start < monthEnd && end > monthStart
+            );
         });
         if (!monthSessions.length) return;
         // sessionStart/sessionEnd reflect the program's full schedule
@@ -2112,7 +2299,10 @@ async function createProgramRequest(
     const actor = await currentProfile(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const type = requireNonEmpty(input.type, 'Program type is required.');
-    const name = type === 'Other' ? requireNonEmpty(input.name, 'Program title is required.') : String(input.name || '');
+    const name =
+        type === 'Other'
+            ? requireNonEmpty(input.name, 'Program title is required.')
+            : String(input.name || '');
     const language = requireNonEmpty(input.language, 'Language is required.');
     const requesterEmail = String(input.userId || actor.email).toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
@@ -2122,43 +2312,60 @@ async function createProgramRequest(
     if (input.placeId && !isApprover) throw new Error('Only an approver can assign a place.');
     let place: Row | null = null;
     if (input.placeId) {
-        const { data, error } = await admin.from('places').select('*').eq('id', input.placeId).maybeSingle();
+        const { data, error } = await admin
+            .from('places')
+            .select('*')
+            .eq('id', input.placeId)
+            .maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) throw new Error('Place not found.');
         place = data;
     }
     const sessions = validateProgramSessions(input.sessions || []);
     await assertPlaceAvailability(admin, place?.id || null, sessions);
-    const department = await requireDepartment(admin, requireNonEmpty(input.departmentId, 'Department is required.'));
+    const department = await requireDepartment(
+        admin,
+        requireNonEmpty(input.departmentId, 'Department is required.'),
+    );
     const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
     const participantEmails = parseParticipants(input.participants);
 
-    const { result: dto } = await withLockedDedupe(admin, 'program_request:create', requestId, async () => {
-        const created = result(
-            await admin
-                .from('program_requests')
-                .insert({
-                    name,
-                    language,
-                    program_type: type,
-                    requester_id: requestedBy.id,
-                    status: 'draft',
-                    place_id: place ? place.id : null,
-                    department_id: department.id,
-                    lead_email: leadEmail,
-                })
-                .select('*')
-                .single(),
-        ) as Row;
-        if (sessions.length) {
-            const { error } = await admin
-                .from('program_sessions')
-                .insert(sessions.map((s) => ({ ...s, request_id: created.id })));
-            if (error) throw new Error(error.message);
-        }
-        await replaceParticipants(admin, 'program_request_participants', created.id, participantEmails);
-        return getProgramRequest(client, admin, created.id);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'program_request:create',
+        requestId,
+        async () => {
+            const created = result(
+                await admin
+                    .from('program_requests')
+                    .insert({
+                        name,
+                        language,
+                        program_type: type,
+                        requester_id: requestedBy.id,
+                        status: 'draft',
+                        place_id: place ? place.id : null,
+                        department_id: department.id,
+                        lead_email: leadEmail,
+                    })
+                    .select('*')
+                    .single(),
+            ) as Row;
+            if (sessions.length) {
+                const { error } = await admin
+                    .from('program_sessions')
+                    .insert(sessions.map((s) => ({ ...s, request_id: created.id })));
+                if (error) throw new Error(error.message);
+            }
+            await replaceParticipants(
+                admin,
+                'program_request_participants',
+                created.id,
+                participantEmails,
+            );
+            return getProgramRequest(client, admin, created.id);
+        },
+    );
     return dto;
 }
 
@@ -2173,13 +2380,20 @@ async function updateProgramRequest(
     const actor = await currentProfile(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const type = requireNonEmpty(input.type, 'Program type is required.');
-    const name = type === 'Other' ? requireNonEmpty(input.name, 'Program title is required.') : String(input.name || '');
+    const name =
+        type === 'Other'
+            ? requireNonEmpty(input.name, 'Program title is required.')
+            : String(input.name || '');
     const language = requireNonEmpty(input.language, 'Language is required.');
     const requesterEmail = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
     let place: Row | null = null;
     if (input.placeId) {
-        const { data, error } = await admin.from('places').select('*').eq('id', input.placeId).maybeSingle();
+        const { data, error } = await admin
+            .from('places')
+            .select('*')
+            .eq('id', input.placeId)
+            .maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) throw new Error('Place not found.');
         place = data;
@@ -2188,7 +2402,10 @@ async function updateProgramRequest(
     // only createProgramRequest requires at least one.
     const sessions = validateProgramSessions(input.sessions || [], false);
     await assertPlaceAvailability(admin, place?.id || null, sessions, id);
-    const department = await requireDepartment(admin, requireNonEmpty(input.departmentId, 'Department is required.'));
+    const department = await requireDepartment(
+        admin,
+        requireNonEmpty(input.departmentId, 'Department is required.'),
+    );
     const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
     const participantEmails = parseParticipants(input.participants);
     const requestedStatus = input.status as string | undefined;
@@ -2196,70 +2413,75 @@ async function updateProgramRequest(
         throw new Error('Invalid status.');
     }
 
-    const { result: dto } = await withLockedDedupe(admin, 'program_request:update:' + id, requestId, async () => {
-        const [existingRes, participantsRes] = await Promise.all([
-            admin.from('program_requests').select('*').eq('id', id).single(),
-            admin.from('program_request_participants').select('*').eq('request_id', id),
-        ]);
-        const existing = result(existingRes) as Row;
-        const existingParticipants = result(participantsRes) as Row[];
-        const isOwner =
-            existing.requester_id === actor.id ||
-            existingParticipants.some((p) => p.profile_id === actor.id);
-        if (!(isApprover || (isOwner && existing.status === 'draft'))) {
-            throw new Error('You are not allowed to edit this request.');
-        }
-        const newPlaceId = place ? place.id : null;
-        if (existing.place_id !== newPlaceId && !isApprover) {
-            throw new Error('Only an approver can change the assigned place.');
-        }
-        if (existing.requester_id !== requestedBy.id && !isApprover) {
-            throw new Error('You cannot reassign the requester.');
-        }
-        const nextStatus = requestedStatus || existing.status;
-        if (nextStatus !== existing.status && !isApprover) {
-            throw new Error('Only an approver can change the status.');
-        }
-        const updated = result(
-            await admin
-                .from('program_requests')
-                .update({
-                    name,
-                    language,
-                    program_type: type,
-                    requester_id: requestedBy.id,
-                    place_id: newPlaceId,
-                    department_id: department.id,
-                    lead_email: leadEmail,
-                    status: nextStatus,
-                })
-                .eq('id', id)
-                .select('*')
-                .single(),
-        ) as Row;
-        const { error: deleteSessionsError } = await admin
-            .from('program_sessions')
-            .delete()
-            .eq('request_id', id);
-        if (deleteSessionsError) throw new Error(deleteSessionsError.message);
-        if (sessions.length) {
-            const { error } = await admin
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'program_request:update:' + id,
+        requestId,
+        async () => {
+            const [existingRes, participantsRes] = await Promise.all([
+                admin.from('program_requests').select('*').eq('id', id).single(),
+                admin.from('program_request_participants').select('*').eq('request_id', id),
+            ]);
+            const existing = result(existingRes) as Row;
+            const existingParticipants = result(participantsRes) as Row[];
+            const isOwner =
+                existing.requester_id === actor.id ||
+                existingParticipants.some((p) => p.profile_id === actor.id);
+            if (!(isApprover || (isOwner && existing.status === 'draft'))) {
+                throw new Error('You are not allowed to edit this request.');
+            }
+            const newPlaceId = place ? place.id : null;
+            if (existing.place_id !== newPlaceId && !isApprover) {
+                throw new Error('Only an approver can change the assigned place.');
+            }
+            if (existing.requester_id !== requestedBy.id && !isApprover) {
+                throw new Error('You cannot reassign the requester.');
+            }
+            const nextStatus = requestedStatus || existing.status;
+            if (nextStatus !== existing.status && !isApprover) {
+                throw new Error('Only an approver can change the status.');
+            }
+            const updated = result(
+                await admin
+                    .from('program_requests')
+                    .update({
+                        name,
+                        language,
+                        program_type: type,
+                        requester_id: requestedBy.id,
+                        place_id: newPlaceId,
+                        department_id: department.id,
+                        lead_email: leadEmail,
+                        status: nextStatus,
+                    })
+                    .eq('id', id)
+                    .select('*')
+                    .single(),
+            ) as Row;
+            const { error: deleteSessionsError } = await admin
                 .from('program_sessions')
-                .insert(sessions.map((s) => ({ ...s, request_id: id })));
-            if (error) throw new Error(error.message);
-        }
-        await replaceParticipants(admin, 'program_request_participants', id, participantEmails);
-        if (nextStatus !== existing.status) {
-            await insertActionComment(
-                admin,
-                'program_request',
-                id,
-                actor.id,
-                actor.name + ' changed the status to ' + nextStatus + '.',
-            );
-        }
-        return updated;
-    });
+                .delete()
+                .eq('request_id', id);
+            if (deleteSessionsError) throw new Error(deleteSessionsError.message);
+            if (sessions.length) {
+                const { error } = await admin
+                    .from('program_sessions')
+                    .insert(sessions.map((s) => ({ ...s, request_id: id })));
+                if (error) throw new Error(error.message);
+            }
+            await replaceParticipants(admin, 'program_request_participants', id, participantEmails);
+            if (nextStatus !== existing.status) {
+                await insertActionComment(
+                    admin,
+                    'program_request',
+                    id,
+                    actor.id,
+                    actor.name + ' changed the status to ' + nextStatus + '.',
+                );
+            }
+            return updated;
+        },
+    );
     return getProgramRequest(client, admin, dto.id);
 }
 
@@ -2325,7 +2547,8 @@ async function performProgramRequestAction(
 
             if (action === 'submit') {
                 const isOwner =
-                    request.requester_id === actor.id || participants.some((p) => p.profile_id === actor.id);
+                    request.requester_id === actor.id ||
+                    participants.some((p) => p.profile_id === actor.id);
                 if ((!isOwner && !isApprover) || request.status !== 'draft') {
                     throw new Error('Invalid transition.');
                 }
@@ -2337,13 +2560,18 @@ async function performProgramRequestAction(
                 if (!isApprover) throw new Error('Approver access is required.');
                 if (action === 'approve') {
                     if (request.status !== 'submitted') throw new Error('Invalid transition.');
-                    if (!request.place_id) throw new Error('A place must be assigned before approval.');
+                    if (!request.place_id)
+                        throw new Error('A place must be assigned before approval.');
                     computedStatus = 'approved';
-                    await narrate(actor.name + ' approved this request.' + (note ? ' ' + note : ''));
+                    await narrate(
+                        actor.name + ' approved this request.' + (note ? ' ' + note : ''),
+                    );
                 } else if (action === 'reject') {
                     if (request.status !== 'submitted') throw new Error('Invalid transition.');
                     computedStatus = 'rejected';
-                    await narrate(actor.name + ' rejected this request.' + (note ? ' ' + note : ''));
+                    await narrate(
+                        actor.name + ' rejected this request.' + (note ? ' ' + note : ''),
+                    );
                 } else if (action === 'cancel') {
                     if (['draft', 'submitted', 'approved'].indexOf(request.status) === -1) {
                         throw new Error('Invalid transition.');
@@ -2353,13 +2581,18 @@ async function performProgramRequestAction(
                         if (!hasFuture) throw new Error('Cannot cancel an approved past program.');
                     }
                     computedStatus = 'cancelled';
-                    await narrate(actor.name + ' cancelled this request.' + (note ? ' ' + note : ''));
+                    await narrate(
+                        actor.name + ' cancelled this request.' + (note ? ' ' + note : ''),
+                    );
                 } else {
                     throw new Error('Unsupported action.');
                 }
             }
 
-            const { error } = await admin.from('program_requests').update({ status: computedStatus }).eq('id', id);
+            const { error } = await admin
+                .from('program_requests')
+                .update({ status: computedStatus })
+                .eq('id', id);
             if (error) throw new Error(error.message);
             return computedStatus;
         },
@@ -2384,7 +2617,8 @@ async function deleteProgramRequest(
         const request = result(requestRes) as Row;
         const participants = result(participantsRes) as Row[];
         const owner =
-            request.requester_id === actor.id || participants.some((p) => p.profile_id === actor.id);
+            request.requester_id === actor.id ||
+            participants.some((p) => p.profile_id === actor.id);
         if (!isApprover && !owner) throw new Error('You are not allowed to delete this request.');
         if (['draft', 'cancelled', 'rejected'].indexOf(request.status) === -1) {
             throw new Error('This request can no longer be deleted.');
@@ -2403,6 +2637,22 @@ const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'imag
 const MAX_IMAGE_BYTES = 50 * 1024;
 const IMAGE_BUCKET = 'request-images';
 const IMAGE_URL_TTL_SECONDS = 60 * 60;
+
+async function createImageUploadUrl(
+    admin: SupabaseClient,
+    userId: string,
+    fileName: string,
+    mimeType: string,
+): Promise<Row> {
+    if (ALLOWED_IMAGE_MIME_TYPES.indexOf(mimeType) === -1)
+        throw new Error('That file type is not supported.');
+    requireNonEmpty(fileName, 'A file name is required.');
+    const extension = mimeType.split('/')[1] || 'jpg';
+    const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+    const { data, error } = await admin.storage.from(IMAGE_BUCKET).createSignedUploadUrl(path);
+    if (error) throw new Error(error.message);
+    return { path, token: data.token };
+}
 
 async function uploadImage(
     admin: SupabaseClient,
@@ -2692,7 +2942,9 @@ Deno.serve(async (request) => {
     });
     const { data: authData } = await client.auth.getUser();
     if (!authData.user) return respond({ error: 'Authentication is required.' }, 401);
+    const pathOperation = new URL(request.url).pathname.replace(/\/+$/, '').split('/').pop() || '';
     const body = (await request.json()) as RequestBody;
+    if (!body.operation && pathOperation && pathOperation !== 'api') body.operation = pathOperation;
     const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
     const args = body.args || [];
     try {
@@ -2706,49 +2958,106 @@ Deno.serve(async (request) => {
 
             case 'createDepartment':
                 return respond(
-                    await createDepartment(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createDepartment(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updateDepartment':
                 return respond(
                     await updateDepartment(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteDepartment':
-                await deleteDepartment(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deleteDepartment(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
 
             case 'createPlace':
                 return respond(
-                    await createPlace(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createPlace(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updatePlace':
                 return respond(
                     await updatePlace(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deletePlace':
-                await deletePlace(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deletePlace(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
 
             case 'createInventoryType':
                 return respond(
-                    await createInventoryType(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createInventoryType(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updateInventoryType':
                 return respond(
                     await updateInventoryType(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteInventoryType':
-                await deleteInventoryType(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deleteInventoryType(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
 
             case 'updateUser':
                 return respond(
-                    await updateUser(client, admin, authData.user.id, String(args[0]), args[1] as Row),
+                    await updateUser(
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                    ),
                 );
             case 'deleteUser':
                 await deleteUser(client, admin, authData.user.id, String(args[0]), String(args[1]));
@@ -2756,94 +3065,187 @@ Deno.serve(async (request) => {
 
             case 'createShiftType':
                 return respond(
-                    await createShiftType(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createShiftType(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updateShiftType':
                 return respond(
                     await updateShiftType(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteShiftType':
-                await deleteShiftType(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deleteShiftType(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
 
             case 'createProgramType':
                 return respond(
                     await createNamedOption(
-                        client, admin, authData.user.id, 'program_types', 'program-type', 'program type',
-                        args[0] as Row, String(args[1]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        'program_types',
+                        'program-type',
+                        'program type',
+                        args[0] as Row,
+                        String(args[1]),
                     ),
                 );
             case 'updateProgramType':
                 return respond(
                     await updateNamedOption(
-                        client, admin, authData.user.id, 'program_types', 'program-type', 'program type',
-                        String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        'program_types',
+                        'program-type',
+                        'program type',
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteProgramType':
                 await deleteNamedOption(
-                    client, admin, authData.user.id, 'program_types', 'program-type', String(args[0]), String(args[1]),
+                    client,
+                    admin,
+                    authData.user.id,
+                    'program_types',
+                    'program-type',
+                    String(args[0]),
+                    String(args[1]),
                 );
                 return respond(null);
 
             case 'createProgramLanguage':
                 return respond(
                     await createNamedOption(
-                        client, admin, authData.user.id, 'program_languages', 'program-language', 'language',
-                        args[0] as Row, String(args[1]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        'program_languages',
+                        'program-language',
+                        'language',
+                        args[0] as Row,
+                        String(args[1]),
                     ),
                 );
             case 'updateProgramLanguage':
                 return respond(
                     await updateNamedOption(
-                        client, admin, authData.user.id, 'program_languages', 'program-language', 'language',
-                        String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        'program_languages',
+                        'program-language',
+                        'language',
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteProgramLanguage':
                 await deleteNamedOption(
-                    client, admin, authData.user.id, 'program_languages', 'program-language', String(args[0]), String(args[1]),
+                    client,
+                    admin,
+                    authData.user.id,
+                    'program_languages',
+                    'program-language',
+                    String(args[0]),
+                    String(args[1]),
                 );
                 return respond(null);
 
             case 'createSessionType':
                 return respond(
                     await createNamedOption(
-                        client, admin, authData.user.id, 'session_types', 'session-type', 'session type',
-                        args[0] as Row, String(args[1]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        'session_types',
+                        'session-type',
+                        'session type',
+                        args[0] as Row,
+                        String(args[1]),
                     ),
                 );
             case 'updateSessionType':
                 return respond(
                     await updateNamedOption(
-                        client, admin, authData.user.id, 'session_types', 'session-type', 'session type',
-                        String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        'session_types',
+                        'session-type',
+                        'session type',
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteSessionType':
                 await deleteNamedOption(
-                    client, admin, authData.user.id, 'session_types', 'session-type', String(args[0]), String(args[1]),
+                    client,
+                    admin,
+                    authData.user.id,
+                    'session_types',
+                    'session-type',
+                    String(args[0]),
+                    String(args[1]),
                 );
                 return respond(null);
 
             case 'createBlock':
                 return respond(
-                    await createBlock(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createBlock(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updateBlock':
                 return respond(
                     await updateBlock(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteBlock':
-                await deleteBlock(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deleteBlock(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
 
             case 'updateHomeContent':
-                return respond(await updateHomeContent(client, admin, authData.user.id, args[0] as Row));
+                return respond(
+                    await updateHomeContent(client, admin, authData.user.id, args[0] as Row),
+                );
 
             case 'listDepartments':
                 return respond(await listDepartments(client));
@@ -2863,42 +3265,86 @@ Deno.serve(async (request) => {
                 return respond(await listRosters(client, admin, Number(args[0]) || 1));
             case 'createRoster':
                 return respond(
-                    await createRoster(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createRoster(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updateRoster':
                 return respond(
                     await updateRoster(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteRoster':
-                await deleteRoster(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deleteRoster(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
 
             case 'listInventoryRequests':
                 return respond(
-                    await listInventoryRequests(client, admin, Number(args[0]) || 1, (args[1] as Row) || {}),
+                    await listInventoryRequests(
+                        client,
+                        admin,
+                        Number(args[0]) || 1,
+                        (args[1] as Row) || {},
+                    ),
                 );
             case 'getInventoryRequest':
                 return respond(await getInventoryRequest(client, admin, String(args[0])));
             case 'createInventoryRequest':
                 return respond(
-                    await createInventoryRequest(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createInventoryRequest(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updateInventoryRequest':
                 return respond(
                     await updateInventoryRequest(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'updateInventoryRequestParticipants':
                 return respond(
                     await updateInventoryRequestParticipants(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteInventoryRequest':
-                await deleteInventoryRequest(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deleteInventoryRequest(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
             case 'performInventoryRequestAction':
                 // args[3] (returnItems) is unused — it's unused in the source
@@ -2918,32 +3364,65 @@ Deno.serve(async (request) => {
 
             case 'listProgramRequests':
                 return respond(
-                    await listProgramRequests(client, admin, Number(args[0]) || 1, (args[1] as Row) || {}),
+                    await listProgramRequests(
+                        client,
+                        admin,
+                        Number(args[0]) || 1,
+                        (args[1] as Row) || {},
+                    ),
                 );
             case 'getProgramRequest':
                 return respond(await getProgramRequest(client, admin, String(args[0])));
             case 'getAvailablePlaces':
-                return respond(await getAvailablePlaces(admin, String(args[0] || ''), (args[1] as Row[]) || []));
+                return respond(
+                    await getAvailablePlaces(
+                        admin,
+                        String(args[0] || ''),
+                        (args[1] as Row[]) || [],
+                    ),
+                );
             case 'getCalendarMonth':
                 return respond(await getCalendarMonth(admin, Number(args[0]), Number(args[1])));
             case 'createProgramRequest':
                 return respond(
-                    await createProgramRequest(client, admin, authData.user.id, args[0] as Row, String(args[1])),
+                    await createProgramRequest(
+                        client,
+                        admin,
+                        authData.user.id,
+                        args[0] as Row,
+                        String(args[1]),
+                    ),
                 );
             case 'updateProgramRequest':
                 return respond(
                     await updateProgramRequest(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'updateProgramRequestParticipants':
                 return respond(
                     await updateProgramRequestParticipants(
-                        client, admin, authData.user.id, String(args[0]), args[1] as Row, String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        args[1] as Row,
+                        String(args[2]),
                     ),
                 );
             case 'deleteProgramRequest':
-                await deleteProgramRequest(client, admin, authData.user.id, String(args[0]), String(args[1]));
+                await deleteProgramRequest(
+                    client,
+                    admin,
+                    authData.user.id,
+                    String(args[0]),
+                    String(args[1]),
+                );
                 return respond(null);
             case 'performProgramRequestAction':
                 return respond(
@@ -2961,15 +3440,33 @@ Deno.serve(async (request) => {
             case 'addComment':
                 return respond(
                     await addComment(
-                        client, admin, authData.user.id, String(args[0]), String(args[1]), String(args[2]),
+                        client,
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        String(args[1]),
+                        String(args[2]),
                     ),
                 );
 
             case 'uploadImage':
                 return respond(
                     await uploadImage(
-                        admin, authData.user.id, String(args[0]), String(args[1]), String(args[2]),
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        String(args[1]),
+                        String(args[2]),
                         String(args[3] || ''),
+                    ),
+                );
+            case 'createImageUploadUrl':
+                return respond(
+                    await createImageUploadUrl(
+                        admin,
+                        authData.user.id,
+                        String(args[0]),
+                        String(args[1]),
                     ),
                 );
             case 'getImageUrl':
@@ -2977,7 +3474,9 @@ Deno.serve(async (request) => {
 
             default:
                 return respond(
-                    { error: `The ${String(body.operation || '')} operation has not been migrated yet.` },
+                    {
+                        error: `The ${String(body.operation || '')} operation has not been migrated yet.`,
+                    },
                     501,
                 );
         }

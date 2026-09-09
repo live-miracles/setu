@@ -1,10 +1,4 @@
-import {
-    useEffect,
-    useState,
-    type ChangeEvent,
-    type FormEvent,
-    type ReactNode,
-} from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { useCreate, useDelete, useList, useUpdate } from '@refinedev/core';
 import {
     Button,
@@ -50,6 +44,7 @@ import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-q
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { prepareInventoryImage } from '../ui/inventory-image';
+import { supabase } from '../supabase';
 import { RequestImage } from '../ui/request-image';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { UserBlock } from '../ui/user-block';
@@ -291,7 +286,10 @@ function ColorField({ row, field }: { row?: Row; field: Field }) {
 }
 
 function SelectField({ field, row }: { field: Field; row?: Row }) {
-    const { result } = useList({ resource: field.optionsResource || '', pagination: { mode: 'off' } });
+    const { result } = useList({
+        resource: field.optionsResource || '',
+        pagination: { mode: 'off' },
+    });
     const options = [
         ...(field.optionsLabel ? [{ value: '', label: field.optionsLabel }] : []),
         ...(result.data as Row[]).map((option) => ({
@@ -527,12 +525,15 @@ function SettingsResourcePage({
         showSavingBadge(true);
         try {
             const prepared = await prepareInventoryImage(file);
-            const imageId = await api.uploadImage(
-                prepared.base64Data,
+            const upload = await api.createImageUploadUrl(
                 `InventoryTypes-${String(row.Id)}.jpg`,
                 prepared.mimeType,
-                String(row.ImageId || ''),
             );
+            const { error: uploadError } = await supabase()
+                .storage.from('request-images')
+                .uploadToSignedUrl(upload.path, upload.token, prepared.blob);
+            if (uploadError) throw uploadError;
+            const imageId = upload.path;
             await updateRow({
                 resource: resourceName,
                 id: row.Id,
@@ -677,7 +678,9 @@ function SettingsResourcePage({
                     }
                     if (field.type === 'datetime-local') return formatDateTime(String(value || ''));
                     if (field.type === 'select' && field.optionsResource) {
-                        return selectOptionLabelById.get(String(value ?? '')) ?? String(value ?? '');
+                        return (
+                            selectOptionLabelById.get(String(value ?? '')) ?? String(value ?? '')
+                        );
                     }
                     return String(value ?? '');
                 },

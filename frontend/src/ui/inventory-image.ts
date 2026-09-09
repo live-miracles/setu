@@ -19,22 +19,20 @@ export function fitImageWithinBounds(
     };
 }
 
-function encodeJpeg(canvas: HTMLCanvasElement): {
-    base64Data: string;
-    mimeType: typeof JPEG_MIME_TYPE;
-} {
+function encodeJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Unable to prepare the selected image.');
     // JPEG is supported by every browser, including the Apps Script iframe.
     // Keeping conversion native also avoids the AVIF encoder's worker URL,
     // which cannot be resolved from the bundled non-module app script.
-    const dataUrl = canvas.toDataURL(JPEG_MIME_TYPE, 0.72);
-    const prefix = `data:${JPEG_MIME_TYPE};base64,`;
-    if (!dataUrl.startsWith(prefix)) throw new Error('Unable to encode the selected image.');
-    return {
-        base64Data: dataUrl.slice(prefix.length),
-        mimeType: JPEG_MIME_TYPE,
-    };
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(
+            (blob) =>
+                blob ? resolve(blob) : reject(new Error('Unable to encode the selected image.')),
+            JPEG_MIME_TYPE,
+            0.72,
+        );
+    });
 }
 
 export function readImageFile(file: File): Promise<HTMLImageElement> {
@@ -57,7 +55,7 @@ export function readImageFile(file: File): Promise<HTMLImageElement> {
 }
 
 export async function prepareInventoryImage(file: File): Promise<{
-    base64Data: string;
+    blob: Blob;
     fileName: string;
     mimeType: typeof JPEG_MIME_TYPE;
 }> {
@@ -74,6 +72,6 @@ export async function prepareInventoryImage(file: File): Promise<{
     context.drawImage(image, 0, 0, dimensions.width, dimensions.height);
 
     const baseName = file.name.replace(/\.[^.]+$/, '') || 'inventory-image';
-    const encoded = encodeJpeg(canvas);
-    return { ...encoded, fileName: `${baseName}.jpg` };
+    const blob = await encodeJpeg(canvas);
+    return { blob, fileName: `${baseName}.jpg`, mimeType: JPEG_MIME_TYPE };
 }

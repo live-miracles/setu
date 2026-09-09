@@ -2,6 +2,9 @@
 # belong in the Supabase dashboard or local environment files, never here.
 project_id = "setu"
 
+[functions.email-dispatcher]
+verify_jwt = false
+
 [api]
 enabled = true
 schemas = ["public", "storage"]

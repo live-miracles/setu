@@ -81,6 +81,7 @@ import { roleLabel } from '../ui/styles';
 import { createRecordDestination } from '../ui/create-record';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
 import { prepareInventoryImage } from '../ui/inventory-image';
+import { supabase } from '../supabase';
 import { RequestImage } from '../ui/request-image';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
@@ -951,7 +952,11 @@ function Users({ dashboard }: Props) {
                 />
             )}
             {editing && (
-                <UserForm dashboard={dashboard} user={editing} close={() => setEditing(undefined)} />
+                <UserForm
+                    dashboard={dashboard}
+                    user={editing}
+                    close={() => setEditing(undefined)}
+                />
             )}
         </>
     );
@@ -1004,26 +1009,39 @@ function Roster({ dashboard }: Props) {
         };
         const { mutateAsync: createRoster } = useCreate();
         const { mutateAsync: updateRoster } = useUpdate();
-        const save = useSave(async () => {
-            const d = new FormData(document.getElementById('refine-roster-form') as HTMLFormElement);
-            const v = {
-                name: String(d.get('name')),
-                startDate: String(d.get('startDate')),
-                endDate: String(d.get('endDate')),
-                startTime: String(d.get('startTime') || ''),
-                endTime: String(d.get('endTime') || ''),
-                userId: String(d.get('userId') || ''),
-            };
-            const mutateOptions = { successNotification: false, errorNotification: false } as const;
-            if (row) {
-                await updateRoster({ resource: 'rosters', id: row.Id, values: v, ...mutateOptions });
-            } else {
-                await createRoster({ resource: 'rosters', values: v, ...mutateOptions });
-            }
-        }, () => {
-            setCreating(false);
-            setEditing(undefined);
-        });
+        const save = useSave(
+            async () => {
+                const d = new FormData(
+                    document.getElementById('refine-roster-form') as HTMLFormElement,
+                );
+                const v = {
+                    name: String(d.get('name')),
+                    startDate: String(d.get('startDate')),
+                    endDate: String(d.get('endDate')),
+                    startTime: String(d.get('startTime') || ''),
+                    endTime: String(d.get('endTime') || ''),
+                    userId: String(d.get('userId') || ''),
+                };
+                const mutateOptions = {
+                    successNotification: false,
+                    errorNotification: false,
+                } as const;
+                if (row) {
+                    await updateRoster({
+                        resource: 'rosters',
+                        id: row.Id,
+                        values: v,
+                        ...mutateOptions,
+                    });
+                } else {
+                    await createRoster({ resource: 'rosters', values: v, ...mutateOptions });
+                }
+            },
+            () => {
+                setCreating(false);
+                setEditing(undefined);
+            },
+        );
         return (
             <Modal
                 title={row ? 'Edit shift' : 'Schedule a shift'}
@@ -1454,9 +1472,9 @@ function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'progra
     });
     const rows = result.data;
     const loading = query.isLoading;
-    const open = (id: string) => (isInventory ? navigateToInventoryRequest(id) : navigateToProgram(id));
-    const hrefFor = (id: string) =>
-        isInventory ? inventoryRequestUrl(id) : programRequestUrl(id);
+    const open = (id: string) =>
+        isInventory ? navigateToInventoryRequest(id) : navigateToProgram(id);
+    const hrefFor = (id: string) => (isInventory ? inventoryRequestUrl(id) : programRequestUrl(id));
     const title = isInventory ? 'Inventory' : 'Programs';
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
@@ -1965,7 +1983,11 @@ function ProgramDetail({
     const { mutateAsync: customMutate } = useCustomMutation();
     const invalidate = useInvalidate();
     const invalidateThisRequest = () =>
-        invalidate({ resource: 'program-requests', id: request.Id, invalidates: ['list', 'many', 'detail'] });
+        invalidate({
+            resource: 'program-requests',
+            id: request.Id,
+            invalidates: ['list', 'many', 'detail'],
+        });
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
@@ -2984,7 +3006,11 @@ function InventoryDetail({
     const { mutateAsync: customMutate } = useCustomMutation();
     const invalidate = useInvalidate();
     const invalidateThisRequest = () =>
-        invalidate({ resource: 'inventory-requests', id: request.Id, invalidates: ['list', 'many', 'detail'] });
+        invalidate({
+            resource: 'inventory-requests',
+            id: request.Id,
+            invalidates: ['list', 'many', 'detail'],
+        });
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
@@ -3195,11 +3221,12 @@ function InventoryDetail({
             setImageUploading(true);
             showSavingBadge(true);
             const prepared = await prepareInventoryImage(file);
-            const nextImageId = await api.uploadImage(
-                prepared.base64Data,
-                prepared.fileName,
-                prepared.mimeType,
-            );
+            const upload = await api.createImageUploadUrl(prepared.fileName, prepared.mimeType);
+            const { error: uploadError } = await supabase()
+                .storage.from('request-images')
+                .uploadToSignedUrl(upload.path, upload.token, prepared.blob);
+            if (uploadError) throw uploadError;
+            const nextImageId = upload.path;
             setImageId(nextImageId);
             await updateInventoryRequest({
                 resource: 'inventory-requests',
@@ -3467,7 +3494,9 @@ function InventoryDetail({
                         imageId={imageId}
                         alt="Inventory request"
                         className="inventory-request-image"
-                        fallback={<Typography.Text type="secondary">No image added.</Typography.Text>}
+                        fallback={
+                            <Typography.Text type="secondary">No image added.</Typography.Text>
+                        }
                     />
                 </div>
             </DetailSection>
@@ -3734,7 +3763,13 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' })
         );
     }
     if (kind === 'inventory')
-        return <InventoryDetail key={row.Id} request={row as InventoryRequestDTO} dashboard={dashboard} />;
+        return (
+            <InventoryDetail
+                key={row.Id}
+                request={row as InventoryRequestDTO}
+                dashboard={dashboard}
+            />
+        );
     return <ProgramDetail key={row.Id} request={row as ProgramRequestDTO} dashboard={dashboard} />;
 }
 
@@ -3755,7 +3790,11 @@ export function renderRefineApp(
             Boolean(params.get(section === 'inventory' ? 'inventoryRequest' : 'programRequest')) ||
             params.get('mode') === 'create';
         page = detail ? (
-            <Detail key={section} kind={section as 'inventory' | 'programs'} dashboard={dashboard} />
+            <Detail
+                key={section}
+                kind={section as 'inventory' | 'programs'}
+                dashboard={dashboard}
+            />
         ) : (
             <RequestTable
                 key={section}
