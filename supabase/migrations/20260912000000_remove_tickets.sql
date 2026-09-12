@@ -1,23 +1,14 @@
 -- Tickets never shipped past the schema; remove the table, its status enum,
 -- the 'ticket' comment target, and every policy/function branch that
 -- referenced it rather than leaving dead schema behind.
+--
+-- The two comments policies are dropped up front (not recreated until the
+-- end) because a policy expression referencing target_type is a hard
+-- dependency that blocks the column's later ALTER COLUMN TYPE.
 
 drop policy if exists "approvers read tickets" on public.tickets;
-
 drop policy if exists "users read visible comments" on public.comments;
-create policy "users read visible comments" on public.comments for select to authenticated using (
-  (target_type = 'inventory_request' and public.can_view_inventory_request(target_id))
-  or (target_type = 'program_request' and public.can_view_program_request(target_id))
-);
-
 drop policy if exists "users insert visible comments" on public.comments;
-create policy "users insert visible comments" on public.comments for insert to authenticated
-  with check (
-    author_id = auth.uid() and (
-      (target_type = 'inventory_request' and public.can_view_inventory_request(target_id))
-      or (target_type = 'program_request' and public.can_view_program_request(target_id))
-    )
-  );
 
 create or replace function public.enqueue_comment_emails()
 returns trigger
@@ -80,3 +71,16 @@ create type public.comment_target as enum ('inventory_request', 'program_request
 alter table public.comments
   alter column target_type type public.comment_target using target_type::text::public.comment_target;
 drop type public.comment_target_old;
+
+create policy "users read visible comments" on public.comments for select to authenticated using (
+  (target_type = 'inventory_request' and public.can_view_inventory_request(target_id))
+  or (target_type = 'program_request' and public.can_view_program_request(target_id))
+);
+
+create policy "users insert visible comments" on public.comments for insert to authenticated
+  with check (
+    author_id = auth.uid() and (
+      (target_type = 'inventory_request' and public.can_view_inventory_request(target_id))
+      or (target_type = 'program_request' and public.can_view_program_request(target_id))
+    )
+  );
