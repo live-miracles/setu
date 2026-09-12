@@ -76,6 +76,21 @@ function settingsList(pick: (settings: SettingsPayload) => Row[]): ResourceConfi
     };
 }
 
+function namedOptionResource<TInput extends Row>(
+    pick: (settings: SettingsPayload) => Row[],
+    create: (input: TInput, requestId: string) => Promise<Row>,
+    update: (name: string, input: TInput, requestId: string) => Promise<Row>,
+    deleteOne: (name: string, requestId: string) => Promise<void>,
+): ResourceConfig {
+    return {
+        idField: 'Name',
+        list: settingsList(pick),
+        create: (v) => create(v as TInput, generateRequestId()),
+        update: (name, v) => update(name, v as TInput, generateRequestId()),
+        deleteOne: (name) => deleteOne(name, generateRequestId()),
+    };
+}
+
 const RESOURCES: Record<string, ResourceConfig> = {
     departments: {
         idField: 'Id',
@@ -123,54 +138,35 @@ const RESOURCES: Record<string, ResourceConfig> = {
         update: (id, v) => api.updateUser(id, v as unknown as UpdateUserInput),
         deleteOne: (id) => api.deleteUser(id, generateRequestId()),
     },
-    'shift-types': {
-        idField: 'Name',
-        list: settingsList((s) => s.shiftTypes as unknown as Row[]),
-        create: (v) =>
-            api.createShiftType(v as unknown as CreateShiftTypeInput, generateRequestId()),
-        update: (name, v) =>
-            api.updateShiftType(name, v as unknown as CreateShiftTypeInput, generateRequestId()),
-        deleteOne: (name) => api.deleteShiftType(name, generateRequestId()),
-    },
-    'program-types': {
-        idField: 'Name',
-        list: settingsList((s) => s.programTypes as unknown as Row[]),
-        create: (v) =>
-            api.createProgramType(v as unknown as CreateNamedOptionInput, generateRequestId()),
-        update: (name, v) =>
-            api.updateProgramType(
-                name,
-                v as unknown as CreateNamedOptionInput,
-                generateRequestId(),
-            ),
-        deleteOne: (name) => api.deleteProgramType(name, generateRequestId()),
-    },
-    'program-languages': {
-        idField: 'Name',
-        list: settingsList((s) => s.programLanguages as unknown as Row[]),
-        create: (v) =>
-            api.createProgramLanguage(v as unknown as CreateNamedOptionInput, generateRequestId()),
-        update: (name, v) =>
-            api.updateProgramLanguage(
-                name,
-                v as unknown as CreateNamedOptionInput,
-                generateRequestId(),
-            ),
-        deleteOne: (name) => api.deleteProgramLanguage(name, generateRequestId()),
-    },
-    'session-types': {
-        idField: 'Name',
-        list: settingsList((s) => s.sessionTypes as unknown as Row[]),
-        create: (v) =>
-            api.createSessionType(v as unknown as CreateNamedOptionInput, generateRequestId()),
-        update: (name, v) =>
-            api.updateSessionType(
-                name,
-                v as unknown as CreateNamedOptionInput,
-                generateRequestId(),
-            ),
-        deleteOne: (name) => api.deleteSessionType(name, generateRequestId()),
-    },
+    'shift-types': namedOptionResource<CreateShiftTypeInput>(
+        (s) => s.shiftTypes as unknown as Row[],
+        (input, requestId) => api.createShiftType(input, requestId) as unknown as Promise<Row>,
+        (name, input, requestId) =>
+            api.updateShiftType(name, input, requestId) as unknown as Promise<Row>,
+        (name, requestId) => api.deleteShiftType(name, requestId),
+    ),
+    'program-types': namedOptionResource<CreateNamedOptionInput>(
+        (s) => s.programTypes as unknown as Row[],
+        (input, requestId) => api.createProgramType(input, requestId) as unknown as Promise<Row>,
+        (name, input, requestId) =>
+            api.updateProgramType(name, input, requestId) as unknown as Promise<Row>,
+        (name, requestId) => api.deleteProgramType(name, requestId),
+    ),
+    'program-languages': namedOptionResource<CreateNamedOptionInput>(
+        (s) => s.programLanguages as unknown as Row[],
+        (input, requestId) =>
+            api.createProgramLanguage(input, requestId) as unknown as Promise<Row>,
+        (name, input, requestId) =>
+            api.updateProgramLanguage(name, input, requestId) as unknown as Promise<Row>,
+        (name, requestId) => api.deleteProgramLanguage(name, requestId),
+    ),
+    'session-types': namedOptionResource<CreateNamedOptionInput>(
+        (s) => s.sessionTypes as unknown as Row[],
+        (input, requestId) => api.createSessionType(input, requestId) as unknown as Promise<Row>,
+        (name, input, requestId) =>
+            api.updateSessionType(name, input, requestId) as unknown as Promise<Row>,
+        (name, requestId) => api.deleteSessionType(name, requestId),
+    ),
     rosters: {
         idField: 'Id',
         list: async (params) => {

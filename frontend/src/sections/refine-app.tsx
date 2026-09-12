@@ -6,6 +6,7 @@ import { api } from '../api';
 import { inventoryPath, programsPath } from '../paths';
 import { roleLabel } from '../ui/styles';
 import {
+    internationalPhoneRules,
     isValidInternationalPhone,
     INTERNATIONAL_PHONE_PATTERN,
     INTERNATIONAL_PHONE_TITLE,
@@ -97,13 +98,7 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                         required
                         pattern={INTERNATIONAL_PHONE_PATTERN}
                         title={INTERNATIONAL_PHONE_TITLE}
-                        registration={form.register('phone', {
-                            required: 'Phone is required',
-                            pattern: {
-                                value: new RegExp(INTERNATIONAL_PHONE_PATTERN),
-                                message: INTERNATIONAL_PHONE_TITLE,
-                            },
-                        })}
+                        registration={form.register('phone', internationalPhoneRules('Phone'))}
                         error={form.formState.errors.phone?.message}
                     />
                     <TextField
@@ -113,13 +108,10 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                         required
                         pattern={INTERNATIONAL_PHONE_PATTERN}
                         title={INTERNATIONAL_PHONE_TITLE}
-                        registration={form.register('whatsapp', {
-                            required: 'WhatsApp is required',
-                            pattern: {
-                                value: new RegExp(INTERNATIONAL_PHONE_PATTERN),
-                                message: INTERNATIONAL_PHONE_TITLE,
-                            },
-                        })}
+                        registration={form.register(
+                            'whatsapp',
+                            internationalPhoneRules('WhatsApp'),
+                        )}
                         error={form.formState.errors.whatsapp?.message}
                     />
                     <div>
