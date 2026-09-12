@@ -1117,6 +1117,9 @@ function combineDateTime(date: unknown, time: unknown): string {
 // `input.userId` is (despite the name, inherited from the source app) the
 // user's email — Users are keyed by Email there, same convention `rosters`
 // resource uses on the frontend (see refine-data-provider.ts's idField).
+// Deliberately does not reject a user_id/time-range overlap with that same
+// user's other shifts — a user double-booked across two shifts is a
+// scheduling call for the approver to make, not something to block.
 async function requireValidRosterInput(admin: SupabaseClient, input: Row): Promise<Row> {
     if (!input.startDate || !input.endDate) throw new Error('Start and end dates are required.');
     if (input.endDate < input.startDate) throw new Error('End date must not be before start date.');
