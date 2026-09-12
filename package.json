@@ -1,6 +1,6 @@
 {
     "name": "setu",
-    "version": "0.2.42",
+    "version": "1.0.0",
     "description": "Setu — an internal operations app built on Supabase and Vercel.",
     "private": true,
     "type": "module",
