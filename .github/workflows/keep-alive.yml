@@ -4,7 +4,7 @@ on:
     schedule:
         # Free-tier Supabase projects pause after 7 days with no API activity.
         # Every 3 days leaves margin even if a run gets skipped.
-        - cron: "0 3 */3 * *"
+        - cron: '0 3 */3 * *'
     workflow_dispatch:
 
 permissions:

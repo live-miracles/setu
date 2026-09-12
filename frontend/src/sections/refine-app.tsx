@@ -33,20 +33,17 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
             whatsapp: me.Whatsapp,
         },
     });
-    const save = useRHFSave(
-        form,
-        async (values) => {
-            if (!isValidInternationalPhone(values.phone)) {
-                form.setError('phone', { message: INTERNATIONAL_PHONE_TITLE });
-                throw new Error(INTERNATIONAL_PHONE_TITLE);
-            }
-            if (!isValidInternationalPhone(values.whatsapp)) {
-                form.setError('whatsapp', { message: INTERNATIONAL_PHONE_TITLE });
-                throw new Error(INTERNATIONAL_PHONE_TITLE);
-            }
-            await api.updateOwnProfile(values);
-        },
-    );
+    const save = useRHFSave(form, async (values) => {
+        if (!isValidInternationalPhone(values.phone)) {
+            form.setError('phone', { message: INTERNATIONAL_PHONE_TITLE });
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
+        if (!isValidInternationalPhone(values.whatsapp)) {
+            form.setError('whatsapp', { message: INTERNATIONAL_PHONE_TITLE });
+            throw new Error(INTERNATIONAL_PHONE_TITLE);
+        }
+        await api.updateOwnProfile(values);
+    });
     return (
         <Page title={registration ? 'Welcome' : 'Profile'} hideHeading>
             <Card
