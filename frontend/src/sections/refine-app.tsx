@@ -71,6 +71,7 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                     <TextField
                         name="name"
                         label="Name"
+                        value={me.Name}
                         required
                         registration={form.register('name', { required: 'Name is required' })}
                         error={form.formState.errors.name?.message}
@@ -94,6 +95,7 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                     <TextField
                         name="phone"
                         label="Phone"
+                        value={me.Phone}
                         type="tel"
                         required
                         pattern={INTERNATIONAL_PHONE_PATTERN}
@@ -104,6 +106,7 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                     <TextField
                         name="whatsapp"
                         label="WhatsApp"
+                        value={me.Whatsapp}
                         type="tel"
                         required
                         pattern={INTERNATIONAL_PHONE_PATTERN}

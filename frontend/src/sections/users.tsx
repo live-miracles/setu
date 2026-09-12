@@ -79,6 +79,7 @@ export function UserForm({
                 <TextField
                     name="name"
                     label="Name"
+                    value={user.Name}
                     required
                     registration={form.register('name', { required: 'Name is required' })}
                     error={form.formState.errors.name?.message}
@@ -123,6 +124,7 @@ export function UserForm({
                 <TextField
                     name="phone"
                     label="Phone"
+                    value={user.Phone}
                     type="tel"
                     required
                     pattern={INTERNATIONAL_PHONE_PATTERN}
@@ -133,6 +135,7 @@ export function UserForm({
                 <TextField
                     name="whatsapp"
                     label="WhatsApp"
+                    value={user.Whatsapp}
                     type="tel"
                     required
                     pattern={INTERNATIONAL_PHONE_PATTERN}
