@@ -247,7 +247,7 @@ export function TextField({
                 name={name}
                 type={type}
                 value={onChange ? (value ?? '') : undefined}
-                defaultValue={onChange ? undefined : (value ?? '')}
+                defaultValue={onChange || registration ? undefined : (value ?? '')}
                 required={required}
                 pattern={pattern}
                 title={title}
