@@ -1,9 +1,0 @@
-{
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-        "noEmit": false,
-        "outDir": "../.clasp-build",
-        "rootDir": "."
-    },
-    "include": ["**/*.ts", "../shared/types.d.ts"]
-}

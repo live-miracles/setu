@@ -1,27 +1,19 @@
 {
     "name": "setu",
     "version": "0.2.42",
-    "description": "Setu — an internal operations app migrating to Supabase and Vercel.",
+    "description": "Setu — an internal operations app built on Supabase and Vercel.",
     "private": true,
     "type": "module",
     "scripts": {
         "dev": "node --env-file-if-exists=.env.local build-tools/dev.mjs",
-        "build": "node build-tools/build.mjs",
         "test": "node --test build-tools/*.test.mjs",
         "build:vercel": "node build-tools/vercel.mjs",
-        "build:backend": "node build-tools/build-backend.mjs",
-        "typecheck": "tsc --noEmit -p src/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json",
+        "typecheck": "tsc --noEmit -p frontend/tsconfig.json",
         "format": "prettier --write .",
-        "format:check": "prettier --check .",
-        "push": "npm run typecheck && npm run build && clasp push",
-        "deploy": "npm run typecheck && npm run build && clasp push && clasp deploy --deploymentId \"$APPS_SCRIPT_DEPLOYMENT_ID\" --description \"$(date +%Y-%m-%dT%H:%M:%S)\"",
-        "logs": "clasp logs --watch",
-        "open": "clasp open-script"
+        "format:check": "prettier --check ."
     },
     "devDependencies": {
-        "@google/clasp": "^3.3.0",
         "@tailwindcss/cli": "^4.0.0",
-        "@types/google-apps-script": "^1.0.83",
         "@types/qrcode": "^1.5.6",
         "esbuild": "^0.25.0",
         "prettier": "^3.3.3",

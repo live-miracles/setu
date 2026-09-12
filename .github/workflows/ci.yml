@@ -38,7 +38,4 @@ jobs:
               run: npm run typecheck
 
             - name: Build frontend
-              run: npm run build
-
-            - name: Build backend
-              run: npm run build:backend
+              run: npm run build:vercel

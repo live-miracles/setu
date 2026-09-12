@@ -901,7 +901,7 @@ function commentDto(x: Row, profilesById: Map<string, Row>): Row {
 async function commentsByTargetFor(
     client: SupabaseClient,
     admin: SupabaseClient,
-    targetType: 'inventory_request' | 'program_request' | 'ticket',
+    targetType: 'inventory_request' | 'program_request',
 ): Promise<Map<string, Row[]>> {
     const comments = result(
         await client.from('comments').select('*').eq('target_type', targetType).order('created_at'),
@@ -1211,11 +1211,11 @@ async function deleteRoster(
 }
 
 // ---------------------------------------------------------------------------
-// Comments (shared by inventory requests, program requests, and tickets)
+// Comments (shared by inventory requests and program requests)
 // ---------------------------------------------------------------------------
 
 interface RequestOwner {
-    kind: 'inventory_request' | 'program_request' | 'ticket';
+    kind: 'inventory_request' | 'program_request';
     requesterId: string | null;
     participantIds: string[];
 }
@@ -1262,9 +1262,6 @@ async function findRequestOwner(
             participantIds: participants.map((p) => p.profile_id).filter(Boolean),
         };
     }
-    const ticketRes = await admin.from('tickets').select('id').eq('id', requestId).maybeSingle();
-    if (ticketRes.error) throw new Error(ticketRes.error.message);
-    if (ticketRes.data) return { kind: 'ticket', requesterId: null, participantIds: [] };
     return null;
 }
 
@@ -1285,11 +1282,9 @@ async function addComment(
     const owner = await findRequestOwner(admin, requestId);
     if (!owner) throw new Error('Request not found.');
     const canComment =
-        owner.kind === 'ticket'
-            ? isApprover
-            : isApprover ||
-              owner.requesterId === actor.id ||
-              owner.participantIds.indexOf(actor.id) !== -1;
+        isApprover ||
+        owner.requesterId === actor.id ||
+        owner.participantIds.indexOf(actor.id) !== -1;
     if (!canComment) throw new Error('You do not have access to this request.');
 
     const { result: comment } = await withLockedDedupe(
@@ -2787,7 +2782,6 @@ async function dashboard(
         client.from('program_requests').select('*').order('updated_at', { ascending: false }),
         client.from('program_sessions').select('*').order('start_at'),
         client.from('program_request_participants').select('*'),
-        client.from('tickets').select('*').order('display_id', { ascending: false }),
         client.from('comments').select('*').order('created_at'),
         client.from('home_content').select('*').eq('id', true).single(),
         client.from('shift_types').select('*').order('name'),
@@ -2809,7 +2803,6 @@ async function dashboard(
         programs,
         sessions,
         programParticipants,
-        tickets,
         comments,
         home,
         shiftTypes,
@@ -2831,7 +2824,6 @@ async function dashboard(
         ...inventoryParticipants.map((x: Row) => x.profile_id),
         ...programs.map((x: Row) => x.requester_id),
         ...programParticipants.map((x: Row) => x.profile_id),
-        ...tickets.map((x: Row) => x.assignee_id),
         ...comments.map((x: Row) => x.author_id),
     ];
     const profilesById = await profilesFor(admin, profileIds);
@@ -2956,17 +2948,6 @@ async function dashboard(
                 comments: commentsByTarget.get(`program_request:${x.id}`) || [],
             };
         }),
-        tickets: tickets.map((x: Row) => ({
-            Id: x.id,
-            DisplayId: x.display_id,
-            Title: x.title,
-            Description: x.description,
-            Status: x.status,
-            AssigneeId: profilesById.get(x.assignee_id)?.email || '',
-            CommentsJson: '',
-            assigneeName: profilesById.get(x.assignee_id)?.name || '',
-            comments: commentsByTarget.get(`ticket:${x.id}`) || [],
-        })),
         homeContent: { Guidelines: home.guidelines },
         shiftTypes: shiftTypes.map((x: Row) => ({
             Name: x.name,

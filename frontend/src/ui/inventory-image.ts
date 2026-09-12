@@ -22,9 +22,9 @@ export function fitImageWithinBounds(
 function encodeJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Unable to prepare the selected image.');
-    // JPEG is supported by every browser, including the Apps Script iframe.
-    // Keeping conversion native also avoids the AVIF encoder's worker URL,
-    // which cannot be resolved from the bundled non-module app script.
+    // JPEG is supported natively by every browser. Keeping conversion native
+    // also avoids the AVIF encoder's worker URL, which cannot be resolved
+    // from the bundled non-module app script.
     return new Promise((resolve, reject) => {
         canvas.toBlob(
             (blob) =>

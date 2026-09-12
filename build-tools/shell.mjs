@@ -1,8 +1,7 @@
-// Shared pieces of the builds. `npm run build` (build.mjs) emits the Apps
-// Script HTML shell and `npm run dev` (dev.mjs) emits a plain static page for
-// the local Supabase-backed app. Both render
-// frontend/shell.html — one copy of the page chrome, rather than a template
-// per target that has to be kept identical by hand.
+// Shared pieces of the builds. `npm run build:vercel` (vercel.mjs) and
+// `npm run dev` (dev.mjs) both render frontend/shell.html — one copy of the
+// page chrome, rather than a template per target that has to be kept
+// identical by hand.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -20,9 +19,8 @@ const TITLE = 'Setu';
  * largest source that stays cheap once base64'd while still covering retina
  * tabs; frontend/assets/logo.png is the master image for regenerating the icon set.
  *
- * Production deliberately gets nothing here: Apps Script serves the app in an
- * iframe, so the browser tab belongs to Google's outer page and an icon in
- * this document is inert. doGet() sets the real one via setFaviconUrl().
+ * Production sets its own favicon via the `favicon` slot passed to
+ * renderShell instead (see vercel.mjs) — this tag is dev-only.
  */
 export function devFaviconTag() {
     const png = readFileSync(path.join(root, 'frontend/icons/icon-64.png')).toString('base64');
@@ -53,16 +51,6 @@ function inlineScript(script) {
             /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
             (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
         );
-}
-
-/** The Apps Script page with assets embedded in Index.html. */
-export function renderInlineProdShell({ script, style }) {
-    return renderShell({
-        title: TITLE,
-        favicon: '',
-        head: `<style>${style}</style>`,
-        body: `<script>${inlineScript(script)}</script>`,
-    });
 }
 
 /** The page the local dev server serves out of frontend/dist. */
@@ -101,8 +89,8 @@ export function esbuildOptions(mode) {
     return {
         entryPoints: [path.join(root, 'frontend/src/main.ts')],
         bundle: true,
-        // The bundle runs as one external script in an Apps Script iframe, so
-        // it must declare nothing and leak nothing to global scope.
+        // The bundle runs as one external script tag, so it must declare
+        // nothing and leak nothing to global scope.
         format: 'iife',
         target: 'es2019',
         charset: 'utf8',

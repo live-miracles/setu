@@ -1,11 +1,11 @@
 # Setu
 
-Setu is an internal operations app being migrated from Google Apps Script and
-Google Sheets to Supabase and Vercel. The current frontend is a Vercel-style
-static app; its API boundary is a Supabase Edge Function backed by Postgres.
+Setu is an internal operations app built on Supabase and Vercel. The frontend
+is a Vercel-style static app; its API boundary is a Supabase Edge Function
+backed by Postgres.
 
-It covers equipment and program requests, tickets and comments, roster
-scheduling, inventory, programs, home content, and user settings.
+It covers equipment and program requests, comments, roster scheduling,
+inventory, programs, home content, and user settings.
 
 ## Free-tier deployment
 
@@ -42,8 +42,6 @@ Browser → Vercel static app → Supabase Auth
 - `supabase/migrations/` contains the database schema.
 - `supabase/functions/api/` contains the authenticated API boundary.
 - `shared/types.d.ts` contains the frontend/API contract.
-- `src/` and the Apps Script build files are retained temporarily for the
-  legacy deployment and are not the normal development path.
 
 ## Requirements
 
@@ -188,8 +186,7 @@ npx supabase functions deploy api
 ```
 
 There is no mock backend. If the Edge Function reports that an operation has
-not been migrated, that operation still needs to be ported from the legacy
-Apps Script implementation.
+not been migrated, that operation is not implemented yet.
 
 ## Troubleshooting
 
@@ -305,12 +302,12 @@ fields with relational tables. Image storage is represented by the private
 
 The database roles are `admin`, `approver`, `viewer`, and `user`:
 
-| Role       | Access                                                        |
-| ---------- | ------------------------------------------------------------- |
-| `admin`    | Everything, including settings and role management            |
-| `approver` | Requests, approvals, tickets, scheduling, and read-only users |
-| `viewer`   | All requests and standard app sections except roster          |
-| `user`     | Own and participant requests; no roster or tickets            |
+| Role       | Access                                               |
+| ---------- | ---------------------------------------------------- |
+| `admin`    | Everything, including settings and role management   |
+| `approver` | Requests, approvals, scheduling, and read-only users |
+| `viewer`   | All requests and standard app sections except roster |
+| `user`     | Own and participant requests; no roster              |
 
 New Supabase Auth users receive a profile through the database trigger. Assign
 the first development administrator explicitly in the Supabase SQL editor:
@@ -320,18 +317,3 @@ update public.profiles
 set role = 'admin'
 where email = 'your-email@example.com';
 ```
-
-## Legacy Apps Script deployment
-
-The old Google Apps Script backend remains under `src/` only while migration
-work is in progress. Its CI workflow is `.github/workflows/deploy.yml` and its
-build commands are:
-
-```bash
-npm run build
-npm run build:backend
-```
-
-Those commands are not required to run the Supabase/Vercel application. Do not
-add new application behavior to the legacy backend unless it is part of a
-planned compatibility change.

@@ -1,8 +1,8 @@
 // Value -> display string. No DOM access and no HTML structure, so these
 // stay safe to call from anywhere, including inside template literals.
 
-// Mandatory anywhere untrusted strings (ticket titles/descriptions/comments,
-// request names, admin notes, names) get interpolated into innerHTML-built
+// Mandatory anywhere untrusted strings (request names/descriptions/comments,
+// admin notes, names) get interpolated into innerHTML-built
 // templates — fixes a known XSS gap in the multi-lang-qa reference pattern
 // rather than reproducing it.
 export function escapeHtml(value: unknown): string {

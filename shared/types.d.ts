@@ -1,30 +1,23 @@
-// Shared contract between the Apps Script backend and the frontend.
+// Shared contract between the Supabase Edge Function and the frontend.
 // Deliberately has NO import/export statements: both tsconfig.json files
 // include this file directly, and a file with zero top-level import/export
 // is treated by TypeScript as a global script, so every interface/type here
 // becomes an ambient global visible in every backend and frontend file
-// without an import — matching Apps Script's own concatenated-global-scope
-// execution model (the same reason SheetTable.ts's `Tables`, Utils.ts's
-// `nowIso`, etc. are callable from any other file with no import).
+// without an import.
 
 // Listed most- to least-privileged, and strictly nested: `user` sees only
 // requests they raised or are a participant on; `viewer` sees every request
 // but can act on none; `approver` can additionally approve/reject/issue/
-// return requests, assign tickets and schedule shifts; `admin` can also edit
-// configuration (departments, places, inventory types, home content)
-// and other people's roles. Every check goes through the canX helpers in
-// Auth.ts rather than comparing User.Role directly — rows written before
-// this split carry the old 'member' value, which those helpers fold into
-// 'user'.
+// return requests and schedule shifts; `admin` can also edit configuration
+// (departments, places, inventory types, home content) and other people's
+// roles.
 type UserRole = 'admin' | 'approver' | 'viewer' | 'user';
 type InventoryRequestStatus =
     'draft' | 'submitted' | 'approved' | 'rejected' | 'issued' | 'cancelled' | 'closed';
 type ProgramRequestStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled';
 type ReturnCondition = 'returned' | 'damaged' | 'missing';
-type TicketStatus = 'unassigned' | 'pending' | 'closed';
 type InventoryRequestAction = 'submit' | 'approve' | 'reject' | 'issue' | 'cancel' | 'close';
 type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel';
-type TicketAction = 'assign' | 'close' | 'reopen';
 
 // ---------------------------------------------------------------------------
 // Sheet row shapes (raw, one per tab)
@@ -121,8 +114,7 @@ interface ProgramRequest {
 }
 
 // One or more scheduled sessions per program request. Named ProgramSession
-// (not Session) to avoid colliding with Apps Script's own global `Session`
-// service (Session.getActiveUser(), used in Auth.ts).
+// (not Session) to avoid ambiguity with an auth session.
 interface ProgramSession {
     Name: string;
     Type: string;
@@ -130,20 +122,10 @@ interface ProgramSession {
     EndDateTime: string;
 }
 
-interface Ticket {
-    Id: string;
-    DisplayId: number;
-    Title: string;
-    Description: string;
-    Status: TicketStatus;
-    AssigneeId: string;
-    CommentsJson: string;
-}
-
-// The audit trail for InventoryRequests, ProgramRequests and Tickets: every
-// status change is narrated here by the acting user, alongside whatever
-// comments people type themselves. RequestId points at the owning row; addComment
-// resolves the type by looking the id up in Comments.ts.
+// The audit trail for InventoryRequests and ProgramRequests: every status
+// change is narrated here by the acting user, alongside whatever comments
+// people type themselves. RequestId points at the owning row; addComment
+// resolves the type by looking the id up across both request tables.
 interface CommentRecord {
     Id: string;
     Timestamp: string;
@@ -261,11 +243,6 @@ interface CommentDTO extends CommentRecord {
     userName: string;
 }
 
-interface TicketDTO extends Ticket {
-    assigneeName: string;
-    comments: CommentDTO[];
-}
-
 interface Paginated<T> {
     items: T[];
     page: number;
@@ -297,14 +274,6 @@ interface ProgramRequestQuery {
     sortDirection?: SortDirection;
 }
 
-interface TicketQuery {
-    q?: string;
-    statuses?: TicketStatus[];
-    assigneeId?: string;
-    sortBy?: 'id' | 'title' | 'status' | 'assignee';
-    sortDirection?: SortDirection;
-}
-
 interface DashboardPayload {
     me: UserDTO;
     users: UserDTO[];
@@ -314,7 +283,6 @@ interface DashboardPayload {
     upcomingRosters: RosterDTO[];
     inventoryRequests: InventoryRequestDTO[];
     programRequests: ProgramRequestDTO[];
-    tickets: TicketDTO[];
     homeContent: HomeContent;
     shiftTypes: ShiftType[];
     programTypes: ProgramType[];
@@ -450,17 +418,6 @@ interface UpdateProgramRequestInput {
     leadEmail: string;
     participants: string;
     status: ProgramRequestStatus;
-}
-
-interface CreateTicketInput {
-    title: string;
-    description: string;
-}
-
-interface UpdateTicketInput {
-    title: string;
-    description: string;
-    assigneeId?: string;
 }
 
 interface UpdateHomeContentInput {
