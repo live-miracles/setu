@@ -46,7 +46,6 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
             }
             await api.updateOwnProfile(values);
         },
-        false,
     );
     return (
         <Page title={registration ? 'Welcome' : 'Profile'} hideHeading>
@@ -92,30 +91,41 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                             )}
                         />
                     </AntForm.Item>
-                    <TextField
+                    <Controller
                         name="phone"
-                        label="Phone"
-                        value={me.Phone}
-                        type="tel"
-                        required
-                        pattern={INTERNATIONAL_PHONE_PATTERN}
-                        title={INTERNATIONAL_PHONE_TITLE}
-                        registration={form.register('phone', internationalPhoneRules('Phone'))}
-                        error={form.formState.errors.phone?.message}
-                    />
-                    <TextField
-                        name="whatsapp"
-                        label="WhatsApp"
-                        value={me.Whatsapp}
-                        type="tel"
-                        required
-                        pattern={INTERNATIONAL_PHONE_PATTERN}
-                        title={INTERNATIONAL_PHONE_TITLE}
-                        registration={form.register(
-                            'whatsapp',
-                            internationalPhoneRules('WhatsApp'),
+                        control={form.control}
+                        rules={internationalPhoneRules('Phone')}
+                        render={({ field }) => (
+                            <TextField
+                                name={field.name}
+                                label="Phone"
+                                value={field.value}
+                                type="tel"
+                                required
+                                pattern={INTERNATIONAL_PHONE_PATTERN}
+                                title={INTERNATIONAL_PHONE_TITLE}
+                                onChange={field.onChange}
+                                error={form.formState.errors.phone?.message}
+                            />
                         )}
-                        error={form.formState.errors.whatsapp?.message}
+                    />
+                    <Controller
+                        name="whatsapp"
+                        control={form.control}
+                        rules={internationalPhoneRules('WhatsApp')}
+                        render={({ field }) => (
+                            <TextField
+                                name={field.name}
+                                label="WhatsApp"
+                                value={field.value}
+                                type="tel"
+                                required
+                                pattern={INTERNATIONAL_PHONE_PATTERN}
+                                title={INTERNATIONAL_PHONE_TITLE}
+                                onChange={field.onChange}
+                                error={form.formState.errors.whatsapp?.message}
+                            />
+                        )}
                     />
                     <div>
                         <SaveFooter

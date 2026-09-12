@@ -1,6 +1,6 @@
 export const INTERNATIONAL_PHONE_PATTERN = '\\+[1-9][0-9]{7,14}';
 export const INTERNATIONAL_PHONE_TITLE =
-    'Enter a valid phone number with country code using digits only, for example +919000000000.';
+    'Enter a valid phone number starting with + and country code, using digits only, for example +919000000000.';
 const INTERNATIONAL_PHONE_REGEX = new RegExp(`^${INTERNATIONAL_PHONE_PATTERN}$`);
 
 export function internationalPhoneRules(label: string) {
