@@ -14,8 +14,24 @@ the Setu and Setu Dev environments, within each provider's current quotas and
 terms. Supabase hosts the database, Storage, Edge Functions, and the 10-minute
 `pg_cron` job; Vercel only serves the static frontend. Supabase's current Free
 plan includes two active projects, 500,000 Edge Function invocations, 1 GB of
-file storage, and 500 MB of database storage per project. Free projects may be
-paused after inactivity, so the first request after a pause can be slower.
+file storage, and 500 MB of database storage per project. Free projects pause
+after 7 days with no API activity — each project's pause timer is independent,
+so pinging one does not keep the other awake.
+
+[`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml) pings
+both the Setu and Setu Dev projects every 3 days to prevent this. It needs
+four repository secrets (**Settings → Secrets and variables → Actions** in
+GitHub), using the same URL/publishable key pair from each project's
+**Project Settings → API Keys** page (see step 1 below for where to find
+these):
+
+- `SETU_SUPABASE_URL_PROD` / `SETU_SUPABASE_PUBLISHABLE_KEY_PROD` — the Setu
+  (production) project
+- `SETU_SUPABASE_URL_DEV` / `SETU_SUPABASE_PUBLISHABLE_KEY_DEV` — the Setu Dev
+  project
+
+Trigger a manual run from the **Actions** tab (**Keep Supabase projects
+alive → Run workflow**) to verify it after setup.
 
 Comment email delivery also depends on the email provider's limits. The
 current Resend Free plan includes 3,000 transactional emails per month with a
