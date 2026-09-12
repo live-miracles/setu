@@ -234,6 +234,7 @@ export function TextField({
 }) {
     const [inputError, setInputError] = useState('');
     const displayedError = error || inputError;
+    const { onChange: registeredOnChange, ...registrationProps } = registration || {};
     return (
         <AntForm.Item
             label={label}
@@ -242,7 +243,7 @@ export function TextField({
             validateStatus={displayedError ? 'error' : undefined}
             help={displayedError}>
             <Input
-                {...registration}
+                {...registrationProps}
                 name={name}
                 type={type}
                 value={onChange ? (value ?? '') : undefined}
@@ -265,8 +266,11 @@ export function TextField({
                 }}
                 onChange={(event) => {
                     setInputError('');
-                    void registration?.onChange(event);
+                    void registeredOnChange?.(event);
                     onChange?.(event);
+                }}
+                onInput={(event) => {
+                    void registeredOnChange?.(event);
                 }}
             />
         </AntForm.Item>
