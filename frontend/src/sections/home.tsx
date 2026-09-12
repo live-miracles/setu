@@ -3,7 +3,6 @@ import { PlusOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
-import homeHeroImage from '../../assets/home-hero.avif';
 import {
     inventoryPath,
     inventoryRequestPath,
@@ -150,17 +149,6 @@ export function Home({ dashboard }: Props) {
 
     return (
         <Page>
-            <section
-                className="home-section home-hero"
-                style={{ backgroundImage: `url(${homeHeroImage})` }}
-                aria-labelledby="home-hero-title">
-                <div className="home-hero-content">
-                    <Typography.Title id="home-hero-title" level={1}>
-                        Setu
-                    </Typography.Title>
-                    <Typography.Paragraph>Your operations, connected.</Typography.Paragraph>
-                </div>
-            </section>
             <div className="home-section antd-two-column">
                 <Card title={null}>
                     {dashboard.homeContent.Guidelines ? (

@@ -9,6 +9,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import appLogo from '../../assets/logo.png';
+import loadingBackground from '../../assets/loading-background.avif';
 import { useDashboard } from '../dashboard-context';
 import {
     blocksPath,
@@ -137,7 +138,7 @@ export function Shell({ children }: { children?: ReactNode }) {
 
     return (
         <AntApp>
-            <Layout className="app-layout">
+            <Layout className="app-layout" style={{ backgroundImage: `url(${loadingBackground})` }}>
                 <Header className="app-header">
                     <Button
                         type="text"
