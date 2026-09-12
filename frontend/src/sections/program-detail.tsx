@@ -250,6 +250,7 @@ export function ProgramDetail({
     };
     const duplicate = async (event?: FormEvent) => {
         event?.preventDefault();
+        setDuplicateError('');
         if (event) {
             const form = event.currentTarget as HTMLFormElement;
             if (!form.checkValidity()) {
@@ -257,7 +258,6 @@ export function ProgramDetail({
                 return;
             }
         }
-        setDuplicateError('');
         setDuplicateBusy(true);
         setDuplicateOpen(false);
         setDuplicating(true);

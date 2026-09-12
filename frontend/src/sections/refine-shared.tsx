@@ -151,8 +151,10 @@ export function useSave<T>(
     return {
         busy,
         errorMessage,
+        clearError: () => setErrorMessage(''),
         run: async (event?: FormEvent) => {
             event?.preventDefault();
+            setErrorMessage('');
             if (event) {
                 const form = event.currentTarget as HTMLFormElement;
                 if (!form.checkValidity()) {
@@ -160,7 +162,6 @@ export function useSave<T>(
                     return false;
                 }
             }
-            setErrorMessage('');
             setBusy(true);
             if (optimistic) {
                 close?.();
@@ -191,18 +192,20 @@ export function useRHFSave<T extends FieldValues>(
     const { refreshDashboard } = useDashboard();
     const [busy, setBusy] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
-    const onSubmit = form.handleSubmit(async (values) => {
+    const onSubmit = (event?: FormEvent) => {
         setErrorMessage('');
-        setBusy(true);
-        try {
-            await action(values);
-            if (refreshAfterSave) await refreshDashboard();
-        } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : String(error));
-        } finally {
-            setBusy(false);
-        }
-    });
+        return form.handleSubmit(async (values) => {
+            setBusy(true);
+            try {
+                await action(values);
+                if (refreshAfterSave) await refreshDashboard();
+            } catch (error) {
+                setErrorMessage(error instanceof Error ? error.message : String(error));
+            } finally {
+                setBusy(false);
+            }
+        })(event);
+    };
     return { busy, errorMessage, onSubmit };
 }
 

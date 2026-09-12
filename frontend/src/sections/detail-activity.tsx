@@ -105,6 +105,7 @@ export function ParticipantsEditor({
     const normalizedParticipants = participants.map((participant) => participant.toLowerCase());
     const addParticipant = async (event: FormEvent) => {
         event.preventDefault();
+        setErrorMessage('');
         if (!(event.currentTarget as HTMLFormElement).checkValidity()) return;
         const nextEmail = email.trim().toLowerCase();
         if (!PARTICIPANT_EMAIL_PATTERN.test(nextEmail)) {

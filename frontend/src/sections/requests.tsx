@@ -396,6 +396,7 @@ export function CreateRecord({
             noValidate
             onSubmit={async (e) => {
                 e.preventDefault();
+                save.clearError();
                 const form = e.currentTarget;
                 if (!departmentId) {
                     setDepartmentError(true);
