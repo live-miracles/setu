@@ -403,14 +403,18 @@ export function ProgramDetail({
                 ) : null,
         },
     ];
+    const programTitle =
+        formatProgramName(request.Language, request.Type, request.Name) || 'Unnamed program';
     if (duplicating) {
-        return <AppLoading />;
+        return (
+            <DetailLayout title={programTitle}>
+                <AppLoading inline />
+            </DetailLayout>
+        );
     }
     return (
         <DetailLayout
-            title={
-                formatProgramName(request.Language, request.Type, request.Name) || 'Unnamed program'
-            }
+            title={programTitle}
             action={
                 <Space wrap>
                     <Button

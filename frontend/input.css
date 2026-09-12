@@ -570,6 +570,23 @@ body {
     background-size: cover;
 }
 
+.app-loading-inline {
+    position: static;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    flex: 1 1 auto;
+    grid-column: 1 / -1;
+    width: 100%;
+    height: auto;
+    min-height: 60vh;
+    border-radius: 0.75rem;
+    padding-top: 4rem;
+    padding-bottom: 4rem;
+}
+
 .app-loading-quote {
     width: min(90%, 42rem);
     margin-top: 0.5rem;

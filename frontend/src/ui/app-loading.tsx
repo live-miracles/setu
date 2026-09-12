@@ -10,10 +10,14 @@ export function setAppLoading(loading: boolean): void {
 
 export { APP_LOADING_EVENT };
 
-export function AppLoading() {
+// `inline` is for a loading state nested inside a page's own render (e.g. a
+// section mid-submit) — it fills its parent in normal flow instead of the
+// fixed full-viewport overlay `main.ts` uses before that page exists at all,
+// so the page's own title/action bar around it stays visible.
+export function AppLoading({ inline = false }: { inline?: boolean } = {}) {
     return (
         <div
-            className="app-loading"
+            className={`app-loading${inline ? ' app-loading-inline' : ''}`}
             role="status"
             aria-live="polite"
             style={{ backgroundImage: `url(${loadingBackground})` }}>

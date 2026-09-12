@@ -193,7 +193,13 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             {filter}
         </Space>
     );
-    if (submitting) return <AppLoading />;
+    if (submitting) {
+        return (
+            <Page className="antd-page-board" title={title}>
+                <AppLoading inline />
+            </Page>
+        );
+    }
     return (
         <Page
             className="antd-page-board"
