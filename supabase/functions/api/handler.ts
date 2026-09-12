@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import type { Context } from 'npm:hono@4';
 import { parseApiRequest } from './validation.ts';
 import { currentUser, requireAllowedEmailDomain, type Row, updateOwnProfile } from './core.ts';
 import {
@@ -66,7 +67,8 @@ const appOrigin = Deno.env.get('SETU_APP_ORIGIN') || '';
 function respond(value: unknown, status = 200): Response {
     return Response.json(value, { status });
 }
-export async function handleApiRequest(request: Request): Promise<Response> {
+export async function handleApiRequest(context: Context): Promise<Response> {
+    const request = context.req.raw;
     if (!appOrigin) return respond({ error: 'SETU_APP_ORIGIN is not configured.' }, 500);
     const authorization = request.headers.get('Authorization');
     const url = Deno.env.get('SUPABASE_URL') || '';
