@@ -47,14 +47,36 @@ export function supabase(): SupabaseClient {
     return client;
 }
 
-export async function ensureAuthenticated(): Promise<void> {
+// Returns false when the browser is about to navigate away to Google — the
+// caller should stop rather than briefly rendering the app with no session.
+export async function ensureAuthenticated(): Promise<boolean> {
     const { data, error } = await supabase().auth.getSession();
     if (error) throw error;
-    if (data.session) return;
+    if (data.session) return true;
 
     const { error: signInError } = await supabase().auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin },
+        options: {
+            redirectTo: window.location.origin,
+            // Signing out only clears the Supabase session, not Google's own
+            // SSO session in the browser — without this, Google silently
+            // re-authenticates the same account instead of offering a choice.
+            queryParams: { prompt: 'select_account' },
+        },
     });
     if (signInError) throw signInError;
+    return false;
+}
+
+export async function currentUserEmail(): Promise<string | null> {
+    const { data } = await supabase().auth.getSession();
+    return data.session?.user.email ?? null;
+}
+
+// Reload after sign-out so boot() re-runs ensureAuthenticated() and picks up
+// the (now cleared) session instead of the app trying to keep running against
+// stale in-memory state.
+export async function signOutAndReload(): Promise<void> {
+    await supabase().auth.signOut();
+    window.location.reload();
 }

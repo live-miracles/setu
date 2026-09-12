@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { useEffect, useState, type ReactNode } from 'react';
 import appLogo from '../../assets/logo.png';
 import { refreshDashboard, type SectionKey } from '../router';
+import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 
@@ -57,19 +58,27 @@ function sectionFromUrl(): string {
 function Shell() {
     const [selectedSection, setSelectedSection] = useState(sectionFromUrl);
     const [role, setRole] = useState<UserRole | null>(null);
+    const [displayName, setDisplayName] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [appLoading, setAppLoading] = useState(true);
+    const [userEmail, setUserEmail] = useState<string | null>(null);
 
     useEffect(() => {
         const syncSelection = () => setSelectedSection(sectionFromUrl());
         window.addEventListener('setu:navigation', syncSelection);
-        const syncRole = () =>
+        const syncRole = () => {
             setRole((document.documentElement.dataset.userRole as UserRole | undefined) || null);
+            setDisplayName(document.documentElement.dataset.userName || null);
+        };
         window.addEventListener('setu:role', syncRole);
         const syncAppLoading = (event: Event) =>
             setAppLoading((event as CustomEvent<boolean>).detail === true);
         window.addEventListener(APP_LOADING_EVENT, syncAppLoading);
         syncRole();
+        // Shell only ever mounts once boot() has confirmed a Supabase session
+        // exists, so this reflects who is signed in even when the dashboard
+        // call that fills in role/name fails (e.g. an access-restriction error).
+        void currentUserEmail().then(setUserEmail);
         return () => {
             window.removeEventListener('setu:navigation', syncSelection);
             window.removeEventListener('setu:role', syncRole);
@@ -112,24 +121,30 @@ function Shell() {
                         onClick={({ key }) => navigate(key)}
                     />
                     <Space className="app-actions">
-                        <Dropdown
-                            menu={{
-                                items: profileMenuItems(role),
-                                onClick: ({ key }) => navigate(key),
-                            }}
-                            trigger={['click']}>
-                            <span>
-                                <Button
-                                    type="text"
-                                    className="app-profile-button"
-                                    icon={<UserOutlined />}
-                                    data-authenticated-nav
-                                    style={{ display: 'none' }}
-                                    aria-label="Profile menu">
-                                    <span id="nav-user-name" />
-                                </Button>
-                            </span>
-                        </Dropdown>
+                        {userEmail && (
+                            <Dropdown
+                                menu={{
+                                    items: [
+                                        ...profileMenuItems(role),
+                                        { type: 'divider' },
+                                        { key: 'logout', label: 'Log out' },
+                                    ],
+                                    onClick: ({ key }) =>
+                                        key === 'logout' ? void signOutAndReload() : navigate(key),
+                                }}
+                                trigger={['click']}>
+                                <span>
+                                    <Button
+                                        type="text"
+                                        className="app-profile-button"
+                                        icon={<UserOutlined />}
+                                        aria-label="Account menu"
+                                        title={userEmail}>
+                                        <span>{displayName ?? userEmail}</span>
+                                    </Button>
+                                </span>
+                            </Dropdown>
+                        )}
                         <Button
                             type="text"
                             icon={<ReloadOutlined spin={refreshing} />}

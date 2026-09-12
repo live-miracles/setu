@@ -3,7 +3,7 @@ import { APP_SECTION_QUERY_PARAM } from './config';
 import { initializeBrowserLocation, initRouter, refreshDashboard, wireNav } from './router';
 import { ROUTER_CONFIG } from './sections';
 import { setState } from './state';
-import { showErrorAlert } from './ui/feedback';
+import { renderAppError } from './ui/app-error';
 import { setAppLoading } from './ui/app-loading';
 import { mountAppShell } from './ui/shell';
 import { ensureAuthenticated, isSupabaseConfigured } from './supabase';
@@ -16,7 +16,8 @@ async function boot(): Promise<void> {
             'Setu is not configured. This deployment is missing its Supabase environment values.',
         );
     }
-    await ensureAuthenticated();
+    // false means we're mid-redirect to Google; nothing more to do on this page load.
+    if (!(await ensureAuthenticated())) return;
     mountAppShell();
     initRouter(ROUTER_CONFIG);
 
@@ -31,11 +32,8 @@ async function boot(): Promise<void> {
     try {
         await refreshDashboard();
     } catch (err) {
-        showErrorAlert(err);
         const container = document.getElementById('app-content');
-        if (container) {
-            container.textContent = err instanceof Error ? err.message : String(err);
-        }
+        if (container) renderAppError(container, err instanceof Error ? err.message : String(err));
     } finally {
         setAppLoading(false);
     }
@@ -47,6 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     void boot().catch((err) => {
         const container = document.getElementById('app-shell');
-        if (container) container.textContent = err instanceof Error ? err.message : String(err);
+        if (container) renderAppError(container, err instanceof Error ? err.message : String(err));
     });
 });

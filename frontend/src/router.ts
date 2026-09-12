@@ -208,8 +208,7 @@ function toggleNavVisibility(show: boolean): void {
 }
 
 function renderNavIdentity(dashboard: DashboardPayload): void {
-    const nameEl = document.getElementById('nav-user-name');
-    if (nameEl) nameEl.textContent = dashboard.me.Name;
+    document.documentElement.dataset.userName = dashboard.me.Name;
     document.documentElement.dataset.userRole = dashboard.me.Role;
     window.dispatchEvent(new Event('setu:role'));
 }

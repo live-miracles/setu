@@ -1,6 +1,6 @@
 import { Refine } from '@refinedev/core';
 import { useNotificationProvider } from '@refinedev/antd';
-import { App as AntApp, ConfigProvider } from 'antd';
+import { App as AntApp, ConfigProvider, type ThemeConfig } from 'antd';
 import { useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { queryClient } from '../query-client';
@@ -11,6 +11,29 @@ import { setErrorNotifier } from './feedback';
 // and visual tokens while Refine owns the resource boundary for the React
 // surfaces.
 const roots = new WeakMap<HTMLElement, { host: HTMLElement; root: Root }>();
+
+// antd computes its whole derived palette from these seed tokens via color
+// math, so they must be real colors, not CSS var() references — keep these
+// in sync with the --setu-* custom properties in input.css.
+export const SETU_ANTD_THEME: ThemeConfig = {
+    token: {
+        colorPrimary: '#c84f12',
+        colorInfo: '#c84f12',
+        colorError: '#b85c62',
+        colorErrorHover: '#a64b53',
+        colorErrorActive: '#923d46',
+        colorErrorBg: '#f8e8ea',
+        colorErrorBgHover: '#f3dce0',
+        colorErrorBorder: '#ddaeb2',
+        colorErrorBorderHover: '#d0969d',
+        colorErrorText: '#9f424a',
+        colorErrorTextHover: '#8d3740',
+        colorBgBase: '#fffaf0',
+        colorTextBase: '#29251f',
+        borderRadius: 6,
+        fontFamily: "'Avenir Next', Avenir, 'Segoe UI', sans-serif",
+    },
+};
 
 export function mountRefinePage(container: HTMLElement, page: ReactNode, resource: string): void {
     let mounted = roots.get(container);
@@ -27,30 +50,7 @@ export function mountRefinePage(container: HTMLElement, page: ReactNode, resourc
 
 function RefineRoot({ page, resource }: { page: ReactNode; resource: string }) {
     return (
-        <ConfigProvider
-            theme={{
-                // antd computes its whole derived palette from these seed
-                // tokens via color math, so they must be real colors, not
-                // CSS var() references — keep these in sync with the
-                // --setu-* custom properties in input.css.
-                token: {
-                    colorPrimary: '#c84f12',
-                    colorInfo: '#c84f12',
-                    colorError: '#b85c62',
-                    colorErrorHover: '#a64b53',
-                    colorErrorActive: '#923d46',
-                    colorErrorBg: '#f8e8ea',
-                    colorErrorBgHover: '#f3dce0',
-                    colorErrorBorder: '#ddaeb2',
-                    colorErrorBorderHover: '#d0969d',
-                    colorErrorText: '#9f424a',
-                    colorErrorTextHover: '#8d3740',
-                    colorBgBase: '#fffaf0',
-                    colorTextBase: '#29251f',
-                    borderRadius: 6,
-                    fontFamily: "'Avenir Next', Avenir, 'Segoe UI', sans-serif",
-                },
-            }}>
+        <ConfigProvider theme={SETU_ANTD_THEME}>
             <AntApp>
                 <RefineRootContent page={page} resource={resource} />
             </AntApp>
