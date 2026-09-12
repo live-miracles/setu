@@ -50,10 +50,18 @@ export function App() {
     }, [refreshDashboard]);
 
     if (error) {
-        return <Result status="error" title="Something went wrong" subTitle={error} />;
+        return (
+            <Shell dashboard={null} refreshDashboard={refreshDashboard}>
+                <Result status="error" title="Something went wrong" subTitle={error} />
+            </Shell>
+        );
     }
     if (!dashboard) {
-        return <AppLoading />;
+        return (
+            <Shell dashboard={null} refreshDashboard={refreshDashboard}>
+                <AppLoading />
+            </Shell>
+        );
     }
 
     if (!dashboard.me.Phone) {

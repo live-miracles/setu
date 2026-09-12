@@ -28,7 +28,11 @@ export function DashboardProvider({
 }
 
 export function useDashboard(): DashboardContextValue {
-    const value = useContext(DashboardContext);
+    const value = useDashboardOptional();
     if (!value) throw new Error('useDashboard() must be used within a DashboardProvider.');
     return value;
+}
+
+export function useDashboardOptional(): DashboardContextValue | null {
+    return useContext(DashboardContext);
 }

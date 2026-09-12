@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import appLogo from '../../assets/logo.png';
 import loadingBackground from '../../assets/loading-background.avif';
-import { useDashboard } from '../dashboard-context';
+import { useDashboardOptional } from '../dashboard-context';
 import {
     blocksPath,
     calendarPath,
@@ -93,15 +93,25 @@ function contentClassName(pathname: string): string {
         .join(' ');
 }
 
-export function Shell({ children }: { children?: ReactNode }) {
-    const { dashboard, refreshDashboard } = useDashboard();
+export function Shell({
+    children,
+    dashboard: dashboardProp,
+    refreshDashboard: refreshDashboardProp,
+}: {
+    children?: ReactNode;
+    dashboard?: DashboardPayload | null;
+    refreshDashboard?: () => Promise<void>;
+}) {
+    const dashboardContext = useDashboardOptional();
+    const dashboard = dashboardProp ?? dashboardContext?.dashboard ?? null;
+    const refreshDashboard = refreshDashboardProp ?? dashboardContext?.refreshDashboard;
     const location = useLocation();
     const navigate = useNavigate();
     const [refreshing, setRefreshing] = useState(false);
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
-    const isRegistered = Boolean(dashboard.me.Phone);
-    const canOpenConfig = canApprove(dashboard.me);
+    const isRegistered = Boolean(dashboard?.me.Phone);
+    const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
 
     useEffect(() => {
         const syncAppLoading = (event: Event) =>
@@ -128,7 +138,7 @@ export function Shell({ children }: { children?: ReactNode }) {
         if (refreshing) return;
         setRefreshing(true);
         try {
-            await refreshDashboard();
+            await refreshDashboard?.();
         } catch (err) {
             showErrorAlert(err);
         } finally {
@@ -185,7 +195,7 @@ export function Shell({ children }: { children?: ReactNode }) {
                                         icon={<UserOutlined />}
                                         aria-label="Account menu"
                                         title={userEmail}>
-                                        <span>{dashboard.me.Name || userEmail}</span>
+                                        <span>{dashboard?.me.Name || userEmail}</span>
                                     </Button>
                                 </span>
                             </Dropdown>
