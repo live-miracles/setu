@@ -29,20 +29,24 @@ function RefineRoot({ page, resource }: { page: ReactNode; resource: string }) {
     return (
         <ConfigProvider
             theme={{
+                // antd computes its whole derived palette from these seed
+                // tokens via color math, so they must be real colors, not
+                // CSS var() references — keep these in sync with the
+                // --setu-* custom properties in input.css.
                 token: {
-                    colorPrimary: 'var(--setu-accent)',
-                    colorInfo: 'var(--setu-accent)',
-                    colorError: 'var(--setu-error)',
-                    colorErrorHover: 'var(--setu-error-hover)',
-                    colorErrorActive: 'var(--setu-error-active)',
-                    colorErrorBg: 'var(--setu-error-bg)',
-                    colorErrorBgHover: 'var(--setu-error-bg-hover)',
-                    colorErrorBorder: 'var(--setu-error-border)',
-                    colorErrorBorderHover: 'var(--setu-error-border-hover)',
-                    colorErrorText: 'var(--setu-error-text)',
-                    colorErrorTextHover: 'var(--setu-error-text-hover)',
-                    colorBgBase: 'var(--setu-surface)',
-                    colorTextBase: 'var(--setu-ink)',
+                    colorPrimary: '#c84f12',
+                    colorInfo: '#c84f12',
+                    colorError: '#b85c62',
+                    colorErrorHover: '#a64b53',
+                    colorErrorActive: '#923d46',
+                    colorErrorBg: '#f8e8ea',
+                    colorErrorBgHover: '#f3dce0',
+                    colorErrorBorder: '#ddaeb2',
+                    colorErrorBorderHover: '#d0969d',
+                    colorErrorText: '#9f424a',
+                    colorErrorTextHover: '#8d3740',
+                    colorBgBase: '#fffaf0',
+                    colorTextBase: '#29251f',
                     borderRadius: 6,
                     fontFamily: "'Avenir Next', Avenir, 'Segoe UI', sans-serif",
                 },
