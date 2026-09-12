@@ -9,6 +9,10 @@ import {
 } from './core.ts';
 import { profilesFor } from './core.ts';
 
+function timeDto(value: unknown): string {
+    return value == null ? '' : String(value).slice(0, 5);
+}
+
 export async function listDepartments(client: SupabaseClient): Promise<Row[]> {
     const rows = result(await client.from('departments').select('*').order('name')) as Row[];
     return rows.map((x) => ({
@@ -57,8 +61,8 @@ export async function getSettings(client: SupabaseClient): Promise<Row> {
         shiftTypes: (result(shiftRes) as Row[]).map((x) => ({
             Name: x.name,
             Color: x.color,
-            DefaultStartTime: String(x.default_start_time).slice(0, 5),
-            DefaultEndTime: String(x.default_end_time).slice(0, 5),
+            DefaultStartTime: timeDto(x.default_start_time),
+            DefaultEndTime: timeDto(x.default_end_time),
         })),
         programTypes: (result(programTypesRes) as Row[]).map((x) => ({
             Name: x.name,

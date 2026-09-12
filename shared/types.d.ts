@@ -426,8 +426,8 @@ interface UpdateHomeContentInput {
 
 interface CreateShiftTypeInput {
     name: string;
-    defaultStartTime: string;
-    defaultEndTime: string;
+    defaultStartTime: string | null;
+    defaultEndTime: string | null;
     color: string;
 }
 

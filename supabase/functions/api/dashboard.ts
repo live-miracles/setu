@@ -197,8 +197,10 @@ export async function dashboard(
         shiftTypes: shiftTypes.map((x: Row) => ({
             Name: x.name,
             Color: x.color,
-            DefaultStartTime: String(x.default_start_time).slice(0, 5),
-            DefaultEndTime: String(x.default_end_time).slice(0, 5),
+            DefaultStartTime:
+                x.default_start_time == null ? '' : String(x.default_start_time).slice(0, 5),
+            DefaultEndTime:
+                x.default_end_time == null ? '' : String(x.default_end_time).slice(0, 5),
         })),
         programTypes: programTypes.map((x: Row) => ({ Name: x.name, Color: x.color })),
         programLanguages: languages.map((x: Row) => ({ Name: x.name })),

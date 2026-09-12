@@ -11,6 +11,15 @@ import {
 
 const USER_ROLES = ['admin', 'approver', 'viewer', 'user'];
 
+function optionalTime(value: unknown): string | null {
+    const time = String(value ?? '').trim();
+    return time || null;
+}
+
+function timeDto(value: unknown): string {
+    return value == null ? '' : String(value).slice(0, 5);
+}
+
 export function departmentDto(x: Row): Row {
     return { Id: x.id, Name: x.name, ShortName: x.short_name, LeadEmail: x.lead_email };
 }
@@ -368,8 +377,8 @@ export async function createShiftType(
                     .insert({
                         name,
                         color: String(input.color || '').trim(),
-                        default_start_time: input.defaultStartTime,
-                        default_end_time: input.defaultEndTime,
+                        default_start_time: optionalTime(input.defaultStartTime),
+                        default_end_time: optionalTime(input.defaultEndTime),
                     })
                     .select('*')
                     .single(),
@@ -378,8 +387,8 @@ export async function createShiftType(
             return {
                 Name: row.name,
                 Color: row.color,
-                DefaultStartTime: String(row.default_start_time).slice(0, 5),
-                DefaultEndTime: String(row.default_end_time).slice(0, 5),
+                DefaultStartTime: timeDto(row.default_start_time),
+                DefaultEndTime: timeDto(row.default_end_time),
             };
         },
     );
@@ -407,8 +416,8 @@ export async function updateShiftType(
                     .update({
                         name: newName,
                         color: String(input.color || '').trim(),
-                        default_start_time: input.defaultStartTime,
-                        default_end_time: input.defaultEndTime,
+                        default_start_time: optionalTime(input.defaultStartTime),
+                        default_end_time: optionalTime(input.defaultEndTime),
                     })
                     .eq('name', name)
                     .select('*')
@@ -418,8 +427,8 @@ export async function updateShiftType(
             return {
                 Name: row.name,
                 Color: row.color,
-                DefaultStartTime: String(row.default_start_time).slice(0, 5),
-                DefaultEndTime: String(row.default_end_time).slice(0, 5),
+                DefaultStartTime: timeDto(row.default_start_time),
+                DefaultEndTime: timeDto(row.default_end_time),
             };
         },
     );
