@@ -23,20 +23,18 @@ import {
     SearchOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
+import { useDashboard } from '../dashboard-context';
 import {
-    navigateBackToSection,
-    navigateToDepartment,
-    navigateToInventoryRequest,
-    navigateToInventoryType,
-    navigateToProgram,
-    refreshDashboard,
-    inventoryRequestUrl,
-    programRequestUrl,
-} from '../router';
-import { DEPARTMENT_QUERY_PARAM, INVENTORY_TYPE_QUERY_PARAM } from '../config';
-import { mountRefinePage } from '../ui/refine';
+    departmentPath,
+    departmentsPath,
+    inventoryRequestPath,
+    inventoryTypePath,
+    inventoryTypesPath,
+    programRequestPath,
+} from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
 import { formatDateTimeLocal } from '../ui/date';
@@ -400,17 +398,20 @@ function Editor({
     );
 }
 
-function SettingsResourcePage({
-    config,
+export function SettingsResourcePage({
     resourceName,
     dashboard,
     compact = false,
 }: {
-    config: ResourceConfig;
     resourceName: string;
     dashboard: DashboardPayload;
     compact?: boolean;
 }) {
+    const navigate = useNavigate();
+    const { refreshDashboard } = useDashboard();
+    const { id: detailId = null } = useParams<{ id: string }>();
+    const config = RESOURCES[resourceName];
+    if (!config) throw new Error(`Unknown settings resource: ${resourceName}`);
     const canEdit = dashboard.me.Role === 'admin';
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
@@ -437,12 +438,6 @@ function SettingsResourcePage({
             String(row.Name ?? row.Id ?? ''),
         ]),
     );
-    const detailId =
-        config.kind === 'department'
-            ? new URLSearchParams(window.location.search).get(DEPARTMENT_QUERY_PARAM)
-            : config.kind === 'inventory-type'
-              ? new URLSearchParams(window.location.search).get(INVENTORY_TYPE_QUERY_PARAM)
-              : null;
     const selectedDepartment =
         config.kind === 'department' ? rows.find((row) => row.Id === detailId) || null : null;
     const selectedInventoryType =
@@ -716,7 +711,7 @@ function SettingsResourcePage({
                         <BlockCard
                             key={row.Id}
                             className="inventory-type-card"
-                            onClick={() => navigateToInventoryType(String(row.Id))}>
+                            onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                             <div className="inventory-type-card-heading">
                                 <strong>{String(row.Name || 'Unnamed equipment')}</strong>
                                 {row.Description && (
@@ -749,7 +744,7 @@ function SettingsResourcePage({
                     <BlockCard
                         key={row.Id}
                         className="department-card"
-                        onClick={() => navigateToDepartment(String(row.Id))}>
+                        onClick={() => navigate(departmentPath(String(row.Id)))}>
                         <div className="department-card-content">
                             <strong>
                                 {String(row.Name || 'Unnamed department')}
@@ -807,7 +802,7 @@ function SettingsResourcePage({
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => navigateBackToSection('inventory-types')}
+                        onClick={() => navigate(inventoryTypesPath, { replace: true })}
                         aria-label="Back to inventory types"
                         title="Back to inventory types"
                     />
@@ -924,8 +919,8 @@ function SettingsResourcePage({
                         )}
                         dashboard={dashboard}
                         emptyMessage="No inventory requests have used this equipment."
-                        hrefFor={inventoryRequestUrl}
-                        onOpen={navigateToInventoryRequest}
+                        hrefFor={inventoryRequestPath}
+                        onOpen={(id) => navigate(inventoryRequestPath(id))}
                     />
                 </DetailSection>
             </DetailSections>
@@ -959,7 +954,7 @@ function SettingsResourcePage({
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => navigateBackToSection('departments')}
+                        onClick={() => navigate(departmentsPath, { replace: true })}
                         aria-label="Back to departments"
                         title="Back to departments"
                     />
@@ -1018,8 +1013,8 @@ function SettingsResourcePage({
                         items={departmentPrograms}
                         dashboard={dashboard}
                         emptyMessage="No program requests for this department."
-                        hrefFor={programRequestUrl}
-                        onOpen={navigateToProgram}
+                        hrefFor={programRequestPath}
+                        onOpen={(id) => navigate(programRequestPath(id))}
                     />
                 </DetailSection>
                 <DetailSection span="full">
@@ -1029,8 +1024,8 @@ function SettingsResourcePage({
                         items={departmentInventoryRequests}
                         dashboard={dashboard}
                         emptyMessage="No inventory requests for this department."
-                        hrefFor={inventoryRequestUrl}
-                        onOpen={navigateToInventoryRequest}
+                        hrefFor={inventoryRequestPath}
+                        onOpen={(id) => navigate(inventoryRequestPath(id))}
                     />
                 </DetailSection>
             </DetailSections>
@@ -1090,9 +1085,10 @@ function SettingsResourcePage({
                     onConfirm={async () => {
                         const row = deleting;
                         setDeleting(null);
-                        if (config.kind === 'department') navigateBackToSection('departments');
+                        if (config.kind === 'department')
+                            navigate(departmentsPath, { replace: true });
                         if (config.kind === 'inventory-type')
-                            navigateBackToSection('inventory-types');
+                            navigate(inventoryTypesPath, { replace: true });
                         await remove(row);
                     }}
                 />
@@ -1109,7 +1105,8 @@ function SettingsResourcePage({
     );
 }
 
-function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
+export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
+    const { refreshDashboard } = useDashboard();
     const [savingGuidelines, setSavingGuidelines] = useState(false);
     const canEdit = dashboard.me.Role === 'admin';
 
@@ -1152,7 +1149,6 @@ function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
                 (key) => (
                     <SettingsResourcePage
                         key={key}
-                        config={RESOURCES[key]}
                         resourceName={key}
                         dashboard={dashboard}
                         compact
@@ -1303,23 +1299,5 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
                 </Modal>
             )}
         </Card>
-    );
-}
-
-export function renderRefineSettings(
-    key: string,
-    container: HTMLElement,
-    dashboard: DashboardPayload,
-): void {
-    if (key === 'home-content') {
-        mountRefinePage(container, <HomeContentPage dashboard={dashboard} />, key);
-        return;
-    }
-    const config = RESOURCES[key];
-    if (!config) throw new Error(`Unknown settings resource: ${key}`);
-    mountRefinePage(
-        container,
-        <SettingsResourcePage config={config} resourceName={key} dashboard={dashboard} />,
-        key,
     );
 }

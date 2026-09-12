@@ -3,17 +3,9 @@ import { useDelete, useList, useUpdate } from '@refinedev/core';
 import { Button, Form as AntForm, Input, Select, Space, Typography } from 'antd';
 import { Controller, useForm } from 'react-hook-form';
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
-import {
-    navigateBackToSection,
-    navigateToInventoryRequest,
-    navigateToProgram,
-    navigateToUser,
-    programRequestUrl,
-    inventoryRequestUrl,
-    refreshDashboard,
-    userUrl,
-} from '../router';
-import { USER_QUERY_PARAM } from '../config';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useDashboard } from '../dashboard-context';
+import { inventoryRequestPath, programRequestPath, userPath, usersPath } from '../paths';
 import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
@@ -166,12 +158,14 @@ export function UserForm({
     );
 }
 export function Users({ dashboard }: Props) {
+    const navigate = useNavigate();
+    const { refreshDashboard } = useDashboard();
+    const { email: selectedUserId = null } = useParams<{ email: string }>();
     const [editing, setEditing] = useState<UserDTO | undefined>();
     const [deleting, setDeleting] = useState<UserDTO | null>(null);
     const { mutateAsync: deleteUser } = useDelete();
     const { result } = useList({ resource: 'users', pagination: { mode: 'off' } });
     const users = result.data as UserDTO[];
-    const selectedUserId = new URLSearchParams(window.location.search).get(USER_QUERY_PARAM);
     const selectedUser = selectedUserId
         ? users.find((user) => user.Email === selectedUserId) || null
         : null;
@@ -225,7 +219,7 @@ export function Users({ dashboard }: Props) {
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => navigateBackToSection('users')}
+                        onClick={() => navigate(usersPath, { replace: true })}
                         aria-label="Back to users"
                         title="Back to users"
                     />
@@ -271,8 +265,8 @@ export function Users({ dashboard }: Props) {
                     items={userPrograms}
                     dashboard={dashboard}
                     emptyMessage="No program requests from this user."
-                    hrefFor={programRequestUrl}
-                    onOpen={navigateToProgram}
+                    hrefFor={programRequestPath}
+                    onOpen={(id) => navigate(programRequestPath(id))}
                 />
             </DetailSection>
             <DetailSection span="full">
@@ -282,8 +276,8 @@ export function Users({ dashboard }: Props) {
                     items={userInventoryRequests}
                     dashboard={dashboard}
                     emptyMessage="No inventory requests from this user."
-                    hrefFor={inventoryRequestUrl}
-                    onOpen={navigateToInventoryRequest}
+                    hrefFor={inventoryRequestPath}
+                    onOpen={(id) => navigate(inventoryRequestPath(id))}
                 />
             </DetailSection>
         </DetailLayout>
@@ -302,8 +296,8 @@ export function Users({ dashboard }: Props) {
                                     key={user.Email}
                                     user={user}
                                     dashboard={dashboard}
-                                    href={userUrl(user.Email)}
-                                    onClick={() => navigateToUser(user.Email)}
+                                    href={userPath(user.Email)}
+                                    onClick={() => navigate(userPath(user.Email))}
                                 />
                             ))}
                         </div>

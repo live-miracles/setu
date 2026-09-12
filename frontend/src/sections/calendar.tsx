@@ -2,8 +2,8 @@ import { useCustom } from '@refinedev/core';
 import { Button, Empty, Space, Typography } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { useState } from 'react';
-import { navigateToProgram, programRequestUrl } from '../router';
-import { isPlainLeftClick } from '../ui/link-click';
+import { Link } from 'react-router-dom';
+import { programRequestPath } from '../paths';
 import { formatLocalDateOnly } from '../ui/date';
 import { buildCalendarTableModel } from '../ui/calendar-table';
 import { Page } from './refine-shared';
@@ -132,24 +132,16 @@ export function Calendar({ dashboard }: Props) {
                                                                 : ''
                                                         }`}>
                                                         {place.blocks.map((block) => (
-                                                            <a
+                                                            <Link
                                                                 key={block.programId}
                                                                 className="calendar-program-block"
-                                                                href={programRequestUrl(
+                                                                to={programRequestPath(
                                                                     block.programId,
                                                                 )}
                                                                 style={{
                                                                     backgroundColor: block.color
                                                                         ? `${block.color}26`
                                                                         : undefined,
-                                                                }}
-                                                                onClick={(event) => {
-                                                                    if (!isPlainLeftClick(event))
-                                                                        return;
-                                                                    event.preventDefault();
-                                                                    navigateToProgram(
-                                                                        block.programId,
-                                                                    );
                                                                 }}
                                                                 aria-label={`Open ${block.title}`}>
                                                                 <span className="calendar-program-title">
@@ -162,7 +154,7 @@ export function Calendar({ dashboard }: Props) {
                                                                         {session.label}
                                                                     </span>
                                                                 ))}
-                                                            </a>
+                                                            </Link>
                                                         ))}
                                                     </td>
                                                 );

@@ -230,6 +230,10 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
 };
 
+// Refine needs its whole resource set up front (registered once — see
+// app.tsx), rather than the single-resource array each page used to hand it.
+export const REFINE_RESOURCE_NAMES = Object.keys(RESOURCES);
+
 function requireResource(resource: string): ResourceConfig {
     const config = RESOURCES[resource];
     if (!config) throw new Error(`Unsupported Refine resource: ${resource}`);

@@ -1,24 +1,18 @@
-import { type ReactNode } from 'react';
 import { useOne } from '@refinedev/core';
 import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
 import { Controller, useForm } from 'react-hook-form';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { navigateToInventoryRequests, navigateToPrograms } from '../router';
-import { mountRefinePage } from '../ui/refine';
+import { inventoryPath, programsPath } from '../paths';
 import { roleLabel } from '../ui/styles';
 import {
     isValidInternationalPhone,
     INTERNATIONAL_PHONE_PATTERN,
     INTERNATIONAL_PHONE_TITLE,
 } from './form-utils';
-import { Users } from './users';
-import { Roster } from './roster';
-import { CreateRecord, RequestTable } from './requests';
-import { ProgramDetail } from './program-detail';
 import { InventoryDetail } from './inventory-detail';
+import { ProgramDetail } from './program-detail';
 import { Card, Page, SaveFooter, TextField, useRHFSave } from './refine-shared';
-import { Home } from './home';
-import { Calendar } from './calendar';
 
 type Props = { dashboard: DashboardPayload };
 type ProfileFormValues = {
@@ -28,7 +22,7 @@ type ProfileFormValues = {
     whatsapp: string;
 };
 
-function Profile({ dashboard, registration = false }: Props & { registration?: boolean }) {
+export function Profile({ dashboard, registration = false }: Props & { registration?: boolean }) {
     const me = dashboard.me;
     const form = useForm<ProfileFormValues>({
         defaultValues: {
@@ -144,9 +138,9 @@ function Profile({ dashboard, registration = false }: Props & { registration?: b
 // Edit-only: users self-register on first sign-in (see the
 // on_auth_user_created trigger) rather than being pre-provisioned by an
 // admin, so there is no "Add user" flow.
-function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get(kind === 'inventory' ? 'inventoryRequest' : 'programRequest');
+export function RequestDetail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
+    const { id = '' } = useParams<{ id: string }>();
+    const navigate = useNavigate();
     const resource = kind === 'inventory' ? 'inventory-requests' : 'program-requests';
     // Fetches this one record through the resource's own getOne operation
     // rather than finding it in dashboard.inventoryRequests/programRequests —
@@ -154,14 +148,13 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' })
     // older one wouldn't be found there even though it still exists.
     const { result: row, query } = useOne<InventoryRequestDTO | ProgramRequestDTO>({
         resource,
-        id: id || '',
-        queryOptions: { enabled: Boolean(id) },
+        id,
         // A missing/deleted record is a normal "not found" navigation state
         // here, not something to alert the user about with a toast.
         errorNotification: false,
     });
-    const back = kind === 'inventory' ? navigateToInventoryRequests : navigateToPrograms;
-    if (id && query.isLoading) {
+    const back = () => navigate(kind === 'inventory' ? inventoryPath : programsPath);
+    if (query.isLoading) {
         return (
             <Page title="Loading request…">
                 <Typography.Text>Loading request…</Typography.Text>
@@ -169,9 +162,7 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' })
         );
     }
     if (!row) {
-        return params.get('mode') === 'create' ? (
-            <CreateRecord kind={kind} dashboard={dashboard} onClose={back} />
-        ) : (
+        return (
             <Page title="Not found">
                 <Card title="Record not found">
                     <Button onClick={back}>Back</Button>
@@ -188,44 +179,4 @@ function Detail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' })
             />
         );
     return <ProgramDetail key={row.Id} request={row as ProgramRequestDTO} dashboard={dashboard} />;
-}
-
-export function renderRefineApp(
-    section: string,
-    container: HTMLElement,
-    dashboard: DashboardPayload,
-): void {
-    const params = new URLSearchParams(window.location.search);
-    let page: ReactNode;
-    if (section === 'home') page = <Home dashboard={dashboard} />;
-    else if (section === 'profile') page = <Profile dashboard={dashboard} />;
-    else if (section === 'users') page = <Users dashboard={dashboard} />;
-    else if (section === 'roster') page = <Roster dashboard={dashboard} />;
-    else if (section === 'calendar') page = <Calendar dashboard={dashboard} />;
-    else if (['inventory', 'programs'].includes(section)) {
-        const detail =
-            Boolean(params.get(section === 'inventory' ? 'inventoryRequest' : 'programRequest')) ||
-            params.get('mode') === 'create';
-        page = detail ? (
-            <Detail
-                key={section}
-                kind={section as 'inventory' | 'programs'}
-                dashboard={dashboard}
-            />
-        ) : (
-            <RequestTable
-                key={section}
-                kind={section as 'inventory' | 'programs'}
-                dashboard={dashboard}
-            />
-        );
-    } else page = <Home dashboard={dashboard} />;
-    mountRefinePage(container, page, section);
-}
-
-export function renderRefineRegistration(
-    container: HTMLElement,
-    dashboard: DashboardPayload,
-): void {
-    mountRefinePage(container, <Profile dashboard={dashboard} registration />, 'registration');
 }

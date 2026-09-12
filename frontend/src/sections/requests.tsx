@@ -12,14 +12,9 @@ import {
     Typography,
 } from 'antd';
 import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import {
-    navigateToInventoryRequest,
-    navigateToProgram,
-    inventoryRequestUrl,
-    programRequestUrl,
-    refreshDashboard,
-    replaceWorkbenchUrl,
-} from '../router';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDashboard } from '../dashboard-context';
+import { inventoryRequestPath, programRequestPath } from '../paths';
 import {
     WORKBENCH_SEARCH_QUERY_PARAM,
     WORKBENCH_STATUS_QUERY_PARAM,
@@ -89,17 +84,18 @@ export function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession 
 export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
     const isInventory = kind === 'inventory';
     const isProgram = kind === 'programs';
-    const params = new URLSearchParams(window.location.search);
-    const [search, setSearch] = useState(params.get(WORKBENCH_SEARCH_QUERY_PARAM) || '');
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [search, setSearch] = useState(searchParams.get(WORKBENCH_SEARCH_QUERY_PARAM) || '');
     const [appliedSearch, setAppliedSearch] = useState(
-        params.get(WORKBENCH_SEARCH_QUERY_PARAM) || '',
+        searchParams.get(WORKBENCH_SEARCH_QUERY_PARAM) || '',
     );
-    const [view, setView] = useState(params.get(WORKBENCH_VIEW_QUERY_PARAM) || 'active');
+    const [view, setView] = useState(searchParams.get(WORKBENCH_VIEW_QUERY_PARAM) || 'active');
     const statuses = isInventory
         ? ['draft', 'submitted', 'approved', 'issued', 'closed', 'rejected', 'cancelled']
         : ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => {
-        const value = params.get(WORKBENCH_STATUS_QUERY_PARAM);
+        const value = searchParams.get(WORKBENCH_STATUS_QUERY_PARAM);
         return value ? value.split(',').filter((status) => statuses.includes(status)) : statuses;
     });
     const [page, setPage] = useState(1);
@@ -129,15 +125,21 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
     const rows = result.data;
     const loading = query.isLoading;
     const open = (id: string) =>
-        isInventory ? navigateToInventoryRequest(id) : navigateToProgram(id);
-    const hrefFor = (id: string) => (isInventory ? inventoryRequestUrl(id) : programRequestUrl(id));
+        navigate(isInventory ? inventoryRequestPath(id) : programRequestPath(id));
+    const hrefFor = (id: string) =>
+        isInventory ? inventoryRequestPath(id) : programRequestPath(id);
     const title = isInventory ? 'Inventory' : 'Programs';
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
-        const url = new URL(window.location.href);
-        if (value && value !== 'all') url.searchParams.set(key, value);
-        else url.searchParams.delete(key);
-        replaceWorkbenchUrl(url);
+        setSearchParams(
+            (prev) => {
+                const next = new URLSearchParams(prev);
+                if (value && value !== 'all') next.set(key, value);
+                else next.delete(key);
+                return next;
+            },
+            { replace: true },
+        );
     };
 
     const filter = (
@@ -287,6 +289,8 @@ export function CreateRecord({
     onSubmitStart?: () => void;
     onSubmitEnd?: () => void;
 }) {
+    const navigate = useNavigate();
+    const { refreshDashboard } = useDashboard();
     const { result: usersResult } = useList<UserDTO>({
         resource: 'users',
         pagination: { mode: 'off' },
@@ -411,8 +415,9 @@ export function CreateRecord({
                     }
                     await refreshDashboard();
                     const id = createRecordDestination(kind, created.Id);
-                    if (kind === 'programs') navigateToProgram(id);
-                    else navigateToInventoryRequest(id);
+                    navigate(
+                        kind === 'programs' ? programRequestPath(id) : inventoryRequestPath(id),
+                    );
                     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
                 } finally {
                     if (onSubmitEnd) onSubmitEnd();

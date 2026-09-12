@@ -2,15 +2,13 @@ import { Refine } from '@refinedev/core';
 import { useNotificationProvider } from '@refinedev/antd';
 import { App as AntApp, ConfigProvider, type ThemeConfig } from 'antd';
 import { useEffect, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { queryClient } from '../query-client';
-import { setuDataProvider } from './refine-data-provider';
+import { REFINE_RESOURCE_NAMES, setuDataProvider } from './refine-data-provider';
 import { setErrorNotifier } from './feedback';
 
 // Refine is intentionally headless here. The app keeps its existing transport
 // and visual tokens while Refine owns the resource boundary for the React
-// surfaces.
-const roots = new WeakMap<HTMLElement, { host: HTMLElement; root: Root }>();
+// surfaces; React Router owns the URL (see app.tsx).
 
 // antd computes its whole derived palette from these seed tokens via color
 // math, so they must be real colors, not CSS var() references — keep these
@@ -35,30 +33,21 @@ export const SETU_ANTD_THEME: ThemeConfig = {
     },
 };
 
-export function mountRefinePage(container: HTMLElement, page: ReactNode, resource: string): void {
-    let mounted = roots.get(container);
-    if (!mounted) {
-        const host = document.createElement('div');
-        host.className = 'refine-page';
-        container.replaceChildren(host);
-        mounted = { host, root: createRoot(host) };
-        roots.set(container, mounted);
-    }
-
-    mounted.root.render(<RefineRoot page={page} resource={resource} />);
-}
-
-function RefineRoot({ page, resource }: { page: ReactNode; resource: string }) {
+// Mounted once at the app root (see app.tsx) — replaces the old per-navigation
+// mountRefinePage()/unmountRefinePage() bridge, along with the single-resource
+// `resources` array it registered on every page. Every resource
+// refine-data-provider.ts knows about is registered up front instead.
+export function AppProviders({ children }: { children: ReactNode }) {
     return (
         <ConfigProvider theme={SETU_ANTD_THEME}>
             <AntApp>
-                <RefineRootContent page={page} resource={resource} />
+                <RefineProvider>{children}</RefineProvider>
             </AntApp>
         </ConfigProvider>
     );
 }
 
-function RefineRootContent({ page, resource }: { page: ReactNode; resource: string }) {
+function RefineProvider({ children }: { children: ReactNode }) {
     const notificationProvider = useNotificationProvider();
     const { notification } = AntApp.useApp();
     useEffect(() => {
@@ -69,20 +58,9 @@ function RefineRootContent({ page, resource }: { page: ReactNode; resource: stri
         <Refine
             dataProvider={setuDataProvider}
             notificationProvider={notificationProvider}
-            resources={[{ name: resource, list: `/${resource}` }]}
-            // Refine always renders its own QueryClientProvider around
-            // `children` — passing our instance here (rather than wrapping
-            // from outside, which it would just shadow) is what makes it
-            // share the one cache with the imperative code in router.ts.
+            resources={REFINE_RESOURCE_NAMES.map((name) => ({ name, list: `/${name}` }))}
             options={{ syncWithLocation: false, reactQuery: { clientConfig: queryClient } }}>
-            {page}
+            {children}
         </Refine>
     );
-}
-
-export function unmountRefinePage(container: HTMLElement): void {
-    const mounted = roots.get(container);
-    if (!mounted) return;
-    mounted.root.unmount();
-    roots.delete(container);
 }

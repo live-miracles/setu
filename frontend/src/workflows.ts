@@ -43,11 +43,12 @@ export function isRequestOverdue(request: InventoryRequestDTO): boolean {
     return new Date(request.EndDate).getTime() < Date.now();
 }
 
-// Role predicates, mirroring canManageConfig/canApprove in Auth.ts — same
-// caveat as the transition tables above: they only decide what the UI
-// offers, and the backend re-checks every one of them. There's no
-// client-side equivalent of canViewAllRequests: request scoping happens
-// server-side, so a `user` simply never receives the rows they can't see.
+// Role predicates, mirroring requireAdmin/requireApprover in
+// supabase/functions/api/index.ts — same caveat as the transition tables
+// above: they only decide what the UI offers, and the backend re-checks
+// every one of them. There's no client-side equivalent of
+// canViewAllRequests: request scoping happens server-side, so a `user`
+// simply never receives the rows they can't see.
 export function canManageConfig(me: UserDTO): boolean {
     return me.Role === 'admin';
 }

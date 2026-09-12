@@ -9,9 +9,11 @@ import {
     PlusOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { generateRequestId } from '../ids';
 import { api } from '../api';
-import { navigateToInventoryRequests, refreshDashboard } from '../router';
+import { useDashboard } from '../dashboard-context';
+import { inventoryPath } from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
 import { prepareInventoryImage } from '../ui/inventory-image';
@@ -36,6 +38,8 @@ export function InventoryDetail({
     request: InventoryRequestDTO;
     dashboard: DashboardPayload;
 }) {
+    const navigate = useNavigate();
+    const { refreshDashboard } = useDashboard();
     const { mutateAsync: updateInventoryRequest } = useUpdate();
     const { mutateAsync: deleteInventoryRequest } = useDelete();
     const { mutateAsync: customMutate } = useCustomMutation();
@@ -338,7 +342,7 @@ export function InventoryDetail({
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={navigateToInventoryRequests}
+                        onClick={() => navigate(inventoryPath)}
                         aria-label="Back to inventory requests"
                         title="Back to inventory requests"
                     />
@@ -749,7 +753,7 @@ export function InventoryDetail({
                             });
                             setPendingDelete(false);
                             await refreshDashboard();
-                            navigateToInventoryRequests();
+                            navigate(inventoryPath);
                         } catch (e) {
                             error(e);
                         } finally {

@@ -9,7 +9,7 @@ import {
     Modal as AntModal,
     Typography,
 } from 'antd';
-import { refreshDashboard } from '../router';
+import { useDashboard } from '../dashboard-context';
 import { showErrorAlert } from '../ui/feedback';
 
 export function Page({
@@ -145,6 +145,7 @@ export function useSave<T>(
     optimistic = false,
     refreshAfterSave = true,
 ) {
+    const { refreshDashboard } = useDashboard();
     const [busy, setBusy] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     return {
@@ -187,6 +188,7 @@ export function useRHFSave<T extends FieldValues>(
     action: (values: T) => Promise<void>,
     refreshAfterSave = true,
 ) {
+    const { refreshDashboard } = useDashboard();
     const [busy, setBusy] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const onSubmit = form.handleSubmit(async (values) => {

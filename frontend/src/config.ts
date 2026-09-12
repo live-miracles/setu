@@ -1,13 +1,5 @@
-export const APP_SECTION_QUERY_PARAM = 'section';
-export const INVENTORY_REQUEST_QUERY_PARAM = 'inventoryRequest';
-export const PROGRAM_REQUEST_QUERY_PARAM = 'programRequest';
-export const WORKBENCH_MODE_QUERY_PARAM = 'mode';
 export const WORKBENCH_VIEW_QUERY_PARAM = 'view';
 export const WORKBENCH_SEARCH_QUERY_PARAM = 'q';
 export const WORKBENCH_STATUS_QUERY_PARAM = 'status';
 export const WORKBENCH_SORT_QUERY_PARAM = 'sort';
 export const WORKBENCH_DIRECTION_QUERY_PARAM = 'dir';
-export const USER_QUERY_PARAM = 'user';
-export const DEPARTMENT_QUERY_PARAM = 'department';
-export const PLACE_QUERY_PARAM = 'place';
-export const INVENTORY_TYPE_QUERY_PARAM = 'inventoryType';

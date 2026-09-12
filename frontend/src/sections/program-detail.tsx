@@ -9,7 +9,9 @@ import {
 } from '@refinedev/core';
 import { Button, Form as AntForm, Input, Select, Space, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { navigateToProgram, navigateToPrograms, refreshDashboard } from '../router';
+import { useNavigate } from 'react-router-dom';
+import { useDashboard } from '../dashboard-context';
+import { programRequestPath, programsPath } from '../paths';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { formatProgramSessionSchedule } from '../ui/format';
@@ -60,6 +62,8 @@ export function ProgramDetail({
     request: ProgramRequestDTO;
     dashboard: DashboardPayload;
 }) {
+    const navigate = useNavigate();
+    const { refreshDashboard } = useDashboard();
     const { mutateAsync: updateProgramRequest } = useUpdate();
     const { mutateAsync: createProgramRequest } = useCreate();
     const { mutateAsync: deleteProgramRequest } = useDelete();
@@ -264,7 +268,7 @@ export function ProgramDetail({
                 errorNotification: false,
             });
             await refreshDashboard();
-            navigateToProgram((created.data as unknown as { Id: string }).Id);
+            navigate(programRequestPath((created.data as unknown as { Id: string }).Id));
         } catch (e) {
             setDuplicateError(e instanceof Error ? e.message : String(e));
             setDuplicating(false);
@@ -420,7 +424,7 @@ export function ProgramDetail({
                     <Button
                         type="default"
                         icon={<ArrowLeftOutlined />}
-                        onClick={navigateToPrograms}
+                        onClick={() => navigate(programsPath)}
                         aria-label="Back to programs"
                         title="Back to programs"
                     />
@@ -570,7 +574,7 @@ export function ProgramDetail({
                             });
                             setPendingDelete(false);
                             await refreshDashboard();
-                            navigateToPrograms();
+                            navigate(programsPath);
                         } catch (e) {
                             error(e);
                         } finally {

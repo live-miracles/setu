@@ -3,7 +3,7 @@ import { Button, Card, Form as AntForm, Input, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
-import { refreshDashboard } from '../router';
+import { useDashboard } from '../dashboard-context';
 import { formatDateTime } from '../ui/format';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { Empty, Modal, SaveFooter } from './refine-shared';
@@ -18,6 +18,7 @@ export function Activity({
     requestId: string;
     initialComments: CommentDTO[];
 }) {
+    const { refreshDashboard } = useDashboard();
     const [comment, setComment] = useState('');
     const [comments, setComments] = useState<CommentDTO[]>(initialComments);
     useEffect(() => {

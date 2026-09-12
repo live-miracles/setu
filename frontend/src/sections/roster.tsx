@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useCreate, useDelete, useList, useUpdate } from '@refinedev/core';
 import { Button, Form as AntForm, Input, Select } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { refreshDashboard } from '../router';
+import { useDashboard } from '../dashboard-context';
 import { formatLocalDateOnly } from '../ui/date';
 import {
     buildRosterTableModel,
@@ -23,6 +23,7 @@ import {
 type Props = { dashboard: DashboardPayload };
 
 export function Roster({ dashboard }: Props) {
+    const { refreshDashboard } = useDashboard();
     const canEdit = canApprove(dashboard.me);
     const [editing, setEditing] = useState<RosterDTO>();
     const [creating, setCreating] = useState(false);

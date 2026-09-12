@@ -64,6 +64,30 @@ const STATIC_ASSETS = new Map([
 // answer, not a problem worth a line in the log.
 const BUILT_ASSETS = new Set(['/app.js', '/app.css']);
 
+// Renders the same shell for '/' and for any path-based client route
+// (/inventory/123, /departments, ...) that isn't a real static file — this is
+// the dev-server equivalent of vercel.json's SPA catch-all rewrite, needed
+// now that React Router owns path-based routes instead of a `?section=`
+// query param that always resolved to '/'.
+function serveShell(res) {
+    let page;
+    try {
+        page = renderInlineDevShell({
+            script: readFileSync(path.join(distDir, 'app.js'), 'utf8'),
+            style: readFileSync(path.join(distDir, 'app.css'), 'utf8'),
+        });
+    } catch (err) {
+        // shell.html is a tracked source file rather than a build output,
+        // so this is a genuine mistake worth showing in the tab instead of
+        // taking the server down mid-session.
+        console.error(`[server] cannot render shell.html: ${err.message}`);
+        res.writeHead(500, { 'Content-Type': 'text/plain' }).end(`${err.message}\n`);
+        return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(page);
+}
+
 const server = createServer((req, res) => {
     const { pathname } = new URL(req.url, `http://localhost:${PORT}`);
 
@@ -72,22 +96,7 @@ const server = createServer((req, res) => {
     res.setHeader('Cache-Control', 'no-store');
 
     if (pathname === '/') {
-        let page;
-        try {
-            page = renderInlineDevShell({
-                script: readFileSync(path.join(distDir, 'app.js'), 'utf8'),
-                style: readFileSync(path.join(distDir, 'app.css'), 'utf8'),
-            });
-        } catch (err) {
-            // shell.html is a tracked source file rather than a build output,
-            // so this is a genuine mistake worth showing in the tab instead of
-            // taking the server down mid-session.
-            console.error(`[server] cannot render shell.html: ${err.message}`);
-            res.writeHead(500, { 'Content-Type': 'text/plain' }).end(`${err.message}\n`);
-            return;
-        }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(page);
+        serveShell(res);
         return;
     }
 
@@ -118,11 +127,17 @@ const server = createServer((req, res) => {
     } catch {
         // A miss on an asset the watchers own means the first build of it
         // hasn't landed yet, which is worth saying out loud; the next reload
-        // picks it up. Everything else is routine browser probing.
+        // picks it up.
         if (BUILT_ASSETS.has(pathname)) {
             console.warn(`[server] 404 ${pathname} — not built yet, reload once it appears`);
+            res.writeHead(404, { 'Content-Type': 'text/plain' }).end(`Not found: ${pathname}\n`);
+            return;
         }
-        res.writeHead(404, { 'Content-Type': 'text/plain' }).end(`Not found: ${pathname}\n`);
+        // Anything else with no matching file is a client-side route (e.g.
+        // /inventory/123) rather than a missing asset — hand it the same
+        // shell React Router will read the path from, mirroring vercel.json's
+        // catch-all rewrite.
+        serveShell(res);
         return;
     }
 

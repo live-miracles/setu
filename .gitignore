@@ -6,10 +6,6 @@
 
 # build artifacts
 /frontend/dist
-/src/Index.html
-/src/Stylesheet.html
-/src/JavaScript.html
-/.clasp-build
 /web
 
 # local files

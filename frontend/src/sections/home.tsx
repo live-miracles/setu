@@ -2,15 +2,15 @@ import { Button, Card, Divider, Empty, Space, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useNavigate } from 'react-router-dom';
 import homeHeroImage from '../../assets/home-hero.avif';
 import {
-    inventoryRequestUrl,
-    navigateToInventoryRequest,
-    navigateToRequestList,
-    navigateToRoster,
-    navigateToProgram,
-    programRequestUrl,
-} from '../router';
+    inventoryPath,
+    inventoryRequestPath,
+    programRequestPath,
+    programsPath,
+    rosterPath,
+} from '../paths';
 import { isPlainLeftClick } from '../ui/link-click';
 import { formatDateTime, formatTimeOfDay } from '../ui/format';
 import { formatLocalDateOnly } from '../ui/date';
@@ -87,12 +87,10 @@ function HomeLinkList<T>({
 }
 
 function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: RequestKind }) {
+    const navigate = useNavigate();
     const hrefFor = (request: HomeRequest) =>
-        kind === 'programs' ? programRequestUrl(request.Id) : inventoryRequestUrl(request.Id);
-    const openRequest = (request: HomeRequest) =>
-        kind === 'programs'
-            ? navigateToProgram(request.Id)
-            : navigateToInventoryRequest(request.Id);
+        kind === 'programs' ? programRequestPath(request.Id) : inventoryRequestPath(request.Id);
+    const openRequest = (request: HomeRequest) => navigate(hrefFor(request));
 
     return (
         <HomeLinkList
@@ -113,6 +111,7 @@ function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: Re
 }
 
 export function Home({ dashboard }: Props) {
+    const navigate = useNavigate();
     const pendingProgramRequests = dashboard.programRequests.filter((request) =>
         ['draft', 'submitted'].includes(request.Status),
     );
@@ -184,7 +183,7 @@ export function Home({ dashboard }: Props) {
                             block
                             className="antd-list-button"
                             key={shift.Id}
-                            onClick={navigateToRoster}>
+                            onClick={() => navigate(rosterPath)}>
                             <Space className="home-list-row">
                                 <Typography.Text strong>
                                     {shift.Name} · {shift.userName || 'Unassigned'}
@@ -211,7 +210,7 @@ export function Home({ dashboard }: Props) {
                             block
                             className="antd-list-button"
                             key={shift.Id}
-                            onClick={navigateToRoster}>
+                            onClick={() => navigate(rosterPath)}>
                             <Space className="home-list-row">
                                 <Typography.Text strong>
                                     {shift.Name} · {shift.userName || 'Unassigned'}
@@ -234,9 +233,7 @@ export function Home({ dashboard }: Props) {
                 <Card
                     title={sectionTitle('Pending program requests', pendingProgramRequests.length)}
                     className="home-scroll-card"
-                    extra={sectionAction('Pending program requests', () =>
-                        navigateToRequestList('programs'),
-                    )}>
+                    extra={sectionAction('Pending program requests', () => navigate(programsPath))}>
                     <HomeRequestList requests={pendingProgramRequests} kind="programs" />
                 </Card>
                 <Card
@@ -246,7 +243,7 @@ export function Home({ dashboard }: Props) {
                     )}
                     className="home-scroll-card"
                     extra={sectionAction('Ongoing Inventory Requests', () =>
-                        navigateToRequestList('inventory'),
+                        navigate(inventoryPath),
                     )}>
                     <HomeRequestList requests={dashboard.inventoryRequests} kind="inventory" />
                 </Card>
@@ -258,13 +255,15 @@ export function Home({ dashboard }: Props) {
                         getKey={({ comment }) => comment.Id}
                         getHref={({ request, kind }) =>
                             kind === 'programs'
-                                ? programRequestUrl(request.Id)
-                                : inventoryRequestUrl(request.Id)
+                                ? programRequestPath(request.Id)
+                                : inventoryRequestPath(request.Id)
                         }
                         onOpen={({ request, kind }) =>
-                            kind === 'programs'
-                                ? navigateToProgram(request.Id)
-                                : navigateToInventoryRequest(request.Id)
+                            navigate(
+                                kind === 'programs'
+                                    ? programRequestPath(request.Id)
+                                    : inventoryRequestPath(request.Id),
+                            )
                         }
                         render={({ comment, request }) => (
                             <>
