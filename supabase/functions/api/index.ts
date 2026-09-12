@@ -728,7 +728,7 @@ async function createBlock(
                     name,
                     start_at: startDateTime,
                     end_at: endDateTime,
-                    place: String(input.place || ''),
+                    place_id: input.place || null,
                 })
                 .select('*')
                 .single(),
@@ -736,7 +736,7 @@ async function createBlock(
         return {
             Id: row.id,
             Name: row.name,
-            Place: row.place,
+            Place: row.place_id || '',
             StartDateTime: row.start_at,
             EndDateTime: row.end_at,
         };
@@ -769,7 +769,7 @@ async function updateBlock(
                         name,
                         start_at: startDateTime,
                         end_at: endDateTime,
-                        place: String(input.place || ''),
+                        place_id: input.place || null,
                     })
                     .eq('id', id)
                     .select('*')
@@ -778,7 +778,7 @@ async function updateBlock(
             return {
                 Id: row.id,
                 Name: row.name,
-                Place: row.place,
+                Place: row.place_id || '',
                 StartDateTime: row.start_at,
                 EndDateTime: row.end_at,
             };
@@ -887,7 +887,7 @@ function commentDto(x: Row, profilesById: Map<string, Row>): Row {
     return {
         Id: x.id,
         Timestamp: x.created_at,
-        RequestId: x.target_id,
+        RequestId: x.inventory_request_id || x.program_request_id,
         UserId: author?.email || '',
         Message: x.message,
         userName: author?.name || '',
@@ -901,10 +901,10 @@ function commentDto(x: Row, profilesById: Map<string, Row>): Row {
 async function commentsByTargetFor(
     client: SupabaseClient,
     admin: SupabaseClient,
-    targetType: 'inventory_request' | 'program_request',
+    column: 'inventory_request_id' | 'program_request_id',
 ): Promise<Map<string, Row[]>> {
     const comments = result(
-        await client.from('comments').select('*').eq('target_type', targetType).order('created_at'),
+        await client.from('comments').select('*').not(column, 'is', null).order('created_at'),
     ) as Row[];
     const profilesById = await profilesFor(
         admin,
@@ -912,9 +912,9 @@ async function commentsByTargetFor(
     );
     const byTarget = new Map<string, Row[]>();
     comments.forEach((x) => {
-        const values = byTarget.get(x.target_id) || [];
+        const values = byTarget.get(x[column]) || [];
         values.push(commentDto(x, profilesById));
-        byTarget.set(x.target_id, values);
+        byTarget.set(x[column], values);
     });
     return byTarget;
 }
@@ -1047,7 +1047,7 @@ async function listBlocks(client: SupabaseClient): Promise<Row[]> {
     return rows.map((x) => ({
         Id: x.id,
         Name: x.name,
-        Place: x.place,
+        Place: x.place_id || '',
         StartDateTime: x.start_at,
         EndDateTime: x.end_at,
     }));
@@ -1296,8 +1296,9 @@ async function addComment(
                 await client
                     .from('comments')
                     .insert({
-                        target_type: owner.kind,
-                        target_id: requestId,
+                        ...(owner.kind === 'inventory_request'
+                            ? { inventory_request_id: requestId }
+                            : { program_request_id: requestId }),
                         author_id: actor.id,
                         message: trimmed,
                     })
@@ -1379,7 +1380,7 @@ async function listInventoryRequests(
     const requests = result(requestsRes) as Row[];
     const items = result(itemsRes) as Row[];
     const participants = result(participantsRes) as Row[];
-    const commentsByTarget = await commentsByTargetFor(client, admin, 'inventory_request');
+    const commentsByTarget = await commentsByTargetFor(client, admin, 'inventory_request_id');
     const itemsByRequest = groupByKey(items, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
     const profilesById = await profilesFor(admin, [
@@ -1449,12 +1450,7 @@ async function getInventoryRequest(
             client.from('departments').select('*'),
             client.from('inventory_request_items').select('*').eq('request_id', id),
             client.from('inventory_request_participants').select('*').eq('request_id', id),
-            client
-                .from('comments')
-                .select('*')
-                .eq('target_type', 'inventory_request')
-                .eq('target_id', id)
-                .order('created_at'),
+            client.from('comments').select('*').eq('inventory_request_id', id).order('created_at'),
         ]);
     const request = result(requestRes) as Row;
     const typesById = new Map((result(typesRes) as Row[]).map((x) => [x.id, x]));
@@ -1515,9 +1511,13 @@ async function insertActionComment(
     authorId: string,
     message: string,
 ): Promise<void> {
-    const { error } = await admin
-        .from('comments')
-        .insert({ target_type: targetType, target_id: targetId, author_id: authorId, message });
+    const { error } = await admin.from('comments').insert({
+        ...(targetType === 'inventory_request'
+            ? { inventory_request_id: targetId }
+            : { program_request_id: targetId }),
+        author_id: authorId,
+        message,
+    });
     if (error) throw new Error(error.message);
 }
 
@@ -2030,7 +2030,7 @@ async function listProgramRequests(
     const requests = result(requestsRes) as Row[];
     const sessions = result(sessionsRes) as Row[];
     const participants = result(participantsRes) as Row[];
-    const commentsByTarget = await commentsByTargetFor(client, admin, 'program_request');
+    const commentsByTarget = await commentsByTargetFor(client, admin, 'program_request_id');
     const sessionsByRequest = groupByKey(sessions, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
     const profilesById = await profilesFor(admin, [
@@ -2101,12 +2101,7 @@ async function getProgramRequest(
             client.from('departments').select('*'),
             client.from('program_sessions').select('*').eq('request_id', id).order('start_at'),
             client.from('program_request_participants').select('*').eq('request_id', id),
-            client
-                .from('comments')
-                .select('*')
-                .eq('target_type', 'program_request')
-                .eq('target_id', id)
-                .order('created_at'),
+            client.from('comments').select('*').eq('program_request_id', id).order('created_at'),
         ]);
     const request = result(requestRes) as Row;
     const placesById = new Map((result(placesRes) as Row[]).map((x) => [x.id, x]));
@@ -2222,13 +2217,12 @@ async function assertPlaceAvailability(
     }
 }
 
-// Blocks with no place set apply to every non-approver submission — ported
-// from assertProgramSessionsNotBlockedForUser in Programs.ts.
+// Blocks with no place set apply to every non-approver submission.
 async function assertProgramSessionsNotBlockedForUser(
     admin: SupabaseClient,
     sessions: Row[],
 ): Promise<void> {
-    const blocks = result(await admin.from('blocks').select('*').eq('place', '')) as Row[];
+    const blocks = result(await admin.from('blocks').select('*').is('place_id', null)) as Row[];
     const blocking = blocks.find((block) =>
         sessions.some((session) =>
             rangesOverlap(session.start_at, session.end_at, block.start_at, block.end_at),
@@ -2859,19 +2853,23 @@ async function dashboard(
         });
         sessionsByRequest.set(x.request_id, values);
     });
+    // Keyed by request id alone: inventory/program request ids are UUIDs
+    // from independent tables, so there's no collision risk without also
+    // keying by which column was set.
     const commentsByTarget = new Map<string, Row[]>();
     comments.forEach((x: Row) => {
-        const values = commentsByTarget.get(`${x.target_type}:${x.target_id}`) || [];
+        const requestId = x.inventory_request_id || x.program_request_id;
+        const values = commentsByTarget.get(requestId) || [];
         const author = profilesById.get(x.author_id);
         values.push({
             Id: x.id,
             Timestamp: x.created_at,
-            RequestId: x.target_id,
+            RequestId: requestId,
             UserId: author?.email || '',
             Message: x.message,
             userName: author?.name || '',
         });
-        commentsByTarget.set(`${x.target_type}:${x.target_id}`, values);
+        commentsByTarget.set(requestId, values);
     });
     return {
         me: userDto(profile, departmentsById),
@@ -2920,7 +2918,7 @@ async function dashboard(
             departmentName: departmentsById.get(x.department_id)?.name || '',
             participants: participants.get(x.id) || [],
             items: itemsByRequest.get(x.id) || [],
-            comments: commentsByTarget.get(`inventory_request:${x.id}`) || [],
+            comments: commentsByTarget.get(x.id) || [],
         })),
         programRequests: programs.map((x: Row) => {
             const requestSessions = sessionsByRequest.get(x.id) || [];
@@ -2945,7 +2943,7 @@ async function dashboard(
                 sessions: requestSessions,
                 sessionStart: requestSessions[0]?.StartDateTime || '',
                 sessionEnd: requestSessions.at(-1)?.EndDateTime || '',
-                comments: commentsByTarget.get(`program_request:${x.id}`) || [],
+                comments: commentsByTarget.get(x.id) || [],
             };
         }),
         homeContent: { Guidelines: home.guidelines },
@@ -2961,7 +2959,7 @@ async function dashboard(
         blocks: blocks.map((x: Row) => ({
             Id: x.id,
             Name: x.name,
-            Place: x.place,
+            Place: x.place_id || '',
             StartDateTime: x.start_at,
             EndDateTime: x.end_at,
         })),
