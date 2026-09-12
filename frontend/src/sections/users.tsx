@@ -87,6 +87,7 @@ export function UserForm({
                     <Controller
                         name="role"
                         control={form.control}
+                        rules={{ required: 'Role is required' }}
                         render={({ field }) => (
                             <Select {...field} className="antd-full-width">
                                 {(['admin', 'approver', 'viewer', 'user'] as UserRole[]).map(

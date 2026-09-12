@@ -299,6 +299,7 @@ export function CreateRecord({
     const users = usersResult.data;
     const [language, setLanguage] = useState('');
     const [languageError, setLanguageError] = useState(false);
+    const [departmentError, setDepartmentError] = useState(false);
     const [requestedBy, setRequestedBy] = useState(dashboard.me.Email);
     const [departmentId, setDepartmentId] = useState(dashboard.me.DepartmentId);
     const initialLeadEmail =
@@ -314,6 +315,7 @@ export function CreateRecord({
         dashboard.departments.find((department) => department.Id === id)?.LeadEmail || '';
     const selectDepartment = (id: string) => {
         setDepartmentId(id);
+        setDepartmentError(false);
         setLeadEmail(leadEmailForDepartment(id));
     };
     const selectRequester = (email: string) => {
@@ -403,6 +405,10 @@ export function CreateRecord({
                     setLanguageError(true);
                     return;
                 }
+                if (!departmentId) {
+                    setDepartmentError(true);
+                    return;
+                }
                 formData.current = new FormData(form);
                 try {
                     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -444,7 +450,11 @@ export function CreateRecord({
                             </Select>
                         </AntForm.Item>
                     )}
-                    <AntForm.Item label="Department" required>
+                    <AntForm.Item
+                        label="Department"
+                        required
+                        validateStatus={departmentError ? 'error' : undefined}
+                        help={departmentError ? 'Department is required.' : undefined}>
                         <input type="hidden" name="departmentId" value={departmentId} required />
                         <Select
                             value={departmentId}
@@ -522,7 +532,11 @@ export function CreateRecord({
                             </Select>
                         </AntForm.Item>
                     )}
-                    <AntForm.Item label="Department" required>
+                    <AntForm.Item
+                        label="Department"
+                        required
+                        validateStatus={departmentError ? 'error' : undefined}
+                        help={departmentError ? 'Department is required.' : undefined}>
                         <input type="hidden" name="departmentId" value={departmentId} required />
                         <Select
                             value={departmentId}

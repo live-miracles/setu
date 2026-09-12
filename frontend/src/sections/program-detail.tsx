@@ -175,8 +175,13 @@ export function ProgramDetail({
         }
     };
     const save = useSave(
-        () =>
-            updateProgramRequest({
+        () => {
+            if (!values.Language) throw new Error('Language is required.');
+            if (!values.Type) throw new Error('Type is required.');
+            if (!values.Status) throw new Error('Status is required.');
+            if (!values.UserId) throw new Error('Requested by is required.');
+            if (!values.DepartmentId) throw new Error('Department is required.');
+            return updateProgramRequest({
                 resource: 'program-requests',
                 id: request.Id,
                 values: {
@@ -212,7 +217,8 @@ export function ProgramDetail({
                 });
                 setSessions(request.sessions);
                 throw e;
-            }),
+            });
+        },
         () => setEditing(false),
     );
     const saveParticipants = async (participants: string[]) => {

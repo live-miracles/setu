@@ -144,8 +144,10 @@ export function InventoryDetail({
         if (saved) setScanOpen(false);
     };
     const save = useSave(
-        () =>
-            updateInventoryRequest({
+        () => {
+            if (!values.UserId) throw new Error('Requested by is required.');
+            if (!values.DepartmentId) throw new Error('Department is required.');
+            return updateInventoryRequest({
                 resource: 'inventory-requests',
                 id: request.Id,
                 values: {
@@ -176,7 +178,8 @@ export function InventoryDetail({
                 });
                 setItems(request.items);
                 throw e;
-            }),
+            });
+        },
         () => setEditing(false),
     );
     const saveParticipants = async (participants: string[]) => {

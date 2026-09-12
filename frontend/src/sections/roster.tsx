@@ -72,6 +72,8 @@ export function Roster({ dashboard }: Props) {
         const { mutateAsync: updateRoster } = useUpdate();
         const save = useSave(
             async () => {
+                if (!shiftTypeName) throw new Error('Shift is required.');
+                if (!userId) throw new Error('Assignee is required.');
                 const d = new FormData(
                     document.getElementById('refine-roster-form') as HTMLFormElement,
                 );
