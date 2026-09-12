@@ -837,27 +837,25 @@ function SessionForm({
             <AntForm.Item label="Session title">
                 <Input value={draft.Name} onChange={(e) => update('Name', e.target.value)} />
             </AntForm.Item>
-            <AntForm.Item label="Start" required>
-                <Input
-                    name="startDateTime"
-                    type="datetime-local"
-                    value={draft.StartDateTime ? draft.StartDateTime.slice(0, 16) : ''}
-                    onChange={(e) => update('StartDateTime', e.target.value)}
-                    required
-                />
-            </AntForm.Item>
-            <AntForm.Item label="End" required>
-                <Input
-                    name="endDateTime"
-                    type="datetime-local"
-                    value={draft.EndDateTime ? draft.EndDateTime.slice(0, 16) : ''}
-                    onChange={(e) => {
-                        e.currentTarget.setCustomValidity('');
-                        update('EndDateTime', e.target.value);
-                    }}
-                    required
-                />
-            </AntForm.Item>
+            <TextField
+                name="startDateTime"
+                label="Start"
+                type="datetime-local"
+                value={draft.StartDateTime ? draft.StartDateTime.slice(0, 16) : ''}
+                onChange={(e) => update('StartDateTime', e.target.value)}
+                required
+            />
+            <TextField
+                name="endDateTime"
+                label="End"
+                type="datetime-local"
+                value={draft.EndDateTime ? draft.EndDateTime.slice(0, 16) : ''}
+                onChange={(e) => {
+                    e.currentTarget.setCustomValidity('');
+                    update('EndDateTime', e.target.value);
+                }}
+                required
+            />
             <div>
                 <Submit label="Save" />
             </div>

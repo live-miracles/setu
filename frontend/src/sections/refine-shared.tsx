@@ -229,13 +229,15 @@ export function TextField({
     registration?: UseFormRegisterReturn;
     error?: string;
 }) {
+    const [inputError, setInputError] = useState('');
+    const displayedError = error || inputError;
     return (
         <AntForm.Item
             label={label}
             required={required}
             className="antd-form-item"
-            validateStatus={error ? 'error' : undefined}
-            help={error}>
+            validateStatus={displayedError ? 'error' : undefined}
+            help={displayedError}>
             <Input
                 {...registration}
                 name={name}
@@ -245,7 +247,24 @@ export function TextField({
                 required={required}
                 pattern={pattern}
                 title={title}
-                onChange={onChange}
+                onInvalid={(event) => {
+                    event.preventDefault();
+                    const input = event.currentTarget;
+                    setInputError(
+                        input.validity.valueMissing
+                            ? `${label} is required.`
+                            : input.validity.typeMismatch
+                              ? `Enter a valid ${label.toLowerCase()}.`
+                              : title ||
+                                input.validationMessage ||
+                                `Enter a valid ${label.toLowerCase()}.`,
+                    );
+                }}
+                onChange={(event) => {
+                    setInputError('');
+                    void registration?.onChange(event);
+                    onChange?.(event);
+                }}
             />
         </AntForm.Item>
     );

@@ -397,16 +397,16 @@ export function CreateRecord({
             onSubmit={async (e) => {
                 e.preventDefault();
                 const form = e.currentTarget;
+                if (!departmentId) {
+                    setDepartmentError(true);
+                    return;
+                }
                 if (!form.checkValidity()) {
                     form.reportValidity();
                     return;
                 }
                 if (kind === 'programs' && !language) {
                     setLanguageError(true);
-                    return;
-                }
-                if (!departmentId) {
-                    setDepartmentError(true);
                     return;
                 }
                 formData.current = new FormData(form);

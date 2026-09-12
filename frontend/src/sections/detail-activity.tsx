@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Button, Card, Form as AntForm, Input, Tag, Typography } from 'antd';
+import { Button, Card, Input, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { useDashboard } from '../dashboard-context';
 import { formatDateTime } from '../ui/format';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { Empty, Modal, SaveFooter } from './refine-shared';
+import { Empty, Modal, SaveFooter, TextField } from './refine-shared';
 
 const error = (value: unknown) => showErrorAlert(value);
 const PARTICIPANT_EMAIL_PATTERN = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
@@ -105,6 +105,7 @@ export function ParticipantsEditor({
     const normalizedParticipants = participants.map((participant) => participant.toLowerCase());
     const addParticipant = async (event: FormEvent) => {
         event.preventDefault();
+        if (!(event.currentTarget as HTMLFormElement).checkValidity()) return;
         const nextEmail = email.trim().toLowerCase();
         if (!PARTICIPANT_EMAIL_PATTERN.test(nextEmail)) {
             setErrorMessage('Enter a valid email address.');
@@ -173,14 +174,14 @@ export function ParticipantsEditor({
             {open && (
                 <Modal title="Add participant" close={() => setOpen(false)}>
                     <form className="grid gap-3" onSubmit={addParticipant}>
-                        <AntForm.Item label="Email" required>
-                            <Input
-                                type="email"
-                                value={email}
-                                autoFocus
-                                onChange={(event) => setEmail(event.target.value)}
-                            />
-                        </AntForm.Item>
+                        <TextField
+                            name="participantEmail"
+                            label="Email"
+                            type="email"
+                            value={email}
+                            required
+                            onChange={(event) => setEmail(event.target.value)}
+                        />
                         <SaveFooter label="Add" busy={busy} errorMessage={errorMessage} />
                     </form>
                 </Modal>

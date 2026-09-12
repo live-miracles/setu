@@ -50,7 +50,7 @@ import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { UserBlock } from '../ui/user-block';
 import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
-import { ActionConfirmation } from './refine-shared';
+import { ActionConfirmation, TextField } from './refine-shared';
 
 type Field = {
     field: string;
@@ -337,28 +337,37 @@ function FieldSet({
     }
     return (
         <form noValidate onSubmit={submit}>
-            {config.fields.map((field, index) => (
-                <Form.Item label={field.label} required={index === 0} key={field.field}>
-                    {field.type === 'checkbox' ? (
-                        <Checkbox name={field.field} defaultChecked={Boolean(row?.[field.field])} />
-                    ) : field.type === 'color' ? (
-                        <ColorField field={field} row={row} />
-                    ) : field.type === 'select' ? (
-                        <SelectField field={field} row={row} />
-                    ) : (
-                        <Input
+            {config.fields.map((field, index) => {
+                const defaultValue = row
+                    ? inputValue(field, row[field.field])
+                    : (field.defaultValue?.() ?? inputValue(field, undefined));
+                if (!['checkbox', 'color', 'select'].includes(field.type || '')) {
+                    return (
+                        <TextField
+                            key={field.field}
                             name={field.field}
+                            label={field.label}
                             type={field.type || 'text'}
                             required={index === 0}
-                            defaultValue={
-                                row
-                                    ? inputValue(field, row[field.field])
-                                    : (field.defaultValue?.() ?? inputValue(field, undefined))
-                            }
+                            value={defaultValue}
                         />
-                    )}
-                </Form.Item>
-            ))}
+                    );
+                }
+                return (
+                    <Form.Item label={field.label} required={index === 0} key={field.field}>
+                        {field.type === 'checkbox' ? (
+                            <Checkbox
+                                name={field.field}
+                                defaultChecked={Boolean(row?.[field.field])}
+                            />
+                        ) : field.type === 'color' ? (
+                            <ColorField field={field} row={row} />
+                        ) : (
+                            <SelectField field={field} row={row} />
+                        )}
+                    </Form.Item>
+                );
+            })}
             <Button type="primary" htmlType="submit" loading={busy}>
                 {submitLabel}
             </Button>
