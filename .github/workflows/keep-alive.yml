@@ -1,0 +1,27 @@
+name: Keep Supabase projects alive
+
+on:
+    schedule:
+        # Free-tier Supabase projects pause after 7 days with no API activity.
+        # Every 3 days leaves margin even if a run gets skipped.
+        - cron: "0 3 */3 * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    ping:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                target: [prod, dev]
+        steps:
+            - name: Ping ${{ matrix.target }} project
+              env:
+                  SUPABASE_URL: ${{ matrix.target == 'prod' && secrets.SETU_SUPABASE_URL_PROD || secrets.SETU_SUPABASE_URL_DEV }}
+                  SUPABASE_KEY: ${{ matrix.target == 'prod' && secrets.SETU_SUPABASE_PUBLISHABLE_KEY_PROD || secrets.SETU_SUPABASE_PUBLISHABLE_KEY_DEV }}
+              run: |
+                  curl --fail --silent --show-error \
+                    --header "apikey: $SUPABASE_KEY" \
+                    "$SUPABASE_URL/rest/v1/"
