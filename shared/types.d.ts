@@ -105,7 +105,7 @@ interface ProgramRequest {
     Type: string;
     UserId: string;
     Status: ProgramRequestStatus;
-    PlaceId: string;
+    PlaceId: string | null;
     DepartmentId: string;
     LeadEmail: string;
     Participants: string;

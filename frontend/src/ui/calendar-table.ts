@@ -120,12 +120,12 @@ export function buildCalendarTableModel(
     }
 
     const hasUnassignedPrograms = approved.some(
-        (program) => !program.PlaceId.trim() && program.sessions.some(isVisibleSession),
+        (program) => !program.PlaceId?.trim() && program.sessions.some(isVisibleSession),
     );
     const hasPlaceSpecificBlocks = visibleBlocks.some((block) => Boolean(block.Place));
     const activePlaceIds = new Set<string>();
     approved.forEach((program) => {
-        if (program.PlaceId.trim() && program.sessions.some(isVisibleSession)) {
+        if (program.PlaceId?.trim() && program.sessions.some(isVisibleSession)) {
             activePlaceIds.add(program.PlaceId);
         }
     });
@@ -162,7 +162,7 @@ export function buildCalendarTableModel(
                             (session) =>
                                 sessionDate(session) === isoDate &&
                                 (place.Id === UNASSIGNED_PLACE_ID
-                                    ? !program.PlaceId.trim()
+                                    ? !program.PlaceId?.trim()
                                     : program.PlaceId === place.Id),
                         )
                         .sort((a, b) => sessionSortValue(a).localeCompare(sessionSortValue(b)));
