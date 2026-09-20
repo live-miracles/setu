@@ -161,7 +161,8 @@ body {
 
 .home-scroll-card > .ant-card-body {
     min-height: 0;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* Shared table shell: card chrome stays visible while table content scrolls. */
@@ -211,8 +212,28 @@ body {
 }
 
 .home-list-row {
-    width: 100%;
+    display: flex;
+    align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+}
+
+/* min-width: 0 overrides the flex item default of shrinking no smaller than
+   its content, which is what lets text-overflow actually clip instead of
+   pushing the row's other element (e.g. a status Tag) outside the card and
+   forcing a horizontal scrollbar. */
+.home-list-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.home-list-row > .ant-tag {
+    flex: none;
 }
 
 .roster-table-scroll {

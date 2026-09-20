@@ -98,12 +98,12 @@ function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: Re
             getHref={hrefFor}
             onOpen={openRequest}
             render={(request) => (
-                <Space className="home-list-row">
-                    <Typography.Text strong>
+                <div className="home-list-row">
+                    <Typography.Text strong className="home-list-title">
                         REQ-{request.DisplayId} · {request.Name}
                     </Typography.Text>
                     <Tag>{request.Status}</Tag>
-                </Space>
+                </div>
             )}
         />
     );
@@ -172,8 +172,8 @@ export function Home({ dashboard }: Props) {
                             className="antd-list-button"
                             key={shift.Id}
                             onClick={() => navigate(rosterPath)}>
-                            <Space className="home-list-row">
-                                <Typography.Text strong>
+                            <div className="home-list-row">
+                                <Typography.Text strong className="home-list-title">
                                     {shift.Name} · {shift.userName || 'Unassigned'}
                                 </Typography.Text>
                                 <Typography.Text>
@@ -184,7 +184,7 @@ export function Home({ dashboard }: Props) {
                                         .filter(Boolean)
                                         .join(' – ')}
                                 </Typography.Text>
-                            </Space>
+                            </div>
                         </Button>
                     ))}
                     {!todayShifts.length && <EmptyState />}
@@ -199,8 +199,8 @@ export function Home({ dashboard }: Props) {
                             className="antd-list-button"
                             key={shift.Id}
                             onClick={() => navigate(rosterPath)}>
-                            <Space className="home-list-row">
-                                <Typography.Text strong>
+                            <div className="home-list-row">
+                                <Typography.Text strong className="home-list-title">
                                     {shift.Name} · {shift.userName || 'Unassigned'}
                                 </Typography.Text>
                                 <Typography.Text>
@@ -211,7 +211,7 @@ export function Home({ dashboard }: Props) {
                                         .filter(Boolean)
                                         .join(' – ')}
                                 </Typography.Text>
-                            </Space>
+                            </div>
                         </Button>
                     ))}
                     {!tomorrowShifts.length && <EmptyState />}
