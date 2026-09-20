@@ -124,14 +124,23 @@ export const TAILWIND_ARGS = (out, extra = []) => [
     ...extra,
 ];
 
+// TAILWIND_BIN is a .cmd shim on Windows; spawning it without a shell throws
+// EINVAL since Node's CVE-2024-27980 fix, and combining shell:true with a
+// separate args array is itself deprecated (DEP0190) because Node can't
+// escape those args for cmd.exe. Folding known-safe args (no untrusted input,
+// none contain shell metacharacters) into one command string sidesteps both.
+export function tailwindCommand(args) {
+    if (process.platform !== 'win32') return { command: TAILWIND_BIN, args, shell: false };
+    const quote = (arg) => (/[\s"^&|<>]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg);
+    return { command: [TAILWIND_BIN, ...args].map(quote).join(' '), args: [], shell: true };
+}
+
 /**
  * One-shot minified Tailwind build to `outFile`, for the two builds that run
  * to completion and exit. dev.mjs spawns the watcher itself — it needs the
  * long-lived child process to hold on to and kill, not a return value.
  */
 export function compileCss(outFile) {
-    execFileSync(TAILWIND_BIN, TAILWIND_ARGS(outFile, ['--minify']), {
-        cwd: root,
-        stdio: 'inherit',
-    });
+    const { command, args, shell } = tailwindCommand(TAILWIND_ARGS(outFile, ['--minify']));
+    execFileSync(command, args, { cwd: root, stdio: 'inherit', shell });
 }

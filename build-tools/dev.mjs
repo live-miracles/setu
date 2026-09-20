@@ -15,8 +15,8 @@ import {
     distDir,
     esbuildOptions,
     renderInlineDevShell,
-    TAILWIND_BIN,
     TAILWIND_ARGS,
+    tailwindCommand,
 } from './shell.mjs';
 
 const supabaseUrl = process.env.SETU_SUPABASE_URL || '';
@@ -169,16 +169,16 @@ await ctx.watch();
 // `--watch=always` rather than `--watch`: plain --watch stops the moment
 // stdin closes, which silently kills CSS rebuilds any time `npm run dev`
 // isn't attached to a live terminal.
-const tailwind = spawn(
-    TAILWIND_BIN,
+const { command, args, shell } = tailwindCommand(
     TAILWIND_ARGS(path.join(distDir, 'app.css'), ['--watch=always']),
-    {
-        cwd: root,
-        // No stdin: nothing here reads it, and handing children a closed one
-        // makes them quit (see --watch=always above).
-        stdio: ['ignore', 'inherit', 'inherit'],
-    },
 );
+const tailwind = spawn(command, args, {
+    cwd: root,
+    // No stdin: nothing here reads it, and handing children a closed one
+    // makes them quit (see --watch=always above).
+    stdio: ['ignore', 'inherit', 'inherit'],
+    shell,
+});
 tailwind.on('exit', (code) => console.log(`[tailwind] exited with code ${code}`));
 
 // Ctrl-C already reaches the child through the shared process group; this is
