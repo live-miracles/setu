@@ -23,7 +23,7 @@ import {
 import { createRecordDestination } from '../ui/create-record';
 import { RequestBlock } from '../ui/request-block';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
-import { formatDateTimeLocal } from '../ui/date';
+import { addDays, formatDateTimeLocal, toIsoDate } from '../ui/date';
 import { canApprove } from '../workflows';
 import { Modal, Page, SaveFooter, TextField, useSave } from './refine-shared';
 
@@ -434,8 +434,20 @@ export function CreateRecord({
             {kind !== 'programs' && <TextField name="name" label="Event / Purpose" required />}
             {kind === 'inventory' && (
                 <>
-                    <TextField name="startDate" label="Start date" type="date" required />
-                    <TextField name="endDate" label="End date" type="date" required />
+                    <TextField
+                        name="startDate"
+                        label="Start date"
+                        type="date"
+                        value={toIsoDate(new Date())}
+                        required
+                    />
+                    <TextField
+                        name="endDate"
+                        label="End date"
+                        type="date"
+                        value={toIsoDate(addDays(new Date(), 1))}
+                        required
+                    />
                     {canApprove(dashboard.me) && (
                         <AntForm.Item label="Requested by" required>
                             <input type="hidden" name="userId" value={requestedBy} required />
