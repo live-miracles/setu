@@ -5,10 +5,16 @@ export type Row = Record<string, any>;
 
 export function result<T>(
     value: { data: T | null; error: { message: string; code?: string } | null },
-    duplicateMessage?: string,
+    duplicateMessage?: string | ((error: string) => string),
 ): T {
     if (value.error) {
-        if (duplicateMessage && value.error.code === '23505') throw new Error(duplicateMessage);
+        if (duplicateMessage && value.error.code === '23505') {
+            throw new Error(
+                typeof duplicateMessage === 'function'
+                    ? duplicateMessage(value.error.message)
+                    : duplicateMessage,
+            );
+        }
         throw new Error(value.error.message);
     }
     if (value.data === null) throw new Error('The requested record was not found.');

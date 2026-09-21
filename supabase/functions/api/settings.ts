@@ -24,6 +24,12 @@ export function departmentDto(x: Row): Row {
     return { Id: x.id, Name: x.name, ShortName: x.short_name, LeadEmail: x.lead_email };
 }
 
+function departmentDuplicateMessage(error: string): string {
+    return error.includes('short_name')
+        ? 'A department with this short name already exists.'
+        : 'A department with this name already exists.';
+}
+
 export async function createDepartment(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -50,7 +56,7 @@ export async function createDepartment(
                     })
                     .select('*')
                     .single(),
-                'A department with this name already exists.',
+                departmentDuplicateMessage,
             ) as Row;
             return departmentDto(row);
         },
@@ -86,7 +92,7 @@ export async function updateDepartment(
                     .eq('id', id)
                     .select('*')
                     .single(),
-                'A department with this name already exists.',
+                departmentDuplicateMessage,
             ) as Row;
             return departmentDto(row);
         },
