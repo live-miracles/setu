@@ -195,15 +195,40 @@ body {
 }
 
 .home-recent-comments .antd-list-button {
-    flex-direction: column;
     text-align: left;
     justify-content: flex-start;
     align-items: flex-start;
+    /* Without this, a flex container's automatic minimum width is the
+       min-content of its children — one long unbroken title can inflate the
+       whole column past the card's edge and drag every other line with it. */
+    min-width: 0;
+}
+
+/* antd's Button wraps multiple top-level children in its own spacing
+   wrapper, which silently breaks any flex layout applied to the button
+   itself (see the request/shift rows' single home-list-row div for the
+   same pattern). Giving the button a single child that owns its own flex
+   column keeps the title/meta line and the message reliably stacked. */
+.home-comment-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.home-comment-meta {
+    flex: none;
+    white-space: nowrap;
 }
 
 .home-comment-message {
     width: 100%;
-    margin-top: 0.2rem;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    white-space: normal;
     overflow-wrap: anywhere;
 }
 

@@ -254,16 +254,18 @@ export function Home({ dashboard }: Props) {
                             )
                         }
                         render={({ comment, request }) => (
-                            <>
-                                <Typography.Text strong>
-                                    REQ-{request.DisplayId} · {request.Name}
-                                </Typography.Text>
-                                <Typography.Text type="secondary">
-                                    {comment.userName || comment.UserId} ·{' '}
-                                    {formatDateTime(comment.Timestamp)}
-                                </Typography.Text>
+                            <div className="home-comment-row">
+                                <div className="home-list-row">
+                                    <Typography.Text strong className="home-list-title">
+                                        REQ-{request.DisplayId} · {request.Name}
+                                    </Typography.Text>
+                                    <Typography.Text type="secondary" className="home-comment-meta">
+                                        {comment.userName || comment.UserId} ·{' '}
+                                        {formatDateTime(comment.Timestamp)}
+                                    </Typography.Text>
+                                </div>
                                 <div className="home-comment-message">{comment.Message}</div>
-                            </>
+                            </div>
                         )}
                     />
                 </Card>
