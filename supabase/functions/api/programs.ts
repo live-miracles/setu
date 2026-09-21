@@ -453,7 +453,7 @@ export async function createProgramRequest(
         if (!data) throw new Error('Place not found.');
         place = data;
     }
-    const sessions = validateProgramSessions(input.sessions || []);
+    const sessions = validateProgramSessions(input.sessions || [], false);
     await assertPlaceAvailability(admin, place?.id || null, sessions);
     const department = await requireDepartment(
         admin,

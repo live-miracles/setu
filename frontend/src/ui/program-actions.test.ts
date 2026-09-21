@@ -119,8 +119,8 @@ export function runProgramActionAssertions(): void {
         getProgramRequestActions(
             { ...source, Status: 'submitted', PlaceId: '', placeName: '' },
             user('approver'),
-        ).join(',') === 'reject,cancel',
-        'approvers should not approve submitted programs without an assigned place',
+        ).join(',') === 'approve,reject,cancel',
+        'approvers should see approve for submitted programs even without an assigned place; the backend rejects the attempt',
     );
     assert(
         getProgramRequestActions(

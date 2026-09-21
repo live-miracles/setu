@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { useCreate, useList } from '@refinedev/core';
 import {
     Button,
-    Card as AntCard,
     Empty as AntEmpty,
     Form as AntForm,
     Input,
@@ -11,7 +10,7 @@ import {
     Space,
     Typography,
 } from 'antd';
-import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
 import { inventoryRequestPath, programRequestPath } from '../paths';
@@ -308,9 +307,6 @@ export function CreateRecord({
     const [leadEmail, setLeadEmail] = useState(initialLeadEmail);
     const [programType, setProgramType] = useState(OTHER_PROGRAM_TYPE);
     const formData = useRef<FormData | null>(null);
-    const [sessionDrafts, setSessionDrafts] = useState<ProgramSession[]>(() => [
-        defaultSessionDraft([]),
-    ]);
     const leadEmailForDepartment = (id: string) =>
         dashboard.departments.find((department) => department.Id === id)?.LeadEmail || '';
     const selectDepartment = (id: string) => {
@@ -349,20 +345,6 @@ export function CreateRecord({
                 });
                 return created.data as unknown as { Id: string };
             }
-            const invalidSession = sessionDrafts.find(
-                (session) =>
-                    !session.Type ||
-                    !session.StartDateTime ||
-                    !session.EndDateTime ||
-                    new Date(session.EndDateTime) <= new Date(session.StartDateTime),
-            );
-            if (invalidSession) {
-                throw new Error(
-                    !invalidSession.Type
-                        ? 'Session type is required.'
-                        : 'Session end must be after its start.',
-                );
-            }
             const created = await createRecord({
                 resource: 'program-requests',
                 values: {
@@ -371,12 +353,7 @@ export function CreateRecord({
                     type: programType,
                     userId: requestedBy,
                     placeId: '',
-                    sessions: sessionDrafts.map((session) => ({
-                        name: session.Name,
-                        type: session.Type,
-                        startDateTime: session.StartDateTime,
-                        endDateTime: session.EndDateTime,
-                    })),
+                    sessions: [],
                     departmentId,
                     leadEmail: String(d.get('leadEmail') || ''),
                     participants: '',
@@ -570,102 +547,6 @@ export function CreateRecord({
                         required
                         onChange={(event) => setLeadEmail(event.target.value)}
                     />
-                    {sessionDrafts.map((sessionDraft, index) => (
-                        <AntCard
-                            key={index}
-                            size="small"
-                            title={`Session ${index + 1}`}
-                            extra={
-                                sessionDrafts.length > 1 ? (
-                                    <Button
-                                        type="text"
-                                        danger
-                                        icon={<DeleteOutlined />}
-                                        aria-label={`Remove session ${index + 1}`}
-                                        onClick={() =>
-                                            setSessionDrafts((current) =>
-                                                current.filter(
-                                                    (_, currentIndex) => currentIndex !== index,
-                                                ),
-                                            )
-                                        }
-                                    />
-                                ) : null
-                            }>
-                            <div className="grid gap-3">
-                                <AntForm.Item label="Session type" required>
-                                    <Select
-                                        value={sessionDraft.Type || undefined}
-                                        onChange={(value) =>
-                                            setSessionDrafts((current) =>
-                                                current.map((item, currentIndex) =>
-                                                    currentIndex === index
-                                                        ? { ...item, Type: value }
-                                                        : item,
-                                                ),
-                                            )
-                                        }
-                                        className="antd-full-width"
-                                        placeholder="Select type">
-                                        {dashboard.sessionTypes.map((type) => (
-                                            <Select.Option key={type.Name} value={type.Name}>
-                                                {type.Name}
-                                            </Select.Option>
-                                        ))}
-                                    </Select>
-                                </AntForm.Item>
-                                <AntForm.Item label="Start" required>
-                                    <Input
-                                        type="datetime-local"
-                                        value={sessionDraft.StartDateTime.slice(0, 16)}
-                                        onChange={(event) =>
-                                            setSessionDrafts((current) =>
-                                                current.map((item, currentIndex) =>
-                                                    currentIndex === index
-                                                        ? {
-                                                              ...item,
-                                                              StartDateTime: event.target.value,
-                                                          }
-                                                        : item,
-                                                ),
-                                            )
-                                        }
-                                        required
-                                    />
-                                </AntForm.Item>
-                                <AntForm.Item label="End" required>
-                                    <Input
-                                        type="datetime-local"
-                                        value={sessionDraft.EndDateTime.slice(0, 16)}
-                                        onChange={(event) =>
-                                            setSessionDrafts((current) =>
-                                                current.map((item, currentIndex) =>
-                                                    currentIndex === index
-                                                        ? {
-                                                              ...item,
-                                                              EndDateTime: event.target.value,
-                                                          }
-                                                        : item,
-                                                ),
-                                            )
-                                        }
-                                        required
-                                    />
-                                </AntForm.Item>
-                            </div>
-                        </AntCard>
-                    ))}
-                    <Button
-                        type="dashed"
-                        icon={<PlusOutlined />}
-                        onClick={() =>
-                            setSessionDrafts((current) => [
-                                ...current,
-                                defaultSessionDraft(current),
-                            ])
-                        }>
-                        Add session
-                    </Button>
                 </>
             )}
             <div>

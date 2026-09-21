@@ -22,6 +22,10 @@ jobs:
                   SUPABASE_URL: ${{ matrix.target == 'prod' && secrets.SETU_SUPABASE_URL_PROD || secrets.SETU_SUPABASE_URL_DEV }}
                   SUPABASE_KEY: ${{ matrix.target == 'prod' && secrets.SETU_SUPABASE_PUBLISHABLE_KEY_PROD || secrets.SETU_SUPABASE_PUBLISHABLE_KEY_DEV }}
               run: |
+                  # Publishable keys can't call the bare /rest/v1/ root (that now
+                  # requires a secret key), so query a real table instead. RLS
+                  # blocks anonymous reads, but the request still reaches
+                  # Postgres and counts as activity, which is all we need.
                   curl --fail --silent --show-error \
                     --header "apikey: $SUPABASE_KEY" \
-                    "$SUPABASE_URL/rest/v1/"
+                    "$SUPABASE_URL/rest/v1/inventory_types?select=id&limit=1"

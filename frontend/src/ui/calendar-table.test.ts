@@ -59,7 +59,7 @@ export function runCalendarTableAssertions(): void {
             program({
                 Id: 'unassigned',
                 Name: 'No studio title',
-                PlaceId: '',
+                PlaceId: null,
                 placeName: '',
                 sessions: [session({ Name: 'No studio session' })],
             }),

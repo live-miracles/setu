@@ -374,8 +374,6 @@ export function ProgramDetail({
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
     const actions = getProgramRequestActions(request, dashboard.me);
-    const needsAllocation =
-        canApprove(dashboard.me) && request.Status === 'submitted' && !request.PlaceId;
     const sessionRows = sessions.map((session, index) => ({
         ...session,
         key: `${session.StartDateTime}-${index}`,
@@ -458,14 +456,6 @@ export function ProgramDetail({
                             actions={actions}
                             onAction={(action) => setPendingAction(action as ProgramRequestAction)}
                         />
-                    )}
-                    {needsAllocation && (
-                        <Button
-                            type="primary"
-                            disabled={canApprove(dashboard.me) && availablePlacesLoading}
-                            onClick={() => setEditing(true)}>
-                            Allocate
-                        </Button>
                     )}
                     {deletable && (
                         <Button
