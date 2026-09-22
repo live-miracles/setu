@@ -149,11 +149,17 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 type: 'number',
                 hiddenInTable: true,
             },
+            {
+                field: 'Requestable',
+                label: 'Requestable',
+                type: 'checkbox',
+                hiddenInTable: true,
+            },
         ],
         toInput: (v) => ({
             name: v.Name,
             description: v.Description,
-            requestable: true,
+            requestable: v.Requestable === 'on',
             totalQuantity: Number(v.TotalQuantity || 0),
         }),
     },
@@ -358,7 +364,7 @@ function FieldSet({
                         {field.type === 'checkbox' ? (
                             <Checkbox
                                 name={field.field}
-                                defaultChecked={Boolean(row?.[field.field])}
+                                defaultChecked={row ? row[field.field] !== false : true}
                             />
                         ) : field.type === 'color' ? (
                             <ColorField field={field} row={row} />
