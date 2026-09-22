@@ -52,6 +52,8 @@ interface User {
 
 interface Roster {
     Id: string;
+    ShiftTypeId: string;
+    ShiftName: string;
     Name: string;
     StartDate: string;
     EndDate: string;
@@ -138,6 +140,7 @@ interface CommentRecord {
 // scheduling a roster entry can prefill times and the roster can use the
 // configured color. See Admin.ts and the shift-name select in roster.ts.
 interface ShiftType {
+    Id: string;
     Name: string;
     Color: string;
     DefaultStartTime: string;
@@ -331,7 +334,8 @@ interface UpdateOwnProfileInput {
 }
 
 interface CreateRosterInput {
-    name: string;
+    shiftTypeId: string;
+    shiftName?: string;
     startDate: string;
     endDate: string;
     startTime: string;

@@ -59,6 +59,7 @@ export async function getSettings(client: SupabaseClient): Promise<Row> {
     return {
         guidelines: (result(homeRes) as Row).guidelines,
         shiftTypes: (result(shiftRes) as Row[]).map((x) => ({
+            Id: x.id,
             Name: x.name,
             Color: x.color,
             DefaultStartTime: timeDto(x.default_start_time),

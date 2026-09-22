@@ -20,13 +20,17 @@ export async function listRosters(
     const rosters = (result(await client.from('rosters').select('*')) as Row[]).sort((a, b) =>
         String(b.start_at).localeCompare(String(a.start_at)),
     );
+    const shiftTypes = result(await client.from('shift_types').select('id, name')) as Row[];
+    const shiftTypesById = new Map(shiftTypes.map((x) => [x.id, x]));
     const profilesById = await profilesFor(
         admin,
         rosters.map((x) => x.user_id),
     );
     const dtos = rosters.map((x) => ({
         Id: x.id,
-        Name: x.name,
+        ShiftTypeId: x.shift_type_id,
+        ShiftName: String(x.shift_name || ''),
+        Name: String(x.shift_name || '').trim() || shiftTypesById.get(x.shift_type_id)?.name || '',
         StartDate: String(x.start_at).slice(0, 10),
         EndDate: String(x.end_at).slice(0, 10),
         StartTime: String(x.start_at).slice(11, 16),
@@ -37,10 +41,12 @@ export async function listRosters(
     return paginate(dtos, page, 20);
 }
 
-export function rosterDto(row: Row, user: Row): Row {
+export function rosterDto(row: Row, user: Row, shiftType: Row): Row {
     return {
         Id: row.id,
-        Name: row.name,
+        ShiftTypeId: row.shift_type_id,
+        ShiftName: String(row.shift_name || ''),
+        Name: String(row.shift_name || '').trim() || shiftType.name,
         StartDate: String(row.start_at).slice(0, 10),
         EndDate: String(row.end_at).slice(0, 10),
         StartTime: String(row.start_at).slice(11, 16),
@@ -63,7 +69,11 @@ export function combineDateTime(date: unknown, time: unknown): string {
 export async function requireValidRosterInput(admin: SupabaseClient, input: Row): Promise<Row> {
     if (!input.startDate || !input.endDate) throw new Error('Start and end dates are required.');
     if (input.endDate < input.startDate) throw new Error('End date must not be before start date.');
-    requireNonEmpty(input.name, 'Name is required.');
+    const shiftTypeId = requireNonEmpty(input.shiftTypeId, 'Shift is required.');
+    const shiftType = result(
+        await admin.from('shift_types').select('*').eq('id', shiftTypeId).maybeSingle(),
+    ) as Row | null;
+    if (!shiftType) throw new Error('Shift preset not found.');
     const email = requireNonEmpty(input.userId, 'User is required.').toLowerCase();
     const { data, error } = await admin
         .from('profiles')
@@ -72,7 +82,7 @@ export async function requireValidRosterInput(admin: SupabaseClient, input: Row)
         .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('User not found.');
-    return data;
+    return { user: data, shiftType };
 }
 
 // Scheduling is an approver power, not an admin one — anyone in Users can
@@ -85,13 +95,14 @@ export async function createRoster(
     requestId: string,
 ): Promise<Row> {
     await requireApprover(client, userId);
-    const user = await requireValidRosterInput(admin, input);
+    const { user, shiftType } = await requireValidRosterInput(admin, input);
     const { result: dto } = await withLockedDedupe(admin, 'roster:create', requestId, async () => {
         const row = result(
             await admin
                 .from('rosters')
                 .insert({
-                    name: String(input.name).trim(),
+                    shift_type_id: shiftType.id,
+                    shift_name: String(input.shiftName || '').trim() || null,
                     start_at: combineDateTime(input.startDate, input.startTime),
                     end_at: combineDateTime(input.endDate, input.endTime),
                     user_id: user.id,
@@ -99,7 +110,7 @@ export async function createRoster(
                 .select('*')
                 .single(),
         ) as Row;
-        return rosterDto(row, user);
+        return rosterDto(row, user, shiftType);
     });
     return dto;
 }
@@ -113,7 +124,7 @@ export async function updateRoster(
     requestId: string,
 ): Promise<Row> {
     await requireApprover(client, userId);
-    const user = await requireValidRosterInput(admin, input);
+    const { user, shiftType } = await requireValidRosterInput(admin, input);
     const { result: dto } = await withLockedDedupe(
         admin,
         'roster:update:' + id,
@@ -123,7 +134,8 @@ export async function updateRoster(
                 await admin
                     .from('rosters')
                     .update({
-                        name: String(input.name).trim(),
+                        shift_type_id: shiftType.id,
+                        shift_name: String(input.shiftName || '').trim() || null,
                         start_at: combineDateTime(input.startDate, input.startTime),
                         end_at: combineDateTime(input.endDate, input.endTime),
                         user_id: user.id,
@@ -132,7 +144,7 @@ export async function updateRoster(
                     .select('*')
                     .single(),
             ) as Row;
-            return rosterDto(row, user);
+            return rosterDto(row, user, shiftType);
         },
     );
     return dto;

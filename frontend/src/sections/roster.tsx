@@ -52,18 +52,19 @@ export function Roster({ dashboard }: Props) {
     const Form = ({ row }: { row?: RosterDTO }) => {
         const [userId, setUserId] = useState(row?.UserId || '');
         const initialShiftType = dashboard.shiftTypes.find(
-            (shiftType) => shiftType.Name === row?.Name,
+            (shiftType) => shiftType.Id === row?.ShiftTypeId,
         );
-        const [shiftTypeName, setShiftTypeName] = useState(initialShiftType?.Name || '');
+        const [shiftTypeId, setShiftTypeId] = useState(row?.ShiftTypeId || '');
+        const [shiftName, setShiftName] = useState(row?.ShiftName || '');
         const [startTime, setStartTime] = useState(
             row?.StartTime || initialShiftType?.DefaultStartTime || '',
         );
         const [endTime, setEndTime] = useState(
             row?.EndTime || initialShiftType?.DefaultEndTime || '',
         );
-        const selectShiftType = (nextShiftTypeName: string) => {
-            setShiftTypeName(nextShiftTypeName);
-            const times = getShiftTypeTimes(dashboard.shiftTypes, nextShiftTypeName);
+        const selectShiftType = (nextShiftTypeId: string) => {
+            setShiftTypeId(nextShiftTypeId);
+            const times = getShiftTypeTimes(dashboard.shiftTypes, nextShiftTypeId);
             if (!times) return;
             setStartTime(times.startTime);
             setEndTime(times.endTime);
@@ -72,13 +73,14 @@ export function Roster({ dashboard }: Props) {
         const { mutateAsync: updateRoster } = useUpdate();
         const save = useSave(
             async () => {
-                if (!shiftTypeName) throw new Error('Shift is required.');
+                if (!shiftTypeId) throw new Error('Shift is required.');
                 if (!userId) throw new Error('Assignee is required.');
                 const d = new FormData(
                     document.getElementById('refine-roster-form') as HTMLFormElement,
                 );
                 const v = {
-                    name: String(d.get('name')),
+                    shiftTypeId,
+                    shiftName: String(d.get('shiftName') || '').trim(),
                     startDate: String(d.get('startDate')),
                     endDate: String(d.get('endDate')),
                     startTime: String(d.get('startTime') || ''),
@@ -114,20 +116,28 @@ export function Roster({ dashboard }: Props) {
                 }}>
                 <form id="refine-roster-form" className="grid gap-3" noValidate onSubmit={save.run}>
                     <AntForm.Item label="Shift" required>
-                        <input type="hidden" name="name" value={shiftTypeName} required />
+                        <input type="hidden" name="shiftTypeId" value={shiftTypeId} required />
                         <Select
-                            value={shiftTypeName}
+                            value={shiftTypeId}
                             onChange={selectShiftType}
                             className="antd-full-width">
                             <Select.Option value="" disabled>
                                 Select a shift
                             </Select.Option>
                             {dashboard.shiftTypes.map((shiftType) => (
-                                <Select.Option key={shiftType.Name} value={shiftType.Name}>
+                                <Select.Option key={shiftType.Id} value={shiftType.Id}>
                                     {shiftType.Name}
                                 </Select.Option>
                             ))}
                         </Select>
+                    </AntForm.Item>
+                    <AntForm.Item label="Shift name (optional)" className="antd-form-item">
+                        <Input
+                            name="shiftName"
+                            value={shiftName}
+                            onChange={(event) => setShiftName(event.target.value)}
+                            placeholder={initialShiftType?.Name || 'Uses shift preset name'}
+                        />
                     </AntForm.Item>
                     <AntForm.Item label="Assignee" required>
                         <input type="hidden" name="userId" value={userId} required />
@@ -146,14 +156,14 @@ export function Roster({ dashboard }: Props) {
                         name="startDate"
                         label="Start date"
                         type="date"
-                        value={row?.StartDate}
+                        value={row?.StartDate || todayIso}
                         required
                     />
                     <TextField
                         name="endDate"
                         label="End date"
                         type="date"
-                        value={row?.EndDate}
+                        value={row?.EndDate || todayIso}
                         required
                     />
                     <AntForm.Item label="Start time" className="antd-form-item">

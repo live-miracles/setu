@@ -359,10 +359,9 @@ export async function deleteUser(
     });
 }
 
-// Shift/program/session types and languages are keyed by name itself (see
-// the migration) rather than a generated id — updating one renames the row
-// in place, which cascades to anything referencing it by name (program
-// requests' language/type, sessions' session_type).
+// Shift/program/session types and languages are still edited through their
+// names. Shift presets additionally have stable ids so roster rows can keep
+// pointing at the preset while storing an independent display-name override.
 export async function createShiftType(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -391,6 +390,7 @@ export async function createShiftType(
                 'A shift type with this name already exists.',
             ) as Row;
             return {
+                Id: row.id,
                 Name: row.name,
                 Color: row.color,
                 DefaultStartTime: timeDto(row.default_start_time),
@@ -431,6 +431,7 @@ export async function updateShiftType(
                 'A shift type with this name already exists.',
             ) as Row;
             return {
+                Id: row.id,
                 Name: row.name,
                 Color: row.color,
                 DefaultStartTime: timeDto(row.default_start_time),

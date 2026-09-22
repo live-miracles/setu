@@ -58,6 +58,7 @@ export async function dashboard(
     const availableById = new Map(
         availability.map((x: Row) => [x.inventory_type_id, x.available_quantity]),
     );
+    const shiftTypesById = new Map(shiftTypes.map((x: Row) => [x.id, x]));
     const profileIds = [
         profile.id,
         ...rosters.map((x: Row) => x.user_id),
@@ -139,7 +140,12 @@ export async function dashboard(
         })),
         upcomingRosters: rosters.map((x: Row) => ({
             Id: x.id,
-            Name: x.name,
+            ShiftTypeId: x.shift_type_id,
+            ShiftName: String(x.shift_name || ''),
+            Name:
+                String(x.shift_name || '').trim() ||
+                shiftTypesById.get(x.shift_type_id)?.name ||
+                '',
             StartDate: x.start_at.slice(0, 10),
             EndDate: x.end_at.slice(0, 10),
             StartTime: x.start_at.slice(11, 16),
@@ -195,6 +201,7 @@ export async function dashboard(
         }),
         homeContent: { Guidelines: home.guidelines },
         shiftTypes: shiftTypes.map((x: Row) => ({
+            Id: x.id,
             Name: x.name,
             Color: x.color,
             DefaultStartTime:

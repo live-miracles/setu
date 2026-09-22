@@ -41,9 +41,9 @@ export function formatRosterTableTimes(roster: RosterDTO): string {
 
 export function getShiftTypeTimes(
     shiftTypes: ShiftType[],
-    shiftTypeName: string,
+    shiftTypeId: string,
 ): { startTime: string; endTime: string } | null {
-    const shiftType = shiftTypes.find((candidate) => candidate.Name === shiftTypeName);
+    const shiftType = shiftTypes.find((candidate) => candidate.Id === shiftTypeId);
     return shiftType
         ? { startTime: shiftType.DefaultStartTime, endTime: shiftType.DefaultEndTime }
         : null;
@@ -78,7 +78,7 @@ export function buildRosterTableModel(
 
     const shiftColors = new Map(
         shiftTypes.map((shiftType) => [
-            shiftType.Name.toLowerCase(),
+            shiftType.Id,
             isValidHexColor(shiftType.Color || '') ? shiftType.Color.trim() : '',
         ]),
     );
@@ -125,7 +125,7 @@ export function buildRosterTableModel(
                         laneIndex === -1 ? lanes.push({ shifts: [] }) - 1 : laneIndex;
                     lanes[selectedLane].shifts.push({
                         roster: entry.roster,
-                        color: shiftColors.get(entry.roster.Name.toLowerCase()) || '',
+                        color: shiftColors.get(entry.roster.ShiftTypeId) || '',
                         startIndex,
                         endIndex,
                         laneIndex: selectedLane,

@@ -12,6 +12,8 @@ function assert(condition: boolean, message: string): void {
 const roster = (overrides: Partial<RosterDTO>): RosterDTO =>
     ({
         Id: 'roster-test',
+        ShiftTypeId: 'shift-morning',
+        ShiftName: '',
         Name: 'Morning',
         StartDate: '2026-08-02',
         EndDate: '2026-08-02',
@@ -58,13 +60,14 @@ export function runRosterTableAssertions(): void {
     const shiftTypeTimes = getShiftTypeTimes(
         [
             {
+                Id: 'shift-morning',
                 Name: 'Morning',
                 Color: '',
                 DefaultStartTime: '04:00',
                 DefaultEndTime: '13:30',
             },
         ],
-        'Morning',
+        'shift-morning',
     );
     assert(
         shiftTypeTimes?.startTime === '04:00' && shiftTypeTimes.endTime === '13:30',
@@ -76,6 +79,7 @@ export function runRosterTableAssertions(): void {
             roster({ Id: 'colored', Name: 'Morning Shift' }),
             roster({
                 Id: 'uncolored',
+                ShiftTypeId: 'shift-unconfigured',
                 Name: 'Unconfigured Shift',
                 StartDate: '2026-08-03',
                 EndDate: '2026-08-03',
@@ -83,6 +87,7 @@ export function runRosterTableAssertions(): void {
         ],
         [
             {
+                Id: 'shift-morning',
                 Name: 'morning shift',
                 Color: '#7cc9a4',
                 DefaultStartTime: '',
