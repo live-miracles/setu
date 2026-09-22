@@ -28,7 +28,9 @@ export function useImageUrl(imageId: string): { url: string; status: ImageUrlSta
     const id = imageId.trim();
     const initial = cachedEntry(id);
     const [url, setUrl] = useState(initial?.url ?? '');
-    const [status, setStatus] = useState<ImageUrlStatus>(!id ? 'idle' : initial ? 'loaded' : 'loading');
+    const [status, setStatus] = useState<ImageUrlStatus>(
+        !id ? 'idle' : initial ? 'loaded' : 'loading',
+    );
     useEffect(() => {
         if (!id) {
             setUrl('');
