@@ -50,6 +50,11 @@ export function inventoryRequestDto(
             Quantity: i.quantity,
             Condition: i.return_condition || '',
             itemName: typesById.get(i.inventory_type_id)?.name || '',
+            labels: (i.labels || []).map((label: Row) => ({
+                Id: label.id,
+                InventoryTypeId: label.inventory_type_id,
+                Name: label.name,
+            })),
         })),
         comments: comments.map((c) => commentDto(c, profilesById)),
     };
@@ -70,17 +75,40 @@ export async function listInventoryRequests(
     page: number,
     query: Row,
 ): Promise<Row> {
-    const [typesRes, departmentsRes, requestsRes, itemsRes, participantsRes] = await Promise.all([
+    const [
+        typesRes,
+        departmentsRes,
+        requestsRes,
+        itemsRes,
+        requestItemLabelsRes,
+        labelsRes,
+        participantsRes,
+    ] = await Promise.all([
         client.from('inventory_types').select('*'),
         client.from('departments').select('*'),
         client.from('inventory_requests').select('*'),
         client.from('inventory_request_items').select('*'),
+        client.from('inventory_request_item_labels').select('*'),
+        client.from('inventory_type_labels').select('*'),
         client.from('inventory_request_participants').select('*'),
     ]);
     const typesById = new Map((result(typesRes) as Row[]).map((x) => [x.id, x]));
     const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
     const requests = result(requestsRes) as Row[];
     const items = result(itemsRes) as Row[];
+    const requestItemLabels = result(requestItemLabelsRes) as Row[];
+    const labelsById = new Map((result(labelsRes) as Row[]).map((label) => [label.id, label]));
+    const labelsByItemId = new Map<string, Row[]>();
+    requestItemLabels.forEach((assignment) => {
+        const label = labelsById.get(assignment.inventory_type_label_id);
+        if (!label) return;
+        const values = labelsByItemId.get(assignment.request_item_id) || [];
+        values.push(label);
+        labelsByItemId.set(assignment.request_item_id, values);
+    });
+    items.forEach((item) => {
+        item.labels = labelsByItemId.get(item.id) || [];
+    });
     const participants = result(participantsRes) as Row[];
     const commentsByTarget = await commentsByTargetFor(client, admin, 'inventory_request_id');
     const itemsByRequest = groupByKey(items, 'request_id');
@@ -145,19 +173,43 @@ export async function getInventoryRequest(
     admin: SupabaseClient,
     id: string,
 ): Promise<Row> {
-    const [requestRes, typesRes, departmentsRes, itemsRes, participantsRes, commentsRes] =
-        await Promise.all([
-            client.from('inventory_requests').select('*').eq('id', id).single(),
-            client.from('inventory_types').select('*'),
-            client.from('departments').select('*'),
-            client.from('inventory_request_items').select('*').eq('request_id', id),
-            client.from('inventory_request_participants').select('*').eq('request_id', id),
-            client.from('comments').select('*').eq('inventory_request_id', id).order('created_at'),
-        ]);
+    const [
+        requestRes,
+        typesRes,
+        departmentsRes,
+        itemsRes,
+        requestItemLabelsRes,
+        labelsRes,
+        participantsRes,
+        commentsRes,
+    ] = await Promise.all([
+        client.from('inventory_requests').select('*').eq('id', id).single(),
+        client.from('inventory_types').select('*'),
+        client.from('departments').select('*'),
+        client.from('inventory_request_items').select('*').eq('request_id', id),
+        client.from('inventory_request_item_labels').select('*'),
+        client.from('inventory_type_labels').select('*'),
+        client.from('inventory_request_participants').select('*').eq('request_id', id),
+        client.from('comments').select('*').eq('inventory_request_id', id).order('created_at'),
+    ]);
     const request = result(requestRes) as Row;
     const typesById = new Map((result(typesRes) as Row[]).map((x) => [x.id, x]));
     const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
     const items = result(itemsRes) as Row[];
+    const requestItemIds = new Set(items.map((item) => item.id));
+    const labelsById = new Map((result(labelsRes) as Row[]).map((label) => [label.id, label]));
+    const labelsByItemId = new Map<string, Row[]>();
+    (result(requestItemLabelsRes) as Row[]).forEach((assignment) => {
+        if (!requestItemIds.has(assignment.request_item_id)) return;
+        const label = labelsById.get(assignment.inventory_type_label_id);
+        if (!label) return;
+        const values = labelsByItemId.get(assignment.request_item_id) || [];
+        values.push(label);
+        labelsByItemId.set(assignment.request_item_id, values);
+    });
+    items.forEach((item) => {
+        item.labels = labelsByItemId.get(item.id) || [];
+    });
     const participants = result(participantsRes) as Row[];
     const comments = result(commentsRes) as Row[];
     const profilesById = await profilesFor(admin, [
@@ -242,7 +294,7 @@ export async function requireDepartment(admin: SupabaseClient, id: string): Prom
 }
 
 export async function validateInventoryItems(admin: SupabaseClient, items: Row[]): Promise<Row[]> {
-    return Promise.all(
+    const validated = await Promise.all(
         (items || []).map(async (line) => {
             if (!(Number(line.quantity) > 0)) throw new Error('Quantity must be positive.');
             const { data: type, error } = await admin
@@ -256,13 +308,43 @@ export async function validateInventoryItems(admin: SupabaseClient, items: Row[]
             if (condition && ['returned', 'damaged', 'missing'].indexOf(condition) === -1) {
                 throw new Error('Invalid return condition.');
             }
+            const rawLabelIds = (Array.isArray(line.labelIds) ? line.labelIds : [])
+                .map((labelId) => String(labelId).trim())
+                .filter(Boolean);
+            const labelIds = Array.from(new Set(rawLabelIds));
+            if (labelIds.length !== rawLabelIds.length) {
+                throw new Error('A label was added more than once.');
+            }
+            if (labelIds.length) {
+                const labels = result(
+                    await admin
+                        .from('inventory_type_labels')
+                        .select('id, inventory_type_id')
+                        .in('id', labelIds),
+                ) as Row[];
+                if (
+                    labels.length !== labelIds.length ||
+                    labels.some((label) => label.inventory_type_id !== line.inventoryTypeId)
+                ) {
+                    throw new Error('One or more labels do not belong to this inventory type.');
+                }
+            }
             return {
                 inventory_type_id: line.inventoryTypeId,
                 quantity: Number(line.quantity),
                 return_condition: condition || null,
+                label_ids: labelIds,
             };
         }),
     );
+    const seenLabelIds = new Set<string>();
+    validated.forEach((item) => {
+        item.label_ids.forEach((labelId: string) => {
+            if (seenLabelIds.has(labelId)) throw new Error('A label was added more than once.');
+            seenLabelIds.add(labelId);
+        });
+    });
+    return validated;
 }
 
 // Replaces an inventory/program request's child rows wholesale — the
@@ -282,11 +364,29 @@ export async function replaceInventoryRequestItems(
         .delete()
         .eq('request_id', requestId);
     if (deleteError) throw new Error(deleteError.message);
-    if (!items.length) return;
-    const { error } = await admin
-        .from('inventory_request_items')
-        .insert(items.map((item) => ({ ...item, request_id: requestId })));
-    if (error) throw new Error(error.message);
+    for (const item of items) {
+        const labelIds = Array.isArray(item.label_ids) ? item.label_ids : [];
+        const inserted = result(
+            await admin
+                .from('inventory_request_items')
+                .insert({
+                    request_id: requestId,
+                    inventory_type_id: item.inventory_type_id,
+                    quantity: item.quantity,
+                    return_condition: item.return_condition,
+                })
+                .select('id')
+                .single(),
+        ) as Row;
+        if (!labelIds.length) continue;
+        const { error } = await admin.from('inventory_request_item_labels').insert(
+            labelIds.map((labelId) => ({
+                request_item_id: inserted.id,
+                inventory_type_label_id: labelId,
+            })),
+        );
+        if (error) throw new Error(error.message);
+    }
 }
 
 export async function replaceParticipants(
@@ -352,12 +452,7 @@ export async function createInventoryRequest(
                     .select('*')
                     .single(),
             ) as Row;
-            if (items.length) {
-                const { error } = await admin
-                    .from('inventory_request_items')
-                    .insert(items.map((item) => ({ ...item, request_id: created.id })));
-                if (error) throw new Error(error.message);
-            }
+            await replaceInventoryRequestItems(admin, created.id, items);
             await replaceParticipants(
                 admin,
                 'inventory_request_participants',
@@ -497,6 +592,56 @@ export async function computeDeductionsByType(admin: SupabaseClient): Promise<Ma
     return deductions;
 }
 
+async function validateIssuedLabelAssignments(
+    admin: SupabaseClient,
+    requestId: string,
+    items: Row[],
+): Promise<void> {
+    const itemIds = items.map((item) => item.id);
+    if (!itemIds.length) return;
+    const [currentAssignmentsRes, allAssignmentsRes, allItemsRes, issuedRequestsRes] =
+        await Promise.all([
+            admin
+                .from('inventory_request_item_labels')
+                .select('request_item_id, inventory_type_label_id')
+                .in('request_item_id', itemIds),
+            admin
+                .from('inventory_request_item_labels')
+                .select('request_item_id, inventory_type_label_id'),
+            admin.from('inventory_request_items').select('id, request_id'),
+            admin.from('inventory_requests').select('id').eq('status', 'issued'),
+        ]);
+    const currentAssignments = result(currentAssignmentsRes) as Row[];
+    const currentLabelIds = new Set<string>();
+    currentAssignments.forEach((assignment) => {
+        if (currentLabelIds.has(assignment.inventory_type_label_id)) {
+            throw new Error('A label was scanned more than once for this request.');
+        }
+        currentLabelIds.add(assignment.inventory_type_label_id);
+    });
+    const issuedRequestIds = new Set(
+        (result(issuedRequestsRes) as Row[])
+            .map((request) => request.id)
+            .filter((issuedId) => issuedId !== requestId),
+    );
+    const issuedItemIds = new Set(
+        (result(allItemsRes) as Row[])
+            .filter((item) => issuedRequestIds.has(item.request_id))
+            .map((item) => item.id),
+    );
+    const usedLabels = new Set<string>();
+    (result(allAssignmentsRes) as Row[]).forEach((assignment) => {
+        if (issuedItemIds.has(assignment.request_item_id)) {
+            usedLabels.add(assignment.inventory_type_label_id);
+        }
+    });
+    for (const labelId of currentLabelIds) {
+        if (usedLabels.has(labelId)) {
+            throw new Error('This inventory label is already assigned to an issued request.');
+        }
+    }
+}
+
 // Ported from performInventoryRequestAction in Inventory.ts (itself a port
 // of the source app's perform_inventory_request_action Postgres function).
 // Wrapped end-to-end in withLockedDedupe, same as the Apps Script version
@@ -563,10 +708,36 @@ export async function performInventoryRequestAction(
                             .select('*')
                             .eq('request_id', id),
                     ) as Row[];
+                    await validateIssuedLabelAssignments(admin, id, items);
+                    const itemLabels = result(
+                        await admin
+                            .from('inventory_request_item_labels')
+                            .select('request_item_id')
+                            .in(
+                                'request_item_id',
+                                items.map((item) => item.id),
+                            ),
+                    ) as Row[];
+                    const labelCountByItemId = new Map<string, number>();
+                    itemLabels.forEach((assignment) => {
+                        labelCountByItemId.set(
+                            assignment.request_item_id,
+                            (labelCountByItemId.get(assignment.request_item_id) || 0) + 1,
+                        );
+                    });
                     const types = result(await admin.from('inventory_types').select('*')) as Row[];
                     const typesById = new Map(types.map((t) => [t.id, t]));
                     const deductions = await computeDeductionsByType(admin);
                     for (const item of items) {
+                        const labelCount = labelCountByItemId.get(item.id) || 0;
+                        if (labelCount > item.quantity) {
+                            item.quantity = labelCount;
+                            const { error } = await admin
+                                .from('inventory_request_items')
+                                .update({ quantity: labelCount })
+                                .eq('id', item.id);
+                            if (error) throw new Error(error.message);
+                        }
                         const type = typesById.get(item.inventory_type_id);
                         if (!type) throw new Error('Inventory type not found.');
                         const available = type.total_quantity - (deductions.get(type.id) || 0);

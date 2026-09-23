@@ -175,7 +175,16 @@ export async function deletePlace(
 }
 
 export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promise<Row> {
-    const availability = result(await client.rpc('inventory_availability')) as Row[];
+    const [availabilityRes, labelsRes] = await Promise.all([
+        client.rpc('inventory_availability'),
+        client
+            .from('inventory_type_labels')
+            .select('*')
+            .eq('inventory_type_id', row.id)
+            .order('name'),
+    ]);
+    const availability = result(availabilityRes) as Row[];
+    const labels = result(labelsRes) as Row[];
     const available = availability.find((x) => x.inventory_type_id === row.id);
     return {
         Id: row.id,
@@ -185,7 +194,91 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
         ImageId: row.image_path,
         TotalQuantity: row.total_quantity,
         availableQuantity: available ? available.available_quantity : row.total_quantity,
+        labels: labels.map((label) => ({
+            Id: label.id,
+            InventoryTypeId: label.inventory_type_id,
+            Name: label.name,
+        })),
     };
+}
+
+export async function createInventoryLabel(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    await requireAdmin(client, userId);
+    const inventoryTypeId = requireNonEmpty(input.inventoryTypeId, 'Inventory type is required.');
+    const name = requireNonEmpty(input.name, 'Label name is required.');
+    const { result: label } = await withLockedDedupe(
+        admin,
+        'inventory-label:create:' + inventoryTypeId,
+        requestId,
+        async () => {
+            const type = result(
+                await admin
+                    .from('inventory_types')
+                    .select('id')
+                    .eq('id', inventoryTypeId)
+                    .maybeSingle(),
+            ) as Row | null;
+            if (!type) throw new Error('Inventory type not found.');
+            return result(
+                await admin
+                    .from('inventory_type_labels')
+                    .insert({ inventory_type_id: inventoryTypeId, name })
+                    .select('*')
+                    .single(),
+                'A label with this name already exists for this inventory type.',
+            ) as Row;
+        },
+    );
+    return { Id: label.id, InventoryTypeId: label.inventory_type_id, Name: label.name };
+}
+
+export async function deleteInventoryLabel(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    requestId: string,
+): Promise<void> {
+    await requireAdmin(client, userId);
+    await withLockedDedupe(admin, 'inventory-label:delete:' + id, requestId, async () => {
+        const { error } = await admin.from('inventory_type_labels').delete().eq('id', id);
+        if (error) throw new Error(error.message);
+        return null;
+    });
+}
+
+export async function updateInventoryLabel(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    await requireAdmin(client, userId);
+    const name = requireNonEmpty(input.name, 'Label name is required.');
+    const { result: label } = await withLockedDedupe(
+        admin,
+        'inventory-label:update:' + id,
+        requestId,
+        async () =>
+            result(
+                await admin
+                    .from('inventory_type_labels')
+                    .update({ name })
+                    .eq('id', id)
+                    .select('*')
+                    .single(),
+                'A label with this name already exists for this inventory type.',
+            ) as Row,
+    );
+    return { Id: label.id, InventoryTypeId: label.inventory_type_id, Name: label.name };
 }
 
 export async function createInventoryType(
