@@ -1,9 +1,17 @@
 import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
 import {
     AppstoreOutlined,
+    ApartmentOutlined,
+    BlockOutlined,
     CalendarOutlined,
+    EnvironmentOutlined,
     InboxOutlined,
+    MoreOutlined,
     ReloadOutlined,
+    ScheduleOutlined,
+    SettingOutlined,
+    TagsOutlined,
+    TeamOutlined,
     UserOutlined,
 } from '@ant-design/icons';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -40,16 +48,33 @@ const primaryNavItems: NavItem[] = [
     { key: 'inventory', to: inventoryPath, label: 'Inventory', icon: <InboxOutlined /> },
 ];
 
-// The admin/approver-only entries below Profile in the account dropdown.
+// Admin/approver-only navigation entries, with user and configuration
+// management kept in the account dropdown.
 const configNavItems: NavItem[] = [
-    { key: 'roster', to: rosterPath, label: 'Roster' },
-    { key: 'users', to: usersPath, label: 'Users' },
-    { key: 'departments', to: departmentsPath, label: 'Departments' },
-    { key: 'places', to: placesPath, label: 'Places' },
-    { key: 'inventory-types', to: inventoryTypesPath, label: 'Inventory types' },
-    { key: 'blocks', to: blocksPath, label: 'Blocks' },
-    { key: 'home-content', to: homeContentPath, label: 'Other settings' },
+    { key: 'roster', to: rosterPath, label: 'Roster', icon: <ScheduleOutlined /> },
+    { key: 'users', to: usersPath, label: 'Users', icon: <TeamOutlined /> },
+    { key: 'departments', to: departmentsPath, label: 'Departments', icon: <ApartmentOutlined /> },
+    { key: 'places', to: placesPath, label: 'Places', icon: <EnvironmentOutlined /> },
+    {
+        key: 'inventory-types',
+        to: inventoryTypesPath,
+        label: 'Inventory types',
+        icon: <TagsOutlined />,
+    },
+    { key: 'blocks', to: blocksPath, label: 'Blocks', icon: <BlockOutlined /> },
+    {
+        key: 'home-content',
+        to: homeContentPath,
+        label: 'Other settings',
+        icon: <SettingOutlined />,
+    },
 ];
+
+// User and configuration management stays in the account menu; the remaining
+// config entries are desktop navigation items for admins/approvers.
+const accountConfigKeys = new Set(['users', 'departments', 'places', 'home-content']);
+const topConfigNavItems = configNavItems.filter((item) => !accountConfigKeys.has(item.key));
+const accountConfigNavItems = configNavItems.filter((item) => accountConfigKeys.has(item.key));
 
 // A plain pathname.startsWith(base) would also match e.g. /inventory-types
 // for base '/inventory' — this requires the match to land on a segment
@@ -110,27 +135,44 @@ export function Shell({
     const [refreshing, setRefreshing] = useState(false);
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [isMobileViewport, setIsMobileViewport] = useState(
+        () => window.matchMedia('(max-width: 767px)').matches,
+    );
     const isRegistered = Boolean(dashboard?.me.Phone);
     const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
+    const navigationItems = canOpenConfig
+        ? [...primaryNavItems, ...topConfigNavItems]
+        : primaryNavItems;
 
     useEffect(() => {
         const syncAppLoading = (event: Event) =>
             setAppLoading((event as CustomEvent<boolean>).detail === true);
         window.addEventListener(APP_LOADING_EVENT, syncAppLoading);
+        const mediaQuery = window.matchMedia('(max-width: 767px)');
+        const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
+        mediaQuery.addEventListener('change', syncViewport);
         // Shell only ever mounts once boot() has confirmed a Supabase session
         // exists, so this reflects who is signed in even when the dashboard
         // call that fills in role/name fails (e.g. an access-restriction error).
         void currentUserEmail().then(setUserEmail);
-        return () => window.removeEventListener(APP_LOADING_EVENT, syncAppLoading);
+        return () => {
+            window.removeEventListener(APP_LOADING_EVENT, syncAppLoading);
+            mediaQuery.removeEventListener('change', syncViewport);
+        };
     }, []);
 
-    const selectedKey = primaryNavItems.find((item) =>
+    const selectedKey = navigationItems.find((item) =>
         isPathSection(location.pathname, item.to),
     )?.key;
+    const accountNavItems = isMobileViewport ? configNavItems : accountConfigNavItems;
     const profileMenuItems = [
-        { key: profilePath, label: 'Profile' },
+        { key: profilePath, label: 'Profile', icon: <UserOutlined /> },
         ...(canOpenConfig
-            ? configNavItems.map((item) => ({ key: item.to, label: item.label }))
+            ? accountNavItems.map((item) => ({
+                  key: item.to,
+                  label: item.label,
+                  icon: item.icon,
+              }))
             : []),
     ];
 
@@ -163,14 +205,15 @@ export function Shell({
                             id="desktop-nav"
                             mode="horizontal"
                             className="app-main-menu"
+                            overflowedIndicator={<MoreOutlined />}
                             selectedKeys={selectedKey ? [selectedKey] : []}
-                            items={primaryNavItems.map((item) => ({
+                            items={navigationItems.map((item) => ({
                                 key: item.key,
                                 icon: item.icon,
                                 label: item.label,
                             }))}
                             onClick={({ key }) => {
-                                const item = primaryNavItems.find((i) => i.key === key);
+                                const item = navigationItems.find((i) => i.key === key);
                                 if (item) navigate(item.to);
                             }}
                         />

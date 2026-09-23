@@ -82,11 +82,14 @@ export async function requireValidRosterInput(admin: SupabaseClient, input: Row)
         .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('User not found.');
+    if (data.role !== 'admin' && data.role !== 'approver') {
+        throw new Error('Roster assignee must be an administrator or approver.');
+    }
     return { user: data, shiftType };
 }
 
-// Scheduling is an approver power, not an admin one — anyone in Users can
-// be the assignee, including roles that can't open the roster themselves.
+// Scheduling is an approver power, and roster assignees must also be
+// administrators or approvers.
 export async function createRoster(
     client: SupabaseClient,
     admin: SupabaseClient,

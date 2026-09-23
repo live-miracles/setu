@@ -15,14 +15,15 @@ export function UserBlock({
     onClick?: () => void;
 }) {
     const department = dashboard.departments.find((item) => item.Id === user.DepartmentId);
+    const departmentName = department?.ShortName || user.departmentName;
     return (
         <BlockCard className="user-card" href={href} onClick={onClick}>
             <div className="user-card-heading">
                 <div className="user-card-identity">
                     <Typography.Text strong>{user.Name}</Typography.Text>
                     <Typography.Text type="secondary">
-                        {user.Email} ·{' '}
-                        {department?.ShortName || user.departmentName || 'No department'}
+                        {user.Email}
+                        {departmentName && <> · {departmentName}</>}
                     </Typography.Text>
                 </div>
                 <Tag color="blue">{roleLabel(user.Role)}</Tag>

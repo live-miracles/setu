@@ -34,7 +34,7 @@ export function Roster({ dashboard }: Props) {
         pagination: { mode: 'off' },
         queryOptions: { enabled: canEdit },
     });
-    const users = usersResult.data;
+    const users = usersResult.data.filter(canApprove);
     const rosterStartDate = new Date();
     rosterStartDate.setDate(rosterStartDate.getDate() - 2);
     const rosterStartIso = formatLocalDateOnly(rosterStartDate);
