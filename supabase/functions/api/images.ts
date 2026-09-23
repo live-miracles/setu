@@ -4,7 +4,7 @@ import { requireNonEmpty, type Row } from './core.ts';
 const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 50 * 1024;
 const IMAGE_BUCKET = 'request-images';
-const IMAGE_URL_TTL_SECONDS = 60 * 60;
+const IMAGE_CACHE_CONTROL = '31536000';
 
 export async function createImageUploadUrl(
     admin: SupabaseClient,
@@ -40,6 +40,7 @@ export async function uploadImage(
     const extension = mimeType.split('/')[1] || 'jpg';
     const path = `${userId}/${crypto.randomUUID()}.${extension}`;
     const { error } = await admin.storage.from(IMAGE_BUCKET).upload(path, bytes, {
+        cacheControl: IMAGE_CACHE_CONTROL,
         contentType: mimeType,
         upsert: false,
     });
@@ -56,18 +57,11 @@ export async function uploadImage(
     return path;
 }
 
-// The bucket is private, so every render needs a fresh signed URL rather than
-// a stable public link — same "only a trusted Edge Function issues
-// upload/download URLs" boundary the bucket's own migration comment
-// describes. Knowing the (random, unguessable) path is treated as
-// sufficient — the same trust model the source app used for Drive's
-// anyone-with-link sharing.
+// Images live in a public bucket. The object path is still random and uploads
+// and deletes remain behind this trusted Edge Function, while reads use a
+// stable URL so browsers and Supabase's CDN can cache the asset.
 export async function getImageUrl(admin: SupabaseClient, imageId: string): Promise<string> {
     const path = String(imageId || '').trim();
     if (!path) return '';
-    const { data, error } = await admin.storage
-        .from(IMAGE_BUCKET)
-        .createSignedUrl(path, IMAGE_URL_TTL_SECONDS);
-    if (error) throw new Error(error.message);
-    return data.signedUrl;
+    return admin.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }

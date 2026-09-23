@@ -604,9 +604,7 @@ interface Api {
     ): string;
     createImageUploadUrl(fileName: string, mimeType: string): { path: string; token: string };
 
-    // The bucket backing uploadImage is private, so a stored image id/path
-    // needs a fresh signed URL to actually render — this has no equivalent
-    // in the source app, whose Drive-hosted images were fetchable directly
-    // by id.
+    // The bucket backing uploadImage is public, so a stored image id/path can
+    // be turned into a stable public URL in the browser.
     getImageUrl(imageId: string): string;
 }

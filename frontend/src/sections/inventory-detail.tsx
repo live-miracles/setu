@@ -22,6 +22,7 @@ import {
     parseInventoryQrValue,
 } from '../ui/inventory-qr';
 import { prepareInventoryImage } from '../ui/inventory-image';
+import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
 import { RequestImage } from '../ui/request-image';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
@@ -311,8 +312,11 @@ export function InventoryDetail({
             const prepared = await prepareInventoryImage(file);
             const upload = await api.createImageUploadUrl(prepared.fileName, prepared.mimeType);
             const { error: uploadError } = await supabase()
-                .storage.from('request-images')
-                .uploadToSignedUrl(upload.path, upload.token, prepared.blob);
+                .storage.from(IMAGE_BUCKET)
+                .uploadToSignedUrl(upload.path, upload.token, prepared.blob, {
+                    cacheControl: IMAGE_CACHE_CONTROL,
+                    contentType: prepared.mimeType,
+                });
             if (uploadError) throw uploadError;
             const nextImageId = upload.path;
             setImageId(nextImageId);

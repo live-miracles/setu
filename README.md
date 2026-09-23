@@ -311,8 +311,9 @@ migrated; the frontend contract remains in `shared/types.d.ts` so each
 operation can be ported incrementally.
 
 The database schema already replaces Sheets-era JSON and comma-separated
-fields with relational tables. Image storage is represented by the private
-`request-images` bucket and still needs its complete upload/signing workflow.
+fields with relational tables. Image storage uses the public `request-images`
+bucket for cacheable static assets; uploads and deletes still go through the
+trusted Edge Function.
 
 ## Roles
 

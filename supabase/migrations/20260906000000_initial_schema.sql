@@ -432,9 +432,8 @@ create policy "users read visible comments" on public.comments for select to aut
   or (target_type = 'ticket' and public.is_approver())
 );
 
--- Files are private. Only a trusted Edge Function issues upload/download URLs
--- after it applies the request access rules above; clients get no broad bucket
--- listing or direct object permissions.
+-- Images are public static assets. The object paths are random, while upload
+-- and delete operations remain protected by the trusted Edge Function.
 insert into storage.buckets (id, name, public)
-values ('request-images', 'request-images', false)
+values ('request-images', 'request-images', true)
 on conflict (id) do nothing;

@@ -49,6 +49,7 @@ import {
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { prepareInventoryImage } from '../ui/inventory-image';
+import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
 import { supabase } from '../supabase';
 import { RequestImage } from '../ui/request-image';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
@@ -550,8 +551,11 @@ export function SettingsResourcePage({
                 prepared.mimeType,
             );
             const { error: uploadError } = await supabase()
-                .storage.from('request-images')
-                .uploadToSignedUrl(upload.path, upload.token, prepared.blob);
+                .storage.from(IMAGE_BUCKET)
+                .uploadToSignedUrl(upload.path, upload.token, prepared.blob, {
+                    cacheControl: IMAGE_CACHE_CONTROL,
+                    contentType: prepared.mimeType,
+                });
             if (uploadError) throw uploadError;
             const imageId = upload.path;
             await updateRow({
