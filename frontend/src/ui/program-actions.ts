@@ -47,15 +47,20 @@ export function getProgramRequestActions(
     request: ProgramRequestDTO,
     me: UserDTO,
 ): ProgramRequestAction[] {
+    const isOwner = request.UserId === me.Email || request.participants.includes(me.Email);
     if (canApprove(me)) {
-        return (['submit', 'approve', 'reject', 'cancel'] as ProgramRequestAction[]).filter(
+        return (
+            ['submit', 'approve', 'reject', 'revise', 'cancel'] as ProgramRequestAction[]
+        ).filter(
             (action) =>
                 canTransitionProgramRequest(request.Status, action) &&
                 (action !== 'cancel' || canCancelProgram(request)),
         );
     }
-    const isOwner = request.UserId === me.Email || request.participants.includes(me.Email);
-    return request.Status === 'draft' && isOwner ? ['submit'] : [];
+    if (!isOwner) return [];
+    if (request.Status === 'draft') return ['submit'];
+    if (request.Status === 'rejected') return ['revise'];
+    return [];
 }
 
 export function getLocalDateFromSession(startDateTime: string): string {

@@ -8,6 +8,18 @@ const source = [
     readFileSync(path.join(root, 'frontend/src/sections/refine-app.tsx'), 'utf8'),
     readFileSync(path.join(root, 'frontend/src/sections/detail-shared.tsx'), 'utf8'),
 ].join('\n');
+const programDetailSource = readFileSync(
+    path.join(root, 'frontend/src/sections/program-detail.tsx'),
+    'utf8',
+);
+const requestListSource = readFileSync(
+    path.join(root, 'frontend/src/sections/requests.tsx'),
+    'utf8',
+);
+const programApiSource = readFileSync(
+    path.join(root, 'supabase/functions/api/programs.ts'),
+    'utf8',
+);
 
 assert.doesNotMatch(
     source,
@@ -38,4 +50,29 @@ assert.doesNotMatch(
     source,
     /icon=\{<(CopyOutlined|CalendarOutlined) \/>\}[\s\S]{0,180}>\s*(Duplicate|Reschedule)\s*<\/Button>/,
     'duplicate and reschedule controls should be text-only',
+);
+assert.doesNotMatch(
+    programDetailSource,
+    /<AntForm\.Item label="Status"/,
+    'program status must not be directly editable',
+);
+assert.doesNotMatch(
+    programApiSource,
+    /status:\s*(requestedStatus|nextStatus)/,
+    'generic program edits must not mutate workflow status',
+);
+assert.match(
+    programApiSource,
+    /action === 'revise'[\s\S]{0,700}request\.status !== 'rejected'[\s\S]{0,500}computedStatus = 'draft'/,
+    'the backend should only revise rejected programs back to draft',
+);
+assert.doesNotMatch(
+    requestListSource,
+    /sorters:\s*\[\{\s*field:\s*isProgram \? 'sessionStart' : 'startDate'/,
+    'request lists should use the backend latest-activity ordering',
+);
+assert.match(
+    programDetailSource,
+    /Sessions appear on the Calendar after this request is approved\./,
+    'program detail should explain when sessions become visible on the calendar',
 );

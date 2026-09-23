@@ -32,7 +32,6 @@ import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
 import {
     defaultSessionDraft,
     OTHER_PROGRAM_TYPE,
-    PROGRAM_REQUEST_STATUSES,
     programTypeOptions,
     requesterOptionLabel,
 } from './requests';
@@ -116,7 +115,6 @@ export function ProgramDetail({
         LeadEmail: request.LeadEmail,
         Participants: request.participants.join(', '),
         UserId: request.UserId,
-        Status: request.Status,
     });
     const [availablePlaceIds, setAvailablePlaceIds] = useState<string[]>([]);
     const [availablePlacesLoading, setAvailablePlacesLoading] = useState(true);
@@ -155,7 +153,6 @@ export function ProgramDetail({
                     departmentId: values.DepartmentId,
                     leadEmail: values.LeadEmail,
                     participants: values.Participants,
-                    status: values.Status,
                     sessions: nextSessions.map((s) => ({
                         name: s.Name,
                         type: s.Type,
@@ -178,7 +175,6 @@ export function ProgramDetail({
         () => {
             if (!values.Language) throw new Error('Language is required.');
             if (!values.Type) throw new Error('Type is required.');
-            if (!values.Status) throw new Error('Status is required.');
             if (!values.UserId) throw new Error('Requested by is required.');
             if (!values.DepartmentId) throw new Error('Department is required.');
             return updateProgramRequest({
@@ -193,7 +189,6 @@ export function ProgramDetail({
                     departmentId: values.DepartmentId,
                     leadEmail: values.LeadEmail,
                     participants: values.Participants,
-                    status: values.Status,
                     sessions: sessions.map((s) => ({
                         name: s.Name,
                         type: s.Type,
@@ -213,7 +208,6 @@ export function ProgramDetail({
                     LeadEmail: request.LeadEmail,
                     Participants: request.participants.join(', '),
                     UserId: request.UserId,
-                    Status: request.Status,
                 });
                 setSessions(request.sessions);
                 throw e;
@@ -300,7 +294,6 @@ export function ProgramDetail({
                     departmentId: values.DepartmentId,
                     leadEmail: values.LeadEmail,
                     participants: values.Participants,
-                    status: values.Status,
                     sessions: nextSessions.map((s) => ({
                         name: s.Name,
                         type: s.Type,
@@ -513,6 +506,11 @@ export function ProgramDetail({
                 />
             </DetailSection>
             <DetailSection className="table-detail-section">
+                {request.Status !== 'approved' && (
+                    <Typography.Paragraph type="secondary" className="calendar-visibility-note">
+                        Sessions appear on the Calendar after this request is approved.
+                    </Typography.Paragraph>
+                )}
                 <TableView
                     title="Sessions"
                     count={sessions.length}
@@ -630,19 +628,6 @@ export function ProgramDetail({
                                         </Select.Option>
                                     ),
                                 )}
-                            </Select>
-                        </AntForm.Item>
-                        <AntForm.Item label="Status" required>
-                            <Select
-                                value={values.Status}
-                                onChange={(value) => update('Status', value)}
-                                disabled={!canApprove(dashboard.me)}
-                                className="antd-full-width">
-                                {PROGRAM_REQUEST_STATUSES.map((status) => (
-                                    <Select.Option key={status} value={status}>
-                                        {status}
-                                    </Select.Option>
-                                ))}
                             </Select>
                         </AntForm.Item>
                         <AntForm.Item label="Place">
