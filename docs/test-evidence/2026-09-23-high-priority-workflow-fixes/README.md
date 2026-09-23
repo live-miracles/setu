@@ -71,3 +71,16 @@ No credentials were created, copied, or committed.
 
 Browser verification must therefore use the authenticated PR Preview or a configured local
 Supabase development project. The required walkthrough is recorded in `browser-checklist.md`.
+
+## Pull request verification
+
+- Draft PR: <https://github.com/live-miracles/setu/pull/6>
+- Both GitHub Actions `verify` jobs passed.
+- Vercel deployment and Preview Comments checks passed.
+- Preview deployment: `setu-git-codex-high-priority-workflow-fixes-livemiracles.vercel.app`
+- The Preview is protected by Vercel authentication. Both the in-app browser and the available
+  Chrome session reached the Vercel login screen, so the authenticated role walkthrough could not
+  be completed without a permitted Vercel session. No attempt was made to bypass this protection.
+
+The PR remains Draft until the authenticated browser checklist is completed against either the
+Preview or a correctly configured local Supabase development project.
