@@ -1,8 +1,11 @@
 import {
     addScannedInventoryItem,
+    addScannedInventoryItemForIssue,
     findInventoryTypeByQrValue,
+    inventoryItemHasLabel,
     inventoryTypeQrFilename,
     inventoryTypeQrLabel,
+    parseInventoryQrValue,
 } from './inventory-qr';
 
 function assert(condition: boolean, message: string): void {
@@ -18,6 +21,7 @@ const types = [
         ImageId: '',
         TotalQuantity: 4,
         availableQuantity: 2,
+        labels: [{ Id: 'label-1', InventoryTypeId: 'inventory-type-uuid-1', Name: 'CAM-001' }],
     },
     {
         Id: 'inventory-type-uuid-2',
@@ -27,6 +31,7 @@ const types = [
         ImageId: '',
         TotalQuantity: 4,
         availableQuantity: 4,
+        labels: [],
     },
 ] as InventoryTypeDTO[];
 
@@ -54,6 +59,14 @@ export function runInventoryQrAssertions(): void {
         findInventoryTypeByQrValue(types, 'unknown-type') === null,
         'scanner should reject unknown inventory type UUIDs',
     );
+    assert(
+        parseInventoryQrValue(types, 'inventory-type-uuid-1:label-1')?.labelId === 'label-1',
+        'scanner should parse a labeled inventory QR value',
+    );
+    assert(
+        parseInventoryQrValue(types, 'inventory-type-uuid-1:unknown-label') === null,
+        'scanner should reject a label that is not configured for the type',
+    );
 
     const incremented = addScannedInventoryItem(items, 'inventory-type-uuid-1');
     assert(incremented[0].Quantity === 3, 'scanning an existing type should increment quantity');
@@ -67,6 +80,16 @@ export function runInventoryQrAssertions(): void {
             added[2].Quantity === 1 &&
             added[2].Condition === '',
         'new scanned item should start at quantity one with no condition',
+    );
+    const labeled = addScannedInventoryItem(items, 'inventory-type-uuid-1', 'label-1');
+    assert(
+        labeled[0].Quantity === 3 && inventoryItemHasLabel(labeled[0], 'label-1'),
+        'request scanning should increment quantity and attach a new label',
+    );
+    const issued = addScannedInventoryItemForIssue(items, 'inventory-type-uuid-1', 'label-1');
+    assert(
+        issued[0].Quantity === 2 && inventoryItemHasLabel(issued[0], 'label-1'),
+        'issue scanning should attach a label without incrementing an existing quantity',
     );
     assert(
         inventoryTypeQrFilename(types[1]) === 'tripod-stand-inventory-type-uuid-2.png',

@@ -19,6 +19,8 @@ export async function dashboard(
             .order('start_at'),
         client.from('inventory_requests').select('*').order('updated_at', { ascending: false }),
         client.from('inventory_request_items').select('*'),
+        client.from('inventory_request_item_labels').select('*'),
+        client.from('inventory_type_labels').select('*').order('name'),
         client.from('inventory_request_participants').select('*'),
         client.from('program_requests').select('*').order('updated_at', { ascending: false }),
         client.from('program_sessions').select('*').order('start_at'),
@@ -40,6 +42,8 @@ export async function dashboard(
         rosters,
         inventory,
         items,
+        requestItemLabels,
+        inventoryLabels,
         inventoryParticipants,
         programs,
         sessions,
@@ -55,6 +59,14 @@ export async function dashboard(
     const departmentsById = new Map(departments.map((x: Row) => [x.id, x]));
     const placesById = new Map(places.map((x: Row) => [x.id, x]));
     const typesById = new Map(types.map((x: Row) => [x.id, x]));
+    const labelsById = new Map(inventoryLabels.map((x: Row) => [x.id, x]));
+    const labelsByItemId = new Map<string, Row[]>();
+    requestItemLabels.forEach((x: Row) => {
+        const values = labelsByItemId.get(x.request_item_id) || [];
+        const label = labelsById.get(x.inventory_type_label_id);
+        if (label) values.push(label);
+        labelsByItemId.set(x.request_item_id, values);
+    });
     const availableById = new Map(
         availability.map((x: Row) => [x.inventory_type_id, x.available_quantity]),
     );
@@ -87,6 +99,11 @@ export async function dashboard(
             Quantity: x.quantity,
             Condition: x.return_condition || '',
             itemName: typesById.get(x.inventory_type_id)?.name || '',
+            labels: (labelsByItemId.get(x.id) || []).map((label: Row) => ({
+                Id: label.id,
+                InventoryTypeId: label.inventory_type_id,
+                Name: label.name,
+            })),
         });
         itemsByRequest.set(x.request_id, values);
     });
@@ -137,6 +154,13 @@ export async function dashboard(
             ImageId: x.image_path,
             TotalQuantity: x.total_quantity,
             availableQuantity: availableById.get(x.id) ?? x.total_quantity,
+            labels: inventoryLabels
+                .filter((label: Row) => label.inventory_type_id === x.id)
+                .map((label: Row) => ({
+                    Id: label.id,
+                    InventoryTypeId: label.inventory_type_id,
+                    Name: label.name,
+                })),
         })),
         upcomingRosters: rosters.map((x: Row) => ({
             Id: x.id,

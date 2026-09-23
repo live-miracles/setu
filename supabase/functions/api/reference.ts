@@ -29,11 +29,13 @@ export async function listPlaces(client: SupabaseClient): Promise<Row[]> {
 }
 
 export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]> {
-    const [typesRes, availabilityRes] = await Promise.all([
+    const [typesRes, availabilityRes, labelsRes] = await Promise.all([
         client.from('inventory_types').select('*').order('name'),
         client.rpc('inventory_availability'),
+        client.from('inventory_type_labels').select('*').order('name'),
     ]);
     const types = result(typesRes) as Row[];
+    const labels = result(labelsRes) as Row[];
     const availableById = new Map(
         (result(availabilityRes) as Row[]).map((x) => [x.inventory_type_id, x.available_quantity]),
     );
@@ -45,6 +47,13 @@ export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]>
         ImageId: x.image_path,
         TotalQuantity: x.total_quantity,
         availableQuantity: availableById.get(x.id) ?? x.total_quantity,
+        labels: labels
+            .filter((label) => label.inventory_type_id === x.id)
+            .map((label) => ({
+                Id: label.id,
+                InventoryTypeId: label.inventory_type_id,
+                Name: label.name,
+            })),
     }));
 }
 

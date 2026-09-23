@@ -62,8 +62,8 @@ interface Roster {
     UserId: string;
 }
 
-// Type-level catalog only; there is no per-unit/serial-tracked row.
-// "Available" is computed on read, not stored — see Inventory.ts.
+// Catalog rows may optionally have physical labels. Types without labels keep
+// the original quantity-only inventory behavior.
 interface InventoryType {
     Id: string;
     Name: string;
@@ -71,6 +71,12 @@ interface InventoryType {
     Requestable: boolean;
     ImageId: string;
     TotalQuantity: number;
+}
+
+interface InventoryLabel {
+    Id: string;
+    InventoryTypeId: string;
+    Name: string;
 }
 
 // Status-change history (who/when) lives in Comments — every transition is
@@ -97,6 +103,7 @@ interface InventoryItem {
     InventoryTypeId: string;
     Quantity: number;
     Condition: ReturnCondition | '';
+    Labels?: string[];
 }
 
 interface ProgramRequest {
@@ -217,10 +224,12 @@ interface RosterDTO extends Roster {
 
 interface InventoryTypeDTO extends InventoryType {
     availableQuantity: number;
+    labels: InventoryLabel[];
 }
 
 interface InventoryItemDTO extends InventoryItem {
     itemName: string;
+    labels: Array<InventoryLabel | string>;
 }
 
 interface InventoryRequestDTO extends InventoryRequest {
@@ -351,6 +360,15 @@ interface CreateInventoryTypeInput {
     imageId?: string;
 }
 
+interface CreateInventoryLabelInput {
+    inventoryTypeId: string;
+    name: string;
+}
+
+interface UpdateInventoryLabelInput {
+    name: string;
+}
+
 interface CreateInventoryRequestInput {
     name: string;
     userId: string;
@@ -383,6 +401,7 @@ interface InventoryItemInput {
     inventoryTypeId: string;
     quantity: number;
     condition?: ReturnCondition | '';
+    labelIds?: string[];
 }
 
 // A return always covers every item on the request in full — see
@@ -509,6 +528,13 @@ interface Api {
     deleteRoster(id: string, requestId: string): void;
 
     listInventoryTypes(): InventoryTypeDTO[];
+    createInventoryLabel(input: CreateInventoryLabelInput, requestId: string): InventoryLabel;
+    updateInventoryLabel(
+        id: string,
+        input: UpdateInventoryLabelInput,
+        requestId: string,
+    ): InventoryLabel;
+    deleteInventoryLabel(id: string, requestId: string): void;
     createInventoryType(input: CreateInventoryTypeInput, requestId: string): InventoryTypeDTO;
     updateInventoryType(
         id: string,
@@ -578,9 +604,7 @@ interface Api {
     ): string;
     createImageUploadUrl(fileName: string, mimeType: string): { path: string; token: string };
 
-    // The bucket backing uploadImage is private, so a stored image id/path
-    // needs a fresh signed URL to actually render — this has no equivalent
-    // in the source app, whose Drive-hosted images were fetchable directly
-    // by id.
+    // The bucket backing uploadImage is public, so a stored image id/path can
+    // be turned into a stable public URL in the browser.
     getImageUrl(imageId: string): string;
 }

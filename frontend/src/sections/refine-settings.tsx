@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
-import { useCreate, useDelete, useList, useUpdate } from '@refinedev/core';
+import { useCreate, useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
 import {
     Button,
     Card,
@@ -40,17 +40,23 @@ import { formatDateTime } from '../ui/format';
 import { formatDateTimeLocal } from '../ui/date';
 import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
-import { inventoryTypeQrFilename, inventoryTypeQrLabel } from '../ui/inventory-qr';
+import {
+    inventoryLabelQrFilename,
+    inventoryQrValue,
+    inventoryTypeQrFilename,
+    inventoryTypeQrLabel,
+} from '../ui/inventory-qr';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { prepareInventoryImage } from '../ui/inventory-image';
+import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
 import { supabase } from '../supabase';
 import { RequestImage } from '../ui/request-image';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { UserBlock } from '../ui/user-block';
 import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
-import { ActionConfirmation, TextField } from './refine-shared';
+import { ActionConfirmation, SaveFooter, TextField } from './refine-shared';
 
 type Field = {
     field: string;
@@ -437,6 +443,7 @@ export function SettingsResourcePage({
     const { mutateAsync: createRow } = useCreate();
     const { mutateAsync: updateRow } = useUpdate();
     const { mutateAsync: deleteRow } = useDelete();
+    const invalidate = useInvalidate();
     // blocks' Place field is the only select today — its options come from
     // its own useList (called unconditionally like every other hook here;
     // `enabled: false` skips the request for every other resource kind)
@@ -458,6 +465,11 @@ export function SettingsResourcePage({
     const selectedInventoryType =
         config.kind === 'inventory-type' ? rows.find((row) => row.Id === detailId) || null : null;
     const [qrCodeUrl, setQrCodeUrl] = useState('');
+    const [selectedQrLabelId, setSelectedQrLabelId] = useState('');
+    const [labelEditorOpen, setLabelEditorOpen] = useState(false);
+    const [labelEditor, setLabelEditor] = useState<InventoryLabel | null>(null);
+    const [labelEditorName, setLabelEditorName] = useState('');
+    const [labelBusy, setLabelBusy] = useState(false);
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
     const hasSearch = true;
@@ -473,8 +485,10 @@ export function SettingsResourcePage({
     useEffect(() => {
         if (config.kind !== 'inventory-type' || !selectedInventoryType) {
             setQrCodeUrl('');
+            setSelectedQrLabelId('');
             return;
         }
+        setSelectedQrLabelId('');
         let active = true;
         void createInventoryTypeQrDataUrl(selectedInventoryType)
             .then((dataUrl) => {
@@ -512,7 +526,7 @@ export function SettingsResourcePage({
             showSavingBadge(false);
         }
     }
-    async function remove(row: Row) {
+    async function remove(row: Row): Promise<boolean> {
         showSavingBadge(true);
         try {
             await deleteRow({
@@ -522,8 +536,10 @@ export function SettingsResourcePage({
                 errorNotification: false,
             });
             await refreshDashboard();
+            return true;
         } catch (error) {
             showErrorAlert(error);
+            return false;
         } finally {
             showSavingBadge(false);
         }
@@ -537,8 +553,11 @@ export function SettingsResourcePage({
                 prepared.mimeType,
             );
             const { error: uploadError } = await supabase()
-                .storage.from('request-images')
-                .uploadToSignedUrl(upload.path, upload.token, prepared.blob);
+                .storage.from(IMAGE_BUCKET)
+                .uploadToSignedUrl(upload.path, upload.token, prepared.blob, {
+                    cacheControl: IMAGE_CACHE_CONTROL,
+                    contentType: prepared.mimeType,
+                });
             if (uploadError) throw uploadError;
             const imageId = upload.path;
             await updateRow({
@@ -561,9 +580,9 @@ export function SettingsResourcePage({
             showSavingBadge(false);
         }
     }
-    async function createInventoryTypeQrDataUrl(row: Row): Promise<string> {
+    async function createInventoryTypeQrDataUrl(row: Row, label?: InventoryLabel): Promise<string> {
         const QRCode = (await import('qrcode')).default;
-        const qrDataUrl = await QRCode.toDataURL(String(row.Id), {
+        const qrDataUrl = await QRCode.toDataURL(inventoryQrValue(String(row.Id), label?.Id), {
             margin: 2,
             width: 256,
         });
@@ -573,7 +592,11 @@ export function SettingsResourcePage({
             image.onload = () => resolve();
             image.onerror = () => reject(new Error('Unable to prepare QR code image.'));
         });
-        const label = inventoryTypeQrLabel(String(row.Name || 'Inventory type'));
+        const displayLabel = inventoryTypeQrLabel(
+            label
+                ? `${String(row.Name || 'Inventory type')} · ${label.Name}`
+                : String(row.Name || 'Inventory type'),
+        );
         const canvas = document.createElement('canvas');
         const labelHeight = 36;
         canvas.width = 256;
@@ -587,20 +610,84 @@ export function SettingsResourcePage({
         context.font = '12px sans-serif';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText(label, canvas.width / 2, 256 + labelHeight / 2);
+        context.fillText(displayLabel, canvas.width / 2, 256 + labelHeight / 2);
         return canvas.toDataURL('image/png');
     }
-    async function downloadInventoryTypeQr(row: Row) {
+    async function downloadInventoryTypeQr(row: Row, label?: InventoryLabel) {
         try {
-            const qrDataUrl = await createInventoryTypeQrDataUrl(row);
+            const qrDataUrl = await createInventoryTypeQrDataUrl(row, label);
             const link = document.createElement('a');
             link.href = qrDataUrl;
-            link.download = inventoryTypeQrFilename(row as InventoryTypeDTO);
+            link.download = label
+                ? inventoryLabelQrFilename(row as InventoryTypeDTO, label)
+                : inventoryTypeQrFilename(row as InventoryTypeDTO);
             document.body.appendChild(link);
             link.click();
             link.remove();
         } catch (error) {
             showErrorAlert(error);
+        }
+    }
+    async function removeInventoryLabel(label: InventoryLabel) {
+        setLabelBusy(true);
+        try {
+            await api.deleteInventoryLabel(label.Id, generateRequestId());
+            await invalidate({
+                resource: 'inventory-types',
+                invalidates: ['list', 'many', 'detail'],
+            });
+            await refreshDashboard();
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setLabelBusy(false);
+        }
+    }
+    function openAddInventoryLabel() {
+        setLabelEditor(null);
+        setLabelEditorName('');
+        setLabelEditorOpen(true);
+    }
+    function openEditInventoryLabel(label: InventoryLabel) {
+        setLabelEditor(label);
+        setLabelEditorName(label.Name);
+        setLabelEditorOpen(true);
+    }
+    function closeInventoryLabelEditor() {
+        setLabelEditorOpen(false);
+        setLabelEditor(null);
+        setLabelEditorName('');
+    }
+    async function saveInventoryLabel(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (!selectedInventoryType || !labelEditorName.trim()) return;
+        setLabelBusy(true);
+        try {
+            if (labelEditor) {
+                await api.updateInventoryLabel(
+                    labelEditor.Id,
+                    { name: labelEditorName.trim() },
+                    generateRequestId(),
+                );
+            } else {
+                await api.createInventoryLabel(
+                    {
+                        inventoryTypeId: String(selectedInventoryType.Id),
+                        name: labelEditorName.trim(),
+                    },
+                    generateRequestId(),
+                );
+            }
+            closeInventoryLabelEditor();
+            await invalidate({
+                resource: 'inventory-types',
+                invalidates: ['list', 'many', 'detail'],
+            });
+            await refreshDashboard();
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setLabelBusy(false);
         }
     }
     const renderActions = (row: Row, detail = false) => (
@@ -902,13 +989,44 @@ export function SettingsResourcePage({
                 <DetailSection
                     title="QR code"
                     action={
-                        <Button
-                            type="primary"
-                            icon={<DownloadOutlined />}
-                            onClick={() => void downloadInventoryTypeQr(selectedInventoryType)}
-                            aria-label="Download QR code"
-                            title="Download QR code"
-                        />
+                        <Space>
+                            <Select
+                                value={selectedQrLabelId}
+                                onChange={(value) => {
+                                    setSelectedQrLabelId(value);
+                                    const labels = (selectedInventoryType.labels ||
+                                        []) as InventoryLabel[];
+                                    const label = labels.find((entry) => entry.Id === value);
+                                    void createInventoryTypeQrDataUrl(selectedInventoryType, label)
+                                        .then(setQrCodeUrl)
+                                        .catch(showErrorAlert);
+                                }}
+                                aria-label="QR code to download"
+                                options={[
+                                    { value: '', label: 'Inventory type (no label)' },
+                                    ...(
+                                        (selectedInventoryType.labels || []) as InventoryLabel[]
+                                    ).map((label) => ({
+                                        value: label.Id,
+                                        label: label.Name,
+                                    })),
+                                ]}
+                            />
+                            <Button
+                                type="primary"
+                                icon={<DownloadOutlined />}
+                                onClick={() => {
+                                    const labels = (selectedInventoryType.labels ||
+                                        []) as InventoryLabel[];
+                                    const label = labels.find(
+                                        (entry) => entry.Id === selectedQrLabelId,
+                                    );
+                                    void downloadInventoryTypeQr(selectedInventoryType, label);
+                                }}
+                                aria-label="Download QR code"
+                                title="Download QR code"
+                            />
+                        </Space>
                     }>
                     <div className="flex justify-center">
                         {qrCodeUrl ? (
@@ -920,6 +1038,85 @@ export function SettingsResourcePage({
                             />
                         ) : (
                             <Typography.Text type="secondary">Preparing QR code…</Typography.Text>
+                        )}
+                    </div>
+                </DetailSection>
+                <DetailSection
+                    title="Individual labels"
+                    action={
+                        canEdit ? (
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={openAddInventoryLabel}
+                                aria-label="Add label"
+                                title="Add label"
+                            />
+                        ) : null
+                    }>
+                    <div className="grid gap-3">
+                        {(selectedInventoryType.labels || []).length ? (
+                            <Table
+                                rowKey="Id"
+                                pagination={false}
+                                dataSource={selectedInventoryType.labels || []}
+                                columns={[
+                                    {
+                                        title: 'Label name',
+                                        dataIndex: 'Name',
+                                        key: 'Name',
+                                        render: (_: unknown, label: InventoryLabel) => label.Name,
+                                    },
+                                    {
+                                        title: 'Actions',
+                                        key: 'actions',
+                                        align: 'right' as const,
+                                        render: (_: unknown, label: InventoryLabel) => (
+                                            <Space>
+                                                {canEdit && (
+                                                    <Button
+                                                        type="text"
+                                                        icon={<EditOutlined />}
+                                                        disabled={labelBusy}
+                                                        onClick={() =>
+                                                            openEditInventoryLabel(label)
+                                                        }
+                                                        aria-label={`Edit ${label.Name}`}
+                                                    />
+                                                )}
+                                                <Button
+                                                    type="text"
+                                                    icon={<DownloadOutlined />}
+                                                    onClick={() =>
+                                                        void downloadInventoryTypeQr(
+                                                            selectedInventoryType,
+                                                            label,
+                                                        )
+                                                    }
+                                                    aria-label={`Download QR for ${label.Name}`}
+                                                />
+                                                {canEdit && (
+                                                    <Button
+                                                        type="text"
+                                                        danger
+                                                        icon={<DeleteOutlined />}
+                                                        loading={labelBusy}
+                                                        onClick={() =>
+                                                            void removeInventoryLabel(label)
+                                                        }
+                                                        aria-label={`Delete ${label.Name}`}
+                                                    />
+                                                )}
+                                            </Space>
+                                        ),
+                                    },
+                                ]}
+                                scroll={{ x: 'max-content' }}
+                            />
+                        ) : (
+                            <Typography.Text type="secondary">
+                                No individual labels configured.
+                            </Typography.Text>
                         )}
                     </div>
                 </DetailSection>
@@ -1092,19 +1289,43 @@ export function SettingsResourcePage({
                     </div>
                 </>
             )}
+            {canEdit && labelEditorOpen && selectedInventoryType && (
+                <Modal
+                    open
+                    title={labelEditor ? 'Edit label' : 'Add label'}
+                    onCancel={closeInventoryLabelEditor}
+                    footer={null}
+                    destroyOnHidden>
+                    <form className="grid gap-3" noValidate onSubmit={saveInventoryLabel}>
+                        <TextField
+                            name="labelName"
+                            label="Label name"
+                            value={labelEditorName}
+                            required
+                            onChange={(event) => setLabelEditorName(event.target.value)}
+                        />
+                        <SaveFooter label="Save" busy={labelBusy} errorMessage="" />
+                    </form>
+                </Modal>
+            )}
             {deleting && (
                 <ActionConfirmation
                     action="delete"
-                    description={`Delete “${deleting[config.fields[0].field]}”?`}
+                    description={
+                        config.kind === 'inventory-type'
+                            ? `Delete “${deleting[config.fields[0].field]}”? This will also permanently delete its item rows from all existing inventory requests. The requests themselves and their other items will remain.`
+                            : `Delete “${deleting[config.fields[0].field]}”?`
+                    }
                     onCancel={() => setDeleting(null)}
                     onConfirm={async () => {
                         const row = deleting;
                         setDeleting(null);
+                        const removed = await remove(row);
+                        if (!removed) return;
                         if (config.kind === 'department')
                             navigate(departmentsPath, { replace: true });
                         if (config.kind === 'inventory-type')
                             navigate(inventoryTypesPath, { replace: true });
-                        await remove(row);
                     }}
                 />
             )}

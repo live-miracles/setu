@@ -6,12 +6,14 @@ import {
     createBlock,
     createDepartment,
     createInventoryType,
+    createInventoryLabel,
     createNamedOption,
     createPlace,
     createShiftType,
     deleteBlock,
     deleteDepartment,
     deleteInventoryType,
+    deleteInventoryLabel,
     deleteNamedOption,
     deletePlace,
     deleteShiftType,
@@ -20,6 +22,7 @@ import {
     updateDepartment,
     updateHomeContent,
     updateInventoryType,
+    updateInventoryLabel,
     updateNamedOption,
     updatePlace,
     updateShiftType,
@@ -185,6 +188,30 @@ const operationHandlers: Record<string, OperationHandler> = {
     createInventoryType: async ({ client, admin, userId, args }) => {
         return respond(
             await createInventoryType(client, admin, userId, args[0] as Row, String(args[1])),
+        );
+    },
+
+    createInventoryLabel: async ({ client, admin, userId, args }) => {
+        return respond(
+            await createInventoryLabel(client, admin, userId, args[0] as Row, String(args[1])),
+        );
+    },
+
+    deleteInventoryLabel: async ({ client, admin, userId, args }) => {
+        await deleteInventoryLabel(client, admin, userId, String(args[0]), String(args[1]));
+        return respond(null);
+    },
+
+    updateInventoryLabel: async ({ client, admin, userId, args }) => {
+        return respond(
+            await updateInventoryLabel(
+                client,
+                admin,
+                userId,
+                String(args[0]),
+                args[1] as Row,
+                String(args[2]),
+            ),
         );
     },
 

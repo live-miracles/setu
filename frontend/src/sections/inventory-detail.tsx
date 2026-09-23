@@ -15,8 +15,14 @@ import { api } from '../api';
 import { useDashboard } from '../dashboard-context';
 import { inventoryPath } from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
-import { addScannedInventoryItem, findInventoryTypeByQrValue } from '../ui/inventory-qr';
+import {
+    addScannedInventoryItem,
+    addScannedInventoryItemForIssue,
+    inventoryItemHasLabel,
+    parseInventoryQrValue,
+} from '../ui/inventory-qr';
 import { prepareInventoryImage } from '../ui/inventory-image';
+import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
 import { RequestImage } from '../ui/request-image';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
@@ -62,8 +68,10 @@ export function InventoryDetail({
     const [itemIndex, setItemIndex] = useState<number | null>(null);
     const [itemOpen, setItemOpen] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
+    const [issueScanOpen, setIssueScanOpen] = useState(false);
     const [cameraOpen, setCameraOpen] = useState(false);
     const [itemError, setItemError] = useState('');
+    const [issueScanError, setIssueScanError] = useState('');
     const [imageId, setImageId] = useState(request.ImageId || '');
     const [imageUploading, setImageUploading] = useState(false);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +82,7 @@ export function InventoryDetail({
         InventoryTypeId: '',
         Quantity: 1,
         Condition: '' as ReturnCondition | '',
+        LabelIds: [] as string[],
     });
     const [values, setValues] = useState({
         Name: request.Name,
@@ -113,6 +122,9 @@ export function InventoryDetail({
                         inventoryTypeId: item.InventoryTypeId,
                         quantity: item.Quantity,
                         condition: item.Condition,
+                        labelIds: (item.labels || []).map((label) =>
+                            typeof label === 'string' ? label : label.Id,
+                        ),
                     })),
                 },
                 successNotification: false,
@@ -129,19 +141,44 @@ export function InventoryDetail({
         }
     };
     const scanInventoryType = async (decodedValue: string) => {
-        const inventoryType = findInventoryTypeByQrValue(dashboard.inventoryTypes, decodedValue);
-        if (!inventoryType) {
+        const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
+        if (!scan) {
             setItemError('Inventory type not found for this QR code.');
             return;
         }
+        const existing = items.find((item) => item.InventoryTypeId === scan.type.Id);
+        if (scan.labelId && inventoryItemHasLabel(existing, scan.labelId)) {
+            setItemError('This label was already added to the request.');
+            return;
+        }
         const saved = await persistItems(
-            addScannedInventoryItem(items, inventoryType.Id).map((item) =>
-                item.InventoryTypeId === inventoryType.Id && !item.itemName
-                    ? { ...item, itemName: inventoryType.Name }
+            addScannedInventoryItem(items, scan.type.Id, scan.labelId).map((item) =>
+                item.InventoryTypeId === scan.type.Id && !item.itemName
+                    ? { ...item, itemName: scan.type.Name }
                     : item,
             ),
         );
         if (saved) setScanOpen(false);
+    };
+    const scanIssueItem = async (decodedValue: string) => {
+        const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
+        if (!scan) {
+            setIssueScanError('Inventory type or label not found for this QR code.');
+            return;
+        }
+        const existing = items.find((item) => item.InventoryTypeId === scan.type.Id);
+        if (scan.labelId && inventoryItemHasLabel(existing, scan.labelId)) {
+            setIssueScanError('This label was already added to the request.');
+            return;
+        }
+        const saved = await persistItems(
+            addScannedInventoryItemForIssue(items, scan.type.Id, scan.labelId).map((item) =>
+                item.InventoryTypeId === scan.type.Id && !item.itemName
+                    ? { ...item, itemName: scan.type.Name }
+                    : item,
+            ),
+        );
+        if (saved) setIssueScanError('');
     };
     const save = useSave(
         () => {
@@ -162,6 +199,9 @@ export function InventoryDetail({
                         inventoryTypeId: item.InventoryTypeId,
                         quantity: item.Quantity,
                         condition: item.Condition,
+                        labelIds: (item.labels || []).map((label) =>
+                            typeof label === 'string' ? label : label.Id,
+                        ),
                     })),
                 },
                 successNotification: false,
@@ -213,11 +253,15 @@ export function InventoryDetail({
                       InventoryTypeId: '',
                       Quantity: 1,
                       Condition: '',
+                      LabelIds: [],
                   }
                 : {
                       InventoryTypeId: items[index].InventoryTypeId,
-                      Quantity: items[index].Quantity,
+                      Quantity: Math.max(items[index].Quantity, items[index].labels?.length || 0),
                       Condition: items[index].Condition,
+                      LabelIds: (items[index].labels || []).map((label) =>
+                          typeof label === 'string' ? label : label.Id,
+                      ),
                   },
         );
         setItemOpen(true);
@@ -241,8 +285,11 @@ export function InventoryDetail({
         }
         setItemError('');
         const nextItem = {
-            ...itemDraft,
+            InventoryTypeId: itemDraft.InventoryTypeId,
+            Quantity: Math.max(itemDraft.Quantity, itemDraft.LabelIds.length),
+            Condition: itemDraft.Condition,
             itemName: type.Name,
+            labels: itemDraft.LabelIds,
         };
         const nextItems =
             itemIndex === null
@@ -265,8 +312,11 @@ export function InventoryDetail({
             const prepared = await prepareInventoryImage(file);
             const upload = await api.createImageUploadUrl(prepared.fileName, prepared.mimeType);
             const { error: uploadError } = await supabase()
-                .storage.from('request-images')
-                .uploadToSignedUrl(upload.path, upload.token, prepared.blob);
+                .storage.from(IMAGE_BUCKET)
+                .uploadToSignedUrl(upload.path, upload.token, prepared.blob, {
+                    cacheControl: IMAGE_CACHE_CONTROL,
+                    contentType: prepared.mimeType,
+                });
             if (uploadError) throw uploadError;
             const nextImageId = upload.path;
             setImageId(nextImageId);
@@ -286,6 +336,9 @@ export function InventoryDetail({
                         inventoryTypeId: item.InventoryTypeId,
                         quantity: item.Quantity,
                         condition: item.Condition,
+                        labelIds: (item.labels || []).map((label) =>
+                            typeof label === 'string' ? label : label.Id,
+                        ),
                     })),
                 },
                 successNotification: false,
@@ -320,6 +373,7 @@ export function InventoryDetail({
             });
             await invalidateThisRequest();
             await refreshDashboard();
+            if (action === 'issue') setIssueScanOpen(false);
         } catch (e) {
             error(e);
         } finally {
@@ -351,7 +405,12 @@ export function InventoryDetail({
                     />
                     <WorkflowActions
                         actions={actions}
-                        onAction={(action) => setPendingAction(action as InventoryRequestAction)}
+                        onAction={(action) => {
+                            if (action === 'issue') {
+                                setIssueScanError('');
+                                setIssueScanOpen(true);
+                            } else setPendingAction(action as InventoryRequestAction);
+                        }}
                     />
                     {deletable && (
                         <Button
@@ -458,6 +517,22 @@ export function InventoryDetail({
                                     dataIndex: 'Condition',
                                     key: 'Condition',
                                     render: (value: string) => value || '—',
+                                },
+                                {
+                                    title: 'Labels',
+                                    key: 'labels',
+                                    render: (_value: unknown, item: InventoryItemDTO) => {
+                                        const type = dashboard.inventoryTypes.find(
+                                            (entry) => entry.Id === item.InventoryTypeId,
+                                        );
+                                        const labels = (item.labels || []).map((label) =>
+                                            typeof label === 'string'
+                                                ? type?.labels?.find((entry) => entry.Id === label)
+                                                      ?.Name || label
+                                                : label.Name,
+                                        );
+                                        return labels.length ? labels.join(', ') : '—';
+                                    },
                                 },
                                 {
                                     title: 'Actions',
@@ -635,6 +710,30 @@ export function InventoryDetail({
                     </div>
                 </Modal>
             )}
+            {issueScanOpen && (
+                <Modal title="Scan issued items" close={() => setIssueScanOpen(false)}>
+                    <div className="grid gap-3">
+                        <Typography.Text type="secondary">
+                            Scan each item. A labeled QR code adds its label without increasing the
+                            requested count; unlabeled codes only add a missing inventory type.
+                        </Typography.Text>
+                        <QrScanner onScan={scanIssueItem} />
+                        {issueScanError && (
+                            <Typography.Text type="danger">{issueScanError}</Typography.Text>
+                        )}
+                        <div className="flex justify-end">
+                            <Button
+                                type="primary"
+                                onClick={() => {
+                                    setIssueScanOpen(false);
+                                    setPendingAction('issue');
+                                }}>
+                                Finish scanning
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
             {cameraOpen && (
                 <Modal title="Take photo" close={() => setCameraOpen(false)}>
                     <ImageCamera
@@ -660,6 +759,7 @@ export function InventoryDetail({
                                     setItemDraft((current) => ({
                                         ...current,
                                         InventoryTypeId: value,
+                                        LabelIds: [],
                                     }))
                                 }
                                 className="antd-full-width"
@@ -693,6 +793,27 @@ export function InventoryDetail({
                                 }))
                             }
                         />
+                        {selectedInventoryType?.labels?.length ? (
+                            <AntForm.Item label="Individual labels">
+                                <Select
+                                    mode="multiple"
+                                    value={itemDraft.LabelIds}
+                                    onChange={(value) =>
+                                        setItemDraft((current) => ({
+                                            ...current,
+                                            LabelIds: value as string[],
+                                            Quantity: Math.max(current.Quantity, value.length),
+                                        }))
+                                    }
+                                    className="antd-full-width"
+                                    placeholder="Select labels"
+                                    options={selectedInventoryType.labels.map((label) => ({
+                                        value: label.Id,
+                                        label: label.Name,
+                                    }))}
+                                />
+                            </AntForm.Item>
+                        ) : null}
                         <AntForm.Item label="Condition">
                             <Select
                                 value={itemDraft.Condition}
