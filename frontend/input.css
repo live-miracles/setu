@@ -505,7 +505,7 @@ body {
     align-items: flex-start;
     justify-content: center;
     gap: 0.2rem;
-    border: 1px solid color-mix(in srgb, var(--setu-ink) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--setu-ink) 45%, transparent);
     border-radius: 0.4rem;
     padding: 0.45rem 0.5rem;
     background: var(--setu-surface);
