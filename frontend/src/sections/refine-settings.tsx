@@ -526,7 +526,7 @@ export function SettingsResourcePage({
             showSavingBadge(false);
         }
     }
-    async function remove(row: Row) {
+    async function remove(row: Row): Promise<boolean> {
         showSavingBadge(true);
         try {
             await deleteRow({
@@ -536,8 +536,10 @@ export function SettingsResourcePage({
                 errorNotification: false,
             });
             await refreshDashboard();
+            return true;
         } catch (error) {
             showErrorAlert(error);
+            return false;
         } finally {
             showSavingBadge(false);
         }
@@ -1309,16 +1311,21 @@ export function SettingsResourcePage({
             {deleting && (
                 <ActionConfirmation
                     action="delete"
-                    description={`Delete “${deleting[config.fields[0].field]}”?`}
+                    description={
+                        config.kind === 'inventory-type'
+                            ? `Delete “${deleting[config.fields[0].field]}”? This will also permanently delete its item rows from all existing inventory requests. The requests themselves and their other items will remain.`
+                            : `Delete “${deleting[config.fields[0].field]}”?`
+                    }
                     onCancel={() => setDeleting(null)}
                     onConfirm={async () => {
                         const row = deleting;
                         setDeleting(null);
+                        const removed = await remove(row);
+                        if (!removed) return;
                         if (config.kind === 'department')
                             navigate(departmentsPath, { replace: true });
                         if (config.kind === 'inventory-type')
                             navigate(inventoryTypesPath, { replace: true });
-                        await remove(row);
                     }}
                 />
             )}

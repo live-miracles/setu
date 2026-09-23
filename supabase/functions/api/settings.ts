@@ -370,7 +370,9 @@ export async function deleteInventoryType(
 ): Promise<void> {
     await requireAdmin(client, userId);
     await withLockedDedupe(admin, 'inventory-type:delete:' + id, requestId, async () => {
-        const { error } = await admin.from('inventory_types').delete().eq('id', id);
+        const { error } = await admin.rpc('delete_inventory_type_with_items', {
+            target_inventory_type_id: id,
+        });
         if (error) throw new Error(error.message);
         return null;
     });
