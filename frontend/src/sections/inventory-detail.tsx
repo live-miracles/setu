@@ -140,16 +140,16 @@ export function InventoryDetail({
             showSavingBadge(false);
         }
     };
-    const scanInventoryType = async (decodedValue: string) => {
+    const scanInventoryType = async (decodedValue: string): Promise<boolean> => {
         const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
         if (!scan) {
             setItemError('Inventory type not found for this QR code.');
-            return;
+            return false;
         }
         const existing = items.find((item) => item.InventoryTypeId === scan.type.Id);
         if (scan.labelId && inventoryItemHasLabel(existing, scan.labelId)) {
             setItemError('This label was already added to the request.');
-            return;
+            return false;
         }
         const saved = await persistItems(
             addScannedInventoryItem(items, scan.type.Id, scan.labelId).map((item) =>
@@ -159,6 +159,7 @@ export function InventoryDetail({
             ),
         );
         if (saved) setScanOpen(false);
+        return saved;
     };
     const scanIssueItem = async (decodedValue: string) => {
         const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
@@ -705,7 +706,7 @@ export function InventoryDetail({
                         setItemError('');
                     }}>
                     <div className="grid gap-3">
-                        <QrScanner onScan={scanInventoryType} />
+                        <QrScanner onScan={scanInventoryType} stopOnScan />
                         {itemError && <Typography.Text type="danger">{itemError}</Typography.Text>}
                     </div>
                 </Modal>

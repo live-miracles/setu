@@ -43,7 +43,26 @@ function streamCameraId(video: HTMLVideoElement): string {
     return stream.getVideoTracks()[0]?.getSettings().deviceId || '';
 }
 
-export function QrScanner({ onScan }: { onScan: (decodedValue: string) => void }) {
+export function QrScanner({
+    onScan,
+    stopOnScan,
+}: {
+    /**
+     * Return `false` to keep scanning (e.g. the code didn't match anything) —
+     * anything else, including no return value, is treated as handled. Only
+     * consulted when `stopOnScan` is set.
+     */
+    onScan: (decodedValue: string) => void | boolean | Promise<void | boolean>;
+    /**
+     * Freeze and release the camera on the very first decode, awaiting
+     * `onScan` before deciding whether to resume. Without this the camera
+     * keeps decoding frames while `onScan` is still in flight (e.g. saving
+     * over the network), so a slow save lets the same code be scanned again
+     * and double up. Off by default so callers that scan a batch of codes in
+     * one session keep scanning continuously.
+     */
+    stopOnScan?: boolean;
+}) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const scanner = useRef<QrScannerLib | null>(null);
     const latestOnScan = useRef(onScan);
@@ -61,7 +80,7 @@ export function QrScanner({ onScan }: { onScan: (decodedValue: string) => void }
         if (!video) return;
         let active = true;
 
-        const handleScan = (decodedValue: string) => {
+        const handleScan = async (decodedValue: string) => {
             const value = decodedValue.trim();
             const now = Date.now();
             for (const [scanned, at] of scanTimes.current) {
@@ -70,7 +89,16 @@ export function QrScanner({ onScan }: { onScan: (decodedValue: string) => void }
             const previous = scanTimes.current.get(value);
             if (previous !== undefined && now - previous < SCAN_DEBOUNCE_MS) return;
             scanTimes.current.set(value, now);
-            latestOnScan.current(value);
+
+            if (!stopOnScan) {
+                latestOnScan.current(value);
+                return;
+            }
+            // Stop the camera outright (not just pausing the scan loop) so
+            // the same code can't be re-decoded while onScan is awaited.
+            await current.pause(true);
+            const keepScanning = (await latestOnScan.current(value)) === false;
+            if (keepScanning && active) void current.start().catch(() => {});
         };
 
         // The browser's own BarcodeDetector where it exists, and a bundled
