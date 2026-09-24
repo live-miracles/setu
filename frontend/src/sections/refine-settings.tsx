@@ -442,7 +442,8 @@ export function SettingsResourcePage({
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
-    const { result } = useList({ resource: resourceName, pagination: { mode: 'off' } });
+    const { result, query } = useList({ resource: resourceName, pagination: { mode: 'off' } });
+    const resourceLoading = query.isLoading;
     const rawRows = result.data as Row[];
     const rows = config.sortRows ? config.sortRows(rawRows) : rawRows;
     const { mutateAsync: createRow } = useCreate();
@@ -836,65 +837,70 @@ export function SettingsResourcePage({
             render: (_: unknown, row: Row) => renderActions(row),
         },
     ];
-    const inventoryTypeCards =
-        filteredRows.length > 0 ? (
-            <div className="inventory-type-grid">
-                {filteredRows.map((row) => {
-                    const available = Number(row.availableQuantity ?? 0);
-                    const total = Number(row.TotalQuantity ?? 0);
-                    return (
-                        <BlockCard
-                            key={row.Id}
-                            className="inventory-type-card"
-                            onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
-                            <div className="inventory-type-card-heading">
-                                <strong>
-                                    {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
-                                </strong>
-                                {row.Description && (
-                                    <span className="inventory-type-card-description">
-                                        {String(row.Description)}
-                                    </span>
-                                )}
-                                <span className={stockLevelTextClass(available, total)}>
-                                    {formatInventoryAvailability(available, total)}
-                                </span>
-                            </div>
-                            <div className="inventory-type-card-image">
-                                <RequestImage
-                                    imageId={String(row.ImageId || '')}
-                                    alt={inventoryTypeDisplayName(row)}
-                                    fallback={<span>No photo</span>}
-                                />
-                            </div>
-                        </BlockCard>
-                    );
-                })}
-            </div>
-        ) : (
-            <Empty description={config.emptyMessage} />
-        );
-    const departmentCards =
-        filteredRows.length > 0 ? (
-            <div className="department-list">
-                {filteredRows.map((row) => (
+    const inventoryTypeCards = resourceLoading ? (
+        <div className="py-8 text-center">
+            <Typography.Text type="secondary">Loading…</Typography.Text>
+        </div>
+    ) : filteredRows.length > 0 ? (
+        <div className="inventory-type-grid">
+            {filteredRows.map((row) => {
+                const available = Number(row.availableQuantity ?? 0);
+                const total = Number(row.TotalQuantity ?? 0);
+                return (
                     <BlockCard
                         key={row.Id}
-                        className="department-card"
-                        onClick={() => navigate(departmentPath(String(row.Id)))}>
-                        <div className="department-card-content">
-                            <strong>
-                                {String(row.Name || 'Unnamed department')}
-                                {row.ShortName ? ` (${String(row.ShortName)})` : ''}
-                            </strong>
-                            <span>{String(row.LeadEmail || 'No lead email')}</span>
+                        className="inventory-type-card"
+                        onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
+                        <div className="inventory-type-card-heading">
+                            <strong>{inventoryTypeDisplayName(row) || 'Unnamed equipment'}</strong>
+                            {row.Description && (
+                                <span className="inventory-type-card-description">
+                                    {String(row.Description)}
+                                </span>
+                            )}
+                            <span
+                                className={`inventory-type-card-availability ${stockLevelTextClass(available, total)}`}>
+                                {formatInventoryAvailability(available, total)}
+                            </span>
+                        </div>
+                        <div className="inventory-type-card-image">
+                            <RequestImage
+                                imageId={String(row.ImageId || '')}
+                                alt={inventoryTypeDisplayName(row)}
+                                fallback={<span>No photo</span>}
+                            />
                         </div>
                     </BlockCard>
-                ))}
-            </div>
-        ) : (
-            <Empty description={config.emptyMessage} />
-        );
+                );
+            })}
+        </div>
+    ) : (
+        <Empty description={config.emptyMessage} />
+    );
+    const departmentCards = resourceLoading ? (
+        <div className="py-8 text-center">
+            <Typography.Text type="secondary">Loading…</Typography.Text>
+        </div>
+    ) : filteredRows.length > 0 ? (
+        <div className="department-list">
+            {filteredRows.map((row) => (
+                <BlockCard
+                    key={row.Id}
+                    className="department-card"
+                    onClick={() => navigate(departmentPath(String(row.Id)))}>
+                    <div className="department-card-content">
+                        <strong>
+                            {String(row.Name || 'Unnamed department')}
+                            {row.ShortName ? ` (${String(row.ShortName)})` : ''}
+                        </strong>
+                        <span>{String(row.LeadEmail || 'No lead email')}</span>
+                    </div>
+                </BlockCard>
+            ))}
+        </div>
+    ) : (
+        <Empty description={config.emptyMessage} />
+    );
     const departmentHeader = (
         <div className="antd-page-heading resource-page-heading">
             <div>

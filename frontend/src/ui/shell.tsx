@@ -139,6 +139,11 @@ export function Shell({
         () => window.matchMedia('(max-width: 767px)').matches,
     );
     const isRegistered = Boolean(dashboard?.me.Phone);
+    // Authentication has already completed before Shell mounts. Keep the
+    // primary navigation visible while the dashboard (and therefore role /
+    // registration state) is still loading; only role-specific links need
+    // to wait for dashboard data.
+    const showPrimaryNav = Boolean(userEmail) || isRegistered;
     const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
     const navigationItems = canOpenConfig
         ? [...primaryNavItems, ...topConfigNavItems]
@@ -200,7 +205,7 @@ export function Shell({
                         <img className="app-brand-logo" src={appLogo} alt="" />
                         <Typography.Text strong>Setu</Typography.Text>
                     </Button>
-                    {isRegistered && (
+                    {showPrimaryNav && (
                         <Menu
                             id="desktop-nav"
                             mode="horizontal"
@@ -258,7 +263,7 @@ export function Shell({
                     {children ?? <Outlet />}
                 </Content>
                 {appLoading && <AppLoading />}
-                {isRegistered && (
+                {showPrimaryNav && (
                     <nav id="mobile-dock" className="app-mobile-menu" aria-label="Main navigation">
                         {primaryNavItems.map((item) => (
                             <Link

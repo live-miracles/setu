@@ -1215,7 +1215,8 @@ a.record-block:focus-visible {
 }
 
 .inventory-type-card-heading {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.5rem;
     min-height: 3rem;
@@ -1223,21 +1224,27 @@ a.record-block:focus-visible {
 }
 
 .inventory-type-card-heading > strong {
+    grid-column: 1;
     min-width: 0;
-    flex: 1 1 auto;
     overflow-wrap: anywhere;
 }
 
-.inventory-type-card-heading > .ant-space {
-    flex: 0 0 auto;
+.inventory-type-card-heading > .inventory-type-card-description {
+    grid-column: 1;
+    grid-row: 2;
 }
 
 .inventory-type-card-description {
-    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     color: color-mix(in srgb, var(--setu-ink) 72%, transparent);
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.inventory-type-card-availability {
+    grid-column: 2;
+    grid-row: 1 / span 2;
     white-space: nowrap;
 }
 
