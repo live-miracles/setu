@@ -950,6 +950,7 @@ export function SettingsResourcePage({
                 <DetailSection title="Details">
                     <SettingsDetailFields
                         fields={[
+                            ['Serial number', String(selectedInventoryType.DisplayId ?? '—')],
                             ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
                             ['Brand', String(selectedInventoryType.Brand || '—')],
                             ['Model', String(selectedInventoryType.Model || '—')],
@@ -1098,6 +1099,13 @@ export function SettingsResourcePage({
                                 pagination={false}
                                 dataSource={selectedInventoryType.labels || []}
                                 columns={[
+                                    {
+                                        title: 'Serial number',
+                                        dataIndex: 'DisplayId',
+                                        key: 'DisplayId',
+                                        render: (_: unknown, label: InventoryLabel) =>
+                                            String(label.DisplayId ?? '—'),
+                                    },
                                     {
                                         title: 'Label name',
                                         dataIndex: 'Name',
