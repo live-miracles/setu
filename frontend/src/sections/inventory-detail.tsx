@@ -305,6 +305,12 @@ export function InventoryDetail({
     const selectedInventoryType = dashboard.inventoryTypes.find(
         (type) => type.Id === itemDraft.InventoryTypeId,
     );
+    const selectableInventoryTypes = dashboard.inventoryTypes.filter(
+        (type) =>
+            canApprove(dashboard.me) ||
+            type.Requestable !== false ||
+            type.Id === itemDraft.InventoryTypeId,
+    );
     const uploadRequestImage = async (file: File) => {
         if (!file) return;
         try {
@@ -765,7 +771,7 @@ export function InventoryDetail({
                                 }
                                 className="antd-full-width"
                                 placeholder="Select inventory type">
-                                {dashboard.inventoryTypes.map((type) => (
+                                {selectableInventoryTypes.map((type) => (
                                     <Select.Option key={type.Id} value={type.Id}>
                                         {type.Name}
                                     </Select.Option>
