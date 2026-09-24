@@ -24,6 +24,7 @@ import {
 import { prepareInventoryImage } from '../ui/inventory-image';
 import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
 import { RequestImage } from '../ui/request-image';
+import { inventoryTypeDisplayName } from '../ui/inventory-qr';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
 import { TableView } from '../ui/table-view';
@@ -154,7 +155,7 @@ export function InventoryDetail({
         const saved = await persistItems(
             addScannedInventoryItem(items, scan.type.Id, scan.labelId).map((item) =>
                 item.InventoryTypeId === scan.type.Id && !item.itemName
-                    ? { ...item, itemName: scan.type.Name }
+                    ? { ...item, itemName: inventoryTypeDisplayName(scan.type) }
                     : item,
             ),
         );
@@ -175,7 +176,7 @@ export function InventoryDetail({
         const saved = await persistItems(
             addScannedInventoryItemForIssue(items, scan.type.Id, scan.labelId).map((item) =>
                 item.InventoryTypeId === scan.type.Id && !item.itemName
-                    ? { ...item, itemName: scan.type.Name }
+                    ? { ...item, itemName: inventoryTypeDisplayName(scan.type) }
                     : item,
             ),
         );
@@ -289,7 +290,7 @@ export function InventoryDetail({
             InventoryTypeId: itemDraft.InventoryTypeId,
             Quantity: Math.max(itemDraft.Quantity, itemDraft.LabelIds.length),
             Condition: itemDraft.Condition,
-            itemName: type.Name,
+            itemName: inventoryTypeDisplayName(type),
             labels: itemDraft.LabelIds,
         };
         const nextItems =
@@ -773,7 +774,7 @@ export function InventoryDetail({
                                 placeholder="Select inventory type">
                                 {selectableInventoryTypes.map((type) => (
                                     <Select.Option key={type.Id} value={type.Id}>
-                                        {type.Name}
+                                        {inventoryTypeDisplayName(type)}
                                     </Select.Option>
                                 ))}
                             </Select>
@@ -781,7 +782,7 @@ export function InventoryDetail({
                                 <div className="inventory-type-detail-image mt-3">
                                     <RequestImage
                                         imageId={selectedInventoryType.ImageId}
-                                        alt={selectedInventoryType.Name}
+                                        alt={inventoryTypeDisplayName(selectedInventoryType)}
                                         fallback={<span>No photo</span>}
                                     />
                                 </div>

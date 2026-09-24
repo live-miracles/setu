@@ -42,7 +42,9 @@ export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]>
     return types.map((x) => ({
         Id: x.id,
         DisplayId: x.display_id,
+        Brand: x.brand,
         Name: x.name,
+        Model: x.model,
         Description: x.description,
         Requestable: x.requestable,
         ImageId: x.image_path,

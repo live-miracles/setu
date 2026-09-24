@@ -67,7 +67,9 @@ interface Roster {
 interface InventoryType {
     Id: string;
     DisplayId: number;
+    Brand: string;
     Name: string;
+    Model: string;
     Description: string;
     Requestable: boolean;
     ImageId: string;
@@ -355,7 +357,9 @@ interface CreateRosterInput {
 }
 
 interface CreateInventoryTypeInput {
+    brand: string;
     name: string;
+    model: string;
     description: string;
     requestable: boolean;
     totalQuantity: number;

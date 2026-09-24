@@ -42,9 +42,10 @@ import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
 import {
     inventoryLabelQrFilename,
+    inventoryTypeDisplayName,
     inventoryQrValue,
+    inventoryTypeQrPrintLabel,
     inventoryTypeQrFilename,
-    inventoryTypeQrLabel,
 } from '../ui/inventory-qr';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
@@ -148,6 +149,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
         emptyMessage: 'No equipment catalogued yet.',
         fields: [
             { field: 'Name', label: 'Name' },
+            { field: 'Brand', label: 'Brand' },
+            { field: 'Model', label: 'Model' },
             { field: 'Description', label: 'Description' },
             {
                 field: 'TotalQuantity',
@@ -163,7 +166,9 @@ const RESOURCES: Record<string, ResourceConfig> = {
             },
         ],
         toInput: (v) => ({
+            brand: v.Brand,
             name: v.Name,
+            model: v.Model,
             description: v.Description,
             requestable: v.Requestable === 'on',
             totalQuantity: Number(v.TotalQuantity || 0),
@@ -564,7 +569,9 @@ export function SettingsResourcePage({
                 resource: resourceName,
                 id: row.Id,
                 values: {
+                    brand: String(row.Brand || ''),
                     name: String(row.Name || ''),
+                    model: String(row.Model || ''),
                     description: String(row.Description || ''),
                     requestable: row.Requestable !== false,
                     totalQuantity: Number(row.TotalQuantity || 0),
@@ -592,25 +599,51 @@ export function SettingsResourcePage({
             image.onload = () => resolve();
             image.onerror = () => reject(new Error('Unable to prepare QR code image.'));
         });
-        const displayLabel = inventoryTypeQrLabel(
-            label
-                ? `${String(row.Name || 'Inventory type')} · ${label.Name}`
-                : String(row.Name || 'Inventory type'),
-        );
+        const displayLabel = inventoryTypeQrPrintLabel(row as InventoryTypeDTO, label);
         const canvas = document.createElement('canvas');
-        const labelHeight = 36;
+        const labelPadding = 12;
+        const lineHeight = 30;
+        const labelWidth = 232;
         canvas.width = 256;
-        canvas.height = 256 + labelHeight;
         const context = canvas.getContext('2d');
         if (!context) throw new Error('Unable to prepare QR code image.');
+        context.font = '24px sans-serif';
+        const words = displayLabel.split(/\s+/);
+        const lines: string[] = [];
+        let line = '';
+        const fitWithEllipsis = (text: string): string => {
+            let fitted = text;
+            while (fitted.length > 1 && context.measureText(`${fitted}…`).width > labelWidth) {
+                fitted = fitted.slice(0, -1).trimEnd();
+            }
+            return `${fitted}…`;
+        };
+        words.forEach((word, index) => {
+            const candidate = line ? `${line} ${word}` : word;
+            if (line && context.measureText(candidate).width > labelWidth) {
+                lines.push(line);
+                line = '';
+                if (lines.length === 1) line = word;
+                else line = fitWithEllipsis(`${line} ${words.slice(index).join(' ')}`.trim());
+            } else {
+                line = candidate;
+            }
+        });
+        if (line) lines.push(line);
+        if (lines.length > 2) lines.splice(2);
+        canvas.height = 256 + labelPadding * 2 + lines.length * lineHeight;
+        // Setting canvas.height resets the drawing context state, including
+        // the font, so apply the print font again after sizing the canvas.
+        context.font = '24px sans-serif';
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, 0, 0, 256, 256);
         context.fillStyle = '#333333';
-        context.font = '12px sans-serif';
         context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(displayLabel, canvas.width / 2, 256 + labelHeight / 2);
+        context.textBaseline = 'top';
+        lines.forEach((text, index) => {
+            context.fillText(text, canvas.width / 2, 256 + labelPadding + index * lineHeight);
+        });
         return canvas.toDataURL('image/png');
     }
     async function downloadInventoryTypeQr(row: Row, label?: InventoryLabel) {
@@ -815,7 +848,9 @@ export function SettingsResourcePage({
                             className="inventory-type-card"
                             onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                             <div className="inventory-type-card-heading">
-                                <strong>{String(row.Name || 'Unnamed equipment')}</strong>
+                                <strong>
+                                    {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
+                                </strong>
                                 {row.Description && (
                                     <span className="inventory-type-card-description">
                                         {String(row.Description)}
@@ -828,7 +863,7 @@ export function SettingsResourcePage({
                             <div className="inventory-type-card-image">
                                 <RequestImage
                                     imageId={String(row.ImageId || '')}
-                                    alt={String(row.Name || '')}
+                                    alt={inventoryTypeDisplayName(row)}
                                     fallback={<span>No photo</span>}
                                 />
                             </div>
@@ -897,7 +932,7 @@ export function SettingsResourcePage({
             <div className="antd-page-heading">
                 <div>
                     <Typography.Title level={2}>
-                        {String(selectedInventoryType.Name || 'Unnamed equipment')}
+                        {inventoryTypeDisplayName(selectedInventoryType) || 'Unnamed equipment'}
                     </Typography.Title>
                 </div>
                 <Space wrap>
@@ -916,6 +951,8 @@ export function SettingsResourcePage({
                     <SettingsDetailFields
                         fields={[
                             ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
+                            ['Brand', String(selectedInventoryType.Brand || '—')],
+                            ['Model', String(selectedInventoryType.Model || '—')],
                             ['Description', String(selectedInventoryType.Description || '—')],
                             [
                                 'Availability',
@@ -1034,7 +1071,7 @@ export function SettingsResourcePage({
                                 src={qrCodeUrl}
                                 alt={`QR code for ${String(selectedInventoryType.Name || 'inventory type')}`}
                                 width={256}
-                                height={256}
+                                height="auto"
                             />
                         ) : (
                             <Typography.Text type="secondary">Preparing QR code…</Typography.Text>

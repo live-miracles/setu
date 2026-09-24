@@ -49,7 +49,13 @@ export function inventoryRequestDto(
             InventoryTypeId: i.inventory_type_id,
             Quantity: i.quantity,
             Condition: i.return_condition || '',
-            itemName: typesById.get(i.inventory_type_id)?.name || '',
+            itemName: [
+                typesById.get(i.inventory_type_id)?.brand,
+                typesById.get(i.inventory_type_id)?.name,
+            ]
+                .map((value) => String(value || '').trim())
+                .filter(Boolean)
+                .join(' · '),
             labels: (i.labels || []).map((label: Row) => ({
                 Id: label.id,
                 DisplayId: label.display_id,

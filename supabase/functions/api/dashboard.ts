@@ -98,7 +98,13 @@ export async function dashboard(
             InventoryTypeId: x.inventory_type_id,
             Quantity: x.quantity,
             Condition: x.return_condition || '',
-            itemName: typesById.get(x.inventory_type_id)?.name || '',
+            itemName: [
+                typesById.get(x.inventory_type_id)?.brand,
+                typesById.get(x.inventory_type_id)?.name,
+            ]
+                .map((value) => String(value || '').trim())
+                .filter(Boolean)
+                .join(' · '),
             labels: (labelsByItemId.get(x.id) || []).map((label: Row) => ({
                 Id: label.id,
                 DisplayId: label.display_id,
@@ -150,7 +156,9 @@ export async function dashboard(
         inventoryTypes: types.map((x: Row) => ({
             Id: x.id,
             DisplayId: x.display_id,
+            Brand: x.brand,
             Name: x.name,
+            Model: x.model,
             Description: x.description,
             Requestable: x.requestable,
             ImageId: x.image_path,

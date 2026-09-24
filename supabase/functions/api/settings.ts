@@ -189,7 +189,9 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
     return {
         Id: row.id,
         DisplayId: row.display_id,
+        Brand: row.brand,
         Name: row.name,
+        Model: row.model,
         Description: row.description,
         Requestable: row.requestable,
         ImageId: row.image_path,
@@ -302,6 +304,8 @@ export async function createInventoryType(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
+    const brand = String(input.brand || '').trim();
+    const model = String(input.model || '').trim();
     if (!(Number(input.totalQuantity) >= 0))
         throw new Error('Total quantity must not be negative.');
     const { result: dto } = await withLockedDedupe(
@@ -313,7 +317,9 @@ export async function createInventoryType(
                 await admin
                     .from('inventory_types')
                     .insert({
+                        brand,
                         name,
+                        model,
                         description: String(input.description || ''),
                         requestable: input.requestable !== false,
                         image_path: String(input.imageId || ''),
@@ -321,7 +327,7 @@ export async function createInventoryType(
                     })
                     .select('*')
                     .single(),
-                'An inventory type with this name already exists.',
+                'An inventory type with this brand, name, and model already exists.',
             ) as Row;
             return inventoryTypeDto(client, row);
         },
@@ -339,6 +345,8 @@ export async function updateInventoryType(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
+    const brand = String(input.brand || '').trim();
+    const model = String(input.model || '').trim();
     if (!(Number(input.totalQuantity) >= 0))
         throw new Error('Total quantity must not be negative.');
     const { result: dto } = await withLockedDedupe(
@@ -353,7 +361,9 @@ export async function updateInventoryType(
                 await admin
                     .from('inventory_types')
                     .update({
+                        brand,
                         name,
+                        model,
                         description: String(input.description || ''),
                         requestable: input.requestable !== false,
                         image_path:
@@ -365,7 +375,7 @@ export async function updateInventoryType(
                     .eq('id', id)
                     .select('*')
                     .single(),
-                'An inventory type with this name already exists.',
+                'An inventory type with this brand, name, and model already exists.',
             ) as Row;
             return inventoryTypeDto(client, row);
         },
