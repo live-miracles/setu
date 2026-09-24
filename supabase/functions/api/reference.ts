@@ -41,6 +41,7 @@ export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]>
     );
     return types.map((x) => ({
         Id: x.id,
+        DisplayId: x.display_id,
         Name: x.name,
         Description: x.description,
         Requestable: x.requestable,
@@ -51,6 +52,7 @@ export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]>
             .filter((label) => label.inventory_type_id === x.id)
             .map((label) => ({
                 Id: label.id,
+                DisplayId: label.display_id,
                 InventoryTypeId: label.inventory_type_id,
                 Name: label.name,
             })),

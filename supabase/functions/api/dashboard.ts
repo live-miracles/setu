@@ -101,6 +101,7 @@ export async function dashboard(
             itemName: typesById.get(x.inventory_type_id)?.name || '',
             labels: (labelsByItemId.get(x.id) || []).map((label: Row) => ({
                 Id: label.id,
+                DisplayId: label.display_id,
                 InventoryTypeId: label.inventory_type_id,
                 Name: label.name,
             })),
@@ -148,6 +149,7 @@ export async function dashboard(
         places: places.map((x: Row) => ({ Id: x.id, Name: x.name })),
         inventoryTypes: types.map((x: Row) => ({
             Id: x.id,
+            DisplayId: x.display_id,
             Name: x.name,
             Description: x.description,
             Requestable: x.requestable,
@@ -158,6 +160,7 @@ export async function dashboard(
                 .filter((label: Row) => label.inventory_type_id === x.id)
                 .map((label: Row) => ({
                     Id: label.id,
+                    DisplayId: label.display_id,
                     InventoryTypeId: label.inventory_type_id,
                     Name: label.name,
                 })),

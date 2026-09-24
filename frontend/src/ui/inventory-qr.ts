@@ -3,6 +3,14 @@ export function parseInventoryQrValue(
     decodedValue: string,
 ): { type: InventoryTypeDTO; labelId: string | null } | null {
     const value = decodedValue.trim();
+    if (/^\d+(?:-\d+)?$/.test(value)) {
+        const [inventoryTypeCode, labelCode] = value.split('-');
+        const type = types.find((entry) => String(entry.DisplayId) === inventoryTypeCode);
+        if (!type) return null;
+        if (labelCode === undefined) return { type, labelId: null };
+        const label = (type.labels || []).find((entry) => String(entry.DisplayId) === labelCode);
+        return label ? { type, labelId: label.Id } : null;
+    }
     const [inventoryTypeId, labelId, ...extra] = value.split(':');
     if (extra.length > 0 || !inventoryTypeId) return null;
     const type = types.find((entry) => entry.Id === inventoryTypeId);
@@ -78,8 +86,13 @@ export function inventoryItemHasLabel(
     );
 }
 
-export function inventoryQrValue(inventoryTypeId: string, labelId?: string | null): string {
-    return labelId ? `${inventoryTypeId}:${labelId}` : inventoryTypeId;
+export function inventoryQrValue(
+    inventoryType: Pick<InventoryTypeDTO, 'Id' | 'DisplayId'>,
+    label?: Pick<InventoryLabel, 'Id' | 'DisplayId'> | null,
+): string {
+    return label
+        ? `${inventoryType.DisplayId}-${label.DisplayId}`
+        : String(inventoryType.DisplayId);
 }
 
 export function inventoryTypeQrFilename(type: InventoryTypeDTO): string {

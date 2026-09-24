@@ -188,6 +188,7 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
     const available = availability.find((x) => x.inventory_type_id === row.id);
     return {
         Id: row.id,
+        DisplayId: row.display_id,
         Name: row.name,
         Description: row.description,
         Requestable: row.requestable,
@@ -196,6 +197,7 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
         availableQuantity: available ? available.available_quantity : row.total_quantity,
         labels: labels.map((label) => ({
             Id: label.id,
+            DisplayId: label.display_id,
             InventoryTypeId: label.inventory_type_id,
             Name: label.name,
         })),
@@ -235,7 +237,12 @@ export async function createInventoryLabel(
             ) as Row;
         },
     );
-    return { Id: label.id, InventoryTypeId: label.inventory_type_id, Name: label.name };
+    return {
+        Id: label.id,
+        DisplayId: label.display_id,
+        InventoryTypeId: label.inventory_type_id,
+        Name: label.name,
+    };
 }
 
 export async function deleteInventoryLabel(
@@ -278,7 +285,12 @@ export async function updateInventoryLabel(
                 'A label with this name already exists for this inventory type.',
             ) as Row,
     );
-    return { Id: label.id, InventoryTypeId: label.inventory_type_id, Name: label.name };
+    return {
+        Id: label.id,
+        DisplayId: label.display_id,
+        InventoryTypeId: label.inventory_type_id,
+        Name: label.name,
+    };
 }
 
 export async function createInventoryType(

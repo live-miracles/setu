@@ -52,6 +52,7 @@ export function inventoryRequestDto(
             itemName: typesById.get(i.inventory_type_id)?.name || '',
             labels: (i.labels || []).map((label: Row) => ({
                 Id: label.id,
+                DisplayId: label.display_id,
                 InventoryTypeId: label.inventory_type_id,
                 Name: label.name,
             })),

@@ -582,7 +582,7 @@ export function SettingsResourcePage({
     }
     async function createInventoryTypeQrDataUrl(row: Row, label?: InventoryLabel): Promise<string> {
         const QRCode = (await import('qrcode')).default;
-        const qrDataUrl = await QRCode.toDataURL(inventoryQrValue(String(row.Id), label?.Id), {
+        const qrDataUrl = await QRCode.toDataURL(inventoryQrValue(row as InventoryTypeDTO, label), {
             margin: 2,
             width: 256,
         });
