@@ -53,9 +53,8 @@ export async function findRequestOwner(
     return null;
 }
 
-// Notifications (email/WhatsApp) aren't wired up yet — the source app sent
-// one on every comment via sendCommentNotification; this only writes the
-// row for now. The email_outbox table exists for exactly this, unbuilt.
+// The database trigger creates one email_outbox row per comment after insert.
+// The Apps Script worker delivers that row asynchronously.
 export async function addComment(
     client: SupabaseClient,
     admin: SupabaseClient,

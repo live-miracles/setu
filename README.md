@@ -11,8 +11,9 @@ inventory, programs, home content, and user settings.
 
 This architecture can run on the free tiers of Supabase and Vercel for both
 the Setu and Setu Dev environments, within each provider's current quotas and
-terms. Supabase hosts the database, Storage, Edge Functions, and the 10-minute
-`pg_cron` job; Vercel only serves the static frontend. Supabase's current Free
+terms. Supabase hosts the database, Storage, and Edge Functions; Apps Script
+runs the 10-minute comment-email worker, and Vercel only serves the static
+frontend. Supabase's current Free
 plan includes two active projects, 500,000 Edge Function invocations, 1 GB of
 file storage, and 500 MB of database storage per project. Free projects pause
 after 7 days with no API activity — each project's pause timer is independent,
@@ -33,12 +34,9 @@ these):
 Trigger a manual run from the **Actions** tab (**Keep Supabase projects
 alive → Run workflow**) to verify it after setup.
 
-Comment email delivery also depends on the email provider's limits. The
-current Resend Free plan includes 3,000 transactional emails per month with a
-100-email daily limit. The application intentionally treats delivery as
-best-effort and does not retry failed messages. Vercel's Hobby plan has its
-own usage limits and is intended for personal, non-commercial use, so check
-Vercel's current terms if this becomes a commercial deployment.
+Comment email delivery depends on the Google Workspace account running the
+Apps Script worker. Apps Script has Workspace email-recipient and execution
+quotas, so this path is intended for Setu's low-volume internal notifications.
 
 See the providers' current plan details before relying on these numbers:
 [Supabase pricing](https://supabase.com/pricing),
@@ -144,22 +142,32 @@ npx supabase link --project-ref <project-ref>
 npx supabase db push
 npx supabase secrets set SETU_APP_ORIGIN=http://localhost:3000
 npx supabase functions deploy api
-npx supabase functions deploy email-dispatcher
 ```
 
 Comment email delivery
 
-Comments enqueue email rows transactionally in `email_outbox`. Deploy the
-`email-dispatcher` function with `RESEND_API_KEY`, `EMAIL_FROM`, and a shared
-`EMAIL_DISPATCH_SECRET`. Schedule an authenticated POST to the function every
-10 minutes using the checked-in Supabase Cron/pg_net job. Store the project
-URL in Vault as `setu_project_url` and the same dispatch secret used by the
-function as `setu_email_dispatch_secret`. The dispatcher claims at most 100 pending
-rows, marks successful deliveries as `sent`, and marks failures as terminal
-`failed` rows; failed mail is intentionally not retried.
+Comments enqueue email rows transactionally in `email_outbox`. The Apps Script
+worker in `src/EmailDispatcher.ts` claims at most 100 pending rows through the
+Supabase RPC, sends them using the Workspace account's `MailApp` permission, and
+marks each row `sent` or `failed`. It uses a script lock to prevent overlapping
+runs and never clears a row before its send succeeds.
 
-If any of `RESEND_API_KEY`, `EMAIL_FROM`, or `EMAIL_DISPATCH_SECRET` is empty,
-the dispatcher immediately returns without claiming or sending any queue rows.
+After the first Apps Script deployment, run `installEmailDispatcherTrigger`
+once from the Apps Script editor. Configure these Script Properties on the
+Apps Script project: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and
+`EMAIL_TO`. `EMAIL_TO` is copied into CC so the administrators' monitoring
+mailbox receives every comment update. The worker sends nothing while
+`EMAIL_TO` is empty. With `MailApp`, the visible sender is the Google account
+running the Apps Script; `EMAIL_TO` is the monitoring CC and default reply
+address. Configure
+`EMAIL_REPLY_TO` only if replies should go elsewhere.
+`EMAIL_SENDER_NAME` defaults to `Live Stream Setu`. The service-role key is
+stored only in Apps Script properties and must never be placed in frontend code.
+
+The GitHub deployment workflow uses the previous clasp flow. It expects the
+repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and
+`APPS_SCRIPT_DEPLOYMENT_ID`; it runs for version tags (`v*`) or manually from
+the Actions tab.
 
 Email-domain access control
 
