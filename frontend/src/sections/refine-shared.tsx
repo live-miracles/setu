@@ -214,6 +214,7 @@ export function TextField({
     label,
     value,
     type = 'text',
+    list,
     required = false,
     pattern,
     title,
@@ -225,6 +226,7 @@ export function TextField({
     label: string;
     value?: string | number;
     type?: string;
+    list?: string;
     required?: boolean;
     pattern?: string;
     title?: string;
@@ -246,6 +248,7 @@ export function TextField({
                 {...registrationProps}
                 name={name}
                 type={type}
+                list={list}
                 value={onChange ? (value ?? '') : undefined}
                 defaultValue={onChange ? undefined : (value ?? '')}
                 required={required}
