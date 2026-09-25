@@ -15,6 +15,8 @@
 - Before implementing non-trivial work, inspect the relevant code, documentation, and current repository state; state important assumptions when they affect the design.
 - For libraries, frameworks, APIs, or third-party services, consult current official documentation before relying on API syntax or service behavior.
 - Prefer simple, maintainable architecture that fits a small internal app. Introduce additional layers, infrastructure, or abstractions only when they solve a demonstrated need.
+- Before making UI changes, inspect similar screens, flows, and components already used in the app and follow their established patterns so the UI remains uniform.
+- When a UI or logic pattern is meaningfully repeated, consider extracting it into a reusable component or shared helper; avoid abstractions for one-off or merely similar code.
 
 ## Effort and verification
 
