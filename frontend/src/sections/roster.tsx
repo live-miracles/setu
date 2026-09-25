@@ -87,6 +87,9 @@ export function Roster({ dashboard }: Props) {
                     endTime: String(d.get('endTime') || ''),
                     userId: String(d.get('userId') || ''),
                 };
+                const startAt = `${v.startDate}T${v.startTime || '00:00'}`;
+                const endAt = `${v.endDate}T${v.endTime || '00:00'}`;
+                if (endAt <= startAt) throw new Error('End time is before start time.');
                 const mutateOptions = {
                     successNotification: false,
                     errorNotification: false,
