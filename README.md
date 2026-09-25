@@ -179,9 +179,11 @@ the Actions tab.
 Supabase migrations and the `api` Edge Function are deployed automatically to
 both Setu production and Setu Dev by
 `.github/workflows/deploy-supabase.yml` on pushes to `master`. Add the
-`SUPABASE_ACCESS_TOKEN` repository secret, then use the workflow's manual
-dispatch when needed. The workflow applies migrations independently to each
-project before deploying its API function.
+`SUPABASE_ACCESS_TOKEN_PROD` and `SUPABASE_ACCESS_TOKEN_DEV` repository
+secrets, then use the workflow's manual dispatch when needed. The workflow
+applies migrations independently to each project before deploying its API
+function. If one Supabase access token has permission for both projects, it may
+be stored in both secrets; separate tokens keep the environments isolated.
 
 Email-domain access control
 
