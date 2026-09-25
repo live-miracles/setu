@@ -165,9 +165,6 @@ copy of every email; multiple comma-separated addresses are supported. The
 configured address is added alongside the lead and request participants, with
 duplicates and the primary recipient removed automatically.
 
-See [the Apps Script email dispatcher guide](docs/email-dispatcher.md) for the
-complete Script Properties and deployment setup.
-
 The GitHub deployment workflow uses the previous clasp flow. It expects the
 repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and
 `APPS_SCRIPT_DEPLOYMENT_ID`; it runs for version tags (`v*`) or manually from
