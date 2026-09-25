@@ -165,6 +165,19 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 hiddenInTable: true,
             },
         ],
+        sortRows: (rows) =>
+            [...rows].sort((a, b) => {
+                const brandCompare = String(a.Brand || '').localeCompare(
+                    String(b.Brand || ''),
+                    undefined,
+                    { numeric: true, sensitivity: 'base' },
+                );
+                if (brandCompare !== 0) return brandCompare;
+                return String(a.Name || '').localeCompare(String(b.Name || ''), undefined, {
+                    numeric: true,
+                    sensitivity: 'base',
+                });
+            }),
         toInput: (v) => ({
             brand: v.Brand,
             name: v.Name,
