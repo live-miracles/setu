@@ -57,8 +57,12 @@ export function InventoryDetail({
             id: request.Id,
             invalidates: ['list', 'many', 'detail'],
         });
+    const currentUserEmail = dashboard.me.Email.trim().toLowerCase();
     const owner =
-        request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
+        request.UserId.trim().toLowerCase() === currentUserEmail ||
+        (request.participants || []).some(
+            (email) => email.trim().toLowerCase() === currentUserEmail,
+        );
     const approver = canApprove(dashboard.me);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
     const deletable =
@@ -393,12 +397,6 @@ export function InventoryDetail({
         ['submit', 'approve', 'reject', 'issue', 'close', 'cancel'] as InventoryRequestAction[]
     )
         .filter((action) => canTransitionInventoryRequest(request.Status, action))
-        .filter(
-            (action) =>
-                action !== 'close' ||
-                request.Status !== 'issued' ||
-                (items.length > 0 && items.every((item) => Boolean(item.Condition))),
-        )
         .filter((action) => (action === 'submit' ? owner : canApprove(dashboard.me)));
     return (
         <DetailLayout

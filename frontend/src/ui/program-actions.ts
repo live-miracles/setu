@@ -34,13 +34,13 @@ export function buildDuplicateProgramInput(
 }
 
 export function canRescheduleProgram(request: ProgramRequestDTO, me: UserDTO): boolean {
-    const isOwner = request.UserId === me.Email || request.participants.includes(me.Email);
+    const email = me.Email.trim().toLowerCase();
+    const isOwner =
+        request.UserId.trim().toLowerCase() === email ||
+        (request.participants || []).some(
+            (participant) => participant.trim().toLowerCase() === email,
+        );
     return me.Role === 'admin' || me.Role === 'approver' || (request.Status === 'draft' && isOwner);
-}
-
-function canCancelProgram(request: ProgramRequestDTO): boolean {
-    if (request.Status !== 'approved' || !request.sessions.length) return true;
-    return request.sessions.some((session) => Date.parse(session.EndDateTime) >= Date.now());
 }
 
 export function getProgramRequestActions(
@@ -49,12 +49,15 @@ export function getProgramRequestActions(
 ): ProgramRequestAction[] {
     if (canApprove(me)) {
         return (['submit', 'approve', 'reject', 'cancel'] as ProgramRequestAction[]).filter(
-            (action) =>
-                canTransitionProgramRequest(request.Status, action) &&
-                (action !== 'cancel' || canCancelProgram(request)),
+            (action) => canTransitionProgramRequest(request.Status, action),
         );
     }
-    const isOwner = request.UserId === me.Email || request.participants.includes(me.Email);
+    const email = me.Email.trim().toLowerCase();
+    const isOwner =
+        request.UserId.trim().toLowerCase() === email ||
+        (request.participants || []).some(
+            (participant) => participant.trim().toLowerCase() === email,
+        );
     return request.Status === 'draft' && isOwner ? ['submit'] : [];
 }
 

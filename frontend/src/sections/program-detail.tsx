@@ -75,8 +75,12 @@ export function ProgramDetail({
             id: request.Id,
             invalidates: ['list', 'many', 'detail'],
         });
+    const currentUserEmail = dashboard.me.Email.trim().toLowerCase();
     const owner =
-        request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
+        request.UserId.trim().toLowerCase() === currentUserEmail ||
+        (request.participants || []).some(
+            (email) => email.trim().toLowerCase() === currentUserEmail,
+        );
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
     const deletable =
         ['draft', 'cancelled', 'rejected'].includes(request.Status) &&

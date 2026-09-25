@@ -95,6 +95,13 @@ export function runProgramActionAssertions(): void {
     );
     assert(
         canRescheduleProgram(
+            { ...source, Status: 'draft', participants: [], UserId: 'OWNER@EXAMPLE.COM' },
+            user('user', 'owner@example.com'),
+        ),
+        'requesters should be able to act when no participants are provided',
+    );
+    assert(
+        canRescheduleProgram(
             { ...source, Status: 'draft', UserId: 'other@example.com' },
             user('user', 'guest@example.com'),
         ),
@@ -130,10 +137,17 @@ export function runProgramActionAssertions(): void {
         'users should not see actions for another users draft',
     );
     assert(
-        !getProgramRequestActions({ ...source, Status: 'approved' }, user('approver')).includes(
+        getProgramRequestActions(
+            { ...source, Status: 'draft', participants: [], UserId: 'OWNER@EXAMPLE.COM' },
+            user('user', 'owner@example.com'),
+        ).join(',') === 'submit',
+        'requesters should see submit when participants are empty',
+    );
+    assert(
+        getProgramRequestActions({ ...source, Status: 'approved' }, user('approver')).includes(
             'cancel',
         ),
-        'approvers should not cancel approved programs whose sessions are past',
+        'approvers should see cancel even when the backend may reject a past program',
     );
     assert(
         getProgramRequestActions(
