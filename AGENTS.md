@@ -34,5 +34,6 @@
 
 ## Validation before commits
 
+- Before committing, always review the complete diff again to confirm the changes are correct, scoped to the request, and free of obvious bugs or regressions.
 - Always run the repository's formatting and format-check commands before committing, and fix any reported issues.
 - For substantial changes, also run the complete test suite before committing.
