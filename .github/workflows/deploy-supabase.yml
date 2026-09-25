@@ -8,8 +8,6 @@ on:
             - 'supabase/migrations/**'
             - 'supabase/functions/**'
             - 'supabase/config.toml'
-            - 'package.json'
-            - 'package-lock.json'
     workflow_dispatch:
 
 permissions:
@@ -58,7 +56,7 @@ jobs:
                     files=$(git diff --name-only "${{ github.event.before }}" "$GITHUB_SHA")
                   fi
 
-                  if grep -Eq '^(supabase/migrations/|supabase/config.toml$|package(-lock)?\.json$)' <<< "$files"; then
+                  if grep -Eq '^(supabase/migrations/|supabase/config.toml$)' <<< "$files"; then
                     echo "migrations=true" >> "$GITHUB_OUTPUT"
                   else
                     echo "migrations=false" >> "$GITHUB_OUTPUT"
