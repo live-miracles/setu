@@ -26,8 +26,6 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
         const properties = PropertiesService.getScriptProperties();
         const supabaseUrl = requiredProperty(properties, 'SUPABASE_URL');
         const serviceRoleKey = requiredProperty(properties, 'SUPABASE_SERVICE_ROLE_KEY');
-        const adminEmail = properties.getProperty('EMAIL_TO')?.trim() || '';
-        if (!adminEmail) return { processed: 0, sent: 0, failed: 0 };
         const senderName = properties.getProperty('EMAIL_SENDER_NAME') || 'Live Stream Setu';
         const remainingQuota = MailApp.getRemainingDailyQuota();
         if (remainingQuota <= 0) return { processed: 0, sent: 0, failed: 0 };
@@ -49,9 +47,6 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
                 const cc = (row.payload?.cc || []).filter(
                     (email) => email.trim().toLowerCase() !== row.recipient.trim().toLowerCase(),
                 );
-                if (!cc.some((email) => email.trim().toLowerCase() === adminEmail.toLowerCase())) {
-                    cc.push(adminEmail);
-                }
 
                 MailApp.sendEmail({
                     to: row.recipient,
@@ -59,7 +54,7 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
                     subject,
                     body,
                     name: senderName,
-                    replyTo: properties.getProperty('EMAIL_REPLY_TO') || adminEmail,
+                    noReply: true,
                 });
                 updateRow(supabaseUrl, serviceRoleKey, row.id, {
                     status: 'sent',

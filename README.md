@@ -154,15 +154,11 @@ runs and never clears a row before its send succeeds.
 
 After the first Apps Script deployment, run `installEmailDispatcherTrigger`
 once from the Apps Script editor. Configure these Script Properties on the
-Apps Script project: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and
-`EMAIL_TO`. `EMAIL_TO` is copied into CC so the administrators' monitoring
-mailbox receives every comment update. The worker sends nothing while
-`EMAIL_TO` is empty. With `MailApp`, the visible sender is the Google account
-running the Apps Script; `EMAIL_TO` is the monitoring CC and default reply
-address. Configure
-`EMAIL_REPLY_TO` only if replies should go elsewhere.
-`EMAIL_SENDER_NAME` defaults to `Live Stream Setu`. The service-role key is
-stored only in Apps Script properties and must never be placed in frontend code.
+Apps Script project: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+`EMAIL_SENDER_NAME` defaults to `Live Stream Setu`. Emails use `MailApp` with
+`noReply: true`, matching the existing GCP monitor workflow. The service-role
+key is stored only in Apps Script properties and must never be placed in
+frontend code.
 
 The GitHub deployment workflow uses the previous clasp flow. It expects the
 repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and
