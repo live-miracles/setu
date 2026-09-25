@@ -176,6 +176,13 @@ repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and
 `APPS_SCRIPT_DEPLOYMENT_ID`; it runs for version tags (`v*`) or manually from
 the Actions tab.
 
+Supabase migrations and the `api` Edge Function are deployed automatically to
+both Setu production and Setu Dev by
+`.github/workflows/deploy-supabase.yml` on pushes to `master`. Add the
+`SUPABASE_ACCESS_TOKEN` repository secret, then use the workflow's manual
+dispatch when needed. The workflow applies migrations independently to each
+project before deploying its API function.
+
 Email-domain access control
 
 The Admin Settings page manages the allowed email domains. An empty list keeps
