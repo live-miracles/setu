@@ -29,13 +29,6 @@ import { Modal, Page, SaveFooter, TextField, useSave } from './refine-shared';
 type Props = { dashboard: DashboardPayload };
 
 export const OTHER_PROGRAM_TYPE = 'Other';
-export const PROGRAM_REQUEST_STATUSES: ProgramRequestStatus[] = [
-    'draft',
-    'submitted',
-    'approved',
-    'rejected',
-    'cancelled',
-];
 export const requesterOptionLabel = (user: UserDTO): string => user.Name + ' <' + user.Email + '>';
 
 export function programTypeOptions(programTypes: ProgramType[], current = ''): string[] {
@@ -119,7 +112,6 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                 ? [{ field: 'dateScope', operator: 'eq' as const, value: dateScope }]
                 : []),
         ],
-        sorters: [{ field: isProgram ? 'sessionStart' : 'startDate', order: 'asc' }],
     });
     const rows = result.data;
     const loading = query.isLoading;
