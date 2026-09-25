@@ -203,6 +203,8 @@ export async function getProgramRequest(
     );
 }
 
+const PROGRAM_REQUEST_STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
+
 // `name` is only required when Type is 'Other' — every other program type
 // carries its own name (matches PROGRAM_REQUIRED_FIELDS in Programs.ts).
 export function validateProgramSessions(sessions: Row[], requireAtLeastOne = true): Row[] {
@@ -538,6 +540,11 @@ export async function updateProgramRequest(
     );
     const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
     const participantEmails = parseParticipants(input.participants);
+    const requestedStatus = input.status as string | undefined;
+    if (requestedStatus && PROGRAM_REQUEST_STATUSES.indexOf(requestedStatus) === -1) {
+        throw new Error('Invalid status.');
+    }
+
     const { result: dto } = await withLockedDedupe(
         admin,
         'program_request:update:' + id,
@@ -562,6 +569,10 @@ export async function updateProgramRequest(
             if (existing.requester_id !== requestedBy.id && !isApprover) {
                 throw new Error('You cannot reassign the requester.');
             }
+            const nextStatus = requestedStatus || existing.status;
+            if (nextStatus !== existing.status && !isApprover) {
+                throw new Error('Only an approver can change the status.');
+            }
             const updated = result(
                 await admin
                     .from('program_requests')
@@ -573,6 +584,7 @@ export async function updateProgramRequest(
                         place_id: newPlaceId,
                         department_id: department.id,
                         lead_email: leadEmail,
+                        status: nextStatus,
                     })
                     .eq('id', id)
                     .select('*')
@@ -590,6 +602,15 @@ export async function updateProgramRequest(
                 if (error) throw new Error(error.message);
             }
             await replaceParticipants(admin, 'program_request_participants', id, participantEmails);
+            if (nextStatus !== existing.status) {
+                await insertActionComment(
+                    admin,
+                    'program_request',
+                    id,
+                    actor.id,
+                    'Changed the status to ' + nextStatus + '.',
+                );
+            }
             return updated;
         },
     );
@@ -625,8 +646,8 @@ export async function updateProgramRequestParticipants(
     return getProgramRequest(client, admin, id);
 }
 
-// Same shape as the inventory workflow minus the issue/return step. Rejected
-// programs can be reopened as drafts for revision and resubmission.
+// Ported from performProgramRequestAction in Programs.ts — same shape as
+// performInventoryRequestAction minus the issue/return step.
 export async function performProgramRequestAction(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -666,16 +687,7 @@ export async function performProgramRequestAction(
                 if (!sessions.length) throw new Error('At least one session is required.');
                 if (!isApprover) await assertProgramSessionsNotBlockedForUser(admin, sessions);
                 computedStatus = 'submitted';
-                await narrate(actor.name + ' submitted this request.');
-            } else if (action === 'revise') {
-                const isOwner =
-                    request.requester_id === actor.id ||
-                    participants.some((p) => p.profile_id === actor.id);
-                if ((!isOwner && !isApprover) || request.status !== 'rejected') {
-                    throw new Error('Invalid transition.');
-                }
-                computedStatus = 'draft';
-                await narrate(actor.name + ' reopened this request for revision.');
+                await narrate('Submitted this request.');
             } else {
                 if (!isApprover) throw new Error('Approver access is required.');
                 if (action === 'approve') {

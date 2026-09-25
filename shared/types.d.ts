@@ -17,7 +17,7 @@ type InventoryRequestStatus =
 type ProgramRequestStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled';
 type ReturnCondition = 'returned' | 'damaged' | 'missing';
 type InventoryRequestAction = 'submit' | 'approve' | 'reject' | 'issue' | 'cancel' | 'close';
-type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'revise' | 'cancel';
+type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel';
 
 // ---------------------------------------------------------------------------
 // Sheet row shapes (raw, one per tab)
@@ -446,6 +446,7 @@ interface UpdateProgramRequestInput {
     departmentId: string;
     leadEmail: string;
     participants: string;
+    status: ProgramRequestStatus;
 }
 
 interface UpdateHomeContentInput {

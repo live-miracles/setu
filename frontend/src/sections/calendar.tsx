@@ -72,9 +72,6 @@ export function Calendar({ dashboard }: Props) {
                     />
                 </Space>
             }>
-            <Typography.Paragraph type="secondary" className="calendar-visibility-note">
-                Only approved programs with at least one session appear on the Calendar.
-            </Typography.Paragraph>
             {/* A refresh keeps the grid up: only a month we have nothing for yet
                 is worth replacing with a loading line. */}
             {loading && !monthData ? (
@@ -170,7 +167,7 @@ export function Calendar({ dashboard }: Props) {
                     </table>
                 </div>
             ) : (
-                <Empty>No approved programs with sessions are scheduled for this month.</Empty>
+                <Empty>No approved programs scheduled.</Empty>
             )}
         </Page>
     );
