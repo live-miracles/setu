@@ -1,4 +1,5 @@
 import { Spin, Typography } from 'antd';
+import { useState } from 'react';
 import loadingBackground from '../../assets/loading-background.avif';
 import { getRandomQuote } from './quotes';
 
@@ -15,6 +16,8 @@ export { APP_LOADING_EVENT };
 // fixed full-viewport overlay `main.ts` uses before that page exists at all,
 // so the page's own title/action bar around it stays visible.
 export function AppLoading({ inline = false }: { inline?: boolean } = {}) {
+    const [quote] = useState(getRandomQuote);
+
     return (
         <div
             className={`app-loading${inline ? ' app-loading-inline' : ''}`}
@@ -22,7 +25,7 @@ export function AppLoading({ inline = false }: { inline?: boolean } = {}) {
             aria-live="polite"
             style={{ backgroundImage: `url(${loadingBackground})` }}>
             <Spin size="large" />
-            <Typography.Text className="app-loading-quote">“{getRandomQuote()}”</Typography.Text>
+            <Typography.Text className="app-loading-quote">“{quote}”</Typography.Text>
         </div>
     );
 }

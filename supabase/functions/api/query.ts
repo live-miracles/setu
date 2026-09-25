@@ -25,7 +25,7 @@ export function matchesSearch(query: unknown, values: unknown[]): boolean {
         .split(/\s+/)
         .filter(Boolean);
     if (!needles.length) return true;
-    return needles.some((needle) =>
+    return needles.every((needle) =>
         values.some((value) => normalizedSearch(value).indexOf(needle) !== -1),
     );
 }
