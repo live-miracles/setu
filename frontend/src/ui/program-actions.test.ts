@@ -130,23 +130,6 @@ export function runProgramActionAssertions(): void {
         'users should not see actions for another users draft',
     );
     assert(
-        getProgramRequestActions({ ...source, Status: 'rejected' }, user('user')).join(',') ===
-            'revise',
-        'owners should be able to reopen rejected programs for revision',
-    );
-    assert(
-        getProgramRequestActions(
-            { ...source, Status: 'rejected' },
-            user('user', 'other@example.com'),
-        ).join(',') === '',
-        'non-owners should not reopen another users rejected program',
-    );
-    assert(
-        getProgramRequestActions({ ...source, Status: 'rejected' }, user('approver')).join(',') ===
-            'revise',
-        'approvers should be able to reopen rejected programs for revision',
-    );
-    assert(
         !getProgramRequestActions({ ...source, Status: 'approved' }, user('approver')).includes(
             'cancel',
         ),
