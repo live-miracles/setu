@@ -155,6 +155,8 @@ runs and never clears a row before its send succeeds.
 After the first Apps Script deployment, run `installEmailDispatcherTrigger`
 once from the Apps Script editor. Configure these Script Properties on the
 Apps Script project: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+Set `APP_URL` to the deployed Setu origin so comment emails can include
+working “View request” links.
 `EMAIL_SENDER_NAME` defaults to `Live Stream Setu`. Emails use `MailApp` with
 `noReply: true`, matching the existing GCP monitor workflow. The service-role
 key is stored only in Apps Script properties and must never be placed in

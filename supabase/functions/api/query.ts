@@ -65,7 +65,7 @@ export function commentDto(x: Row, profilesById: Map<string, Row>): Row {
         RequestId: x.inventory_request_id || x.program_request_id,
         UserId: author?.email || '',
         Message: x.message,
-        userName: author?.name || '',
+        userName: x.author_name || author?.name || 'Setu Bot',
     };
 }
 

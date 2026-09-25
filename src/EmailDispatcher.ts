@@ -7,6 +7,11 @@ type EmailOutboxRow = {
         cc?: string[];
         message?: string;
         targetName?: string;
+        authorName?: string;
+        requestPath?: string;
+        automatedReminder?: boolean;
+        sessions?: Array<{ name?: string; type?: string; startAt?: string; endAt?: string }>;
+        items?: Array<{ name?: string; quantity?: number }>;
     };
     attempts: number;
 };
@@ -42,8 +47,10 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
             try {
                 const targetName = row.payload?.targetName || 'Setu request';
                 const message = row.payload?.message || '';
-                const subject = `New comment on ${targetName}`;
-                const body = `${message}\n\nOpen Setu to view the conversation.`;
+                const subject = row.payload?.automatedReminder
+                    ? `Reminder: equipment due back for ${targetName}`
+                    : `New comment on ${targetName}`;
+                const body = formatEmailBody(message, row.payload, properties);
                 const cc = (row.payload?.cc || []).filter(
                     (email) => email.trim().toLowerCase() !== row.recipient.trim().toLowerCase(),
                 );
@@ -75,6 +82,44 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
     } finally {
         lock.releaseLock();
     }
+}
+
+function formatEmailBody(
+    message: string,
+    payload: EmailOutboxRow['payload'],
+    properties: GoogleAppsScript.Properties.Properties,
+): string {
+    const author = payload.authorName || 'Setu Bot';
+    const sections: string[] = [`${author} commented:\n\n${message}`];
+    if (payload.sessions?.length) {
+        sections.push(
+            'Sessions:\n' +
+                payload.sessions
+                    .map(
+                        (session) =>
+                            `- ${session.name || session.type || 'Session'}: ${session.startAt || ''} – ${session.endAt || ''}`,
+                    )
+                    .join('\n'),
+        );
+    }
+    if (payload.items?.length) {
+        sections.push(
+            'Inventory items:\n' +
+                payload.items
+                    .map((item) => `- ${item.quantity || 0} × ${item.name || 'Unnamed item'}`)
+                    .join('\n'),
+        );
+    }
+    const appUrl = (properties.getProperty('APP_URL') || '').trim().replace(/\/$/, '');
+    const requestUrl = payload.requestPath
+        ? appUrl
+            ? `${appUrl}${payload.requestPath}`
+            : payload.requestPath
+        : '';
+    sections.push(
+        requestUrl ? `View request: ${requestUrl}` : 'Open Setu to view the conversation.',
+    );
+    return sections.join('\n\n');
 }
 
 /** Install or repair the ten-minute trigger. Safe to run repeatedly. */

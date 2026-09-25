@@ -59,6 +59,7 @@ export function InventoryDetail({
         });
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
+    const approver = canApprove(dashboard.me);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
     const deletable =
         ['draft', 'cancelled'].includes(request.Status) && (canApprove(dashboard.me) || owner);
@@ -505,18 +506,37 @@ export function InventoryDetail({
                             rowKey={(item) => `${item.InventoryTypeId}-${item.Quantity}`}
                             pagination={false}
                             dataSource={items}
+                            rowClassName={(item) => {
+                                const type = dashboard.inventoryTypes.find(
+                                    (entry) => entry.Id === item.InventoryTypeId,
+                                );
+                                return type && type.availableQuantity < item.Quantity
+                                    ? 'inventory-item-shortage-row'
+                                    : '';
+                            }}
                             columns={[
                                 {
                                     title: 'Item',
                                     key: 'item',
                                     render: (_value: unknown, item: InventoryItemDTO) => (
-                                        <Space size={6}>
+                                        <Space size={6} wrap>
                                             <Typography.Text type="secondary">
                                                 {item.Quantity}×
                                             </Typography.Text>
                                             <Typography.Text strong>
                                                 {item.itemName || 'Unknown item'}
                                             </Typography.Text>
+                                            {(() => {
+                                                const type = dashboard.inventoryTypes.find(
+                                                    (entry) => entry.Id === item.InventoryTypeId,
+                                                );
+                                                return type ? (
+                                                    <Typography.Text type="secondary">
+                                                        ({type.availableQuantity}/
+                                                        {type.TotalQuantity})
+                                                    </Typography.Text>
+                                                ) : null;
+                                            })()}
                                         </Space>
                                     ),
                                 },
@@ -801,7 +821,7 @@ export function InventoryDetail({
                                 }))
                             }
                         />
-                        {selectedInventoryType?.labels?.length ? (
+                        {approver && selectedInventoryType?.labels?.length ? (
                             <AntForm.Item label="Individual labels">
                                 <Select
                                     mode="multiple"
@@ -822,23 +842,24 @@ export function InventoryDetail({
                                 />
                             </AntForm.Item>
                         ) : null}
-                        <AntForm.Item label="Condition">
-                            <Select
-                                value={itemDraft.Condition}
-                                disabled={!canApprove(dashboard.me)}
-                                onChange={(value) =>
-                                    setItemDraft((current) => ({
-                                        ...current,
-                                        Condition: value as ReturnCondition | '',
-                                    }))
-                                }
-                                className="antd-full-width">
-                                <Select.Option value="">Not specified</Select.Option>
-                                <Select.Option value="returned">Returned</Select.Option>
-                                <Select.Option value="damaged">Damaged</Select.Option>
-                                <Select.Option value="missing">Missing</Select.Option>
-                            </Select>
-                        </AntForm.Item>
+                        {approver && (
+                            <AntForm.Item label="Condition">
+                                <Select
+                                    value={itemDraft.Condition}
+                                    onChange={(value) =>
+                                        setItemDraft((current) => ({
+                                            ...current,
+                                            Condition: value as ReturnCondition | '',
+                                        }))
+                                    }
+                                    className="antd-full-width">
+                                    <Select.Option value="">Not specified</Select.Option>
+                                    <Select.Option value="returned">Returned</Select.Option>
+                                    <Select.Option value="damaged">Damaged</Select.Option>
+                                    <Select.Option value="missing">Missing</Select.Option>
+                                </Select>
+                            </AntForm.Item>
+                        )}
                         <div>
                             <SaveFooter label="Save" errorMessage={itemError} />
                         </div>

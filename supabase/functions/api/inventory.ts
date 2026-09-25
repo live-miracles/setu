@@ -692,21 +692,17 @@ export async function performInventoryRequestAction(
                     .eq('request_id', id);
                 if (!count) throw new Error('At least one item is required.');
                 computedStatus = 'submitted';
-                await narrate(actor.name + ' submitted this request.');
+                await narrate('Submitted this request.');
             } else {
                 if (!isApprover) throw new Error('Approver access is required.');
                 if (action === 'approve') {
                     if (request.status !== 'submitted') throw new Error('Invalid transition.');
                     computedStatus = 'approved';
-                    await narrate(
-                        actor.name + ' approved this request.' + (note ? ' ' + note : ''),
-                    );
+                    await narrate('Approved this request.' + (note ? ' ' + note : ''));
                 } else if (action === 'reject') {
                     if (request.status !== 'submitted') throw new Error('Invalid transition.');
                     computedStatus = 'rejected';
-                    await narrate(
-                        actor.name + ' rejected this request.' + (note ? ' ' + note : ''),
-                    );
+                    await narrate('Rejected this request.' + (note ? ' ' + note : ''));
                 } else if (action === 'issue') {
                     if (request.status !== 'approved') throw new Error('Invalid transition.');
                     const items = result(
@@ -753,15 +749,13 @@ export async function performInventoryRequestAction(
                         deductions.set(type.id, (deductions.get(type.id) || 0) + item.quantity);
                     }
                     computedStatus = 'issued';
-                    await narrate(actor.name + ' issued the equipment.' + (note ? ' ' + note : ''));
+                    await narrate('Issued the equipment.' + (note ? ' ' + note : ''));
                 } else if (action === 'cancel') {
                     if (['draft', 'submitted', 'approved'].indexOf(request.status) === -1) {
                         throw new Error('Invalid transition.');
                     }
                     computedStatus = 'cancelled';
-                    await narrate(
-                        actor.name + ' cancelled this request.' + (note ? ' ' + note : ''),
-                    );
+                    await narrate('Cancelled this request.' + (note ? ' ' + note : ''));
                 } else if (action === 'close') {
                     if (['rejected', 'cancelled'].indexOf(request.status) === -1) {
                         if (request.status !== 'issued') throw new Error('Invalid transition.');
@@ -776,7 +770,7 @@ export async function performInventoryRequestAction(
                         }
                     }
                     computedStatus = 'closed';
-                    await narrate(actor.name + ' closed this request.' + (note ? ' ' + note : ''));
+                    await narrate('Closed this request.' + (note ? ' ' + note : ''));
                 } else {
                     throw new Error('Unsupported action.');
                 }

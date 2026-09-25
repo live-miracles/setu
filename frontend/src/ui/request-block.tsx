@@ -1,6 +1,7 @@
 import { Space, Tag, Typography } from 'antd';
 import { formatProgramDateRangeFromBounds } from './format';
 import { BlockCard } from './block-card';
+import { isRequestOverdue } from '../workflows';
 
 type RequestBlockProps = {
     kind: 'program' | 'inventory';
@@ -29,8 +30,12 @@ function departmentShortName(
 
 export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlockProps) {
     const program = kind === 'program';
+    const overdue = !program && isRequestOverdue(row as InventoryRequestDTO);
     return (
-        <BlockCard className="request-block" href={href} onClick={onClick}>
+        <BlockCard
+            className={`request-block${overdue ? ' request-block-overdue' : ''}`}
+            href={href}
+            onClick={onClick}>
             <Space direction="vertical" size={2} className="request-block-content">
                 <div className="request-block-heading">
                     <Space size="small" wrap>
@@ -56,6 +61,11 @@ export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlo
                         ? `${(row as ProgramRequestDTO).Language} · ${(row as ProgramRequestDTO).Type} · ${(row as ProgramRequestDTO).Name}`
                         : (row as InventoryRequestDTO).Name || 'Unnamed request'}
                 </Typography.Text>
+                {overdue && (
+                    <Typography.Text type="danger" strong>
+                        Equipment return overdue — please return the issued items.
+                    </Typography.Text>
+                )}
                 <Typography.Text type="secondary">
                     {[
                         row.userName || 'Unknown requester',

@@ -1192,6 +1192,17 @@ a.record-block:focus-visible {
     padding: 0.75rem;
 }
 
+.request-block-overdue {
+    background: color-mix(in srgb, #fff1f0 78%, var(--setu-surface));
+    border-color: #ffccc7;
+}
+
+.inventory-items-table .inventory-item-shortage-row > td,
+.inventory-items-table .inventory-item-shortage-row:hover > td {
+    background: #fff1f0;
+    color: #cf1322;
+}
+
 .request-block-content {
     width: 100%;
 }
