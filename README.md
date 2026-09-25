@@ -164,6 +164,12 @@ frontend code. Set `CC_EMAIL` to an additional address that should receive a
 copy of every email; multiple comma-separated addresses are supported. The
 configured address is added alongside the lead and request participants, with
 duplicates and the primary recipient removed automatically.
+Email subjects use the request serial, the same combined request title shown
+in the detail view, and the start month/year, for example
+`PRG-7 - English Workshop Title | Sep 2026`. The body starts with the author's
+name and comment, renders the full session or inventory list as an HTML `<ul>`,
+and ends with a clickable “View request” link to the request in Setu. A
+plain-text body is included as a fallback.
 
 The GitHub deployment workflow uses the previous clasp flow. It expects the
 repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and

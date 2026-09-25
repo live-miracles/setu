@@ -7,6 +7,9 @@ type EmailOutboxRow = {
         cc?: string[];
         message?: string;
         targetName?: string;
+        requestSerial?: string;
+        requestTitle?: string;
+        requestMonthYear?: string;
         authorName?: string;
         requestPath?: string;
         automatedReminder?: boolean;
@@ -46,12 +49,10 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
 
         for (const row of rows) {
             try {
-                const targetName = row.payload?.targetName || 'Setu request';
                 const message = row.payload?.message || '';
-                const subject = row.payload?.automatedReminder
-                    ? `Reminder: equipment due back for ${targetName}`
-                    : `New comment on ${targetName}`;
+                const subject = formatEmailSubject(row.payload);
                 const body = formatEmailBody(message, row.payload, properties);
+                const htmlBody = formatEmailHtmlBody(message, row.payload, properties);
                 const cc = mergeCcEmails(row.recipient, row.payload?.cc || [], configuredCcEmails);
 
                 MailApp.sendEmail({
@@ -59,6 +60,7 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
                     ...(cc.length ? { cc: cc.join(',') } : {}),
                     subject,
                     body,
+                    htmlBody,
                     name: senderName,
                     noReply: true,
                 });
@@ -109,16 +111,77 @@ function formatEmailBody(
                     .join('\n'),
         );
     }
-    const appUrl = (properties.getProperty('APP_URL') || '').trim().replace(/\/$/, '');
-    const requestUrl = payload.requestPath
-        ? appUrl
-            ? `${appUrl}${payload.requestPath}`
-            : payload.requestPath
-        : '';
+    const requestUrl = requestUrlFor(payload, properties);
     sections.push(
         requestUrl ? `View request: ${requestUrl}` : 'Open Setu to view the conversation.',
     );
     return sections.join('\n\n');
+}
+
+function formatEmailHtmlBody(
+    message: string,
+    payload: EmailOutboxRow['payload'],
+    properties: GoogleAppsScript.Properties.Properties,
+): string {
+    const author = escapeHtml(payload.authorName || 'Setu Bot');
+    const sections: string[] = [
+        `<p><strong>${author} commented:</strong></p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
+    ];
+    if (payload.sessions?.length) {
+        sections.push(
+            '<p><strong>Sessions:</strong></p><ul>' +
+                payload.sessions
+                    .map(
+                        (session) =>
+                            `<li>${escapeHtml(session.name || session.type || 'Session')}: ${escapeHtml(session.startAt || '')} – ${escapeHtml(session.endAt || '')}</li>`,
+                    )
+                    .join('') +
+                '</ul>',
+        );
+    }
+    if (payload.items?.length) {
+        sections.push(
+            '<p><strong>Inventory items:</strong></p><ul>' +
+                payload.items
+                    .map(
+                        (item) =>
+                            `<li>${item.quantity || 0} × ${escapeHtml(item.name || 'Unnamed item')}</li>`,
+                    )
+                    .join('') +
+                '</ul>',
+        );
+    }
+    const requestUrl = requestUrlFor(payload, properties);
+    sections.push(
+        requestUrl
+            ? `<p><a href="${escapeHtml(requestUrl)}">View request</a></p>`
+            : '<p>Open Setu to view the conversation.</p>',
+    );
+    return sections.join('\n');
+}
+
+function requestUrlFor(
+    payload: EmailOutboxRow['payload'],
+    properties: GoogleAppsScript.Properties.Properties,
+): string {
+    const appUrl = (properties.getProperty('APP_URL') || '').trim().replace(/\/$/, '');
+    return payload.requestPath && appUrl ? `${appUrl}${payload.requestPath}` : '';
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatEmailSubject(payload: EmailOutboxRow['payload']): string {
+    const serial = payload.requestSerial || 'Request';
+    const title = payload.requestTitle || payload.targetName || 'Setu request';
+    const monthYear = payload.requestMonthYear || '';
+    return `${serial} - ${title}${monthYear ? ` | ${monthYear}` : ''}`;
 }
 
 /** Install or repair the ten-minute trigger. Safe to run repeatedly. */
