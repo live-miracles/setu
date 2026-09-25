@@ -913,6 +913,7 @@ export function SettingsResourcePage({
                     placeholder={`Search ${config.title.toLowerCase()}`}
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
+                    onPressEnter={() => setAppliedSearch(search)}
                 />
                 <Button
                     type="primary"

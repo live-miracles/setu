@@ -140,6 +140,11 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             { replace: true },
         );
     };
+    const submitSearch = () => {
+        setAppliedSearch(search);
+        setPage(1);
+        updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, search);
+    };
 
     const filter = (
         <Space wrap>
@@ -179,17 +184,14 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                 value={search}
                 placeholder={`Search ${title.toLowerCase()}`}
                 onChange={(event) => setSearch(event.target.value)}
+                onPressEnter={submitSearch}
             />
             <Button
                 type="primary"
                 icon={<SearchOutlined />}
                 aria-label={`Search ${title.toLowerCase()}`}
                 title={`Search ${title.toLowerCase()}`}
-                onClick={() => {
-                    setAppliedSearch(search);
-                    setPage(1);
-                    updateQuery(WORKBENCH_SEARCH_QUERY_PARAM, search);
-                }}
+                onClick={submitSearch}
             />
             {filter}
         </Space>

@@ -41,6 +41,7 @@ export function TableView({
                         placeholder={searchPlaceholder}
                         value={searchValue}
                         onChange={(event) => onSearch(event.target.value)}
+                        onPressEnter={() => onSearch(searchValue || '')}
                     />
                 </div>
             )}
