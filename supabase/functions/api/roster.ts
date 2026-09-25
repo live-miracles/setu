@@ -69,6 +69,9 @@ export function combineDateTime(date: unknown, time: unknown): string {
 export async function requireValidRosterInput(admin: SupabaseClient, input: Row): Promise<Row> {
     if (!input.startDate || !input.endDate) throw new Error('Start and end dates are required.');
     if (input.endDate < input.startDate) throw new Error('End date must not be before start date.');
+    if (combineDateTime(input.endDate, input.endTime) <= combineDateTime(input.startDate, input.startTime)) {
+        throw new Error('End time is before start time.');
+    }
     const shiftTypeId = requireNonEmpty(input.shiftTypeId, 'Shift is required.');
     const shiftType = result(
         await admin.from('shift_types').select('*').eq('id', shiftTypeId).maybeSingle(),
