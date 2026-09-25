@@ -160,7 +160,13 @@ working “View request” links.
 `EMAIL_SENDER_NAME` defaults to `Live Stream Setu`. Emails use `MailApp` with
 `noReply: true`, matching the existing GCP monitor workflow. The service-role
 key is stored only in Apps Script properties and must never be placed in
-frontend code.
+frontend code. Set `CC_EMAIL` to an additional address that should receive a
+copy of every email; multiple comma-separated addresses are supported. The
+configured address is added alongside the lead and request participants, with
+duplicates and the primary recipient removed automatically.
+
+See [the Apps Script email dispatcher guide](docs/email-dispatcher.md) for the
+complete Script Properties and deployment setup.
 
 The GitHub deployment workflow uses the previous clasp flow. It expects the
 repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and

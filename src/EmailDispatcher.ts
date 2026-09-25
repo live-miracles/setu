@@ -32,6 +32,7 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
         const supabaseUrl = requiredProperty(properties, 'SUPABASE_URL');
         const serviceRoleKey = requiredProperty(properties, 'SUPABASE_SERVICE_ROLE_KEY');
         const senderName = properties.getProperty('EMAIL_SENDER_NAME') || 'Live Stream Setu';
+        const configuredCcEmails = configuredCc(properties);
         const remainingQuota = MailApp.getRemainingDailyQuota();
         if (remainingQuota <= 0) return { processed: 0, sent: 0, failed: 0 };
 
@@ -51,9 +52,7 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
                     ? `Reminder: equipment due back for ${targetName}`
                     : `New comment on ${targetName}`;
                 const body = formatEmailBody(message, row.payload, properties);
-                const cc = (row.payload?.cc || []).filter(
-                    (email) => email.trim().toLowerCase() !== row.recipient.trim().toLowerCase(),
-                );
+                const cc = mergeCcEmails(row.recipient, row.payload?.cc || [], configuredCcEmails);
 
                 MailApp.sendEmail({
                     to: row.recipient,
@@ -179,6 +178,30 @@ function requiredProperty(
     const value = properties.getProperty(name)?.trim();
     if (!value) throw new Error(`Missing Apps Script property: ${name}`);
     return value;
+}
+
+function configuredCc(properties: GoogleAppsScript.Properties.Properties): string[] {
+    return (properties.getProperty('CC_EMAIL') || '')
+        .split(',')
+        .map((email) => email.trim())
+        .filter(Boolean);
+}
+
+function mergeCcEmails(
+    recipient: string,
+    payloadCc: string[],
+    configuredCcEmails: string[],
+): string[] {
+    const recipientKey = recipient.trim().toLowerCase();
+    const seen = new Set<string>();
+    return [...payloadCc, ...configuredCcEmails]
+        .map((email) => email.trim())
+        .filter((email) => {
+            const key = email.toLowerCase();
+            if (!email || key === recipientKey || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
 }
 
 function assertSuccessful(
