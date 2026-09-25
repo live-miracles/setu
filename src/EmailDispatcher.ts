@@ -19,6 +19,8 @@ type EmailOutboxRow = {
     attempts: number;
 };
 
+type EmailSession = NonNullable<EmailOutboxRow['payload']['sessions']>[number];
+
 /**
  * Claims and sends queued comment notifications. The trigger runs as the
  * Workspace account that owns the Apps Script project, so MailApp uses that
@@ -93,14 +95,12 @@ function formatEmailBody(
     const author = payload.authorName || 'Setu Bot';
     const sections: string[] = [`${author} commented:\n\n${message}`];
     if (payload.sessions?.length) {
+        const timeZone = Session.getScriptTimeZone();
         sections.push(
-            'Sessions:\n' +
-                payload.sessions
-                    .map(
-                        (session) =>
-                            `- ${session.name || session.type || 'Session'}: ${session.startAt || ''} – ${session.endAt || ''}`,
-                    )
-                    .join('\n'),
+            formatSessionsHeading(payload.sessions, timeZone) +
+                '\n' +
+                payload.sessions.map((session) => formatSessionLine(session, timeZone)).join('\n') +
+                `\n\n${formatTimeZoneLabel(timeZone, payload.sessions)}`,
         );
     }
     if (payload.items?.length) {
@@ -128,15 +128,15 @@ function formatEmailHtmlBody(
         `<p><strong>${author} commented:</strong></p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
     ];
     if (payload.sessions?.length) {
+        const timeZone = Session.getScriptTimeZone();
         sections.push(
-            '<p><strong>Sessions:</strong></p><ul>' +
+            `<p><strong>${escapeHtml(formatSessionsHeading(payload.sessions, timeZone))}</strong></p><ul>` +
                 payload.sessions
                     .map(
-                        (session) =>
-                            `<li>${escapeHtml(session.name || session.type || 'Session')}: ${escapeHtml(session.startAt || '')} – ${escapeHtml(session.endAt || '')}</li>`,
+                        (session) => `<li>${escapeHtml(formatSessionLine(session, timeZone))}</li>`,
                     )
                     .join('') +
-                '</ul>',
+                `</ul><p>${escapeHtml(formatTimeZoneLabel(timeZone, payload.sessions))}</p>`,
         );
     }
     if (payload.items?.length) {
@@ -158,6 +158,59 @@ function formatEmailHtmlBody(
             : '<p>Open Setu to view the conversation.</p>',
     );
     return sections.join('\n');
+}
+
+function formatSessionsHeading(sessions: EmailSession[], timeZone: string): string {
+    const dates = sessions
+        .flatMap((session) => [parseSessionDate(session.startAt), parseSessionDate(session.endAt)])
+        .filter((date): date is Date => Boolean(date))
+        .sort((left, right) => left.getTime() - right.getTime());
+    if (!dates.length) return 'Sessions';
+
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+    const firstDate = Utilities.formatDate(first, timeZone, 'd MMM');
+    const lastDate = Utilities.formatDate(last, timeZone, 'd MMM');
+    const firstYear = Utilities.formatDate(first, timeZone, 'yyyy');
+    const lastYear = Utilities.formatDate(last, timeZone, 'yyyy');
+
+    if (firstDate === lastDate && firstYear === lastYear) {
+        return `Sessions (${firstDate}, ${firstYear})`;
+    }
+    if (firstYear === lastYear) {
+        return `Sessions (${firstDate} - ${lastDate}, ${lastYear})`;
+    }
+    return `Sessions (${firstDate}, ${firstYear} - ${lastDate}, ${lastYear})`;
+}
+
+function formatSessionLine(session: EmailSession, timeZone: string): string {
+    const start = parseSessionDate(session.startAt);
+    const end = parseSessionDate(session.endAt);
+    const date = start || end;
+    const dateText = date ? `(${Utilities.formatDate(date, timeZone, 'EEE, d MMM')}) ` : '';
+    const startText = start ? Utilities.formatDate(start, timeZone, 'H:mm') : session.startAt || '';
+    const endText = end ? Utilities.formatDate(end, timeZone, 'H:mm') : session.endAt || '';
+    const label = session.name || session.type || 'Session';
+    return `${dateText}${startText} - ${endText} | ${label}`;
+}
+
+function formatTimeZoneLabel(timeZone: string, sessions: EmailSession[]): string {
+    const referenceDate =
+        sessions
+            .map((session) => parseSessionDate(session.startAt))
+            .find((date): date is Date => Boolean(date)) || new Date();
+    const rawOffset = Utilities.formatDate(referenceDate, timeZone, 'Z');
+    const offset = rawOffset.replace(/^([+-])(\d{2})(\d{2})$/, '$1$2:$3');
+    const name = Utilities.formatDate(referenceDate, timeZone, 'zzzz');
+    const city = timeZone.split('/').pop()?.replace(/_/g, ' ') || timeZone;
+    const displayName = name === `GMT${offset}` ? timeZone : name;
+    return `Time zone (GMT${offset}) ${displayName} – ${city}`;
+}
+
+function parseSessionDate(value: string | undefined): Date | null {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function requestUrlFor(
