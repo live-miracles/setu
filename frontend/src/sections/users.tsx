@@ -193,6 +193,7 @@ export function Users({ dashboard }: Props) {
                     placeholder="Search users"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
+                    onPressEnter={() => setAppliedSearch(search)}
                 />
                 <Button
                     type="primary"

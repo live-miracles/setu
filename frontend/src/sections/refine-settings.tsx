@@ -63,6 +63,7 @@ type Field = {
     field: string;
     label: string;
     type?: string;
+    datalistId?: string;
     hiddenInTable?: boolean;
     // Names another RESOURCES entry (and refine-data-provider.ts resource)
     // whose rows populate this select — resolved via its own useList rather
@@ -149,7 +150,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
         emptyMessage: 'No equipment catalogued yet.',
         fields: [
             { field: 'Name', label: 'Name' },
-            { field: 'Brand', label: 'Brand' },
+            { field: 'Brand', label: 'Brand', datalistId: 'inventory-brand-options' },
             { field: 'Model', label: 'Model' },
             { field: 'Description', label: 'Description' },
             {
@@ -341,11 +342,13 @@ function FieldSet({
     row,
     onSubmit,
     submitLabel,
+    datalistOptions = {},
 }: {
     config: ResourceConfig;
     row?: Row;
     onSubmit: (values: Record<string, string>) => Promise<void>;
     submitLabel: string;
+    datalistOptions?: Record<string, string[]>;
 }) {
     const [busy, setBusy] = useState(false);
     async function submit(event: FormEvent<HTMLFormElement>) {
@@ -373,14 +376,23 @@ function FieldSet({
                     : (field.defaultValue?.() ?? inputValue(field, undefined));
                 if (!['checkbox', 'color', 'select'].includes(field.type || '')) {
                     return (
-                        <TextField
-                            key={field.field}
-                            name={field.field}
-                            label={field.label}
-                            type={field.type || 'text'}
-                            required={index === 0}
-                            value={defaultValue}
-                        />
+                        <span key={field.field}>
+                            <TextField
+                                name={field.field}
+                                label={field.label}
+                                type={field.type || 'text'}
+                                list={field.datalistId}
+                                required={index === 0}
+                                value={defaultValue}
+                            />
+                            {field.datalistId && (
+                                <datalist id={field.datalistId}>
+                                    {(datalistOptions[field.datalistId] || []).map((option) => (
+                                        <option key={option} value={option} />
+                                    ))}
+                                </datalist>
+                            )}
+                        </span>
                     );
                 }
                 return (
@@ -410,11 +422,13 @@ function Editor({
     row,
     onClose,
     onSaved,
+    datalistOptions,
 }: {
     config: ResourceConfig;
     row?: Row;
     onClose: () => void;
     onSaved: (values: Record<string, string>) => Promise<void>;
+    datalistOptions?: Record<string, string[]>;
 }) {
     const resourceLabel = config.addLabel.replace(/^Add /, '');
     return (
@@ -431,6 +445,7 @@ function Editor({
                     onClose();
                     await onSaved(values);
                 }}
+                datalistOptions={datalistOptions}
                 submitLabel={row ? 'Save' : 'Add'}
             />
         </Modal>
@@ -459,6 +474,12 @@ export function SettingsResourcePage({
     const resourceLoading = query.isLoading;
     const rawRows = result.data as Row[];
     const rows = config.sortRows ? config.sortRows(rawRows) : rawRows;
+    const inventoryBrandOptions =
+        config.kind === 'inventory-type'
+            ? Array.from(
+                  new Set(rows.map((row) => String(row.Brand || '').trim()).filter(Boolean)),
+              ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+            : [];
     const { mutateAsync: createRow } = useCreate();
     const { mutateAsync: updateRow } = useUpdate();
     const { mutateAsync: deleteRow } = useDelete();
@@ -926,6 +947,7 @@ export function SettingsResourcePage({
                     placeholder={`Search ${config.title.toLowerCase()}`}
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
+                    onPressEnter={() => setAppliedSearch(search)}
                 />
                 <Button
                     type="primary"
@@ -1399,6 +1421,7 @@ export function SettingsResourcePage({
                     row={editing || undefined}
                     onClose={closeEditor}
                     onSaved={save}
+                    datalistOptions={{ 'inventory-brand-options': inventoryBrandOptions }}
                 />
             )}
         </section>

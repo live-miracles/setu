@@ -1,0 +1,83 @@
+name: Deploy Supabase
+
+on:
+    push:
+        branches:
+            - master
+        paths:
+            - 'supabase/migrations/**'
+            - 'supabase/functions/**'
+            - 'supabase/config.toml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: supabase-deploy-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                target: [prod, dev]
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Detect deployment changes
+              id: changes
+              shell: bash
+              run: |
+                  if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+                    echo "migrations=true" >> "$GITHUB_OUTPUT"
+                    echo "functions=true" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+
+                  if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+                    files=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")
+                  else
+                    files=$(git diff --name-only "${{ github.event.before }}" "$GITHUB_SHA")
+                  fi
+
+                  if grep -Eq '^(supabase/migrations/|supabase/config.toml$)' <<< "$files"; then
+                    echo "migrations=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "migrations=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+                  if grep -Eq '^supabase/functions/' <<< "$files"; then
+                    echo "functions=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "functions=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Apply database migrations
+              if: steps.changes.outputs.migrations == 'true'
+              env:
+                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+                  PROJECT_REF: ${{ matrix.target == 'prod' && secrets.SUPABASE_PROJECT_REF_PROD || secrets.SUPABASE_PROJECT_REF_DEV }}
+              run: npx supabase db push --project-ref "$PROJECT_REF"
+
+            - name: Deploy API Edge Function
+              if: steps.changes.outputs.functions == 'true'
+              env:
+                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+                  PROJECT_REF: ${{ matrix.target == 'prod' && secrets.SUPABASE_PROJECT_REF_PROD || secrets.SUPABASE_PROJECT_REF_DEV }}
+              run: npx supabase functions deploy api --project-ref "$PROJECT_REF"

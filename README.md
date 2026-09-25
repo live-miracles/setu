@@ -160,12 +160,32 @@ working “View request” links.
 `EMAIL_SENDER_NAME` defaults to `Live Stream Setu`. Emails use `MailApp` with
 `noReply: true`, matching the existing GCP monitor workflow. The service-role
 key is stored only in Apps Script properties and must never be placed in
-frontend code.
+frontend code. Set `CC_EMAIL` to an additional address that should receive a
+copy of every email; multiple comma-separated addresses are supported. The
+configured address is added alongside the lead and request participants, with
+duplicates and the primary recipient removed automatically.
+Email subjects use the request serial, the same combined request title shown
+in the detail view, and the start month/year, for example
+`PRG-7 - English Workshop Title | Sep 2026`. The body starts with the author's
+name and comment, renders the full session or inventory list as an HTML `<ul>`,
+and ends with a clickable “View request” link to the request in Setu. A
+plain-text body is included as a fallback.
 
 The GitHub deployment workflow uses the previous clasp flow. It expects the
 repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and
 `APPS_SCRIPT_DEPLOYMENT_ID`; it runs for version tags (`v*`) or manually from
 the Actions tab.
+
+Supabase migrations and the `api` Edge Function are deployed automatically to
+both Setu production and Setu Dev by
+`.github/workflows/deploy-supabase.yml` when Supabase migrations, functions,
+configuration, or dependency files change on `master`. Add the
+`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF_PROD`, and
+`SUPABASE_PROJECT_REF_DEV` as repository secrets, then use the workflow's
+manual dispatch when needed. The token must have permission for both projects.
+The workflow selects each project using its secret project ref, applies
+migrations, and deploys the API function independently to each project; manual
+dispatch runs both deployment areas.
 
 Email-domain access control
 

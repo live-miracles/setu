@@ -384,7 +384,7 @@ interface CreateInventoryRequestInput {
     imageId: string;
     departmentId: string;
     leadEmail: string;
-    participants: string;
+    participants?: string;
 }
 
 interface UpdateInventoryRequestInput {
@@ -395,12 +395,12 @@ interface UpdateInventoryRequestInput {
     items: InventoryItemInput[];
     departmentId: string;
     leadEmail: string;
-    participants: string;
+    participants?: string;
     imageId?: string;
 }
 
 interface UpdateRequestParticipantsInput {
-    participants: string;
+    participants?: string;
 }
 
 interface InventoryItemInput {
@@ -433,7 +433,7 @@ interface CreateProgramRequestInput {
     sessions: ProgramSessionInput[];
     departmentId: string;
     leadEmail: string;
-    participants: string;
+    participants?: string;
 }
 
 interface UpdateProgramRequestInput {
@@ -445,7 +445,7 @@ interface UpdateProgramRequestInput {
     sessions: ProgramSessionInput[];
     departmentId: string;
     leadEmail: string;
-    participants: string;
+    participants?: string;
     status: ProgramRequestStatus;
 }
 
