@@ -288,9 +288,8 @@ export function Roster({ dashboard }: Props) {
                                                             type="button"
                                                             className="roster-shift-block"
                                                             style={{
-                                                                backgroundColor: shift.color
-                                                                    ? `${shift.color}26`
-                                                                    : undefined,
+                                                                backgroundColor:
+                                                                    shift.color || undefined,
                                                             }}
                                                             onClick={() => setEditing(shift.roster)}
                                                             aria-label={`Edit ${shift.roster.Name} for ${volunteer.name}, ${dateRange}${timing ? `, ${timing}` : ''}`}>

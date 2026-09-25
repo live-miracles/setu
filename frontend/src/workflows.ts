@@ -39,7 +39,9 @@ export function canTransitionProgramRequest(
 
 export function isRequestOverdue(request: InventoryRequestDTO): boolean {
     if (request.Status !== 'issued' || !request.EndDate) return false;
-    return new Date(request.EndDate).getTime() < Date.now();
+    // The due date is inclusive: a request becomes overdue after the end of
+    // its due date, rather than at midnight at the start of that date.
+    return new Date(`${request.EndDate}T23:59:59`).getTime() < Date.now();
 }
 
 // Role predicates, mirroring requireAdmin/requireApprover in

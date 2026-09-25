@@ -3,6 +3,14 @@ export function parseInventoryQrValue(
     decodedValue: string,
 ): { type: InventoryTypeDTO; labelId: string | null } | null {
     const value = decodedValue.trim();
+    if (/^\d+(?:-\d+)?$/.test(value)) {
+        const [inventoryTypeCode, labelCode] = value.split('-');
+        const type = types.find((entry) => String(entry.DisplayId) === inventoryTypeCode);
+        if (!type) return null;
+        if (labelCode === undefined) return { type, labelId: null };
+        const label = (type.labels || []).find((entry) => String(entry.DisplayId) === labelCode);
+        return label ? { type, labelId: label.Id } : null;
+    }
     const [inventoryTypeId, labelId, ...extra] = value.split(':');
     if (extra.length > 0 || !inventoryTypeId) return null;
     const type = types.find((entry) => entry.Id === inventoryTypeId);
@@ -78,19 +86,26 @@ export function inventoryItemHasLabel(
     );
 }
 
-export function inventoryQrValue(inventoryTypeId: string, labelId?: string | null): string {
-    return labelId ? `${inventoryTypeId}:${labelId}` : inventoryTypeId;
+export function inventoryQrValue(
+    inventoryType: Pick<InventoryTypeDTO, 'Id' | 'DisplayId'>,
+    label?: Pick<InventoryLabel, 'Id' | 'DisplayId'> | null,
+): string {
+    return label
+        ? `${inventoryType.DisplayId}-${label.DisplayId}`
+        : String(inventoryType.DisplayId);
 }
 
 export function inventoryTypeQrFilename(type: InventoryTypeDTO): string {
-    const name = type.Name.trim()
+    const name = inventoryTypeDisplayName(type)
+        .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-');
     return `${name.replace(/^-|-$/g, '') || 'inventory-type'}-${type.Id}.png`;
 }
 
 export function inventoryLabelQrFilename(type: InventoryTypeDTO, label: InventoryLabel): string {
-    const typeName = type.Name.trim()
+    const typeName = inventoryTypeDisplayName(type)
+        .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-');
     const labelName = label.Name.trim()
@@ -99,6 +114,26 @@ export function inventoryLabelQrFilename(type: InventoryTypeDTO, label: Inventor
     return `${typeName.replace(/^-|-$/g, '') || 'inventory-type'}-${
         labelName.replace(/^-|-$/g, '') || 'label'
     }-${label.Id}.png`;
+}
+
+export function inventoryTypeDisplayName(type: { Brand?: unknown; Name?: unknown }): string {
+    return [type.Brand, type.Name]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .join(' · ');
+}
+
+export function inventoryTypeQrPrintLabel(
+    type: Pick<InventoryTypeDTO, 'DisplayId' | 'Model' | 'Name'>,
+    label?: Pick<InventoryLabel, 'DisplayId' | 'Name'>,
+): string {
+    const itemName = [type.Model, type.Name]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .join(' ');
+    const labelName = label ? ` - ${String(label.Name || '').trim()}` : '';
+    const qrValue = label ? `${type.DisplayId}-${label.DisplayId}` : String(type.DisplayId);
+    return `${qrValue} | ${itemName || 'Inventory type'}${labelName}`;
 }
 
 export function inventoryTypeQrLabel(name: string, maxLength = 32): string {

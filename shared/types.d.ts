@@ -66,7 +66,10 @@ interface Roster {
 // the original quantity-only inventory behavior.
 interface InventoryType {
     Id: string;
+    DisplayId: number;
+    Brand: string;
     Name: string;
+    Model: string;
     Description: string;
     Requestable: boolean;
     ImageId: string;
@@ -75,6 +78,7 @@ interface InventoryType {
 
 interface InventoryLabel {
     Id: string;
+    DisplayId: number;
     InventoryTypeId: string;
     Name: string;
 }
@@ -353,7 +357,9 @@ interface CreateRosterInput {
 }
 
 interface CreateInventoryTypeInput {
+    brand: string;
     name: string;
+    model: string;
     description: string;
     requestable: boolean;
     totalQuantity: number;

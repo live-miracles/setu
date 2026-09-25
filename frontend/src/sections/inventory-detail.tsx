@@ -24,6 +24,7 @@ import {
 import { prepareInventoryImage } from '../ui/inventory-image';
 import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
 import { RequestImage } from '../ui/request-image';
+import { inventoryTypeDisplayName } from '../ui/inventory-qr';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
 import { TableView } from '../ui/table-view';
@@ -58,6 +59,7 @@ export function InventoryDetail({
         });
     const owner =
         request.UserId === dashboard.me.Email || request.participants.includes(dashboard.me.Email);
+    const approver = canApprove(dashboard.me);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
     const deletable =
         ['draft', 'cancelled'].includes(request.Status) && (canApprove(dashboard.me) || owner);
@@ -140,25 +142,26 @@ export function InventoryDetail({
             showSavingBadge(false);
         }
     };
-    const scanInventoryType = async (decodedValue: string) => {
+    const scanInventoryType = async (decodedValue: string): Promise<boolean> => {
         const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
         if (!scan) {
             setItemError('Inventory type not found for this QR code.');
-            return;
+            return false;
         }
         const existing = items.find((item) => item.InventoryTypeId === scan.type.Id);
         if (scan.labelId && inventoryItemHasLabel(existing, scan.labelId)) {
             setItemError('This label was already added to the request.');
-            return;
+            return false;
         }
         const saved = await persistItems(
             addScannedInventoryItem(items, scan.type.Id, scan.labelId).map((item) =>
                 item.InventoryTypeId === scan.type.Id && !item.itemName
-                    ? { ...item, itemName: scan.type.Name }
+                    ? { ...item, itemName: inventoryTypeDisplayName(scan.type) }
                     : item,
             ),
         );
         if (saved) setScanOpen(false);
+        return saved;
     };
     const scanIssueItem = async (decodedValue: string) => {
         const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
@@ -174,7 +177,7 @@ export function InventoryDetail({
         const saved = await persistItems(
             addScannedInventoryItemForIssue(items, scan.type.Id, scan.labelId).map((item) =>
                 item.InventoryTypeId === scan.type.Id && !item.itemName
-                    ? { ...item, itemName: scan.type.Name }
+                    ? { ...item, itemName: inventoryTypeDisplayName(scan.type) }
                     : item,
             ),
         );
@@ -288,7 +291,7 @@ export function InventoryDetail({
             InventoryTypeId: itemDraft.InventoryTypeId,
             Quantity: Math.max(itemDraft.Quantity, itemDraft.LabelIds.length),
             Condition: itemDraft.Condition,
-            itemName: type.Name,
+            itemName: inventoryTypeDisplayName(type),
             labels: itemDraft.LabelIds,
         };
         const nextItems =
@@ -303,6 +306,12 @@ export function InventoryDetail({
     };
     const selectedInventoryType = dashboard.inventoryTypes.find(
         (type) => type.Id === itemDraft.InventoryTypeId,
+    );
+    const selectableInventoryTypes = dashboard.inventoryTypes.filter(
+        (type) =>
+            canApprove(dashboard.me) ||
+            type.Requestable !== false ||
+            type.Id === itemDraft.InventoryTypeId,
     );
     const uploadRequestImage = async (file: File) => {
         if (!file) return;
@@ -497,18 +506,37 @@ export function InventoryDetail({
                             rowKey={(item) => `${item.InventoryTypeId}-${item.Quantity}`}
                             pagination={false}
                             dataSource={items}
+                            rowClassName={(item) => {
+                                const type = dashboard.inventoryTypes.find(
+                                    (entry) => entry.Id === item.InventoryTypeId,
+                                );
+                                return type && type.availableQuantity < item.Quantity
+                                    ? 'inventory-item-shortage-row'
+                                    : '';
+                            }}
                             columns={[
                                 {
                                     title: 'Item',
                                     key: 'item',
                                     render: (_value: unknown, item: InventoryItemDTO) => (
-                                        <Space size={6}>
+                                        <Space size={6} wrap>
                                             <Typography.Text type="secondary">
                                                 {item.Quantity}×
                                             </Typography.Text>
                                             <Typography.Text strong>
                                                 {item.itemName || 'Unknown item'}
                                             </Typography.Text>
+                                            {(() => {
+                                                const type = dashboard.inventoryTypes.find(
+                                                    (entry) => entry.Id === item.InventoryTypeId,
+                                                );
+                                                return type ? (
+                                                    <Typography.Text type="secondary">
+                                                        ({type.availableQuantity}/
+                                                        {type.TotalQuantity})
+                                                    </Typography.Text>
+                                                ) : null;
+                                            })()}
                                         </Space>
                                     ),
                                 },
@@ -705,7 +733,7 @@ export function InventoryDetail({
                         setItemError('');
                     }}>
                     <div className="grid gap-3">
-                        <QrScanner onScan={scanInventoryType} />
+                        <QrScanner onScan={scanInventoryType} stopOnScan />
                         {itemError && <Typography.Text type="danger">{itemError}</Typography.Text>}
                     </div>
                 </Modal>
@@ -764,9 +792,9 @@ export function InventoryDetail({
                                 }
                                 className="antd-full-width"
                                 placeholder="Select inventory type">
-                                {dashboard.inventoryTypes.map((type) => (
+                                {selectableInventoryTypes.map((type) => (
                                     <Select.Option key={type.Id} value={type.Id}>
-                                        {type.Name}
+                                        {inventoryTypeDisplayName(type)}
                                     </Select.Option>
                                 ))}
                             </Select>
@@ -774,7 +802,7 @@ export function InventoryDetail({
                                 <div className="inventory-type-detail-image mt-3">
                                     <RequestImage
                                         imageId={selectedInventoryType.ImageId}
-                                        alt={selectedInventoryType.Name}
+                                        alt={inventoryTypeDisplayName(selectedInventoryType)}
                                         fallback={<span>No photo</span>}
                                     />
                                 </div>
@@ -793,7 +821,7 @@ export function InventoryDetail({
                                 }))
                             }
                         />
-                        {selectedInventoryType?.labels?.length ? (
+                        {approver && selectedInventoryType?.labels?.length ? (
                             <AntForm.Item label="Individual labels">
                                 <Select
                                     mode="multiple"
@@ -814,23 +842,24 @@ export function InventoryDetail({
                                 />
                             </AntForm.Item>
                         ) : null}
-                        <AntForm.Item label="Condition">
-                            <Select
-                                value={itemDraft.Condition}
-                                disabled={!canApprove(dashboard.me)}
-                                onChange={(value) =>
-                                    setItemDraft((current) => ({
-                                        ...current,
-                                        Condition: value as ReturnCondition | '',
-                                    }))
-                                }
-                                className="antd-full-width">
-                                <Select.Option value="">Not specified</Select.Option>
-                                <Select.Option value="returned">Returned</Select.Option>
-                                <Select.Option value="damaged">Damaged</Select.Option>
-                                <Select.Option value="missing">Missing</Select.Option>
-                            </Select>
-                        </AntForm.Item>
+                        {approver && (
+                            <AntForm.Item label="Condition">
+                                <Select
+                                    value={itemDraft.Condition}
+                                    onChange={(value) =>
+                                        setItemDraft((current) => ({
+                                            ...current,
+                                            Condition: value as ReturnCondition | '',
+                                        }))
+                                    }
+                                    className="antd-full-width">
+                                    <Select.Option value="">Not specified</Select.Option>
+                                    <Select.Option value="returned">Returned</Select.Option>
+                                    <Select.Option value="damaged">Damaged</Select.Option>
+                                    <Select.Option value="missing">Missing</Select.Option>
+                                </Select>
+                            </AntForm.Item>
+                        )}
                         <div>
                             <SaveFooter label="Save" errorMessage={itemError} />
                         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button, Card, Input, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { api } from '../api';
@@ -21,9 +21,14 @@ export function Activity({
     const { refreshDashboard } = useDashboard();
     const [comment, setComment] = useState('');
     const [comments, setComments] = useState<CommentDTO[]>(initialComments);
+    const commentsRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         setComments(initialComments);
     }, [initialComments]);
+    useEffect(() => {
+        const el = commentsRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+    }, [comments]);
     const submit = async (event: FormEvent) => {
         event.preventDefault();
         const trimmed = comment.trim();
@@ -47,7 +52,7 @@ export function Activity({
     return (
         <div className="activity-card">
             <Card title="Activity">
-                <div className="activity-comments space-y-3">
+                <div className="activity-comments space-y-3" ref={commentsRef}>
                     {comments.length ? (
                         comments.map((c) => (
                             <div

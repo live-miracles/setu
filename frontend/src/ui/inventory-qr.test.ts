@@ -3,6 +3,7 @@ import {
     addScannedInventoryItemForIssue,
     findInventoryTypeByQrValue,
     inventoryItemHasLabel,
+    inventoryQrValue,
     inventoryTypeQrFilename,
     inventoryTypeQrLabel,
     parseInventoryQrValue,
@@ -15,16 +16,25 @@ function assert(condition: boolean, message: string): void {
 const types = [
     {
         Id: 'inventory-type-uuid-1',
+        DisplayId: 34,
         Name: 'Camera body',
         Description: '',
         Requestable: true,
         ImageId: '',
         TotalQuantity: 4,
         availableQuantity: 2,
-        labels: [{ Id: 'label-1', InventoryTypeId: 'inventory-type-uuid-1', Name: 'CAM-001' }],
+        labels: [
+            {
+                Id: 'label-1',
+                DisplayId: 12,
+                InventoryTypeId: 'inventory-type-uuid-1',
+                Name: 'CAM-001',
+            },
+        ],
     },
     {
         Id: 'inventory-type-uuid-2',
+        DisplayId: 35,
         Name: 'Tripod / stand',
         Description: '',
         Requestable: true,
@@ -62,6 +72,19 @@ export function runInventoryQrAssertions(): void {
     assert(
         parseInventoryQrValue(types, 'inventory-type-uuid-1:label-1')?.labelId === 'label-1',
         'scanner should parse a labeled inventory QR value',
+    );
+    assert(
+        parseInventoryQrValue(types, '34')?.type.Id === 'inventory-type-uuid-1',
+        'scanner should parse a compact unlabeled inventory QR value',
+    );
+    assert(
+        parseInventoryQrValue(types, '34-12')?.labelId === 'label-1',
+        'scanner should parse a compact labeled inventory QR value',
+    );
+    assert(
+        inventoryQrValue(types[0]) === '34' &&
+            inventoryQrValue(types[0], types[0].labels[0]) === '34-12',
+        'QR generation should use compact inventory and label numbers',
     );
     assert(
         parseInventoryQrValue(types, 'inventory-type-uuid-1:unknown-label') === null,

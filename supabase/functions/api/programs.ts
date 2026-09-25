@@ -683,15 +683,11 @@ export async function performProgramRequestAction(
                     if (!request.place_id)
                         throw new Error('A place must be assigned before approval.');
                     computedStatus = 'approved';
-                    await narrate(
-                        actor.name + ' approved this request.' + (note ? ' ' + note : ''),
-                    );
+                    await narrate('Approved this request.' + (note ? ' ' + note : ''));
                 } else if (action === 'reject') {
                     if (request.status !== 'submitted') throw new Error('Invalid transition.');
                     computedStatus = 'rejected';
-                    await narrate(
-                        actor.name + ' rejected this request.' + (note ? ' ' + note : ''),
-                    );
+                    await narrate('Rejected this request.' + (note ? ' ' + note : ''));
                 } else if (action === 'cancel') {
                     if (['draft', 'submitted', 'approved'].indexOf(request.status) === -1) {
                         throw new Error('Invalid transition.');
@@ -701,9 +697,7 @@ export async function performProgramRequestAction(
                         if (!hasFuture) throw new Error('Cannot cancel an approved past program.');
                     }
                     computedStatus = 'cancelled';
-                    await narrate(
-                        actor.name + ' cancelled this request.' + (note ? ' ' + note : ''),
-                    );
+                    await narrate('Cancelled this request.' + (note ? ' ' + note : ''));
                 } else {
                     throw new Error('Unsupported action.');
                 }
