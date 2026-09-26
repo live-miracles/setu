@@ -68,12 +68,24 @@ jobs:
                     echo "functions=false" >> "$GITHUB_OUTPUT"
                   fi
 
+            # GitHub-hosted runners have no IPv6 route, and Supabase's direct
+            # database host is IPv6-only, so `db push --project-ref` (which
+            # connects directly) fails here. Linking first connects through
+            # Supabase's IPv4-compatible connection pooler instead, which
+            # `db push` then reuses when run without `--project-ref`.
+            - name: Link Supabase project
+              if: steps.changes.outputs.migrations == 'true'
+              env:
+                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+                  SUPABASE_DB_PASSWORD: ${{ matrix.target == 'prod' && secrets.SUPABASE_DB_PASSWORD_PROD || secrets.SUPABASE_DB_PASSWORD_DEV }}
+                  PROJECT_REF: ${{ matrix.target == 'prod' && secrets.SUPABASE_PROJECT_REF_PROD || secrets.SUPABASE_PROJECT_REF_DEV }}
+              run: npx supabase link --project-ref "$PROJECT_REF"
+
             - name: Apply database migrations
               if: steps.changes.outputs.migrations == 'true'
               env:
                   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-                  PROJECT_REF: ${{ matrix.target == 'prod' && secrets.SUPABASE_PROJECT_REF_PROD || secrets.SUPABASE_PROJECT_REF_DEV }}
-              run: npx supabase db push --project-ref "$PROJECT_REF"
+              run: npx supabase db push
 
             - name: Deploy API Edge Function
               if: steps.changes.outputs.functions == 'true'
