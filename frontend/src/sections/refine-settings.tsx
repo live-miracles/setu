@@ -549,7 +549,16 @@ export function SettingsResourcePage({
             const mutateOptions = { successNotification: false, errorNotification: false } as const;
             const payload = config.toInput(values);
             if (!editing) {
-                await createRow({ resource: resourceName, values: payload, ...mutateOptions });
+                const created = await createRow({
+                    resource: resourceName,
+                    values: payload,
+                    ...mutateOptions,
+                });
+                if (config.kind === 'inventory-type') {
+                    navigate(inventoryTypePath(rowKeyOf(config, created.data as Row)), {
+                        replace: true,
+                    });
+                }
             } else {
                 await updateRow({
                     resource: resourceName,
