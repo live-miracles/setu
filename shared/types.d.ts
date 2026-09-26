@@ -70,6 +70,7 @@ interface InventoryType {
     Brand: string;
     Name: string;
     Model: string;
+    Location: string;
     Description: string;
     Requestable: boolean;
     ImageId: string;
@@ -360,6 +361,7 @@ interface CreateInventoryTypeInput {
     brand: string;
     name: string;
     model: string;
+    location: string;
     description: string;
     requestable: boolean;
     totalQuantity: number;

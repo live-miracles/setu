@@ -152,7 +152,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'Name', label: 'Name' },
             { field: 'Brand', label: 'Brand', datalistId: 'inventory-brand-options' },
             { field: 'Model', label: 'Model' },
-            { field: 'Description', label: 'Description' },
+            { field: 'Location', label: 'Location' },
+            { field: 'Description', label: 'Description', hiddenInTable: true },
             {
                 field: 'TotalQuantity',
                 label: 'Total quantity',
@@ -183,6 +184,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
             brand: v.Brand,
             name: v.Name,
             model: v.Model,
+            location: v.Location,
             description: v.Description,
             requestable: v.Requestable === 'on',
             totalQuantity: Number(v.TotalQuantity || 0),
@@ -607,6 +609,7 @@ export function SettingsResourcePage({
                     brand: String(row.Brand || ''),
                     name: String(row.Name || ''),
                     model: String(row.Model || ''),
+                    location: String(row.Location || ''),
                     description: String(row.Description || ''),
                     requestable: row.Requestable !== false,
                     totalQuantity: Number(row.TotalQuantity || 0),
@@ -887,9 +890,9 @@ export function SettingsResourcePage({
                         onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                         <div className="inventory-type-card-heading">
                             <strong>{inventoryTypeDisplayName(row) || 'Unnamed equipment'}</strong>
-                            {row.Description && (
+                            {row.Location && (
                                 <span className="inventory-type-card-description">
-                                    {String(row.Description)}
+                                    {String(row.Location)}
                                 </span>
                             )}
                             <span
@@ -995,6 +998,7 @@ export function SettingsResourcePage({
                             ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
                             ['Brand', String(selectedInventoryType.Brand || '—')],
                             ['Model', String(selectedInventoryType.Model || '—')],
+                            ['Location', String(selectedInventoryType.Location || '—')],
                             ['Description', String(selectedInventoryType.Description || '—')],
                             [
                                 'Availability',

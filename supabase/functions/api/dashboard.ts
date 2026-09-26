@@ -159,6 +159,7 @@ export async function dashboard(
             Brand: x.brand,
             Name: x.name,
             Model: x.model,
+            Location: x.location,
             Description: x.description,
             Requestable: x.requestable,
             ImageId: x.image_path,

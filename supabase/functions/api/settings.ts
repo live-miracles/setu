@@ -192,6 +192,7 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
         Brand: row.brand,
         Name: row.name,
         Model: row.model,
+        Location: row.location,
         Description: row.description,
         Requestable: row.requestable,
         ImageId: row.image_path,
@@ -320,6 +321,7 @@ export async function createInventoryType(
                         brand,
                         name,
                         model,
+                        location: String(input.location || ''),
                         description: String(input.description || ''),
                         requestable: input.requestable !== false,
                         image_path: String(input.imageId || ''),
@@ -364,6 +366,7 @@ export async function updateInventoryType(
                         brand,
                         name,
                         model,
+                        location: String(input.location || ''),
                         description: String(input.description || ''),
                         requestable: input.requestable !== false,
                         image_path:
