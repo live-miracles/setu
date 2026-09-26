@@ -958,7 +958,11 @@ export function SettingsResourcePage({
                     prefix={<SearchOutlined />}
                     placeholder={`Search ${config.title.toLowerCase()}`}
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => {
+                        const value = event.target.value;
+                        setSearch(value);
+                        if (!value) setAppliedSearch('');
+                    }}
                     onPressEnter={() => setAppliedSearch(search)}
                 />
                 <Button
