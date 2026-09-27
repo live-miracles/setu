@@ -16,7 +16,8 @@ export async function listRosters(
 ): Promise<Row> {
     // Full history, not just upcoming — that's dashboard()'s upcomingRosters
     // preview; this is the paginated listing behind the Roster page. RLS
-    // ("approvers read rosters") already limits this to approvers/admins.
+    // limits this read to authenticated users; write operations below still
+    // require approver access.
     const rosters = (result(await client.from('rosters').select('*')) as Row[]).sort((a, b) =>
         String(b.start_at).localeCompare(String(a.start_at)),
     );

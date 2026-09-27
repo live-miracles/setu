@@ -81,14 +81,7 @@ export function App() {
                 <Route element={<Shell />}>
                     <Route path={homePath} element={<Home dashboard={dashboard} />} />
                     <Route path={profilePath} element={<Profile dashboard={dashboard} />} />
-                    <Route
-                        path={rosterPath}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <Roster dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
+                    <Route path={rosterPath} element={<Roster dashboard={dashboard} />} />
                     <Route
                         path={usersPath}
                         element={
@@ -175,23 +168,19 @@ export function App() {
                     <Route
                         path={inventoryTypesPath}
                         element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <SettingsResourcePage
-                                    resourceName="inventory-types"
-                                    dashboard={dashboard}
-                                />
-                            </RequireRole>
+                            <SettingsResourcePage
+                                resourceName="inventory-types"
+                                dashboard={dashboard}
+                            />
                         }
                     />
                     <Route
                         path={`${inventoryTypesPath}/:id`}
                         element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <SettingsResourcePage
-                                    resourceName="inventory-types"
-                                    dashboard={dashboard}
-                                />
-                            </RequireRole>
+                            <SettingsResourcePage
+                                resourceName="inventory-types"
+                                dashboard={dashboard}
+                            />
                         }
                     />
                     <Route

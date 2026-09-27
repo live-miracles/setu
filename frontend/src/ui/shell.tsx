@@ -48,8 +48,9 @@ const primaryNavItems: NavItem[] = [
     { key: 'inventory', to: inventoryPath, label: 'Inventory', icon: <InboxOutlined /> },
 ];
 
-// Admin/approver-only navigation entries, with user and configuration
-// management kept in the account dropdown.
+// Roster and inventory types are readable by every signed-in user. The
+// remaining configuration entries are admin/approver-only, with user and
+// configuration management kept in the account dropdown.
 const configNavItems: NavItem[] = [
     { key: 'roster', to: rosterPath, label: 'Roster', icon: <ScheduleOutlined /> },
     { key: 'users', to: usersPath, label: 'Users', icon: <TeamOutlined /> },
@@ -73,7 +74,11 @@ const configNavItems: NavItem[] = [
 // User and configuration management stays in the account menu; the remaining
 // config entries are desktop navigation items for admins/approvers.
 const accountConfigKeys = new Set(['users', 'departments', 'places', 'home-content']);
-const topConfigNavItems = configNavItems.filter((item) => !accountConfigKeys.has(item.key));
+const publicConfigKeys = new Set(['roster', 'inventory-types']);
+const publicConfigNavItems = configNavItems.filter((item) => publicConfigKeys.has(item.key));
+const topConfigNavItems = configNavItems.filter(
+    (item) => !accountConfigKeys.has(item.key) && !publicConfigKeys.has(item.key),
+);
 const accountConfigNavItems = configNavItems.filter((item) => accountConfigKeys.has(item.key));
 
 // A plain pathname.startsWith(base) would also match e.g. /inventory-types
@@ -145,9 +150,11 @@ export function Shell({
     // to wait for dashboard data.
     const showPrimaryNav = Boolean(userEmail) || isRegistered;
     const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
-    const navigationItems = canOpenConfig
-        ? [...primaryNavItems, ...topConfigNavItems]
-        : primaryNavItems;
+    const navigationItems = [
+        ...primaryNavItems,
+        ...publicConfigNavItems,
+        ...(canOpenConfig ? topConfigNavItems : []),
+    ];
 
     useEffect(() => {
         const syncAppLoading = (event: Event) =>
@@ -169,9 +176,16 @@ export function Shell({
     const selectedKey = navigationItems.find((item) =>
         isPathSection(location.pathname, item.to),
     )?.key;
-    const accountNavItems = isMobileViewport ? configNavItems : accountConfigNavItems;
+    const accountNavItems = isMobileViewport
+        ? configNavItems.filter((item) => !publicConfigKeys.has(item.key))
+        : accountConfigNavItems;
     const profileMenuItems = [
         { key: profilePath, label: 'Profile', icon: <UserOutlined /> },
+        ...publicConfigNavItems.map((item) => ({
+            key: item.to,
+            label: item.label,
+            icon: item.icon,
+        })),
         ...(canOpenConfig
             ? accountNavItems.map((item) => ({
                   key: item.to,

@@ -345,12 +345,12 @@ trusted Edge Function.
 
 The database roles are `admin`, `approver`, `viewer`, and `user`:
 
-| Role       | Access                                               |
-| ---------- | ---------------------------------------------------- |
-| `admin`    | Everything, including settings and role management   |
-| `approver` | Requests, approvals, scheduling, and read-only users |
-| `viewer`   | All requests and standard app sections except roster |
-| `user`     | Own and participant requests; no roster              |
+| Role       | Access                                                                       |
+| ---------- | ---------------------------------------------------------------------------- |
+| `admin`    | Everything, including settings and role management                           |
+| `approver` | Requests, approvals, scheduling, and read-only users                         |
+| `viewer`   | All requests and standard app sections, including roster and inventory types |
+| `user`     | Own and participant requests, plus roster and inventory types                |
 
 New Supabase Auth users receive a profile through the database trigger. Assign
 the first development administrator explicitly in the Supabase SQL editor:

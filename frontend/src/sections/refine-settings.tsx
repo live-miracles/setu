@@ -34,6 +34,7 @@ import {
     inventoryTypePath,
     inventoryTypesPath,
     programRequestPath,
+    userPath,
 } from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
@@ -774,7 +775,7 @@ export function SettingsResourcePage({
         <Space
             direction={config.kind === 'department' ? 'vertical' : 'horizontal'}
             size={detail ? 'middle' : 0}>
-            {config.kind === 'inventory-type' && !detail && (
+            {canEdit && config.kind === 'inventory-type' && !detail && (
                 <>
                     <input
                         id={`inventory-type-image-${row.Id}`}
@@ -896,6 +897,7 @@ export function SettingsResourcePage({
                     <BlockCard
                         key={row.Id}
                         className="inventory-type-card"
+                        href={inventoryTypePath(String(row.Id))}
                         onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                         <div className="inventory-type-card-heading">
                             <strong>{inventoryTypeDisplayName(row) || 'Unnamed equipment'}</strong>
@@ -933,6 +935,7 @@ export function SettingsResourcePage({
                 <BlockCard
                     key={row.Id}
                     className="department-card"
+                    href={departmentPath(String(row.Id))}
                     onClick={() => navigate(departmentPath(String(row.Id)))}>
                     <div className="department-card-content">
                         <strong>
@@ -1314,7 +1317,13 @@ export function SettingsResourcePage({
                     {departmentUsers.length ? (
                         <div className="department-related-grid">
                             {departmentUsers.map((user) => (
-                                <UserBlock key={user.Email} user={user} dashboard={dashboard} />
+                                <UserBlock
+                                    key={user.Email}
+                                    user={user}
+                                    dashboard={dashboard}
+                                    href={userPath(user.Email)}
+                                    onClick={() => navigate(userPath(user.Email))}
+                                />
                             ))}
                         </div>
                     ) : (
