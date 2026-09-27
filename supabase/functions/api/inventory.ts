@@ -766,7 +766,9 @@ export async function performInventoryRequestAction(
                                 .eq('request_id', id),
                         ) as Row[];
                         if (!items.length || items.some((item) => !item.return_condition)) {
-                            throw new Error('Every item needs a return condition.');
+                            throw new Error(
+                                'Please configure return status for all the issued inventory items before closing the request.',
+                            );
                         }
                     }
                     computedStatus = 'closed';

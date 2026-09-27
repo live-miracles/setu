@@ -1,6 +1,7 @@
 import { Space, Tag, Typography } from 'antd';
 import { formatProgramDateRangeFromBounds } from './format';
 import { BlockCard } from './block-card';
+import { requestStatusTagColor } from './request-status';
 import { isRequestOverdue } from '../workflows';
 
 type RequestBlockProps = {
@@ -54,7 +55,9 @@ export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlo
                             )}
                         </Typography.Text>
                     </Space>
-                    <Tag color="blue">{statusLabel(row.Status)}</Tag>
+                    <Tag color={requestStatusTagColor(row.Status, overdue)}>
+                        {statusLabel(row.Status)}
+                    </Tag>
                 </div>
                 <Typography.Text strong>
                     {program
@@ -63,7 +66,7 @@ export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlo
                 </Typography.Text>
                 {overdue && (
                     <Typography.Text type="danger" strong>
-                        Equipment return overdue — please return the issued items.
+                        Equipment return overdue.
                     </Typography.Text>
                 )}
                 <Typography.Text type="secondary">

@@ -38,6 +38,26 @@ export const PROGRAM_REQUEST_STATUSES: ProgramRequestStatus[] = [
 ];
 export const requesterOptionLabel = (user: UserDTO): string => user.Name + ' <' + user.Email + '>';
 
+const REQUEST_FILTER_STORAGE_PREFIX = 'setu:request-board-filter';
+
+function readRequestFilter(key: string): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        return window.localStorage.getItem(`${REQUEST_FILTER_STORAGE_PREFIX}:${key}`);
+    } catch {
+        return null;
+    }
+}
+
+function writeRequestFilter(key: string, value: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(`${REQUEST_FILTER_STORAGE_PREFIX}:${key}`, value);
+    } catch {
+        // Private browsing or disabled storage should not prevent filtering.
+    }
+}
+
 export function programTypeOptions(programTypes: ProgramType[], current = ''): string[] {
     const names = [...programTypes.map((programType) => programType.Name), OTHER_PROGRAM_TYPE];
     if (current) names.unshift(current);
@@ -89,13 +109,27 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
     const [appliedSearch, setAppliedSearch] = useState(
         searchParams.get(WORKBENCH_SEARCH_QUERY_PARAM) || '',
     );
-    const [view, setView] = useState(searchParams.get(WORKBENCH_VIEW_QUERY_PARAM) || 'active');
+    const filterStorageScope = isInventory ? 'inventory' : 'programs';
+    const viewStorageKey = `${filterStorageScope}:view`;
+    const statusStorageKey = `${filterStorageScope}:status`;
+    const [view, setView] = useState(
+        () =>
+            searchParams.get(WORKBENCH_VIEW_QUERY_PARAM) ||
+            readRequestFilter(viewStorageKey) ||
+            'active',
+    );
     const statuses = isInventory
         ? ['draft', 'submitted', 'approved', 'issued', 'closed', 'rejected', 'cancelled']
         : ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => {
         const value = searchParams.get(WORKBENCH_STATUS_QUERY_PARAM);
-        return value ? value.split(',').filter((status) => statuses.includes(status)) : statuses;
+        if (value !== null) {
+            return value.split(',').filter((status) => statuses.includes(status));
+        }
+        const storedValue = readRequestFilter(statusStorageKey);
+        return storedValue === null
+            ? statuses
+            : storedValue.split(',').filter((status) => statuses.includes(status));
     });
     const [page, setPage] = useState(1);
     const [creating, setCreating] = useState(false);
@@ -153,6 +187,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                     value={view}
                     onChange={(value) => {
                         setView(value);
+                        writeRequestFilter(viewStorageKey, value);
                         setPage(1);
                         updateQuery(WORKBENCH_VIEW_QUERY_PARAM, value);
                     }}>
@@ -171,6 +206,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                 onChange={(values) => {
                     const next = values.map(String);
                     setSelectedStatuses(next);
+                    writeRequestFilter(statusStorageKey, next.join(','));
                     setPage(1);
                     updateQuery(WORKBENCH_STATUS_QUERY_PARAM, next.join(','));
                 }}

@@ -30,7 +30,8 @@ import { ImageCamera } from '../ui/image-camera';
 import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
-import { canApprove, canTransitionInventoryRequest } from '../workflows';
+import { requestStatusTagColor } from '../ui/request-status';
+import { canApprove, canTransitionInventoryRequest, isRequestOverdue } from '../workflows';
 import { supabase } from '../supabase';
 import { Activity, ParticipantsEditor } from './detail-activity';
 import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
@@ -38,6 +39,8 @@ import { ActionConfirmation, Empty, Modal, SaveFooter, TextField, useSave } from
 import { requesterOptionLabel } from './requests';
 
 const error = (value: unknown) => showErrorAlert(value);
+const missingReturnStatusMessage =
+    'Please configure return status for all the issued inventory items before closing the request.';
 
 export function InventoryDetail({
     request,
@@ -65,6 +68,7 @@ export function InventoryDetail({
             (email) => email.trim().toLowerCase() === currentUserEmail,
         );
     const approver = canApprove(dashboard.me);
+    const overdue = isRequestOverdue(request);
     const canEditItemCondition = approver && ['issued', 'closed'].includes(request.Status);
     const showItemCondition = ['issued', 'closed'].includes(request.Status);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
@@ -419,6 +423,12 @@ export function InventoryDetail({
                             if (action === 'issue') {
                                 setIssueScanError('');
                                 setIssueScanOpen(true);
+                            } else if (
+                                action === 'close' &&
+                                request.Status === 'issued' &&
+                                items.some((item) => !item.Condition)
+                            ) {
+                                error(new Error(missingReturnStatusMessage));
                             } else setPendingAction(action as InventoryRequestAction);
                         }}
                     />
@@ -452,7 +462,9 @@ export function InventoryDetail({
                         ['Request number', `REQ-${request.DisplayId}`],
                         [
                             'Status',
-                            <Tag color="blue" key="status">
+                            <Tag
+                                color={requestStatusTagColor(request.Status, overdue)}
+                                key="status">
                                 {request.Status}
                             </Tag>,
                         ],
@@ -517,6 +529,14 @@ export function InventoryDetail({
                                 const shortage = Boolean(
                                     type && type.availableQuantity < item.Quantity,
                                 );
+                                const conditionColor =
+                                    item.Condition === 'returned'
+                                        ? 'green'
+                                        : item.Condition === 'damaged'
+                                          ? 'orange'
+                                          : item.Condition === 'missing'
+                                            ? 'red'
+                                            : 'default';
                                 return (
                                     <BlockCard
                                         key={`${item.InventoryTypeId}-${index}`}
@@ -552,15 +572,12 @@ export function InventoryDetail({
                                         </div>
                                         <div className="inventory-item-block-details">
                                             {type && (
-                                                <Typography.Text type="secondary">
-                                                    Available {type.availableQuantity}/
-                                                    {type.TotalQuantity}
-                                                </Typography.Text>
+                                                <Tag color={shortage ? 'red' : 'green'}>
+                                                    {type.availableQuantity}/{type.TotalQuantity}
+                                                </Tag>
                                             )}
-                                            {showItemCondition && (
-                                                <Typography.Text type="secondary">
-                                                    Condition: {item.Condition || 'Not specified'}
-                                                </Typography.Text>
+                                            {showItemCondition && item.Condition && (
+                                                <Tag color={conditionColor}>{item.Condition}</Tag>
                                             )}
                                             <Typography.Text type="secondary">
                                                 Labels: {labels.length ? labels.join(', ') : '—'}
@@ -756,7 +773,7 @@ export function InventoryDetail({
                         setItemOpen(false);
                         setItemIndex(null);
                     }}>
-                    <form className="grid gap-3" noValidate onSubmit={saveItem}>
+                    <form className="inventory-item-form grid gap-3" noValidate onSubmit={saveItem}>
                         <AntForm.Item label="Inventory type" required>
                             <Select
                                 value={itemDraft.InventoryTypeId || undefined}

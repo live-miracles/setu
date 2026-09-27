@@ -27,6 +27,7 @@ import { DetailSection } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
 import { AppLoading } from '../ui/app-loading';
 import { Table } from 'antd';
+import { requestStatusTagColor } from '../ui/request-status';
 import { Activity, ParticipantsEditor } from './detail-activity';
 import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
 import {
@@ -492,7 +493,7 @@ export function ProgramDetail({
                         ['Request number', `PRG-${request.DisplayId}`],
                         [
                             'Status',
-                            <Tag color="blue" key="status">
+                            <Tag color={requestStatusTagColor(request.Status)} key="status">
                                 {request.Status}
                             </Tag>,
                         ],

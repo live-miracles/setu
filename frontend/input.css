@@ -236,6 +236,37 @@ body {
     width: 100%;
 }
 
+form,
+.ant-form,
+.ant-form-item,
+.ant-form-item-control,
+.ant-form-item-control-input,
+.ant-form-item-control-input-content {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.ant-select,
+.ant-select-selector,
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.ant-select-selector {
+    overflow: hidden;
+}
+
+.ant-select-selection-item {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .home-list-row {
     display: flex;
     align-items: center;
@@ -627,6 +658,13 @@ body {
     min-height: 0;
     overflow: auto;
     padding: 0;
+}
+
+/* Board pages size themselves between the fixed header and mobile dock, so
+   their request list can own the vertical scroll without moving the heading
+   and filters out of view. */
+.app-content:has(.antd-page-board) {
+    overflow: hidden;
 }
 
 .app-loading {
