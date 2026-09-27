@@ -267,6 +267,12 @@ form,
     text-overflow: ellipsis;
 }
 
+.ant-tag.ant-tag-red {
+    color: var(--setu-error-text);
+    background: var(--setu-error-bg);
+    border-color: var(--setu-error-border);
+}
+
 .home-list-row {
     display: flex;
     align-items: center;
@@ -1262,11 +1268,6 @@ a.record-block:focus-visible {
 .request-block {
     min-width: 0;
     padding: 0.75rem;
-}
-
-.request-block-overdue {
-    background: color-mix(in srgb, #fff1f0 78%, var(--setu-surface));
-    border-color: #ffccc7;
 }
 
 .inventory-item-block-list {
