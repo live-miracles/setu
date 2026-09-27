@@ -49,6 +49,9 @@ export function Roster({ dashboard }: Props) {
         dashboard.shiftTypes,
         rosterStartIso,
     );
+    const rosterLaneColumns = rosterTable.volunteers.flatMap((volunteer) =>
+        volunteer.lanes.map((_, laneIndex) => `${volunteer.userId}-${laneIndex}`),
+    );
     const Form = ({ row }: { row?: RosterDTO }) => {
         const [userId, setUserId] = useState(row?.UserId || '');
         const initialShiftType = dashboard.shiftTypes.find(
@@ -229,6 +232,13 @@ export function Roster({ dashboard }: Props) {
                 {rosterTable.rows.length ? (
                     <div className="roster-table-scroll">
                         <table className="roster-table">
+                            <colgroup>
+                                <col className="roster-date-column" />
+                                {rosterLaneColumns.map((key) => (
+                                    <col key={key} className="roster-lane-column" />
+                                ))}
+                                <col className="roster-spacer-column" />
+                            </colgroup>
                             <thead>
                                 <tr>
                                     <th scope="col" className="roster-date-header">
@@ -243,6 +253,11 @@ export function Roster({ dashboard }: Props) {
                                             {volunteer.name}
                                         </th>
                                     ))}
+                                    <th
+                                        scope="col"
+                                        className="roster-spacer-header"
+                                        aria-hidden="true"
+                                    />
                                 </tr>
                             </thead>
                             <tbody>
@@ -309,6 +324,7 @@ export function Roster({ dashboard }: Props) {
                                                 );
                                             }),
                                         )}
+                                        <td className="roster-spacer-cell" aria-hidden="true" />
                                     </tr>
                                 ))}
                             </tbody>

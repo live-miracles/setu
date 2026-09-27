@@ -288,6 +288,17 @@ body {
     font-size: 0.82rem;
 }
 
+.roster-table .roster-lane-column,
+.roster-table .roster-shift-cell,
+.roster-table .roster-empty-cell {
+    width: 14rem;
+    max-width: 14rem;
+}
+
+.roster-table .roster-spacer-column {
+    width: auto;
+}
+
 .roster-table th,
 .roster-table td {
     min-width: 8.5rem;
@@ -336,6 +347,17 @@ body {
 }
 
 .roster-table .roster-empty-cell {
+    height: 3.2rem;
+    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+}
+
+.roster-table .roster-spacer-header,
+.roster-table .roster-spacer-cell {
+    width: auto;
+    min-width: 0;
+}
+
+.roster-table .roster-spacer-cell {
     height: 3.2rem;
     background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
 }
