@@ -427,6 +427,7 @@ form,
 .calendar-table-scroll {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
     width: 100%;
     overflow: auto;
 }
@@ -669,7 +670,8 @@ form,
 /* Board pages size themselves between the fixed header and mobile dock, so
    their request list can own the vertical scroll without moving the heading
    and filters out of view. */
-.app-content:has(.antd-page-board) {
+.app-content:has(.antd-page-board),
+.app-content:has(.calendar-page) {
     overflow: hidden;
 }
 
@@ -1519,6 +1521,10 @@ a.record-block:focus-visible {
     }
 
     .antd-page-board {
+        height: calc(100vh - 8rem);
+    }
+
+    .calendar-page {
         height: calc(100vh - 8rem);
     }
 
