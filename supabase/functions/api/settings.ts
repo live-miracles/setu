@@ -20,6 +20,15 @@ function timeDto(value: unknown): string {
     return value == null ? '' : String(value).slice(0, 5);
 }
 
+function parseInventoryTotalQuantity(value: unknown): number | null {
+    if (value == null || String(value).trim() === '') return null;
+    const quantity = Number(value);
+    if (!Number.isInteger(quantity) || quantity < 0) {
+        throw new Error('Total quantity must be a non-negative whole number.');
+    }
+    return quantity;
+}
+
 export function departmentDto(x: Row): Row {
     return { Id: x.id, Name: x.name, ShortName: x.short_name, LeadEmail: x.lead_email };
 }
@@ -307,8 +316,7 @@ export async function createInventoryType(
     const name = requireNonEmpty(input.name, 'Name is required.');
     const brand = String(input.brand || '').trim();
     const model = String(input.model || '').trim();
-    if (!(Number(input.totalQuantity) >= 0))
-        throw new Error('Total quantity must not be negative.');
+    const totalQuantity = parseInventoryTotalQuantity(input.totalQuantity);
     const { result: dto } = await withLockedDedupe(
         admin,
         'inventory-type:create',
@@ -325,7 +333,7 @@ export async function createInventoryType(
                         description: String(input.description || ''),
                         requestable: input.requestable !== false,
                         image_path: String(input.imageId || ''),
-                        total_quantity: Number(input.totalQuantity),
+                        total_quantity: totalQuantity,
                     })
                     .select('*')
                     .single(),
@@ -349,8 +357,7 @@ export async function updateInventoryType(
     const name = requireNonEmpty(input.name, 'Name is required.');
     const brand = String(input.brand || '').trim();
     const model = String(input.model || '').trim();
-    if (!(Number(input.totalQuantity) >= 0))
-        throw new Error('Total quantity must not be negative.');
+    const totalQuantity = parseInventoryTotalQuantity(input.totalQuantity);
     const { result: dto } = await withLockedDedupe(
         admin,
         'inventory-type:update:' + id,
@@ -373,7 +380,7 @@ export async function updateInventoryType(
                             input.imageId === undefined
                                 ? existing.image_path
                                 : String(input.imageId || ''),
-                        total_quantity: Number(input.totalQuantity),
+                        total_quantity: totalQuantity,
                     })
                     .eq('id', id)
                     .select('*')

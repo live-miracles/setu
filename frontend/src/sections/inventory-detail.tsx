@@ -527,7 +527,10 @@ export function InventoryDetail({
                                         : label.Name,
                                 );
                                 const shortage = Boolean(
-                                    type && type.availableQuantity < item.Quantity,
+                                    type &&
+                                    type.TotalQuantity != null &&
+                                    type.availableQuantity != null &&
+                                    type.availableQuantity < item.Quantity,
                                 );
                                 const conditionColor =
                                     item.Condition === 'returned'
@@ -571,7 +574,7 @@ export function InventoryDetail({
                                             )}
                                         </div>
                                         <div className="inventory-item-block-details">
-                                            {type && (
+                                            {type && type.TotalQuantity != null && (
                                                 <Tag color={shortage ? 'red' : 'green'}>
                                                     {type.availableQuantity}/{type.TotalQuantity}
                                                 </Tag>

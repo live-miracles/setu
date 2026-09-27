@@ -188,7 +188,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
             location: v.Location,
             description: v.Description,
             requestable: v.Requestable === 'on',
-            totalQuantity: Number(v.TotalQuantity || 0),
+            totalQuantity: v.TotalQuantity.trim() === '' ? null : Number(v.TotalQuantity),
         }),
     },
     blocks: {
@@ -622,7 +622,7 @@ export function SettingsResourcePage({
                     location: String(row.Location || ''),
                     description: String(row.Description || ''),
                     requestable: row.Requestable !== false,
-                    totalQuantity: Number(row.TotalQuantity || 0),
+                    totalQuantity: row.TotalQuantity == null ? null : Number(row.TotalQuantity),
                     imageId,
                 },
                 successNotification: false,
@@ -866,8 +866,9 @@ export function SettingsResourcePage({
                       title: 'Available',
                       key: 'available',
                       render: (_: unknown, row: Row) => {
-                          const available = Number(row.availableQuantity ?? 0);
-                          const total = Number(row.TotalQuantity ?? 0);
+                          if (row.TotalQuantity == null) return null;
+                          const available = Number(row.availableQuantity);
+                          const total = Number(row.TotalQuantity);
                           return (
                               <span className={stockLevelTextClass(available, total)}>
                                   <strong>{formatInventoryAvailability(available, total)}</strong>
@@ -891,8 +892,6 @@ export function SettingsResourcePage({
     ) : filteredRows.length > 0 ? (
         <div className="inventory-type-grid">
             {filteredRows.map((row) => {
-                const available = Number(row.availableQuantity ?? 0);
-                const total = Number(row.TotalQuantity ?? 0);
                 return (
                     <BlockCard
                         key={row.Id}
@@ -906,10 +905,15 @@ export function SettingsResourcePage({
                                     {String(row.Location)}
                                 </span>
                             )}
-                            <span
-                                className={`inventory-type-card-availability ${stockLevelTextClass(available, total)}`}>
-                                {formatInventoryAvailability(available, total)}
-                            </span>
+                            {row.TotalQuantity != null && (
+                                <span
+                                    className={`inventory-type-card-availability ${stockLevelTextClass(Number(row.availableQuantity), Number(row.TotalQuantity))}`}>
+                                    {formatInventoryAvailability(
+                                        Number(row.availableQuantity),
+                                        Number(row.TotalQuantity),
+                                    )}
+                                </span>
+                            )}
                         </div>
                         <div className="inventory-type-card-image">
                             <RequestImage
@@ -1016,14 +1020,21 @@ export function SettingsResourcePage({
                             ['Model', String(selectedInventoryType.Model || '—')],
                             ['Location', String(selectedInventoryType.Location || '—')],
                             ['Description', String(selectedInventoryType.Description || '—')],
-                            [
-                                'Availability',
-                                formatInventoryAvailability(
-                                    Number(selectedInventoryType.availableQuantity ?? 0),
-                                    Number(selectedInventoryType.TotalQuantity ?? 0),
-                                ),
-                            ],
-                            ['Total quantity', String(selectedInventoryType.TotalQuantity ?? 0)],
+                            ...(selectedInventoryType.TotalQuantity == null
+                                ? []
+                                : [
+                                      [
+                                          'Availability',
+                                          formatInventoryAvailability(
+                                              Number(selectedInventoryType.availableQuantity),
+                                              Number(selectedInventoryType.TotalQuantity),
+                                          ),
+                                      ] as [string, string],
+                                      [
+                                          'Total quantity',
+                                          String(selectedInventoryType.TotalQuantity),
+                                      ] as [string, string],
+                                  ]),
                             [
                                 'Requestable',
                                 selectedInventoryType.Requestable !== false ? 'Yes' : 'No',

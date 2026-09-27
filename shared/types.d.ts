@@ -74,7 +74,7 @@ interface InventoryType {
     Description: string;
     Requestable: boolean;
     ImageId: string;
-    TotalQuantity: number;
+    TotalQuantity: number | null;
 }
 
 interface InventoryLabel {
@@ -228,7 +228,7 @@ interface RosterDTO extends Roster {
 }
 
 interface InventoryTypeDTO extends InventoryType {
-    availableQuantity: number;
+    availableQuantity: number | null;
     labels: InventoryLabel[];
 }
 
@@ -364,7 +364,7 @@ interface CreateInventoryTypeInput {
     location: string;
     description: string;
     requestable: boolean;
-    totalQuantity: number;
+    totalQuantity: number | null;
     imageId?: string;
 }
 

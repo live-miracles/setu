@@ -743,8 +743,11 @@ export async function performInventoryRequestAction(
                         }
                         const type = typesById.get(item.inventory_type_id);
                         if (!type) throw new Error('Inventory type not found.');
-                        const available = type.total_quantity - (deductions.get(type.id) || 0);
-                        if (available < item.quantity)
+                        const available =
+                            type.total_quantity == null
+                                ? null
+                                : type.total_quantity - (deductions.get(type.id) || 0);
+                        if (available != null && available < item.quantity)
                             throw new Error('Insufficient inventory available.');
                         deductions.set(type.id, (deductions.get(type.id) || 0) + item.quantity);
                     }
