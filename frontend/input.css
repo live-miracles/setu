@@ -362,6 +362,18 @@ body {
     background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
 }
 
+.ant-input.inventory-qr-manual-input {
+    width: 7rem;
+    max-width: 100%;
+    padding: 0.75rem 0.875rem;
+    border-radius: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 1.35rem;
+    font-weight: 750;
+    letter-spacing: 0.14em;
+    text-align: center;
+}
+
 .roster-table .roster-shift-cell {
     min-width: 8.5rem;
     height: 1px;

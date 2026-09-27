@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Select, Typography } from 'antd';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Button, Input, Select, Typography } from 'antd';
 import QrScannerLib from 'qr-scanner';
 
 /**
@@ -46,6 +46,7 @@ function streamCameraId(video: HTMLVideoElement): string {
 export function QrScanner({
     onScan,
     stopOnScan,
+    manualEntry = false,
 }: {
     /**
      * Return `false` to keep scanning (e.g. the code didn't match anything) —
@@ -62,6 +63,8 @@ export function QrScanner({
      * one session keep scanning continuously.
      */
     stopOnScan?: boolean;
+    /** Show the inventory QR number fallback below the camera controls. */
+    manualEntry?: boolean;
 }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const scanner = useRef<QrScannerLib | null>(null);
@@ -70,6 +73,10 @@ export function QrScanner({
     const [cameras, setCameras] = useState<Camera[]>([]);
     const [cameraId, setCameraId] = useState('');
     const [cameraError, setCameraError] = useState<CameraErrorKind | null>(null);
+    const [manualTypeNumber, setManualTypeNumber] = useState('');
+    const [manualLabelNumber, setManualLabelNumber] = useState('');
+    const [manualError, setManualError] = useState('');
+    const [manualBusy, setManualBusy] = useState(false);
 
     useEffect(() => {
         latestOnScan.current = onScan;
@@ -148,6 +155,30 @@ export function QrScanner({
         }
     };
 
+    const submitManualEntry = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const typeNumber = manualTypeNumber.trim();
+        const labelNumber = manualLabelNumber.trim();
+        if (!/^\d+$/.test(typeNumber) || (labelNumber && !/^\d+$/.test(labelNumber))) {
+            setManualError('Enter numbers only.');
+            return;
+        }
+        setManualError('');
+        setManualBusy(true);
+        try {
+            const value = labelNumber ? `${typeNumber}-${labelNumber}` : typeNumber;
+            const handled = await onScan(value);
+            if (handled !== false) {
+                setManualTypeNumber('');
+                setManualLabelNumber('');
+            }
+        } catch (error) {
+            setManualError(error instanceof Error ? error.message : String(error));
+        } finally {
+            setManualBusy(false);
+        }
+    };
+
     return (
         <div className="grid gap-3">
             <div className="relative aspect-square w-full overflow-hidden rounded border bg-black">
@@ -188,6 +219,47 @@ export function QrScanner({
                         />
                     </label>
                 )
+            )}
+            {manualEntry && (
+                <form
+                    className="grid gap-3"
+                    onSubmit={submitManualEntry}
+                    aria-label="Enter inventory QR numbers manually">
+                    <div className="flex items-center justify-center gap-2">
+                        <Input
+                            size="large"
+                            className="inventory-qr-manual-input"
+                            value={manualTypeNumber}
+                            onChange={(event) => setManualTypeNumber(event.target.value)}
+                            placeholder="00"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            autoComplete="off"
+                            aria-label="Inventory type number"
+                        />
+                        <Typography.Text strong>-</Typography.Text>
+                        <Input
+                            size="large"
+                            className="inventory-qr-manual-input"
+                            value={manualLabelNumber}
+                            onChange={(event) => setManualLabelNumber(event.target.value)}
+                            placeholder="00"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            autoComplete="off"
+                            aria-label="Item number"
+                        />
+                    </div>
+                    {manualError && <Typography.Text type="danger">{manualError}</Typography.Text>}
+                    <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={manualBusy}
+                        disabled={!manualTypeNumber.trim() || manualBusy}
+                        block>
+                        Use numbers
+                    </Button>
+                </form>
             )}
         </div>
     );

@@ -731,7 +731,7 @@ export function InventoryDetail({
                         setItemError('');
                     }}>
                     <div className="grid gap-3">
-                        <QrScanner onScan={scanInventoryType} stopOnScan />
+                        <QrScanner onScan={scanInventoryType} stopOnScan manualEntry />
                         {itemError && <Typography.Text type="danger">{itemError}</Typography.Text>}
                     </div>
                 </Modal>
@@ -743,7 +743,7 @@ export function InventoryDetail({
                             Scan each item. A labeled QR code adds its label without increasing the
                             requested count; unlabeled codes only add a missing inventory type.
                         </Typography.Text>
-                        <QrScanner onScan={scanIssueItem} />
+                        <QrScanner onScan={scanIssueItem} manualEntry />
                         {issueScanError && (
                             <Typography.Text type="danger">{issueScanError}</Typography.Text>
                         )}
