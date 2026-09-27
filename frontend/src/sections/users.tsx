@@ -38,6 +38,13 @@ type UserFormValues = {
     whatsapp: string;
 };
 
+const USER_ROLE_ORDER: Record<UserRole, number> = {
+    admin: 0,
+    approver: 1,
+    viewer: 2,
+    user: 3,
+};
+
 export function UserForm({
     dashboard,
     user,
@@ -164,7 +171,11 @@ export function Users({ dashboard }: Props) {
         : null;
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
-    const shown = users;
+    const shown = [...users].sort(
+        (left, right) =>
+            USER_ROLE_ORDER[left.Role] - USER_ROLE_ORDER[right.Role] ||
+            left.Name.localeCompare(right.Name, undefined, { sensitivity: 'base' }),
+    );
     const filteredUsers = shown.filter((user) =>
         matchesSearch(appliedSearch, [
             user.Name,
