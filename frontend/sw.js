@@ -2,7 +2,13 @@
  * image requests stay network-first so request data and access changes cannot
  * become stale or leak through a shared cache. */
 const CACHE = 'setu-shell-v1';
-const SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+const SHELL = [
+    '/',
+    '/manifest.webmanifest',
+    '/icons/icon-192.png',
+    '/icons/icon-512.png',
+    '/icons/icon-ios.png',
+];
 
 self.addEventListener('install', (event) => {
     event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
