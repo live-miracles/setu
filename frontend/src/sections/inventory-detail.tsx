@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useCustomMutation, useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
-import { Button, Form as AntForm, Select, Space, Table, Tag, Typography } from 'antd';
+import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
 import {
     ArrowLeftOutlined,
     CameraOutlined,
@@ -27,6 +27,7 @@ import { RequestImage } from '../ui/request-image';
 import { inventoryTypeDisplayName } from '../ui/inventory-qr';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
+import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
 import { canApprove, canTransitionInventoryRequest } from '../workflows';
@@ -64,6 +65,8 @@ export function InventoryDetail({
             (email) => email.trim().toLowerCase() === currentUserEmail,
         );
     const approver = canApprove(dashboard.me);
+    const canEditItemCondition = approver && ['issued', 'closed'].includes(request.Status);
+    const showItemCondition = ['issued', 'closed'].includes(request.Status);
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
     const deletable =
         ['draft', 'cancelled'].includes(request.Status) && (canApprove(dashboard.me) || owner);
@@ -500,97 +503,73 @@ export function InventoryDetail({
                         )
                     }>
                     {items.length ? (
-                        <Table
-                            rowKey={(item) => `${item.InventoryTypeId}-${item.Quantity}`}
-                            pagination={false}
-                            dataSource={items}
-                            rowClassName={(item) => {
+                        <div className="inventory-item-block-list">
+                            {items.map((item, index) => {
                                 const type = dashboard.inventoryTypes.find(
                                     (entry) => entry.Id === item.InventoryTypeId,
                                 );
-                                return type && type.availableQuantity < item.Quantity
-                                    ? 'inventory-item-shortage-row'
-                                    : '';
-                            }}
-                            columns={[
-                                {
-                                    title: 'Item',
-                                    key: 'item',
-                                    render: (_value: unknown, item: InventoryItemDTO) => (
-                                        <Space size={6} wrap>
+                                const labels = (item.labels || []).map((label) =>
+                                    typeof label === 'string'
+                                        ? type?.labels?.find((entry) => entry.Id === label)?.Name ||
+                                          label
+                                        : label.Name,
+                                );
+                                const shortage = Boolean(
+                                    type && type.availableQuantity < item.Quantity,
+                                );
+                                return (
+                                    <BlockCard
+                                        key={`${item.InventoryTypeId}-${index}`}
+                                        className={`inventory-item-block${shortage ? ' inventory-item-shortage-block' : ''}`}>
+                                        <div className="inventory-item-block-heading">
+                                            <div className="inventory-item-block-title">
+                                                <Typography.Text type="secondary">
+                                                    {item.Quantity}×
+                                                </Typography.Text>
+                                                <Typography.Text strong>
+                                                    {item.itemName || 'Unknown item'}
+                                                </Typography.Text>
+                                            </div>
+                                            {editable && (
+                                                <Space size="small">
+                                                    <Button
+                                                        type="text"
+                                                        icon={<EditOutlined />}
+                                                        onClick={() => editItem(index)}
+                                                        aria-label="Edit item"
+                                                    />
+                                                    <Button
+                                                        type="text"
+                                                        danger
+                                                        icon={<DeleteOutlined />}
+                                                        onClick={() =>
+                                                            setPendingDeleteItemIndex(index)
+                                                        }
+                                                        aria-label="Delete item"
+                                                    />
+                                                </Space>
+                                            )}
+                                        </div>
+                                        <div className="inventory-item-block-details">
+                                            {type && (
+                                                <Typography.Text type="secondary">
+                                                    Available {type.availableQuantity}/
+                                                    {type.TotalQuantity}
+                                                </Typography.Text>
+                                            )}
+                                            {showItemCondition && (
+                                                <Typography.Text type="secondary">
+                                                    Condition: {item.Condition || 'Not specified'}
+                                                </Typography.Text>
+                                            )}
                                             <Typography.Text type="secondary">
-                                                {item.Quantity}×
+                                                Labels: {labels.length ? labels.join(', ') : '—'}
                                             </Typography.Text>
-                                            <Typography.Text strong>
-                                                {item.itemName || 'Unknown item'}
-                                            </Typography.Text>
-                                            {(() => {
-                                                const type = dashboard.inventoryTypes.find(
-                                                    (entry) => entry.Id === item.InventoryTypeId,
-                                                );
-                                                return type ? (
-                                                    <Typography.Text type="secondary">
-                                                        ({type.availableQuantity}/
-                                                        {type.TotalQuantity})
-                                                    </Typography.Text>
-                                                ) : null;
-                                            })()}
-                                        </Space>
-                                    ),
-                                },
-                                {
-                                    title: 'Condition',
-                                    dataIndex: 'Condition',
-                                    key: 'Condition',
-                                    render: (value: string) => value || '—',
-                                },
-                                {
-                                    title: 'Labels',
-                                    key: 'labels',
-                                    render: (_value: unknown, item: InventoryItemDTO) => {
-                                        const type = dashboard.inventoryTypes.find(
-                                            (entry) => entry.Id === item.InventoryTypeId,
-                                        );
-                                        const labels = (item.labels || []).map((label) =>
-                                            typeof label === 'string'
-                                                ? type?.labels?.find((entry) => entry.Id === label)
-                                                      ?.Name || label
-                                                : label.Name,
-                                        );
-                                        return labels.length ? labels.join(', ') : '—';
-                                    },
-                                },
-                                {
-                                    title: 'Actions',
-                                    key: 'actions',
-                                    align: 'right' as const,
-                                    render: (
-                                        _value: unknown,
-                                        _item: InventoryItemDTO,
-                                        index: number,
-                                    ) =>
-                                        editable ? (
-                                            <Space>
-                                                <Button
-                                                    type="text"
-                                                    icon={<EditOutlined />}
-                                                    onClick={() => editItem(index)}
-                                                    aria-label="Edit item"
-                                                />
-                                                <Button
-                                                    type="text"
-                                                    danger
-                                                    icon={<DeleteOutlined />}
-                                                    onClick={() => setPendingDeleteItemIndex(index)}
-                                                    aria-label="Delete item"
-                                                />
-                                            </Space>
-                                        ) : null,
-                                },
-                            ]}
-                            className="inventory-items-table"
-                            scroll={{ x: 'max-content' }}
-                        />
+                                        </div>
+                                    </BlockCard>
+                                );
+                            })}
+                        </div>
                     ) : (
                         <Empty>No items added.</Empty>
                     )}
@@ -840,7 +819,7 @@ export function InventoryDetail({
                                 />
                             </AntForm.Item>
                         ) : null}
-                        {approver && (
+                        {canEditItemCondition && (
                             <AntForm.Item label="Condition">
                                 <Select
                                     value={itemDraft.Condition}

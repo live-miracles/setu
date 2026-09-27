@@ -1231,10 +1231,44 @@ a.record-block:focus-visible {
     border-color: #ffccc7;
 }
 
-.inventory-items-table .inventory-item-shortage-row > td,
-.inventory-items-table .inventory-item-shortage-row:hover > td {
+.inventory-item-block-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+    gap: 0.75rem;
+}
+
+.inventory-item-block {
+    min-width: 0;
+    padding: 0.85rem 1rem;
+}
+
+.inventory-item-shortage-block {
     background: #fff1f0;
     color: #cf1322;
+}
+
+.inventory-item-block-heading,
+.inventory-item-block-title {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.inventory-item-block-heading {
+    justify-content: space-between;
+    min-width: 0;
+}
+
+.inventory-item-block-title {
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.inventory-item-block-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    margin-top: 0.65rem;
 }
 
 .request-block-content {
