@@ -79,6 +79,13 @@ export function Calendar({ dashboard }: Props) {
             ) : calendar.rows.length ? (
                 <div className="calendar-table-scroll">
                     <table className="calendar-table">
+                        <colgroup>
+                            <col className="calendar-date-column" />
+                            {calendar.places.map((place) => (
+                                <col key={place.Id} className="calendar-place-column" />
+                            ))}
+                            <col className="calendar-spacer-column" />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th scope="col" className="calendar-date-header">
@@ -92,6 +99,11 @@ export function Calendar({ dashboard }: Props) {
                                         {place.Name}
                                     </th>
                                 ))}
+                                <th
+                                    scope="col"
+                                    className="calendar-spacer-header"
+                                    aria-hidden="true"
+                                />
                             </tr>
                         </thead>
                         <tbody>
@@ -159,6 +171,10 @@ export function Calendar({ dashboard }: Props) {
                                                     </td>
                                                 );
                                             })}
+                                            <td
+                                                className="calendar-spacer-cell"
+                                                aria-hidden="true"
+                                            />
                                         </tr>
                                     );
                                 })(),

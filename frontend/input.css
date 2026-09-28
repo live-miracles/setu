@@ -441,6 +441,7 @@ form,
     font-size: 0.82rem;
 }
 
+.calendar-table .calendar-place-column,
 .calendar-table th,
 .calendar-table td {
     min-width: 12rem;
@@ -448,6 +449,17 @@ form,
     border-right: 1px solid var(--setu-line);
     border-bottom: 1px solid var(--setu-line);
     vertical-align: top;
+}
+
+.calendar-table .calendar-place-column,
+.calendar-table .calendar-place-cell,
+.calendar-table .calendar-place-header {
+    width: 12rem;
+    max-width: 12rem;
+}
+
+.calendar-table .calendar-spacer-column {
+    width: auto;
 }
 
 .calendar-table thead th {
@@ -480,18 +492,25 @@ form,
 }
 
 .calendar-table .calendar-place-cell {
-    width: 12rem;
     min-width: 12rem;
-    max-width: 12rem;
     padding-inline: 0;
     background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
 }
 
 .calendar-table .calendar-place-header {
-    width: 12rem;
     min-width: 12rem;
-    max-width: 12rem;
     overflow-wrap: anywhere;
+}
+
+.calendar-table .calendar-spacer-header,
+.calendar-table .calendar-spacer-cell {
+    width: auto;
+    min-width: 0;
+}
+
+.calendar-table .calendar-spacer-cell {
+    height: 3.2rem;
+    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
 }
 
 .calendar-table .calendar-today-row > th,
