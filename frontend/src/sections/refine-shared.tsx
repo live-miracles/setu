@@ -236,7 +236,11 @@ export function TextField({
 }) {
     const [inputError, setInputError] = useState('');
     const displayedError = error || inputError;
-    const { onChange: registeredOnChange, ...registrationProps } = registration || {};
+    const {
+        onChange: registeredOnChange,
+        ref: registeredRef,
+        ...registrationProps
+    } = registration || {};
     return (
         <AntForm.Item
             label={label}
@@ -246,6 +250,10 @@ export function TextField({
             help={displayedError}>
             <Input
                 {...registrationProps}
+                // RHF must read the native input value, not Ant Design's InputRef handle.
+                ref={
+                    registeredRef ? (instance) => registeredRef(instance?.input ?? null) : undefined
+                }
                 name={name}
                 type={type}
                 list={list}
