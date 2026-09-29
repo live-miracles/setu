@@ -14,8 +14,8 @@ import {
     TeamOutlined,
     UserOutlined,
 } from '@ant-design/icons';
-import { useEffect, useState, type ReactNode } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import appLogo from '../../assets/logo.png';
 import loadingBackground from '../../assets/loading-background.avif';
 import { useDashboardOptional } from '../dashboard-context';
@@ -136,7 +136,12 @@ export function Shell({
     const dashboard = dashboardProp ?? dashboardContext?.dashboard ?? null;
     const refreshDashboard = refreshDashboardProp ?? dashboardContext?.refreshDashboard;
     const location = useLocation();
+    const navigationType = useNavigationType();
     const navigate = useNavigate();
+    const contentRef = useRef<HTMLDivElement>(null);
+    const scrollPositions = useRef(new Map<string, number>());
+    const currentPathname = useRef(location.pathname);
+    currentPathname.current = location.pathname;
     const [refreshing, setRefreshing] = useState(false);
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -172,6 +177,17 @@ export function Shell({
             mediaQuery.removeEventListener('change', syncViewport);
         };
     }, []);
+
+    // The scrolling element (.app-content) is shared by every route, so its
+    // scroll offset would otherwise carry over. New pushes (e.g. opening a
+    // detail page) start at the top; back/forward and replace navigations
+    // (e.g. closing a detail page) return to where the page was left.
+    useLayoutEffect(() => {
+        const el = contentRef.current;
+        if (!el) return;
+        el.scrollTop =
+            navigationType === 'PUSH' ? 0 : (scrollPositions.current.get(location.pathname) ?? 0);
+    }, [location.key, location.pathname, navigationType]);
 
     const selectedKey = navigationItems.find((item) =>
         isPathSection(location.pathname, item.to),
@@ -273,7 +289,15 @@ export function Shell({
                         )}
                     </Space>
                 </Header>
-                <Content className={contentClassName(location.pathname)}>
+                <Content
+                    ref={contentRef}
+                    className={contentClassName(location.pathname)}
+                    onScroll={(event) =>
+                        scrollPositions.current.set(
+                            currentPathname.current,
+                            event.currentTarget.scrollTop,
+                        )
+                    }>
                     {children ?? <Outlet />}
                 </Content>
                 {appLoading && <AppLoading />}
