@@ -665,6 +665,15 @@ export async function performProgramRequestAction(
         'program_request:' + id + ':' + action,
         dedupeRequestId,
         async (): Promise<string> => {
+            if (action === 'revise') {
+                return result(
+                    await admin.rpc('revise_rejected_request', {
+                        p_kind: 'program_request',
+                        p_request_id: id,
+                        p_actor_id: actor.id,
+                    }),
+                ) as string;
+            }
             const [requestRes, participantsRes, sessionsRes] = await Promise.all([
                 admin.from('program_requests').select('*').eq('id', id).single(),
                 admin.from('program_request_participants').select('*').eq('request_id', id),

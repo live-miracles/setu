@@ -7,7 +7,7 @@ const INVENTORY_REQUEST_TRANSITIONS: Record<InventoryRequestStatus, InventoryReq
     draft: ['submit', 'cancel'],
     submitted: ['approve', 'reject', 'cancel'],
     approved: ['issue', 'cancel'],
-    rejected: ['close'],
+    rejected: ['revise', 'close'],
     issued: ['close'],
     cancelled: ['close'],
     closed: [],
@@ -22,12 +22,12 @@ export function canTransitionInventoryRequest(
 
 // No issue/return/close step — a program request only ever moves draft ->
 // submitted -> approved/rejected, with cancellation available before a final
-// decision.
+// decision. Rejected requests can return to draft for revision.
 const PROGRAM_REQUEST_TRANSITIONS: Record<ProgramRequestStatus, ProgramRequestAction[]> = {
     draft: ['submit', 'cancel'],
     submitted: ['approve', 'reject', 'cancel'],
     approved: ['cancel'],
-    rejected: [],
+    rejected: ['revise'],
     cancelled: [],
 };
 
@@ -57,4 +57,35 @@ export function canManageConfig(me: UserDTO): boolean {
 
 export function canApprove(me: UserDTO): boolean {
     return me.Role === 'admin' || me.Role === 'approver';
+}
+
+export function getInventoryRequestActions(
+    request: InventoryRequestDTO,
+    me: UserDTO,
+): InventoryRequestAction[] {
+    const email = me.Email.trim().toLowerCase();
+    const owner =
+        request.UserId.trim().toLowerCase() === email ||
+        (request.participants || []).some(
+            (participant) => participant.trim().toLowerCase() === email,
+        );
+    return (
+        [
+            'submit',
+            'approve',
+            'reject',
+            'issue',
+            'close',
+            'cancel',
+            'revise',
+        ] as InventoryRequestAction[]
+    )
+        .filter((action) => canTransitionInventoryRequest(request.Status, action))
+        .filter((action) =>
+            action === 'submit'
+                ? owner
+                : action === 'revise'
+                  ? owner || canApprove(me)
+                  : canApprove(me),
+        );
 }

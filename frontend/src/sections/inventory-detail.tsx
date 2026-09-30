@@ -31,7 +31,7 @@ import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
 import { requestStatusTagColor } from '../ui/request-status';
-import { canApprove, canTransitionInventoryRequest, isRequestOverdue } from '../workflows';
+import { canApprove, getInventoryRequestActions, isRequestOverdue } from '../workflows';
 import { supabase } from '../supabase';
 import { Activity, ParticipantsEditor } from './detail-activity';
 import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
@@ -400,11 +400,7 @@ export function InventoryDetail({
             showSavingBadge(false);
         }
     };
-    const actions = (
-        ['submit', 'approve', 'reject', 'issue', 'close', 'cancel'] as InventoryRequestAction[]
-    )
-        .filter((action) => canTransitionInventoryRequest(request.Status, action))
-        .filter((action) => (action === 'submit' ? owner : canApprove(dashboard.me)));
+    const actions = getInventoryRequestActions(request, dashboard.me);
     return (
         <DetailLayout
             title={request.Name || 'Unnamed request'}
@@ -880,6 +876,11 @@ export function InventoryDetail({
             {pendingAction && (
                 <ActionConfirmation
                     action={pendingAction}
+                    description={
+                        pendingAction === 'revise'
+                            ? 'Return this rejected request to draft? Its details and activity will be kept. You must submit it again for approval after making changes.'
+                            : undefined
+                    }
                     onCancel={() => setPendingAction(null)}
                     onConfirm={async () => {
                         setPendingAction(null);
