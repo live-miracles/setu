@@ -16,8 +16,9 @@ type InventoryRequestStatus =
     'draft' | 'submitted' | 'approved' | 'rejected' | 'issued' | 'cancelled' | 'closed';
 type ProgramRequestStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled';
 type ReturnCondition = 'returned' | 'damaged' | 'missing';
-type InventoryRequestAction = 'submit' | 'approve' | 'reject' | 'issue' | 'cancel' | 'close';
-type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel';
+type InventoryRequestAction =
+    'submit' | 'approve' | 'reject' | 'issue' | 'cancel' | 'close' | 'revise';
+type ProgramRequestAction = 'submit' | 'approve' | 'reject' | 'cancel' | 'revise';
 
 // ---------------------------------------------------------------------------
 // Sheet row shapes (raw, one per tab)

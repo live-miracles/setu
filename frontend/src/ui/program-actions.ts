@@ -48,9 +48,9 @@ export function getProgramRequestActions(
     me: UserDTO,
 ): ProgramRequestAction[] {
     if (canApprove(me)) {
-        return (['submit', 'approve', 'reject', 'cancel'] as ProgramRequestAction[]).filter(
-            (action) => canTransitionProgramRequest(request.Status, action),
-        );
+        return (
+            ['submit', 'approve', 'reject', 'cancel', 'revise'] as ProgramRequestAction[]
+        ).filter((action) => canTransitionProgramRequest(request.Status, action));
     }
     const email = me.Email.trim().toLowerCase();
     const isOwner =
@@ -58,7 +58,9 @@ export function getProgramRequestActions(
         (request.participants || []).some(
             (participant) => participant.trim().toLowerCase() === email,
         );
-    return request.Status === 'draft' && isOwner ? ['submit'] : [];
+    if (!isOwner) return [];
+    if (request.Status === 'draft') return ['submit'];
+    return request.Status === 'rejected' ? ['revise'] : [];
 }
 
 export function getLocalDateFromSession(startDateTime: string): string {
