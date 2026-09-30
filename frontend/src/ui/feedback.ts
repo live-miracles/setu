@@ -20,7 +20,11 @@ export function showErrorAlert(error: unknown): void {
         error instanceof Error
             ? error.message
             : String((error as any)?.message || error || 'Something went wrong.');
-    const config = { message: 'Something went wrong', description: message };
+    const config = {
+        message: 'Something went wrong',
+        description: message,
+        style: { whiteSpace: 'pre-line' as const },
+    };
     if (errorNotifier) errorNotifier(config);
     else notification.error(config);
 }

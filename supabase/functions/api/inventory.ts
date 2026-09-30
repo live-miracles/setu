@@ -731,6 +731,7 @@ export async function performInventoryRequestAction(
                     const types = result(await admin.from('inventory_types').select('*')) as Row[];
                     const typesById = new Map(types.map((t) => [t.id, t]));
                     const deductions = await computeDeductionsByType(admin);
+                    const shortages: string[] = [];
                     for (const item of items) {
                         const labelCount = labelCountByItemId.get(item.id) || 0;
                         if (labelCount > item.quantity) {
@@ -747,9 +748,24 @@ export async function performInventoryRequestAction(
                             type.total_quantity == null
                                 ? null
                                 : type.total_quantity - (deductions.get(type.id) || 0);
-                        if (available != null && available < item.quantity)
-                            throw new Error('Insufficient inventory available.');
+                        if (available != null && available < item.quantity) {
+                            const itemName =
+                                [type.brand, type.name]
+                                    .map((value) => String(value || '').trim())
+                                    .filter(Boolean)
+                                    .join(' · ') || 'Unnamed item';
+                            shortages.push(
+                                `- ${itemName} — Requested: ${item.quantity}, Available: ${Math.max(available, 0)}`,
+                            );
+                            continue;
+                        }
                         deductions.set(type.id, (deductions.get(type.id) || 0) + item.quantity);
+                    }
+                    if (shortages.length) {
+                        throw new Error(
+                            'Unable to issue inventory request. The following item(s) have insufficient inventory:\n' +
+                                shortages.join('\n'),
+                        );
                     }
                     computedStatus = 'issued';
                     await narrate('Issued the equipment.' + (note ? ' ' + note : ''));
