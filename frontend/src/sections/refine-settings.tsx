@@ -1152,20 +1152,21 @@ export function SettingsResourcePage({
                         )}
                     </div>
                 </DetailSection>
-                <DetailSection
-                    title="Individual labels"
-                    action={
-                        canEdit ? (
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={openAddInventoryLabel}
-                                aria-label="Add label"
-                                title="Add label"
-                            />
-                        ) : null
-                    }>
-                    <div className="grid gap-3">
+                <DetailSection className="table-detail-section">
+                    <TableView
+                        title="Individual labels"
+                        count={(selectedInventoryType.labels || []).length}
+                        action={
+                            canEdit ? (
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={openAddInventoryLabel}
+                                    aria-label="Add label"
+                                    title="Add label"
+                                />
+                            ) : null
+                        }>
                         {(selectedInventoryType.labels || []).length ? (
                             <Table
                                 rowKey="Id"
@@ -1236,7 +1237,7 @@ export function SettingsResourcePage({
                                 No individual labels configured.
                             </Typography.Text>
                         )}
-                    </div>
+                    </TableView>
                 </DetailSection>
                 <DetailSection span="full">
                     <RelatedRequestBlocks
@@ -1323,24 +1324,28 @@ export function SettingsResourcePage({
                     />
                 </DetailSection>
                 <DetailSection span="full">
-                    <Typography.Title level={3}>
-                        Users <Tag>{departmentUsers.length}</Tag>
-                    </Typography.Title>
-                    {departmentUsers.length ? (
-                        <div className="department-related-grid">
-                            {departmentUsers.map((user) => (
-                                <UserBlock
-                                    key={user.Email}
-                                    user={user}
-                                    dashboard={dashboard}
-                                    href={userPath(user.Email)}
-                                    onClick={() => navigate(userPath(user.Email))}
-                                />
-                            ))}
+                    <section className="related-list">
+                        <div className="related-request-heading">
+                            <Typography.Title level={3}>
+                                Users <Tag>{departmentUsers.length}</Tag>
+                            </Typography.Title>
                         </div>
-                    ) : (
-                        <Empty description="No users in this department." />
-                    )}
+                        {departmentUsers.length ? (
+                            <div className="department-related-grid">
+                                {departmentUsers.map((user) => (
+                                    <UserBlock
+                                        key={user.Email}
+                                        user={user}
+                                        dashboard={dashboard}
+                                        href={userPath(user.Email)}
+                                        onClick={() => navigate(userPath(user.Email))}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <Empty description="No users in this department." />
+                        )}
+                    </section>
                 </DetailSection>
                 <DetailSection span="full">
                     <RelatedRequestBlocks
@@ -1371,7 +1376,7 @@ export function SettingsResourcePage({
         <section
             className={`${compact ? 'antd-settings-compact' : 'antd-page'}${
                 config.kind === 'block' ? ' blocks-page' : ''
-            }`}>
+            }${selectedDepartment || selectedInventoryType ? ' detail-page' : ''}`}>
             {config.kind === 'department' && selectedDepartment ? (
                 departmentDetail
             ) : config.kind === 'inventory-type' && selectedInventoryType ? (

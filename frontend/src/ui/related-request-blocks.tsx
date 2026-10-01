@@ -26,7 +26,7 @@ export function RelatedRequestBlocks({
     const pageItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     return (
-        <section>
+        <section className="related-list">
             <div className="related-request-heading">
                 <Typography.Title level={3}>
                     {title} <Tag>{items.length}</Tag>

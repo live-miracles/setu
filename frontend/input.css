@@ -959,9 +959,42 @@ form,
     max-width: none;
 }
 
-.detail-section > .ant-card {
+/* Titled sections keep their header fixed; only the card body scrolls when the
+   content outgrows the section. Table sections (.table-view) do this
+   themselves. */
+.detail-section > .ant-card:not(.table-view) {
+    display: flex;
     min-width: 0;
+    min-height: 0;
     flex: 1 1 auto;
+    flex-direction: column;
+}
+
+.detail-section > .ant-card:not(.table-view) > .ant-card-head {
+    flex: 0 0 auto;
+}
+
+.detail-section > .ant-card:not(.table-view) > .ant-card-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: auto;
+}
+
+/* Related request/user lists: heading stays on top, the list scrolls. */
+.detail-section > .related-list {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+.related-list > .related-request-heading {
+    flex: 0 0 auto;
+}
+
+.related-list > :not(.related-request-heading) {
+    min-height: 0;
+    overflow: auto;
 }
 
 .table-detail-section {
