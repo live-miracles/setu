@@ -14,7 +14,9 @@ async function importSource(path, prelude = '') {
 test('image replacement rejects paths outside the current user folder', async () => {
     const images = await importSource(
         'supabase/functions/api/images.ts',
-        'const requireNonEmpty = (value) => String(value).trim();\n',
+        `const requireNonEmpty = (value) => String(value).trim();
+         const result = (response) => { if (response.error) throw new Error(response.error.message); return response.data; };
+         const currentProfile = async (client) => client.profile;\n`,
     );
     assert.equal(images.isOwnedImagePath('user-a', 'user-a/photo.png'), true);
     assert.equal(images.isOwnedImagePath('user-a', 'user-b/photo.png'), false);
@@ -34,6 +36,101 @@ test('image replacement rejects paths outside the current user folder', async ()
         /another user/,
     );
     assert.equal(storageCalled, false);
+});
+
+test('signed image uploads require access to their target resource', async () => {
+    const images = await importSource(
+        'supabase/functions/api/images.ts',
+        `const requireNonEmpty = (value) => String(value).trim();
+         const result = (response) => { if (response.error) throw new Error(response.error.message); return response.data; };
+         const currentProfile = async (client) => client.profile;\n`,
+    );
+    const rows = {
+        inventory_types: [{ id: 'type-1' }],
+        inventory_requests: [{ id: 'request-1', requester_id: 'owner-1', status: 'draft' }],
+        inventory_request_participants: [{ request_id: 'request-1', profile_id: 'participant-1' }],
+    };
+    const query = (table) => {
+        let values = rows[table];
+        return {
+            select() {
+                return this;
+            },
+            eq(column, value) {
+                values = values.filter((row) => row[column] === value);
+                return this;
+            },
+            async single() {
+                return values.length === 1
+                    ? { data: values[0], error: null }
+                    : { data: null, error: { message: 'not found' } };
+            },
+            then(resolve) {
+                return Promise.resolve({ data: values, error: null }).then(resolve);
+            },
+        };
+    };
+    const signedPaths = [];
+    const admin = {
+        from: query,
+        storage: {
+            from: () => ({
+                async createSignedUploadUrl(path) {
+                    signedPaths.push(path);
+                    return { data: { token: 'signed-token' }, error: null };
+                },
+            }),
+        },
+    };
+
+    await assert.rejects(
+        images.createImageUploadUrl(
+            { profile: { id: 'unrelated-1', role: 'user' } },
+            admin,
+            'unrelated-1',
+            'photo.png',
+            'image/png',
+            'inventory_request',
+            'request-1',
+        ),
+        /not allowed/,
+    );
+    assert.equal(signedPaths.length, 0);
+
+    const participantUpload = await images.createImageUploadUrl(
+        { profile: { id: 'participant-1', role: 'user' } },
+        admin,
+        'participant-1',
+        'photo.png',
+        'image/png',
+        'inventory_request',
+        'request-1',
+    );
+    assert.equal(participantUpload.token, 'signed-token');
+    assert.match(participantUpload.path, /^participant-1\/inventory_request\/request-1\//);
+
+    await assert.rejects(
+        images.createImageUploadUrl(
+            { profile: { id: 'approver-1', role: 'approver' } },
+            admin,
+            'approver-1',
+            'photo.png',
+            'image/png',
+            'inventory_type',
+            'type-1',
+        ),
+        /Administrator access/,
+    );
+    const adminUpload = await images.createImageUploadUrl(
+        { profile: { id: 'admin-1', role: 'admin' } },
+        admin,
+        'admin-1',
+        'photo.webp',
+        'image/webp',
+        'inventory_type',
+        'type-1',
+    );
+    assert.match(adminUpload.path, /^admin-1\/inventory_type\/type-1\//);
 });
 
 test('idempotency claims and lookups are isolated by actor', async () => {
@@ -89,4 +186,26 @@ test('security migration closes the direct database authorization gaps', async (
     assert.match(sql, /create policy "request participants insert comments"/);
     assert.match(sql, /author_name is null/);
     assert.match(sql, /primary key \(actor_id, scope, request_id\)/);
+});
+
+test('upload and transition migration enforces storage limits and service-only transactions', async () => {
+    const sql = await readFile(
+        new URL(
+            'supabase/migrations/20261001130000_secure_uploads_and_request_actions.sql',
+            rootUrl,
+        ),
+        'utf8',
+    );
+    assert.match(sql, /file_size_limit = 51200/);
+    assert.match(sql, /image\/avif[\s\S]*image\/jpeg[\s\S]*image\/png[\s\S]*image\/webp/);
+    assert.match(sql, /perform_inventory_request_action_tx[\s\S]*for update/);
+    assert.match(sql, /perform_program_request_action_tx[\s\S]*for update/);
+    assert.match(
+        sql,
+        /revoke all on function public\.perform_inventory_request_action_tx[\s\S]*from public, anon, authenticated/,
+    );
+    assert.match(
+        sql,
+        /revoke all on function public\.perform_program_request_action_tx[\s\S]*from public, anon, authenticated/,
+    );
 });

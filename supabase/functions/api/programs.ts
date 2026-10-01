@@ -655,8 +655,8 @@ export async function updateProgramRequestParticipants(
     return getProgramRequest(client, admin, id);
 }
 
-// Ported from performProgramRequestAction in Programs.ts — same shape as
-// performInventoryRequestAction minus the issue/return step.
+// The RPC locks the request (and its place during approval), validates the
+// transition, updates status and writes the activity comment atomically.
 export async function performProgramRequestAction(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -667,80 +667,20 @@ export async function performProgramRequestAction(
     dedupeRequestId: string,
 ): Promise<string> {
     const actor = await currentProfile(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
-
     const { result: nextStatus } = await withLockedDedupe(
         admin,
         'program_request:' + id + ':' + action,
         dedupeRequestId,
         userId,
-        async (): Promise<string> => {
-            if (action === 'revise') {
-                return result(
-                    await admin.rpc('revise_rejected_request', {
-                        p_kind: 'program_request',
-                        p_request_id: id,
-                        p_actor_id: actor.id,
-                    }),
-                ) as string;
-            }
-            const [requestRes, participantsRes, sessionsRes] = await Promise.all([
-                admin.from('program_requests').select('*').eq('id', id).single(),
-                admin.from('program_request_participants').select('*').eq('request_id', id),
-                admin.from('program_sessions').select('*').eq('request_id', id),
-            ]);
-            const request = result(requestRes) as Row;
-            const participants = result(participantsRes) as Row[];
-            const sessions = result(sessionsRes) as Row[];
-            let computedStatus: string;
-            const narrate = (message: string) =>
-                insertActionComment(admin, 'program_request', id, actor.id, message);
-
-            if (action === 'submit') {
-                const isOwner =
-                    request.requester_id === actor.id ||
-                    participants.some((p) => p.profile_id === actor.id);
-                if ((!isOwner && !isApprover) || request.status !== 'draft') {
-                    throw new Error('Invalid transition.');
-                }
-                if (!sessions.length) throw new Error('At least one session is required.');
-                if (!isApprover) await assertProgramSessionsNotBlockedForUser(admin, sessions);
-                computedStatus = 'submitted';
-                await narrate('Submitted this request.');
-            } else {
-                if (!isApprover) throw new Error('Approver access is required.');
-                if (action === 'approve') {
-                    if (request.status !== 'submitted') throw new Error('Invalid transition.');
-                    if (!request.place_id)
-                        throw new Error('A place must be assigned before approval.');
-                    computedStatus = 'approved';
-                    await narrate('Approved this request.' + (note ? ' ' + note : ''));
-                } else if (action === 'reject') {
-                    if (request.status !== 'submitted') throw new Error('Invalid transition.');
-                    computedStatus = 'rejected';
-                    await narrate('Rejected this request.' + (note ? ' ' + note : ''));
-                } else if (action === 'cancel') {
-                    if (['draft', 'submitted', 'approved'].indexOf(request.status) === -1) {
-                        throw new Error('Invalid transition.');
-                    }
-                    if (request.status === 'approved') {
-                        const hasFuture = sessions.some((s) => Date.parse(s.end_at) >= Date.now());
-                        if (!hasFuture) throw new Error('Cannot cancel an approved past program.');
-                    }
-                    computedStatus = 'cancelled';
-                    await narrate('Cancelled this request.' + (note ? ' ' + note : ''));
-                } else {
-                    throw new Error('Unsupported action.');
-                }
-            }
-
-            const { error } = await admin
-                .from('program_requests')
-                .update({ status: computedStatus })
-                .eq('id', id);
-            if (error) throw new Error(error.message);
-            return computedStatus;
-        },
+        async () =>
+            result(
+                await admin.rpc('perform_program_request_action_tx', {
+                    p_request_id: id,
+                    p_action: action,
+                    p_actor_id: actor.id,
+                    p_note: note,
+                }),
+            ) as string,
     );
     return nextStatus;
 }

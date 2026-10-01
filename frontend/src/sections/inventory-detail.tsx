@@ -332,7 +332,12 @@ export function InventoryDetail({
             setImageUploading(true);
             showSavingBadge(true);
             const prepared = await prepareInventoryImage(file);
-            const upload = await api.createImageUploadUrl(prepared.fileName, prepared.mimeType);
+            const upload = await api.createImageUploadUrl(
+                prepared.fileName,
+                prepared.mimeType,
+                'inventory_request',
+                request.Id,
+            );
             const { error: uploadError } = await supabase()
                 .storage.from(IMAGE_BUCKET)
                 .uploadToSignedUrl(upload.path, upload.token, prepared.blob, {

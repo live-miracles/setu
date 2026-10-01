@@ -660,7 +660,17 @@ const operationHandlers: Record<string, OperationHandler> = {
     },
 
     createImageUploadUrl: async ({ client, admin, userId, args }) => {
-        return respond(await createImageUploadUrl(admin, userId, String(args[0]), String(args[1])));
+        return respond(
+            await createImageUploadUrl(
+                client,
+                admin,
+                userId,
+                String(args[0]),
+                String(args[1]),
+                String(args[2]),
+                String(args[3]),
+            ),
+        );
     },
 
     getImageUrl: async ({ client, admin, userId, args }) => {

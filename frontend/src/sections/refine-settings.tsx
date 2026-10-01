@@ -604,6 +604,8 @@ export function SettingsResourcePage({
             const upload = await api.createImageUploadUrl(
                 `InventoryTypes-${String(row.Id)}.jpg`,
                 prepared.mimeType,
+                'inventory_type',
+                String(row.Id),
             );
             const { error: uploadError } = await supabase()
                 .storage.from(IMAGE_BUCKET)
