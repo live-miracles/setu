@@ -70,6 +70,7 @@ export async function withLockedDedupe<T>(
     admin: SupabaseClient,
     scope: string,
     requestId: string,
+    actorId: string,
     fn: () => Promise<T>,
 ): Promise<{ duplicate: boolean; result: T }> {
     if (String(requestId || '').length < 8) {
@@ -77,13 +78,14 @@ export async function withLockedDedupe<T>(
     }
     const { error: insertError } = await admin
         .from('idempotency_keys')
-        .insert({ scope, request_id: requestId });
+        .insert({ actor_id: actorId, scope, request_id: requestId });
     if (insertError) {
         if (insertError.code === '23505') {
             const existing = result(
                 await admin
                     .from('idempotency_keys')
                     .select('*')
+                    .eq('actor_id', actorId)
                     .eq('scope', scope)
                     .eq('request_id', requestId)
                     .single(),
@@ -100,6 +102,7 @@ export async function withLockedDedupe<T>(
         await admin
             .from('idempotency_keys')
             .update({ result: value === undefined ? null : value })
+            .eq('actor_id', actorId)
             .eq('scope', scope)
             .eq('request_id', requestId);
         return { duplicate: false, result: value };
@@ -107,6 +110,7 @@ export async function withLockedDedupe<T>(
         await admin
             .from('idempotency_keys')
             .delete()
+            .eq('actor_id', actorId)
             .eq('scope', scope)
             .eq('request_id', requestId);
         throw error;

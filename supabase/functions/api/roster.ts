@@ -106,22 +106,28 @@ export async function createRoster(
 ): Promise<Row> {
     await requireApprover(client, userId);
     const { user, shiftType } = await requireValidRosterInput(admin, input);
-    const { result: dto } = await withLockedDedupe(admin, 'roster:create', requestId, async () => {
-        const row = result(
-            await admin
-                .from('rosters')
-                .insert({
-                    shift_type_id: shiftType.id,
-                    shift_name: String(input.shiftName || '').trim() || null,
-                    start_at: combineDateTime(input.startDate, input.startTime),
-                    end_at: combineDateTime(input.endDate, input.endTime),
-                    user_id: user.id,
-                })
-                .select('*')
-                .single(),
-        ) as Row;
-        return rosterDto(row, user, shiftType);
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'roster:create',
+        requestId,
+        userId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('rosters')
+                    .insert({
+                        shift_type_id: shiftType.id,
+                        shift_name: String(input.shiftName || '').trim() || null,
+                        start_at: combineDateTime(input.startDate, input.startTime),
+                        end_at: combineDateTime(input.endDate, input.endTime),
+                        user_id: user.id,
+                    })
+                    .select('*')
+                    .single(),
+            ) as Row;
+            return rosterDto(row, user, shiftType);
+        },
+    );
     return dto;
 }
 
@@ -139,6 +145,7 @@ export async function updateRoster(
         admin,
         'roster:update:' + id,
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -168,7 +175,7 @@ export async function deleteRoster(
     requestId: string,
 ): Promise<void> {
     await requireApprover(client, userId);
-    await withLockedDedupe(admin, 'roster:delete:' + id, requestId, async () => {
+    await withLockedDedupe(admin, 'roster:delete:' + id, requestId, userId, async () => {
         const { error } = await admin.from('rosters').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return null;

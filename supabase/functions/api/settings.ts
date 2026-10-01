@@ -52,6 +52,7 @@ export async function createDepartment(
         admin,
         'department:create',
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -87,6 +88,7 @@ export async function updateDepartment(
         admin,
         'department:update:' + id,
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -117,7 +119,7 @@ export async function deleteDepartment(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'department:delete:' + id, requestId, async () => {
+    await withLockedDedupe(admin, 'department:delete:' + id, requestId, userId, async () => {
         const { error } = await admin.from('departments').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return null;
@@ -133,13 +135,19 @@ export async function createPlace(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(admin, 'place:create', requestId, async () => {
-        const row = result(
-            await admin.from('places').insert({ name }).select('*').single(),
-            'A place with this name already exists.',
-        ) as Row;
-        return { Id: row.id, Name: row.name };
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'place:create',
+        requestId,
+        userId,
+        async () => {
+            const row = result(
+                await admin.from('places').insert({ name }).select('*').single(),
+                'A place with this name already exists.',
+            ) as Row;
+            return { Id: row.id, Name: row.name };
+        },
+    );
     return dto;
 }
 
@@ -157,6 +165,7 @@ export async function updatePlace(
         admin,
         'place:update:' + id,
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin.from('places').update({ name }).eq('id', id).select('*').single(),
@@ -176,7 +185,7 @@ export async function deletePlace(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'place:delete:' + id, requestId, async () => {
+    await withLockedDedupe(admin, 'place:delete:' + id, requestId, userId, async () => {
         const { error } = await admin.from('places').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return null;
@@ -230,6 +239,7 @@ export async function createInventoryLabel(
         admin,
         'inventory-label:create:' + inventoryTypeId,
         requestId,
+        userId,
         async () => {
             const type = result(
                 await admin
@@ -265,7 +275,7 @@ export async function deleteInventoryLabel(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'inventory-label:delete:' + id, requestId, async () => {
+    await withLockedDedupe(admin, 'inventory-label:delete:' + id, requestId, userId, async () => {
         const { error } = await admin.from('inventory_type_labels').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return null;
@@ -286,6 +296,7 @@ export async function updateInventoryLabel(
         admin,
         'inventory-label:update:' + id,
         requestId,
+        userId,
         async () =>
             result(
                 await admin
@@ -321,6 +332,7 @@ export async function createInventoryType(
         admin,
         'inventory-type:create',
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -362,6 +374,7 @@ export async function updateInventoryType(
         admin,
         'inventory-type:update:' + id,
         requestId,
+        userId,
         async () => {
             const existing = result(
                 await admin.from('inventory_types').select('*').eq('id', id).single(),
@@ -401,7 +414,7 @@ export async function deleteInventoryType(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'inventory-type:delete:' + id, requestId, async () => {
+    await withLockedDedupe(admin, 'inventory-type:delete:' + id, requestId, userId, async () => {
         const { error } = await admin.rpc('delete_inventory_type_with_items', {
             target_inventory_type_id: id,
         });
@@ -479,7 +492,7 @@ export async function deleteUser(
     const target = result(
         await admin.from('profiles').select('id').eq('email', targetEmail).single(),
     ) as Row;
-    await withLockedDedupe(admin, 'user:delete:' + target.id, requestId, async () => {
+    await withLockedDedupe(admin, 'user:delete:' + target.id, requestId, userId, async () => {
         const { error } = await admin.auth.admin.deleteUser(target.id);
         if (error) throw new Error(error.message);
         return null;
@@ -502,6 +515,7 @@ export async function createShiftType(
         admin,
         'shift-type:create',
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -542,6 +556,7 @@ export async function updateShiftType(
         admin,
         'shift-type:update:' + name,
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -577,7 +592,7 @@ export async function deleteShiftType(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'shift-type:delete:' + name, requestId, async () => {
+    await withLockedDedupe(admin, 'shift-type:delete:' + name, requestId, userId, async () => {
         const { error } = await admin.from('shift_types').delete().eq('name', name);
         if (error) throw new Error(error.message);
         return null;
@@ -606,6 +621,7 @@ export async function createNamedOption(
         admin,
         scope + ':create',
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -642,6 +658,7 @@ export async function updateNamedOption(
         admin,
         scope + ':update:' + name,
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -672,7 +689,7 @@ export async function deleteNamedOption(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, scope + ':delete:' + name, requestId, async () => {
+    await withLockedDedupe(admin, scope + ':delete:' + name, requestId, userId, async () => {
         const { error } = await admin.from(table).delete().eq('name', name);
         if (error) throw new Error(error.message);
         return null;
@@ -691,27 +708,33 @@ export async function createBlock(
     const startDateTime = requireNonEmpty(input.startDateTime, 'Start is required.');
     const endDateTime = requireNonEmpty(input.endDateTime, 'End is required.');
     if (endDateTime <= startDateTime) throw new Error('Block end must be after start.');
-    const { result: dto } = await withLockedDedupe(admin, 'block:create', requestId, async () => {
-        const row = result(
-            await admin
-                .from('blocks')
-                .insert({
-                    name,
-                    start_at: startDateTime,
-                    end_at: endDateTime,
-                    place_id: input.place || null,
-                })
-                .select('*')
-                .single(),
-        ) as Row;
-        return {
-            Id: row.id,
-            Name: row.name,
-            Place: row.place_id || '',
-            StartDateTime: row.start_at,
-            EndDateTime: row.end_at,
-        };
-    });
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'block:create',
+        requestId,
+        userId,
+        async () => {
+            const row = result(
+                await admin
+                    .from('blocks')
+                    .insert({
+                        name,
+                        start_at: startDateTime,
+                        end_at: endDateTime,
+                        place_id: input.place || null,
+                    })
+                    .select('*')
+                    .single(),
+            ) as Row;
+            return {
+                Id: row.id,
+                Name: row.name,
+                Place: row.place_id || '',
+                StartDateTime: row.start_at,
+                EndDateTime: row.end_at,
+            };
+        },
+    );
     return dto;
 }
 
@@ -732,6 +755,7 @@ export async function updateBlock(
         admin,
         'block:update:' + id,
         requestId,
+        userId,
         async () => {
             const row = result(
                 await admin
@@ -766,7 +790,7 @@ export async function deleteBlock(
     requestId: string,
 ): Promise<void> {
     await requireApprover(client, userId);
-    await withLockedDedupe(admin, 'block:delete:' + id, requestId, async () => {
+    await withLockedDedupe(admin, 'block:delete:' + id, requestId, userId, async () => {
         const { error } = await admin.from('blocks').delete().eq('id', id);
         if (error) throw new Error(error.message);
         return null;

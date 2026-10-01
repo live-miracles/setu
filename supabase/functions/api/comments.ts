@@ -78,6 +78,7 @@ export async function addComment(
         admin,
         owner.kind + ':' + requestId + ':comment',
         dedupeRequestId,
+        userId,
         async () => {
             const created = result(
                 await client
