@@ -611,7 +611,12 @@ interface Api {
         mimeType: string,
         previousImageId?: string,
     ): string;
-    createImageUploadUrl(fileName: string, mimeType: string): { path: string; token: string };
+    createImageUploadUrl(
+        fileName: string,
+        mimeType: string,
+        targetType: 'inventory_request' | 'inventory_type',
+        targetId: string,
+    ): { path: string; token: string };
 
     // The bucket backing uploadImage is public, so a stored image id/path can
     // be turned into a stable public URL in the browser.

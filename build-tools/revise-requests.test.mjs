@@ -151,11 +151,12 @@ for (const kind of ['Inventory', 'Program']) {
             },
             async rpc(name, args) {
                 rpcCalls++;
-                assert.equal(name, 'revise_rejected_request');
+                assert.equal(name, `perform_${kind.toLowerCase()}_request_action_tx`);
                 assert.deepEqual(args, {
-                    p_kind: `${kind.toLowerCase()}_request`,
                     p_request_id: 'request-1',
+                    p_action: 'revise',
                     p_actor_id: actor.id,
+                    p_note: '',
                 });
                 return rpcError
                     ? { data: null, error: { message: rpcError } }

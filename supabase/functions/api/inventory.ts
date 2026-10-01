@@ -591,83 +591,9 @@ export async function updateInventoryRequestParticipants(
     return getInventoryRequest(client, admin, id);
 }
 
-// Outstanding (issued but not yet closed) quantity per inventory type —
-// subtracted from TotalQuantity to derive availableQuantity, rather than a
-// mutable counter that could drift from the underlying request rows. Ported
-// from computeDeductionsByType in Inventory.ts, which itself documents why
-// damaged/missing returns aren't deducted here.
-export async function computeDeductionsByType(admin: SupabaseClient): Promise<Map<string, number>> {
-    const [requestsRes, itemsRes] = await Promise.all([
-        admin.from('inventory_requests').select('id, status').eq('status', 'issued'),
-        admin.from('inventory_request_items').select('*'),
-    ]);
-    const issuedIds = new Set((result(requestsRes) as Row[]).map((r) => r.id));
-    const deductions = new Map<string, number>();
-    (result(itemsRes) as Row[]).forEach((item) => {
-        if (!issuedIds.has(item.request_id)) return;
-        deductions.set(
-            item.inventory_type_id,
-            (deductions.get(item.inventory_type_id) || 0) + item.quantity,
-        );
-    });
-    return deductions;
-}
-
-async function validateIssuedLabelAssignments(
-    admin: SupabaseClient,
-    requestId: string,
-    items: Row[],
-): Promise<void> {
-    const itemIds = items.map((item) => item.id);
-    if (!itemIds.length) return;
-    const [currentAssignmentsRes, allAssignmentsRes, allItemsRes, issuedRequestsRes] =
-        await Promise.all([
-            admin
-                .from('inventory_request_item_labels')
-                .select('request_item_id, inventory_type_label_id')
-                .in('request_item_id', itemIds),
-            admin
-                .from('inventory_request_item_labels')
-                .select('request_item_id, inventory_type_label_id'),
-            admin.from('inventory_request_items').select('id, request_id'),
-            admin.from('inventory_requests').select('id').eq('status', 'issued'),
-        ]);
-    const currentAssignments = result(currentAssignmentsRes) as Row[];
-    const currentLabelIds = new Set<string>();
-    currentAssignments.forEach((assignment) => {
-        if (currentLabelIds.has(assignment.inventory_type_label_id)) {
-            throw new Error('A label was scanned more than once for this request.');
-        }
-        currentLabelIds.add(assignment.inventory_type_label_id);
-    });
-    const issuedRequestIds = new Set(
-        (result(issuedRequestsRes) as Row[])
-            .map((request) => request.id)
-            .filter((issuedId) => issuedId !== requestId),
-    );
-    const issuedItemIds = new Set(
-        (result(allItemsRes) as Row[])
-            .filter((item) => issuedRequestIds.has(item.request_id))
-            .map((item) => item.id),
-    );
-    const usedLabels = new Set<string>();
-    (result(allAssignmentsRes) as Row[]).forEach((assignment) => {
-        if (issuedItemIds.has(assignment.request_item_id)) {
-            usedLabels.add(assignment.inventory_type_label_id);
-        }
-    });
-    for (const labelId of currentLabelIds) {
-        if (usedLabels.has(labelId)) {
-            throw new Error('This inventory label is already assigned to an issued request.');
-        }
-    }
-}
-
-// Ported from performInventoryRequestAction in Inventory.ts (itself a port
-// of the source app's perform_inventory_request_action Postgres function).
-// Wrapped end-to-end in withLockedDedupe, same as the Apps Script version
-// wrapped it in withLock — the one-row-at-a-time application-level check
-// stands in for real per-row `FOR UPDATE` locking.
+// The RPC owns the request row lock, inventory type locks, validation, status
+// update and activity comment so concurrent approvers cannot oversubscribe
+// stock or commit conflicting transitions.
 export async function performInventoryRequestAction(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -678,156 +604,20 @@ export async function performInventoryRequestAction(
     dedupeRequestId: string,
 ): Promise<string> {
     const actor = await currentProfile(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
-
     const { result: nextStatus } = await withLockedDedupe(
         admin,
         'inventory_request:' + id + ':' + action,
         dedupeRequestId,
         userId,
-        async (): Promise<string> => {
-            if (action === 'revise') {
-                return result(
-                    await admin.rpc('revise_rejected_request', {
-                        p_kind: 'inventory_request',
-                        p_request_id: id,
-                        p_actor_id: actor.id,
-                    }),
-                ) as string;
-            }
-            const [requestRes, participantsRes] = await Promise.all([
-                admin.from('inventory_requests').select('*').eq('id', id).single(),
-                admin.from('inventory_request_participants').select('*').eq('request_id', id),
-            ]);
-            const request = result(requestRes) as Row;
-            const participants = result(participantsRes) as Row[];
-            let computedStatus: string;
-            const narrate = (message: string) =>
-                insertActionComment(admin, 'inventory_request', id, actor.id, message);
-
-            if (action === 'submit') {
-                const isOwner =
-                    request.requester_id === actor.id ||
-                    participants.some((p) => p.profile_id === actor.id);
-                if (!isOwner || request.status !== 'draft') throw new Error('Invalid transition.');
-                const { count } = await admin
-                    .from('inventory_request_items')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('request_id', id);
-                if (!count) throw new Error('At least one item is required.');
-                computedStatus = 'submitted';
-                await narrate('Submitted this request.');
-            } else {
-                if (!isApprover) throw new Error('Approver access is required.');
-                if (action === 'approve') {
-                    if (request.status !== 'submitted') throw new Error('Invalid transition.');
-                    computedStatus = 'approved';
-                    await narrate('Approved this request.' + (note ? ' ' + note : ''));
-                } else if (action === 'reject') {
-                    if (request.status !== 'submitted') throw new Error('Invalid transition.');
-                    computedStatus = 'rejected';
-                    await narrate('Rejected this request.' + (note ? ' ' + note : ''));
-                } else if (action === 'issue') {
-                    if (request.status !== 'approved') throw new Error('Invalid transition.');
-                    const items = result(
-                        await admin
-                            .from('inventory_request_items')
-                            .select('*')
-                            .eq('request_id', id),
-                    ) as Row[];
-                    await validateIssuedLabelAssignments(admin, id, items);
-                    const itemLabels = result(
-                        await admin
-                            .from('inventory_request_item_labels')
-                            .select('request_item_id')
-                            .in(
-                                'request_item_id',
-                                items.map((item) => item.id),
-                            ),
-                    ) as Row[];
-                    const labelCountByItemId = new Map<string, number>();
-                    itemLabels.forEach((assignment) => {
-                        labelCountByItemId.set(
-                            assignment.request_item_id,
-                            (labelCountByItemId.get(assignment.request_item_id) || 0) + 1,
-                        );
-                    });
-                    const types = result(await admin.from('inventory_types').select('*')) as Row[];
-                    const typesById = new Map(types.map((t) => [t.id, t]));
-                    const deductions = await computeDeductionsByType(admin);
-                    const shortages: string[] = [];
-                    for (const item of items) {
-                        const labelCount = labelCountByItemId.get(item.id) || 0;
-                        if (labelCount > item.quantity) {
-                            item.quantity = labelCount;
-                            const { error } = await admin
-                                .from('inventory_request_items')
-                                .update({ quantity: labelCount })
-                                .eq('id', item.id);
-                            if (error) throw new Error(error.message);
-                        }
-                        const type = typesById.get(item.inventory_type_id);
-                        if (!type) throw new Error('Inventory type not found.');
-                        const available =
-                            type.total_quantity == null
-                                ? null
-                                : type.total_quantity - (deductions.get(type.id) || 0);
-                        if (available != null && available < item.quantity) {
-                            const itemName =
-                                [type.brand, type.name]
-                                    .map((value) => String(value || '').trim())
-                                    .filter(Boolean)
-                                    .join(' · ') || 'Unnamed item';
-                            shortages.push(
-                                `- ${itemName} — Requested: ${item.quantity}, Available: ${Math.max(available, 0)}`,
-                            );
-                            continue;
-                        }
-                        deductions.set(type.id, (deductions.get(type.id) || 0) + item.quantity);
-                    }
-                    if (shortages.length) {
-                        throw new Error(
-                            'Unable to issue inventory request. The following item(s) have insufficient inventory:\n' +
-                                shortages.join('\n'),
-                        );
-                    }
-                    computedStatus = 'issued';
-                    await narrate('Issued the equipment.' + (note ? ' ' + note : ''));
-                } else if (action === 'cancel') {
-                    if (['draft', 'submitted', 'approved'].indexOf(request.status) === -1) {
-                        throw new Error('Invalid transition.');
-                    }
-                    computedStatus = 'cancelled';
-                    await narrate('Cancelled this request.' + (note ? ' ' + note : ''));
-                } else if (action === 'close') {
-                    if (['rejected', 'cancelled'].indexOf(request.status) === -1) {
-                        if (request.status !== 'issued') throw new Error('Invalid transition.');
-                        const items = result(
-                            await admin
-                                .from('inventory_request_items')
-                                .select('*')
-                                .eq('request_id', id),
-                        ) as Row[];
-                        if (!items.length || items.some((item) => !item.return_condition)) {
-                            throw new Error(
-                                'Please configure return status for all the issued inventory items before closing the request.',
-                            );
-                        }
-                    }
-                    computedStatus = 'closed';
-                    await narrate('Closed this request.' + (note ? ' ' + note : ''));
-                } else {
-                    throw new Error('Unsupported action.');
-                }
-            }
-
-            const { error } = await admin
-                .from('inventory_requests')
-                .update({ status: computedStatus })
-                .eq('id', id);
-            if (error) throw new Error(error.message);
-            return computedStatus;
-        },
+        async () =>
+            result(
+                await admin.rpc('perform_inventory_request_action_tx', {
+                    p_request_id: id,
+                    p_action: action,
+                    p_actor_id: actor.id,
+                    p_note: note,
+                }),
+            ) as string,
     );
     return nextStatus;
 }
