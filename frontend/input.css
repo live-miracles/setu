@@ -935,12 +935,13 @@ form,
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    align-content: stretch;
+    align-content: start;
     grid-template-columns: repeat(2, minmax(0, 48rem));
-    /* Rows share the viewport but never shrink below what a section such as
-       the QR code needs; the area scrolls under the page heading if they do
-       not fit. */
-    grid-auto-rows: minmax(29rem, 1fr);
+    /* Rows are as tall as their content, up to the section max-height below.
+       max-content (not auto) so rows are not squeezed to the viewport, since
+       the sections are scroll containers; the area scrolls under the page
+       heading if the rows do not fit. */
+    grid-auto-rows: max-content;
     display: grid;
     gap: 1.25rem;
     justify-content: center;
@@ -952,6 +953,7 @@ form,
     min-height: 0;
     width: 100%;
     max-width: 48rem;
+    max-height: 28rem;
     flex-direction: column;
     overflow: auto;
     justify-self: center;
@@ -1012,7 +1014,6 @@ form,
 
 .activity-detail-section {
     min-height: 0;
-    max-height: none;
 }
 
 .detail-page {
@@ -1093,6 +1094,10 @@ form,
     .detail-sections {
         display: block;
         overflow: visible;
+    }
+
+    .detail-section {
+        max-height: none;
     }
 
     .sessions-table .ant-table-cell,
