@@ -141,3 +141,13 @@ export function inventoryTypeQrLabel(name: string, maxLength = 32): string {
     if (value.length <= maxLength) return value;
     return value.slice(0, Math.max(1, maxLength - 1)).trimEnd() + '…';
 }
+
+// Compares label names alphabetically, treating digit runs as numbers so
+// "Cable 5" comes before "Cable 10".
+export function compareLabelNames(a: string, b: string): number {
+    return a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
+}
+
+export function sortInventoryLabels(labels: InventoryLabel[] = []): InventoryLabel[] {
+    return [...labels].sort((a, b) => compareLabelNames(a.Name, b.Name));
+}

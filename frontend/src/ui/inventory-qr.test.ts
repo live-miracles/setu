@@ -7,6 +7,7 @@ import {
     inventoryTypeQrFilename,
     inventoryTypeQrLabel,
     parseInventoryQrValue,
+    sortInventoryLabels,
 } from './inventory-qr';
 
 function assert(condition: boolean, message: string): void {
@@ -122,5 +123,18 @@ export function runInventoryQrAssertions(): void {
         inventoryTypeQrLabel('A very long inventory type name that will not fit') ===
             'A very long inventory type name…',
         'QR label should use an ellipsis when the name is too long',
+    );
+
+    const sortedNames = sortInventoryLabels(
+        ['Cable 10', 'cable 5', 'Cable 2', 'Adapter'].map((Name, index) => ({
+            Id: String(index),
+            DisplayId: index,
+            InventoryTypeId: 'inventory-type-uuid-1',
+            Name,
+        })),
+    ).map((label) => label.Name);
+    assert(
+        sortedNames.join(',') === 'Adapter,Cable 2,cable 5,Cable 10',
+        'labels should sort alphabetically with numbers compared numerically',
     );
 }

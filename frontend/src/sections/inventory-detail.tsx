@@ -18,7 +18,9 @@ import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import {
     addScannedInventoryItem,
     addScannedInventoryItemForIssue,
+    compareLabelNames,
     inventoryItemHasLabel,
+    sortInventoryLabels,
     parseInventoryQrValue,
 } from '../ui/inventory-qr';
 import { prepareInventoryImage } from '../ui/inventory-image';
@@ -516,12 +518,14 @@ export function InventoryDetail({
                                 const type = dashboard.inventoryTypes.find(
                                     (entry) => entry.Id === item.InventoryTypeId,
                                 );
-                                const labels = (item.labels || []).map((label) =>
-                                    typeof label === 'string'
-                                        ? type?.labels?.find((entry) => entry.Id === label)?.Name ||
-                                          label
-                                        : label.Name,
-                                );
+                                const labels = (item.labels || [])
+                                    .map((label) =>
+                                        typeof label === 'string'
+                                            ? type?.labels?.find((entry) => entry.Id === label)
+                                                  ?.Name || label
+                                            : label.Name,
+                                    )
+                                    .sort(compareLabelNames);
                                 const shortage = Boolean(
                                     type &&
                                     type.TotalQuantity != null &&
@@ -828,10 +832,12 @@ export function InventoryDetail({
                                     }
                                     className="antd-full-width"
                                     placeholder="Select labels"
-                                    options={selectedInventoryType.labels.map((label) => ({
-                                        value: label.Id,
-                                        label: label.Name,
-                                    }))}
+                                    options={sortInventoryLabels(selectedInventoryType.labels).map(
+                                        (label) => ({
+                                            value: label.Id,
+                                            label: label.Name,
+                                        }),
+                                    )}
                                 />
                             </AntForm.Item>
                         ) : null}

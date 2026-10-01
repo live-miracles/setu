@@ -46,6 +46,7 @@ import {
     inventoryTypeDisplayName,
     inventoryQrValue,
     inventoryTypeQrPrintLabel,
+    sortInventoryLabels,
     inventoryTypeQrFilename,
 } from '../ui/inventory-qr';
 import { TableView } from '../ui/table-view';
@@ -1114,12 +1115,12 @@ export function SettingsResourcePage({
                                 aria-label="QR code to download"
                                 options={[
                                     { value: '', label: 'Inventory type (no label)' },
-                                    ...(
-                                        (selectedInventoryType.labels || []) as InventoryLabel[]
-                                    ).map((label) => ({
-                                        value: label.Id,
-                                        label: label.Name,
-                                    })),
+                                    ...sortInventoryLabels(selectedInventoryType.labels).map(
+                                        (label) => ({
+                                            value: label.Id,
+                                            label: label.Name,
+                                        }),
+                                    ),
                                 ]}
                             />
                             <Button
@@ -1169,7 +1170,7 @@ export function SettingsResourcePage({
                             <Table
                                 rowKey="Id"
                                 pagination={false}
-                                dataSource={selectedInventoryType.labels || []}
+                                dataSource={sortInventoryLabels(selectedInventoryType.labels)}
                                 columns={[
                                     {
                                         title: 'Serial number',
