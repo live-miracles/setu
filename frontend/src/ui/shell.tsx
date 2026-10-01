@@ -14,6 +14,7 @@ import {
     TeamOutlined,
     UserOutlined,
 } from '@ant-design/icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import appLogo from '../../assets/logo.png';
@@ -143,6 +144,7 @@ export function Shell({
     const currentPathname = useRef(location.pathname);
     currentPathname.current = location.pathname;
     const [refreshing, setRefreshing] = useState(false);
+    const queryClient = useQueryClient();
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isMobileViewport, setIsMobileViewport] = useState(
@@ -215,7 +217,9 @@ export function Shell({
         if (refreshing) return;
         setRefreshing(true);
         try {
-            await refreshDashboard?.();
+            // Refine-backed pages read from the query cache, not the dashboard
+            // blob, so both must be refetched to pick up other users' changes.
+            await Promise.all([refreshDashboard?.(), queryClient.invalidateQueries()]);
         } catch (err) {
             showErrorAlert(err);
         } finally {
