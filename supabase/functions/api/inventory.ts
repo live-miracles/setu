@@ -442,6 +442,7 @@ export async function createInventoryRequest(
         admin,
         'inventory_request:create',
         requestId,
+        userId,
         async () => {
             const created = result(
                 await admin
@@ -500,6 +501,7 @@ export async function updateInventoryRequest(
         admin,
         'inventory_request:update:' + id,
         requestId,
+        userId,
         async () => {
             const [existingRes, participantsRes] = await Promise.all([
                 admin.from('inventory_requests').select('*').eq('id', id).single(),
@@ -559,21 +561,33 @@ export async function updateInventoryRequestParticipants(
     const actor = await currentProfile(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const participantEmails = parseParticipants(input.participants);
-    await withLockedDedupe(admin, 'inventory_request:participants:' + id, requestId, async () => {
-        const [existingRes, participantsRes] = await Promise.all([
-            admin.from('inventory_requests').select('*').eq('id', id).single(),
-            admin.from('inventory_request_participants').select('*').eq('request_id', id),
-        ]);
-        const existing = result(existingRes) as Row;
-        const existingParticipants = result(participantsRes) as Row[];
-        const canEdit =
-            isApprover ||
-            existing.requester_id === actor.id ||
-            existingParticipants.some((p) => p.profile_id === actor.id);
-        if (!canEdit) throw new Error('You are not allowed to edit participants on this request.');
-        await replaceParticipants(admin, 'inventory_request_participants', id, participantEmails);
-        return null;
-    });
+    await withLockedDedupe(
+        admin,
+        'inventory_request:participants:' + id,
+        requestId,
+        userId,
+        async () => {
+            const [existingRes, participantsRes] = await Promise.all([
+                admin.from('inventory_requests').select('*').eq('id', id).single(),
+                admin.from('inventory_request_participants').select('*').eq('request_id', id),
+            ]);
+            const existing = result(existingRes) as Row;
+            const existingParticipants = result(participantsRes) as Row[];
+            const canEdit =
+                isApprover ||
+                existing.requester_id === actor.id ||
+                existingParticipants.some((p) => p.profile_id === actor.id);
+            if (!canEdit)
+                throw new Error('You are not allowed to edit participants on this request.');
+            await replaceParticipants(
+                admin,
+                'inventory_request_participants',
+                id,
+                participantEmails,
+            );
+            return null;
+        },
+    );
     return getInventoryRequest(client, admin, id);
 }
 
@@ -670,6 +684,7 @@ export async function performInventoryRequestAction(
         admin,
         'inventory_request:' + id + ':' + action,
         dedupeRequestId,
+        userId,
         async (): Promise<string> => {
             if (action === 'revise') {
                 return result(
@@ -826,7 +841,7 @@ export async function deleteInventoryRequest(
 ): Promise<void> {
     const actor = await currentProfile(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
-    await withLockedDedupe(admin, 'inventory_request:delete:' + id, requestId, async () => {
+    await withLockedDedupe(admin, 'inventory_request:delete:' + id, requestId, userId, async () => {
         const [requestRes, participantsRes] = await Promise.all([
             admin.from('inventory_requests').select('*').eq('id', id).single(),
             admin.from('inventory_request_participants').select('*').eq('request_id', id),

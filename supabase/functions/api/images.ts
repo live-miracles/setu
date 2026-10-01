@@ -6,6 +6,10 @@ const MAX_IMAGE_BYTES = 50 * 1024;
 const IMAGE_BUCKET = 'request-images';
 const IMAGE_CACHE_CONTROL = '31536000';
 
+export function isOwnedImagePath(userId: string, path: string): boolean {
+    return Boolean(path) && !path.split('/').includes('..') && path.startsWith(`${userId}/`);
+}
+
 export async function createImageUploadUrl(
     admin: SupabaseClient,
     userId: string,
@@ -34,6 +38,10 @@ export async function uploadImage(
         throw new Error('That file type is not supported.');
     }
     requireNonEmpty(fileName, 'A file name is required.');
+    const previousPath = String(previousImageId || '').trim();
+    if (previousPath && !isOwnedImagePath(userId, previousPath)) {
+        throw new Error('You cannot replace an image owned by another user.');
+    }
     const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
     if (bytes.length > MAX_IMAGE_BYTES) throw new Error('The selected file is too large.');
 
@@ -50,7 +58,6 @@ export async function uploadImage(
     // first, then best-effort remove the old one, so a failed upload never
     // leaves a request pointing at nothing (same trade-off as the source
     // app's Drive create-then-trash sequence).
-    const previousPath = String(previousImageId || '').trim();
     if (previousPath && previousPath !== path) {
         await admin.storage.from(IMAGE_BUCKET).remove([previousPath]);
     }

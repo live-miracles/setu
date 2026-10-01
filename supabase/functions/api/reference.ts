@@ -115,6 +115,7 @@ export async function createAllowedEmailDomain(
         admin,
         'allowed-email-domain:create',
         requestId,
+        userId,
         async () =>
             result(
                 await admin.from('allowed_email_domains').insert({ domain }).select('*').single(),
@@ -132,14 +133,20 @@ export async function deleteAllowedEmailDomain(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'allowed-email-domain:delete:' + domain, requestId, async () => {
-        const { error } = await admin
-            .from('allowed_email_domains')
-            .delete()
-            .eq('domain', domain.toLowerCase().replace(/^@/, ''));
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    await withLockedDedupe(
+        admin,
+        'allowed-email-domain:delete:' + domain,
+        requestId,
+        userId,
+        async () => {
+            const { error } = await admin
+                .from('allowed_email_domains')
+                .delete()
+                .eq('domain', domain.toLowerCase().replace(/^@/, ''));
+            if (error) throw new Error(error.message);
+            return null;
+        },
+    );
 }
 
 export async function getHomeContent(client: SupabaseClient): Promise<Row> {
