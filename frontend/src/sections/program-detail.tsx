@@ -28,6 +28,7 @@ import { TableView } from '../ui/table-view';
 import { AppLoading } from '../ui/app-loading';
 import { Table } from 'antd';
 import { requestStatusTagColor } from '../ui/request-status';
+import { programFormValues, programRequestFields } from '../ui/request-fields';
 import { Activity, ParticipantsEditor } from './detail-activity';
 import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
 import {
@@ -112,20 +113,11 @@ export function ProgramDetail({
         queryOptions: { enabled: canApprove(dashboard.me) },
     });
     const users = usersResult.data;
-    const [values, setValues] = useState({
-        Name: request.Name,
-        Language: request.Language,
-        Type: request.Type,
-        PlaceId: request.PlaceId,
-        DepartmentId: request.DepartmentId,
-        LeadEmail: request.LeadEmail,
-        Participants: request.participants.join(', '),
-        UserId: request.UserId,
-        Status: request.Status,
-    });
-    useEffect(() => {
-        setValues((current) => ({ ...current, Status: request.Status }));
-    }, [request.Status]);
+    const [values, setValues] = useState(() => programFormValues(request));
+    const openEditor = () => {
+        setValues(programFormValues(request));
+        setEditing(true);
+    };
     const [availablePlaceIds, setAvailablePlaceIds] = useState<string[]>([]);
     const [availablePlacesLoading, setAvailablePlacesLoading] = useState(true);
     useEffect(() => {
@@ -155,15 +147,7 @@ export function ProgramDetail({
                 resource: 'program-requests',
                 id: request.Id,
                 values: {
-                    name: values.Name,
-                    language: values.Language,
-                    type: values.Type,
-                    userId: values.UserId,
-                    placeId: values.PlaceId,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    status: values.Status,
+                    ...programRequestFields(request),
                     sessions: nextSessions.map((s) => ({
                         name: s.Name,
                         type: s.Type,
@@ -212,17 +196,7 @@ export function ProgramDetail({
                 successNotification: false,
                 errorNotification: false,
             }).catch((e) => {
-                setValues({
-                    Name: request.Name,
-                    Language: request.Language,
-                    Type: request.Type,
-                    PlaceId: request.PlaceId,
-                    DepartmentId: request.DepartmentId,
-                    LeadEmail: request.LeadEmail,
-                    Participants: request.participants.join(', '),
-                    UserId: request.UserId,
-                    Status: request.Status,
-                });
+                setValues(programFormValues(request));
                 setSessions(request.sessions);
                 throw e;
             });
@@ -300,15 +274,7 @@ export function ProgramDetail({
                 resource: 'program-requests',
                 id: request.Id,
                 values: {
-                    name: values.Name,
-                    language: values.Language,
-                    type: values.Type,
-                    userId: values.UserId,
-                    placeId: values.PlaceId,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    status: values.Status,
+                    ...programRequestFields(request),
                     sessions: nextSessions.map((s) => ({
                         name: s.Name,
                         type: s.Type,
@@ -485,7 +451,7 @@ export function ProgramDetail({
                             type="primary"
                             icon={<EditOutlined />}
                             disabled={canApprove(dashboard.me) && availablePlacesLoading}
-                            onClick={() => setEditing(true)}
+                            onClick={openEditor}
                             aria-label="Edit program"
                             title="Edit program"
                         />
@@ -510,9 +476,7 @@ export function ProgramDetail({
                         [
                             'Participants',
                             <ParticipantsEditor
-                                participants={
-                                    values.Participants ? values.Participants.split(',') : []
-                                }
+                                participants={request.participants}
                                 editable={canApprove(dashboard.me) || owner}
                                 onSave={saveParticipants}
                             />,
