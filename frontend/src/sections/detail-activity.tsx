@@ -18,7 +18,8 @@ export function Activity({
     requestId: string;
     initialComments: CommentDTO[];
 }) {
-    const { refreshDashboard } = useDashboard();
+    const { dashboard, refreshDashboard } = useDashboard();
+    const canComment = dashboard.me.Role !== 'viewer';
     const [comment, setComment] = useState('');
     const [comments, setComments] = useState<CommentDTO[]>(initialComments);
     const commentsRef = useRef<HTMLDivElement>(null);
@@ -71,24 +72,29 @@ export function Activity({
                         <Empty>No activity yet.</Empty>
                     )}
                 </div>
-                <form className="flex items-end gap-2" onSubmit={submit}>
-                    <Input.TextArea
-                        size="small"
-                        autoSize={{ minRows: 1, maxRows: 6 }}
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                e.currentTarget.form?.requestSubmit();
-                            }
-                        }}
-                        placeholder="Add a comment"
-                    />
-                    <Button size="small" htmlType="submit">
-                        Send
-                    </Button>
-                </form>
+                {canComment ? (
+                    <form className="flex items-end gap-2" onSubmit={submit}>
+                        <Input.TextArea
+                            size="small"
+                            autoSize={{ minRows: 1, maxRows: 6 }}
+                            value={comment}
+                            aria-label="Add a comment"
+                            onChange={(e) => setComment(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    e.currentTarget.form?.requestSubmit();
+                                }
+                            }}
+                            placeholder="Add a comment"
+                        />
+                        <Button size="small" htmlType="submit">
+                            Send
+                        </Button>
+                    </form>
+                ) : (
+                    <Typography.Text type="secondary">Viewer access is read-only.</Typography.Text>
+                )}
             </Card>
         </div>
     );
