@@ -1,5 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
+    fetchAll,
     requireAdmin,
     requireNonEmpty,
     result,
@@ -29,13 +30,20 @@ export async function listPlaces(client: SupabaseClient): Promise<Row[]> {
 }
 
 export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]> {
-    const [typesRes, availabilityRes, labelsRes] = await Promise.all([
-        client.from('inventory_types').select('*').order('name'),
+    const [types, availabilityRes, labels] = await Promise.all([
+        fetchAll((from, to) =>
+            client.from('inventory_types').select('*').order('name').order('id').range(from, to),
+        ),
         client.rpc('inventory_availability'),
-        client.from('inventory_type_labels').select('*').order('name'),
+        fetchAll((from, to) =>
+            client
+                .from('inventory_type_labels')
+                .select('*')
+                .order('name')
+                .order('id')
+                .range(from, to),
+        ),
     ]);
-    const types = result(typesRes) as Row[];
-    const labels = result(labelsRes) as Row[];
     const availableById = new Map(
         (result(availabilityRes) as Row[]).map((x) => [x.inventory_type_id, x.available_quantity]),
     );

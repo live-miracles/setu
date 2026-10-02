@@ -14,6 +14,7 @@ async function importDashboard() {
             if (response.error) throw new Error(response.error.message);
             return response.data;
         };
+        const fetchAll = async (page) => result(await page(0, 999));
         const profilesFor = async (_admin, ids) => new Map(
             ids.filter(Boolean).map((id) => [id, { id, email: id + '@example.test', name: id }]),
         );
@@ -101,6 +102,9 @@ test('dashboard bounds request data and scopes dependent rows', async () => {
                 return this;
             },
             order() {
+                return this;
+            },
+            range() {
                 return this;
             },
             limit(value) {
