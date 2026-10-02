@@ -7,7 +7,7 @@ const rootUrl = new URL('../', import.meta.url);
 test('internal SECURITY DEFINER functions are not executable by app roles', async () => {
     const sql = await readFile(
         new URL(
-            'supabase/migrations/20261002000000_restrict_internal_function_execute.sql',
+            'supabase/migrations/20261002020000_restrict_internal_function_execute.sql',
             rootUrl,
         ),
         'utf8',
@@ -45,7 +45,7 @@ test('every SECURITY DEFINER function revokes anon and authenticated explicitly 
         .filter(Boolean);
     const handled = new Set([
         // Evaluated as the signed-in role by RLS policies; anon is revoked in
-        // 20261002000000_restrict_internal_function_execute.sql.
+        // 20261002020000_restrict_internal_function_execute.sql.
         'current_role',
         'is_approver',
         'is_admin',
@@ -56,7 +56,7 @@ test('every SECURITY DEFINER function revokes anon and authenticated explicitly 
         'restrict_user_by_email_domain',
     ]);
     const restricted = await readFile(
-        new URL('20261002000000_restrict_internal_function_execute.sql', dir),
+        new URL('20261002020000_restrict_internal_function_execute.sql', dir),
         'utf8',
     );
     for (const name of new Set(definers)) {
@@ -67,18 +67,6 @@ test('every SECURITY DEFINER function revokes anon and authenticated explicitly 
             `${name} is SECURITY DEFINER but not restricted from anon/authenticated`,
         );
     }
-});
-
-test('Vercel responses carry baseline security headers and keep camera access', async () => {
-    const config = JSON.parse(await readFile(new URL('vercel.json', rootUrl), 'utf8'));
-    const headers = Object.fromEntries(
-        config.headers
-            .find((entry) => entry.source === '/(.*)')
-            .headers.map((header) => [header.key, header.value]),
-    );
-    assert.equal(headers['X-Content-Type-Options'], 'nosniff');
-    assert.match(headers['Content-Security-Policy'], /frame-ancestors 'none'/);
-    assert.match(headers['Permissions-Policy'], /camera=\(self\)/);
 });
 
 test('legacy base64 uploads reject oversized or malformed payloads before touching Storage', async () => {

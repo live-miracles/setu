@@ -45,7 +45,7 @@ try {
     await db.exec(
         await readFile(
             new URL(
-                '../supabase/migrations/20261002000000_restrict_internal_function_execute.sql',
+                '../supabase/migrations/20261002020000_restrict_internal_function_execute.sql',
                 import.meta.url,
             ),
             'utf8',
