@@ -74,7 +74,17 @@ export async function uploadImage(
     if (previousPath && !isOwnedImagePath(userId, previousPath)) {
         throw new Error('You cannot replace an image owned by another user.');
     }
-    const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    // Reject oversized payloads before decoding so a huge string cannot exhaust
+    // the function's memory; base64 expands the byte count by 4/3.
+    if (base64Data.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4) {
+        throw new Error('The selected file is too large.');
+    }
+    let bytes: Uint8Array;
+    try {
+        bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    } catch {
+        throw new Error('The selected file is not valid image data.');
+    }
     if (bytes.length > MAX_IMAGE_BYTES) throw new Error('The selected file is too large.');
 
     const extension = mimeType.split('/')[1] || 'jpg';
