@@ -342,3 +342,39 @@ test('roster history and the inventory catalog are not truncated at the row cap'
     const types = await api.listInventoryTypes(catalog);
     assert.equal(types[0].labels.length, 1200);
 });
+
+test('calendar keeps sessions that only fall in this month in the viewer local time zone', async () => {
+    // 00:30-01:30 on 1 Feb in UTC+05:30 is 19:00-20:00 UTC on 31 Jan.
+    const client = fakeClient({
+        places: [{ id: 'pl1', name: 'Hall' }],
+        departments: [],
+        program_requests: [
+            {
+                id: 'p1',
+                display_id: 1,
+                name: 'Early',
+                requester_id: 'u1',
+                status: 'approved',
+                place_id: 'pl1',
+            },
+        ],
+        program_sessions: [
+            {
+                id: 's1',
+                request_id: 'p1',
+                session_type: 'Talk',
+                start_at: '2031-01-31T19:00:00Z',
+                end_at: '2031-01-31T20:00:00Z',
+            },
+        ],
+        program_request_participants: [],
+        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1' }],
+    });
+    const february = await api.getCalendarMonth(client, 2031, 2);
+    assert.deepEqual(
+        february.programs.map((program) => program.Id),
+        ['p1'],
+    );
+    const april = await api.getCalendarMonth(client, 2031, 4);
+    assert.equal(april.programs.length, 0);
+});

@@ -405,8 +405,13 @@ export async function getCalendarMonth(
     year: number,
     month: number,
 ): Promise<Row> {
-    const monthStart = Date.UTC(year, month - 1, 1);
-    const monthEnd = Date.UTC(year, month, 1);
+    // The browser buckets sessions by *local* date, so a session in the first or
+    // last hours of a local month can fall in the neighbouring UTC month. Pad
+    // the window by a day each side (more than any UTC offset); the client only
+    // draws sessions whose local date is inside the visible month.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const monthStart = Date.UTC(year, month - 1, 1) - DAY_MS;
+    const monthEnd = Date.UTC(year, month, 1) + DAY_MS;
     const [placesRes, departmentsRes, monthSessionRows] = await Promise.all([
         admin.from('places').select('*').order('name'),
         admin.from('departments').select('*'),
