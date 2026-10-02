@@ -1,6 +1,7 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { currentProfile, requireNonEmpty, result, withLockedDedupe, type Row } from './core.ts';
 import { commentDto } from './query.ts';
+import { MAX_COMMENT_LENGTH } from './validation.ts';
 
 interface RequestOwner {
     kind: 'inventory_request' | 'program_request';
@@ -66,6 +67,9 @@ export async function addComment(
     const actor = await currentProfile(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const trimmed = requireNonEmpty(message, 'Message is required.');
+    if (trimmed.length > MAX_COMMENT_LENGTH) {
+        throw new Error(`Comments can be at most ${MAX_COMMENT_LENGTH} characters.`);
+    }
     const owner = await findRequestOwner(admin, requestId);
     if (!owner) throw new Error('Request not found.');
     const canComment =
