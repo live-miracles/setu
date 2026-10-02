@@ -13,6 +13,7 @@ import {
 import { isPlainLeftClick } from '../ui/link-click';
 import { formatDateTime, formatTimeOfDay } from '../ui/format';
 import { formatLocalDateOnly } from '../ui/date';
+import { isOngoingInventoryRequest } from '../ui/inventory-status';
 
 type Props = { dashboard: DashboardPayload };
 
@@ -114,6 +115,7 @@ export function Home({ dashboard }: Props) {
     const pendingProgramRequests = dashboard.programRequests.filter((request) =>
         ['draft', 'submitted'].includes(request.Status),
     );
+    const ongoingInventoryRequests = dashboard.inventoryRequests.filter(isOngoingInventoryRequest);
     const todayIso = formatLocalDateOnly(new Date());
     const tomorrowDate = new Date();
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -227,13 +229,13 @@ export function Home({ dashboard }: Props) {
                 <Card
                     title={sectionTitle(
                         'Ongoing Inventory Requests',
-                        dashboard.inventoryRequests.length,
+                        ongoingInventoryRequests.length,
                     )}
                     className="home-scroll-card"
                     extra={sectionAction('Ongoing Inventory Requests', () =>
                         navigate(inventoryPath),
                     )}>
-                    <HomeRequestList requests={dashboard.inventoryRequests} kind="inventory" />
+                    <HomeRequestList requests={ongoingInventoryRequests} kind="inventory" />
                 </Card>
             </div>
             <div className="home-section">

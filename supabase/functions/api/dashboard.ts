@@ -1,6 +1,11 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { profilesFor, result, userDto, type Row } from './core.ts';
 
+export const DASHBOARD_REQUEST_LIMIT = 250;
+export const ONGOING_INVENTORY_STATUSES = ['draft', 'submitted', 'approved', 'issued'];
+
+const noRows = () => Promise.resolve({ data: [] as Row[], error: null });
+
 export async function dashboard(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -17,15 +22,18 @@ export async function dashboard(
             .select('*')
             .gte('end_at', new Date().toISOString())
             .order('start_at'),
-        client.from('inventory_requests').select('*').order('updated_at', { ascending: false }),
-        client.from('inventory_request_items').select('*'),
-        client.from('inventory_request_item_labels').select('*'),
+        client
+            .from('inventory_requests')
+            .select('*')
+            .in('status', ONGOING_INVENTORY_STATUSES)
+            .order('updated_at', { ascending: false })
+            .limit(DASHBOARD_REQUEST_LIMIT),
         client.from('inventory_type_labels').select('*').order('name'),
-        client.from('inventory_request_participants').select('*'),
-        client.from('program_requests').select('*').order('updated_at', { ascending: false }),
-        client.from('program_sessions').select('*').order('start_at'),
-        client.from('program_request_participants').select('*'),
-        client.from('comments').select('*').order('created_at'),
+        client
+            .from('program_requests')
+            .select('*')
+            .order('updated_at', { ascending: false })
+            .limit(DASHBOARD_REQUEST_LIMIT),
         client.from('home_content').select('*').eq('id', true).single(),
         client.from('shift_types').select('*').order('name'),
         client.from('program_types').select('*').order('name'),
@@ -41,14 +49,8 @@ export async function dashboard(
         availability,
         rosters,
         inventory,
-        items,
-        requestItemLabels,
         inventoryLabels,
-        inventoryParticipants,
         programs,
-        sessions,
-        programParticipants,
-        comments,
         home,
         shiftTypes,
         programTypes,
@@ -56,6 +58,61 @@ export async function dashboard(
         sessionTypes,
         blocks,
     ] = responses.map((r) => result(r)) as Row[];
+    const inventoryRequestIds = inventory.map((x: Row) => x.id);
+    const programRequestIds = programs.map((x: Row) => x.id);
+    const relatedResponses = await Promise.all([
+        inventoryRequestIds.length
+            ? client
+                  .from('inventory_request_items')
+                  .select('*')
+                  .in('request_id', inventoryRequestIds)
+            : noRows(),
+        inventoryRequestIds.length
+            ? client
+                  .from('inventory_request_participants')
+                  .select('*')
+                  .in('request_id', inventoryRequestIds)
+            : noRows(),
+        programRequestIds.length
+            ? client
+                  .from('program_sessions')
+                  .select('*')
+                  .in('request_id', programRequestIds)
+                  .order('start_at')
+            : noRows(),
+        programRequestIds.length
+            ? client
+                  .from('program_request_participants')
+                  .select('*')
+                  .in('request_id', programRequestIds)
+            : noRows(),
+        inventoryRequestIds.length
+            ? client
+                  .from('comments')
+                  .select('*')
+                  .in('inventory_request_id', inventoryRequestIds)
+                  .order('created_at')
+            : noRows(),
+        programRequestIds.length
+            ? client
+                  .from('comments')
+                  .select('*')
+                  .in('program_request_id', programRequestIds)
+                  .order('created_at')
+            : noRows(),
+    ]);
+    const [items, inventoryParticipants, sessions, programParticipants, ...commentRows] =
+        relatedResponses.map((r) => result(r)) as Row[][];
+    const itemIds = items.map((x: Row) => x.id);
+    const requestItemLabels = result(
+        itemIds.length
+            ? await client
+                  .from('inventory_request_item_labels')
+                  .select('*')
+                  .in('request_item_id', itemIds)
+            : await noRows(),
+    ) as Row[];
+    const comments = commentRows.flat();
     const departmentsById = new Map(departments.map((x: Row) => [x.id, x]));
     const placesById = new Map(places.map((x: Row) => [x.id, x]));
     const typesById = new Map(types.map((x: Row) => [x.id, x]));

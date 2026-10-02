@@ -22,5 +22,9 @@ export function RequestImage({
 }) {
     const { url, status } = useImageUrl(imageId);
     if (status === 'loading') return <span>Loading…</span>;
-    return url ? <img src={url} alt={alt} className={className} /> : <>{fallback}</>;
+    return url ? (
+        <img src={url} alt={alt} className={className} loading="lazy" decoding="async" />
+    ) : (
+        <>{fallback}</>
+    );
 }

@@ -19,6 +19,7 @@ test('frontend utility and table assertions', async () => {
                 import { runCreateRecordAssertions } from './frontend/src/ui/create-record.test.ts';
                 import { runInventoryImageAssertions } from './frontend/src/ui/inventory-image.test.ts';
                 import { runInventoryQrAssertions } from './frontend/src/ui/inventory-qr.test.ts';
+                import { runInventoryStatusAssertions } from './frontend/src/ui/inventory-status.test.ts';
                 import { runInventoryStockAssertions } from './frontend/src/ui/inventory-stock.test.ts';
                 import { runProgramActionAssertions } from './frontend/src/ui/program-actions.test.ts';
                 import { runRosterTableAssertions } from './frontend/src/ui/roster-table.test.ts';
@@ -27,6 +28,7 @@ test('frontend utility and table assertions', async () => {
                 runCreateRecordAssertions();
                 runInventoryImageAssertions();
                 runInventoryQrAssertions();
+                runInventoryStatusAssertions();
                 runInventoryStockAssertions();
                 runProgramActionAssertions();
                 runRosterTableAssertions();
