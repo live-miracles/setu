@@ -83,6 +83,10 @@ export function runInventoryQrAssertions(): void {
         'scanner should parse a compact labeled inventory QR value',
     );
     assert(
+        parseInventoryQrValue(types, '034-012')?.labelId === 'label-1',
+        'scanner should accept zero-padded manual entry numbers',
+    );
+    assert(
         inventoryQrValue(types[0]) === '34' &&
             inventoryQrValue(types[0], types[0].labels[0]) === '34-12',
         'QR generation should use compact inventory and label numbers',
