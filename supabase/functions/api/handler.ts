@@ -77,8 +77,9 @@ export async function handleApiRequest(context: Context): Promise<Response> {
     const url = Deno.env.get('SUPABASE_URL') || '';
     const key = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY') || '';
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    if (!authorization || !url || !key || !serviceKey)
+    if (!url || !key || !serviceKey)
         return respond({ error: 'Server authentication is not configured.' }, 500);
+    if (!authorization) return respond({ error: 'Authentication is required.' }, 401);
     const client = createClient(url, key, {
         global: { headers: { Authorization: authorization } },
     });

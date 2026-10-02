@@ -6,10 +6,51 @@ import { transform } from 'esbuild';
 const rootUrl = new URL('../', import.meta.url);
 
 async function importSource(path, prelude = '') {
-    const source = (await readFile(new URL(path, rootUrl), 'utf8')).replace(/^import .*;\n/gm, '');
+    const source = (await readFile(new URL(path, rootUrl), 'utf8')).replace(
+        /^import[\s\S]*?;\n/gm,
+        '',
+    );
     const { code } = await transform(prelude + source, { loader: 'ts', format: 'esm' });
     return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 }
+
+test('API distinguishes missing credentials from missing server configuration', async () => {
+    const environment = {
+        SETU_APP_ORIGIN: 'https://app.example.test',
+        SUPABASE_URL: 'https://project.example.test',
+        SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+        SUPABASE_SERVICE_ROLE_KEY: 'service-key',
+    };
+    globalThis.__handlerEnvironment = environment;
+    const handler = await importSource(
+        'supabase/functions/api/handler.ts',
+        `const Deno = { env: { get: (name) => globalThis.__handlerEnvironment[name] || '' } };
+         const createClient = () => { throw new Error('authentication client must not be created'); };\n`,
+    );
+    const context = (headers = {}) => ({
+        req: {
+            raw: new Request('https://api.example.test/functions/v1/api/whoAmI', {
+                method: 'POST',
+                headers,
+                body: '{}',
+            }),
+        },
+    });
+
+    const missingCredentials = await handler.handleApiRequest(context());
+    assert.equal(missingCredentials.status, 401);
+    assert.deepEqual(await missingCredentials.json(), { error: 'Authentication is required.' });
+
+    environment.SUPABASE_URL = '';
+    const missingConfiguration = await handler.handleApiRequest(
+        context({ Authorization: 'Bearer token' }),
+    );
+    assert.equal(missingConfiguration.status, 500);
+    assert.deepEqual(await missingConfiguration.json(), {
+        error: 'Server authentication is not configured.',
+    });
+    delete globalThis.__handlerEnvironment;
+});
 
 test('image replacement rejects paths outside the current user folder', async () => {
     const images = await importSource(
