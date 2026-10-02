@@ -4,7 +4,8 @@ export function parseInventoryQrValue(
 ): { type: InventoryTypeDTO; labelId: string | null } | null {
     const value = decodedValue.trim();
     if (/^\d+(?:-\d+)?$/.test(value)) {
-        const [inventoryTypeCode, labelCode] = value.split('-');
+        // Codes are entered into "00-00" fields, so "02" must match display id 2.
+        const [inventoryTypeCode, labelCode] = value.split('-').map((code) => String(Number(code)));
         const type = types.find((entry) => String(entry.DisplayId) === inventoryTypeCode);
         if (!type) return null;
         if (labelCode === undefined) return { type, labelId: null };

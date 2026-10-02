@@ -20,7 +20,7 @@ async function boot(): Promise<void> {
 
 document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator && window.isSecureContext) {
-        void navigator.serviceWorker.register('/sw.js');
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
     void boot().catch((err) => {
         const container = document.getElementById('app-shell');
