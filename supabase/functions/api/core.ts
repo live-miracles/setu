@@ -59,7 +59,9 @@ export async function requireAllowedEmailDomain(
 // Replaces the Apps Script backend's CacheService-based dedupe (Dedupe.ts):
 // the insert into idempotency_keys is the atomic claim (a retried call with
 // the same scope+requestId hits the primary key and is detected below), the
-// mutation runs, and its result is stored back onto that same row. A
+// mutation runs, and its result plus a separate completion marker are stored
+// back onto that same row. The marker matters because successful operations
+// such as deletes naturally return null. A
 // throwing mutation deletes its claim so the same request id can be retried.
 // Unlike the original (a real distributed lock), a second call that arrives
 // while the first is still mid-flight fails fast with a retryable error
@@ -90,7 +92,7 @@ export async function withLockedDedupe<T>(
                     .eq('request_id', requestId)
                     .single(),
             ) as Row;
-            if (existing.result === null) {
+            if (!existing.completed) {
                 throw new Error('This request is already being processed — please wait and retry.');
             }
             return { duplicate: true, result: existing.result as T };
@@ -101,7 +103,7 @@ export async function withLockedDedupe<T>(
         const value = await fn();
         await admin
             .from('idempotency_keys')
-            .update({ result: value === undefined ? null : value })
+            .update({ result: value === undefined ? null : value, completed: true })
             .eq('actor_id', actorId)
             .eq('scope', scope)
             .eq('request_id', requestId);
