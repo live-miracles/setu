@@ -33,6 +33,7 @@ import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
 import { requestStatusTagColor } from '../ui/request-status';
+import { inventoryFormValues, inventoryRequestFields } from '../ui/request-fields';
 import { canApprove, getInventoryRequestActions, isRequestOverdue } from '../workflows';
 import { supabase } from '../supabase';
 import { Activity, ParticipantsEditor } from './detail-activity';
@@ -99,15 +100,11 @@ export function InventoryDetail({
         Condition: '' as ReturnCondition | '',
         LabelIds: [] as string[],
     });
-    const [values, setValues] = useState({
-        Name: request.Name,
-        StartDate: request.StartDate,
-        EndDate: request.EndDate,
-        DepartmentId: request.DepartmentId,
-        LeadEmail: request.LeadEmail,
-        Participants: request.participants.join(', '),
-        UserId: request.UserId,
-    });
+    const [values, setValues] = useState(() => inventoryFormValues(request));
+    const openEditor = () => {
+        setValues(inventoryFormValues(request));
+        setEditing(true);
+    };
     const { result: usersResult } = useList<UserDTO>({
         resource: 'users',
         pagination: { mode: 'off' },
@@ -126,13 +123,7 @@ export function InventoryDetail({
                 resource: 'inventory-requests',
                 id: request.Id,
                 values: {
-                    name: values.Name,
-                    userId: values.UserId,
-                    startDate: values.StartDate,
-                    endDate: values.EndDate,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
+                    ...inventoryRequestFields(request),
                     items: nextItems.map((item) => ({
                         inventoryTypeId: item.InventoryTypeId,
                         quantity: item.Quantity,
@@ -223,15 +214,7 @@ export function InventoryDetail({
                 successNotification: false,
                 errorNotification: false,
             }).catch((e) => {
-                setValues({
-                    Name: request.Name,
-                    StartDate: request.StartDate,
-                    EndDate: request.EndDate,
-                    DepartmentId: request.DepartmentId,
-                    LeadEmail: request.LeadEmail,
-                    Participants: request.participants.join(', '),
-                    UserId: request.UserId,
-                });
+                setValues(inventoryFormValues(request));
                 setItems(request.items);
                 throw e;
             });
@@ -351,13 +334,7 @@ export function InventoryDetail({
                 resource: 'inventory-requests',
                 id: request.Id,
                 values: {
-                    name: values.Name,
-                    userId: values.UserId,
-                    startDate: values.StartDate,
-                    endDate: values.EndDate,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
+                    ...inventoryRequestFields(request),
                     imageId: nextImageId,
                     items: items.map((item) => ({
                         inventoryTypeId: item.InventoryTypeId,
@@ -454,7 +431,7 @@ export function InventoryDetail({
                         <Button
                             type="primary"
                             icon={<EditOutlined />}
-                            onClick={() => setEditing(true)}
+                            onClick={openEditor}
                             aria-label="Edit request"
                             title="Edit request"
                         />
@@ -480,9 +457,7 @@ export function InventoryDetail({
                         [
                             'Participants',
                             <ParticipantsEditor
-                                participants={
-                                    values.Participants ? values.Participants.split(',') : []
-                                }
+                                participants={request.participants}
                                 editable={canApprove(dashboard.me) || owner}
                                 onSave={saveParticipants}
                             />,
