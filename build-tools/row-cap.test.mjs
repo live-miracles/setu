@@ -12,7 +12,7 @@ const bundle = await build({
         contents: `
             export { fetchAll } from './supabase/functions/api/core';
             export { listProgramRequests } from './supabase/functions/api/programs';
-            export { listInventoryRequests } from './supabase/functions/api/inventory';
+            export { getInventoryRequest, listInventoryRequests } from './supabase/functions/api/inventory';
             export { listRosters } from './supabase/functions/api/roster';
             export { dashboard } from './supabase/functions/api/dashboard';
             export { profilesFor } from './supabase/functions/api/core';
@@ -396,4 +396,36 @@ test('profilesFor handles more users than fit in one request URL', async () => {
         profiles.map((p) => p.id),
     );
     assert.equal(byId.size, 480);
+});
+
+test('inventory detail loads only the labels and types its items use', async () => {
+    const labels = Array.from({ length: 1200 }, (_, i) => ({
+        id: `l${pad(i)}`,
+        display_id: i,
+        inventory_type_id: 't1',
+        name: `L${pad(i)}`,
+    }));
+    const client = fakeClient({
+        inventory_requests: [
+            { id: 'r1', display_id: 1, name: 'Kit', requester_id: 'u1', status: 'issued' },
+        ],
+        departments: [],
+        inventory_request_items: [
+            { id: 'i1', request_id: 'r1', inventory_type_id: 't1', quantity: 1 },
+        ],
+        inventory_request_item_labels: [
+            { id: 'a1', request_item_id: 'i1', inventory_type_label_id: labels.at(-1).id },
+            { id: 'a2', request_item_id: 'other', inventory_type_label_id: labels[0].id },
+        ],
+        inventory_types: [{ id: 't1', name: 'Camera', brand: 'Acme' }],
+        inventory_type_labels: labels,
+        inventory_request_participants: [],
+        comments: [],
+        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1' }],
+    });
+    const request = await api.getInventoryRequest(client, client, 'r1');
+    assert.deepEqual(
+        request.items.map((item) => [item.itemName, item.labels.map((label) => label.Name)]),
+        [['Acme · Camera', [labels.at(-1).name]]],
+    );
 });
