@@ -16,6 +16,7 @@ import {
     matchesSearch,
     paginate,
 } from './query.ts';
+import { emailArg } from './validation.ts';
 import {
     insertActionComment,
     parseParticipants,
@@ -459,7 +460,7 @@ export async function createProgramRequest(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
     );
-    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
+    const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
 
     const { result: dto } = await withLockedDedupe(
@@ -539,7 +540,7 @@ export async function updateProgramRequest(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
     );
-    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
+    const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
     const requestedStatus = input.status as string | undefined;
     if (requestedStatus && PROGRAM_REQUEST_STATUSES.indexOf(requestedStatus) === -1) {

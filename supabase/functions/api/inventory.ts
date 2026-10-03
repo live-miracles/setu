@@ -16,6 +16,7 @@ import {
     matchesSearch,
     paginate,
 } from './query.ts';
+import { emailArg, isValidEmail, MAX_PARTICIPANTS } from './validation.ts';
 
 export function inventoryRequestDto(
     x: Row,
@@ -243,7 +244,17 @@ export function parseParticipants(raw: unknown): string[] {
         .split(',')
         .map((email) => email.trim().toLowerCase())
         .filter((email) => email.length > 0)
-        .forEach((email) => seen.add(email));
+        .forEach((email) => {
+            if (!isValidEmail(email)) {
+                throw new Error(
+                    `"${email.slice(0, 80)}" is not a valid participant email address.`,
+                );
+            }
+            seen.add(email);
+        });
+    if (seen.size > MAX_PARTICIPANTS) {
+        throw new Error(`A request can have at most ${MAX_PARTICIPANTS} participants.`);
+    }
     return Array.from(seen);
 }
 
@@ -435,7 +446,7 @@ export async function createInventoryRequest(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
     );
-    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
+    const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
 
     const { result: dto } = await withLockedDedupe(
@@ -494,7 +505,7 @@ export async function updateInventoryRequest(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
     );
-    const leadEmail = requireNonEmpty(input.leadEmail, 'Lead email is required.').toLowerCase();
+    const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
 
     const { result: dto } = await withLockedDedupe(

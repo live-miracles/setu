@@ -488,10 +488,36 @@ export async function deleteUser(
     targetEmail: string,
     requestId: string,
 ): Promise<void> {
-    await requireAdmin(client, userId);
+    const actor = await requireAdmin(client, userId);
     const target = result(
         await admin.from('profiles').select('id').eq('email', targetEmail).single(),
     ) as Row;
+    if (target.id === actor.id) throw new Error('You cannot delete your own account.');
+    // requests, roster shifts and comments reference profiles with ON DELETE
+    // RESTRICT, so explain that instead of surfacing the raw constraint error.
+    const references = await Promise.all([
+        admin
+            .from('inventory_requests')
+            .select('id', { count: 'exact', head: true })
+            .eq('requester_id', target.id),
+        admin
+            .from('program_requests')
+            .select('id', { count: 'exact', head: true })
+            .eq('requester_id', target.id),
+        admin.from('rosters').select('id', { count: 'exact', head: true }).eq('user_id', target.id),
+        admin
+            .from('comments')
+            .select('id', { count: 'exact', head: true })
+            .eq('author_id', target.id),
+    ]);
+    references.forEach((reference) => {
+        if (reference.error) throw new Error(reference.error.message);
+    });
+    if (references.some((reference) => (reference.count || 0) > 0)) {
+        throw new Error(
+            'This user has requests, comments or roster shifts and cannot be deleted. Change their role instead.',
+        );
+    }
     await withLockedDedupe(admin, 'user:delete:' + target.id, requestId, userId, async () => {
         const { error } = await admin.auth.admin.deleteUser(target.id);
         if (error) throw new Error(error.message);

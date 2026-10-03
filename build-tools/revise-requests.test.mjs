@@ -27,7 +27,11 @@ const bundle = await build({
                     namespace: 'test',
                 }));
                 build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-                    contents: 'export const requiredStringArg = (value) => value;',
+                    contents: `export const requiredStringArg = (value) => value;
+                        export const emailArg = (value) => value;
+                        export const isValidEmail = () => true;
+                        export const MAX_PARTICIPANTS = 50;
+                        export const MAX_COMMENT_LENGTH = 4000;`,
                 }));
             },
         },
