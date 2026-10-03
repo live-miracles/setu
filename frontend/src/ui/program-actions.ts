@@ -1,4 +1,4 @@
-import { canApprove, canTransitionProgramRequest } from '../workflows';
+import { canApprove, canTransitionProgramRequest, canWrite } from '../workflows';
 import { localDateToDayNumber, toIsoDate } from './date';
 
 function shiftLocalDateTime(value: string, dayDelta: number): string {
@@ -47,6 +47,7 @@ export function getProgramRequestActions(
     request: ProgramRequestDTO,
     me: UserDTO,
 ): ProgramRequestAction[] {
+    if (!canWrite(me)) return [];
     if (canApprove(me)) {
         return (
             ['submit', 'approve', 'reject', 'cancel', 'revise'] as ProgramRequestAction[]

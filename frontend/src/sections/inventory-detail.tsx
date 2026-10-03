@@ -34,7 +34,7 @@ import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
 import { requestStatusTagColor } from '../ui/request-status';
 import { inventoryFormValues, inventoryRequestFields } from '../ui/request-fields';
-import { canApprove, getInventoryRequestActions, isRequestOverdue } from '../workflows';
+import { canApprove, canWrite, getInventoryRequestActions, isRequestOverdue } from '../workflows';
 import { supabase } from '../supabase';
 import { Activity, ParticipantsEditor } from './detail-activity';
 import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
@@ -66,10 +66,11 @@ export function InventoryDetail({
         });
     const currentUserEmail = dashboard.me.Email.trim().toLowerCase();
     const owner =
-        request.UserId.trim().toLowerCase() === currentUserEmail ||
-        (request.participants || []).some(
-            (email) => email.trim().toLowerCase() === currentUserEmail,
-        );
+        canWrite(dashboard.me) &&
+        (request.UserId.trim().toLowerCase() === currentUserEmail ||
+            (request.participants || []).some(
+                (email) => email.trim().toLowerCase() === currentUserEmail,
+            ));
     const approver = canApprove(dashboard.me);
     const overdue = isRequestOverdue(request);
     const canEditItemCondition = approver && ['issued', 'closed'].includes(request.Status);

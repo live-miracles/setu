@@ -46,3 +46,12 @@ export function emailArg(value: unknown, requiredMessage: string): string {
         throw new Error(`"${email.slice(0, 80)}" is not a valid email address.`);
     return email;
 }
+
+export const MAX_NAME_LENGTH = 200;
+export const MAX_PHONE_LENGTH = 50;
+
+export function boundedText(value: unknown, label: string, max: number): string {
+    const text = String(value ?? '').trim();
+    if (text.length > max) throw new Error(`${label} must be at most ${max} characters.`);
+    return text;
+}

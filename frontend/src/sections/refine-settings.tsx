@@ -446,8 +446,10 @@ function Editor({
                 config={config}
                 row={row}
                 onSubmit={async (values) => {
-                    onClose();
+                    // Close only once the save succeeded, so a rejected save
+                    // (duplicate name, validation) keeps what was typed.
                     await onSaved(values);
+                    onClose();
                 }}
                 datalistOptions={datalistOptions}
                 submitLabel={row ? 'Save' : 'Add'}

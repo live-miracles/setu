@@ -31,7 +31,10 @@ const bundle = await build({
                         export const emailArg = (value) => value;
                         export const isValidEmail = () => true;
                         export const MAX_PARTICIPANTS = 50;
-                        export const MAX_COMMENT_LENGTH = 4000;`,
+                        export const MAX_COMMENT_LENGTH = 4000;
+                        export const MAX_NAME_LENGTH = 200;
+                        export const MAX_PHONE_LENGTH = 50;
+                        export const boundedText = (value) => String(value ?? '').trim();`,
                 }));
             },
         },
@@ -56,8 +59,10 @@ for (const kind of ['Inventory', 'Program']) {
                 'guest@example.com',
                 'unrelated@example.com',
             ]) {
+                // Viewer is read-only, even on a request they own or joined.
                 const allowed =
-                    role === 'admin' || role === 'approver' || email !== 'unrelated@example.com';
+                    role !== 'viewer' &&
+                    (role === 'admin' || role === 'approver' || email !== 'unrelated@example.com');
                 assert.equal(
                     actions(request, { Role: role, Email: email }).includes('revise'),
                     allowed,

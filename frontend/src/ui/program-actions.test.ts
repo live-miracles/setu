@@ -6,6 +6,7 @@ import {
     shiftProgramSessions,
 } from './program-actions';
 import { instantToLocalInput, localInputToInstant } from './date';
+import { canWrite, getInventoryRequestActions } from '../workflows';
 
 function assert(condition: boolean, message: string): void {
     if (!condition) throw new Error(message);
@@ -208,5 +209,24 @@ export function runProgramActionAssertions(): void {
     assert(
         getLocalDateFromSession(new Date(2030, 0, 1, 0, 0).toISOString()) === '2030-01-01',
         'a local-midnight session keeps its local date',
+    );
+
+    // Viewer is read-only: no actions even on a request they own.
+    const viewer = { Role: 'viewer', Email: 'owner@example.com' } as UserDTO;
+    assert(!canWrite(viewer), 'viewers cannot write');
+    assert(
+        getProgramRequestActions(request({ Status: 'draft' }), viewer).length === 0,
+        'a viewer owner gets no program actions',
+    );
+    assert(
+        getInventoryRequestActions(
+            {
+                Status: 'draft',
+                UserId: 'owner@example.com',
+                participants: [],
+            } as unknown as InventoryRequestDTO,
+            viewer,
+        ).length === 0,
+        'a viewer owner gets no inventory actions',
     );
 }
