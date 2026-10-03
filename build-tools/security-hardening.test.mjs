@@ -147,6 +147,21 @@ test('signed image uploads require access to their target resource', async () =>
     assert.match(adminUpload.path, /^admin-1\/inventory_type\/type-1\//);
 });
 
+test('viewer comments are rejected before request access checks', async () => {
+    const comments = await importSource(
+        'supabase/functions/api/comments.ts',
+        `const currentProfile = async () => ({ id: 'viewer-1', role: 'viewer' });
+         const requireNonEmpty = (value) => String(value).trim();
+         const result = (response) => response.data;
+         const withLockedDedupe = async () => { throw new Error('must not claim a mutation'); };
+         const commentDto = (value) => value;\n`,
+    );
+    await assert.rejects(
+        comments.addComment({}, {}, 'viewer-1', 'request-1', 'hello', 'request-123'),
+        /read-only/,
+    );
+});
+
 test('idempotency claims and lookups are isolated by actor', async () => {
     const core = await importSource(
         'supabase/functions/api/core.ts',
@@ -273,6 +288,15 @@ test('security migration closes the direct database authorization gaps', async (
     assert.match(sql, /create policy "request participants insert comments"/);
     assert.match(sql, /author_name is null/);
     assert.match(sql, /primary key \(actor_id, scope, request_id\)/);
+});
+
+test('viewer comments remain blocked through the direct Data API', async () => {
+    const sql = await readFile(
+        new URL('supabase/migrations/20261003010000_viewer_comments_read_only.sql', rootUrl),
+        'utf8',
+    );
+    assert.match(sql, /current_role\(\) <> 'viewer'/);
+    assert.match(sql, /author_id = auth\.uid\(\)/);
 });
 
 test('upload and transition migration enforces storage limits and service-only transactions', async () => {

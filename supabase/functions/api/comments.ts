@@ -65,6 +65,7 @@ export async function addComment(
     dedupeRequestId: string,
 ): Promise<Row> {
     const actor = await currentProfile(client, userId);
+    if (actor.role === 'viewer') throw new Error('Viewer access is read-only.');
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const trimmed = requireNonEmpty(message, 'Message is required.');
     if (trimmed.length > MAX_COMMENT_LENGTH) {
