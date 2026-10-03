@@ -246,7 +246,7 @@ test('security migration closes the direct database authorization gaps', async (
 
 test('viewer comments remain blocked through the direct Data API', async () => {
     const sql = await readFile(
-        new URL('supabase/migrations/20261002010000_viewer_comments_read_only.sql', rootUrl),
+        new URL('supabase/migrations/20261003010000_viewer_comments_read_only.sql', rootUrl),
         'utf8',
     );
     assert.match(sql, /current_role\(\) <> 'viewer'/);
