@@ -168,7 +168,10 @@ test('idempotency claims and lookups are isolated by actor', async () => {
         },
         single() {
             calls.push(['single']);
-            return Promise.resolve({ data: { result: { ok: true } }, error: null });
+            return Promise.resolve({
+                data: { result: { ok: true }, completed: true },
+                error: null,
+            });
         },
     };
     const admin = { from: () => builder };
@@ -186,6 +189,76 @@ test('idempotency claims and lookups are isolated by actor', async () => {
         { actor_id: 'actor-a', scope: 'request:create', request_id: 'request-123' },
     ]);
     assert.ok(calls.some((call) => call.join(':') === 'eq:actor_id:actor-a'));
+});
+
+test('completed idempotent mutations may have a null result', async () => {
+    const core = await importSource(
+        'supabase/functions/api/core.ts',
+        'const requiredStringArg = (value) => String(value).trim();\n',
+    );
+    const builder = {
+        insert() {
+            return Promise.resolve({ error: { code: '23505' } });
+        },
+        select() {
+            return this;
+        },
+        eq() {
+            return this;
+        },
+        single() {
+            return Promise.resolve({ data: { result: null, completed: true }, error: null });
+        },
+    };
+    const value = await core.withLockedDedupe(
+        { from: () => builder },
+        'request:delete',
+        'request-456',
+        'actor-a',
+        async () => assert.fail('completed duplicate callback must not run'),
+    );
+    assert.equal(value.duplicate, true);
+    assert.equal(value.result, null);
+});
+
+test('an incomplete idempotency claim remains retryable', async () => {
+    const core = await importSource(
+        'supabase/functions/api/core.ts',
+        'const requiredStringArg = (value) => String(value).trim();\n',
+    );
+    const builder = {
+        insert() {
+            return Promise.resolve({ error: { code: '23505' } });
+        },
+        select() {
+            return this;
+        },
+        eq() {
+            return this;
+        },
+        single() {
+            return Promise.resolve({ data: { result: null, completed: false }, error: null });
+        },
+    };
+    await assert.rejects(
+        core.withLockedDedupe(
+            { from: () => builder },
+            'request:delete',
+            'request-789',
+            'actor-a',
+            async () => assert.fail('in-flight duplicate callback must not run'),
+        ),
+        /already being processed/,
+    );
+});
+
+test('idempotency completion is stored separately from the result', async () => {
+    const sql = await readFile(
+        new URL('supabase/migrations/20261003000000_idempotency_completion.sql', rootUrl),
+        'utf8',
+    );
+    assert.match(sql, /add column completed boolean not null default false/);
+    assert.match(sql, /update public\.idempotency_keys set completed = true/);
 });
 
 test('security migration closes the direct database authorization gaps', async () => {
