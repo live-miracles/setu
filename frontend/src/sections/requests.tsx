@@ -185,6 +185,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             {isProgram && (
                 <Select
                     value={view}
+                    aria-label="Program date range"
                     onChange={(value) => {
                         setView(value);
                         writeRequestFilter(viewStorageKey, value);
@@ -198,6 +199,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             )}
             <Select
                 mode="multiple"
+                aria-label={`${title} statuses`}
                 maxTagCount={0}
                 maxTagPlaceholder={(selected) => `${selected.length} statuses`}
                 placeholder="Filter by status"
@@ -219,6 +221,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             <Input
                 value={search}
                 placeholder={`Search ${title.toLowerCase()}`}
+                aria-label={`Search ${title.toLowerCase()}`}
                 onChange={(event) => setSearch(event.target.value)}
                 onPressEnter={submitSearch}
             />
