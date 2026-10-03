@@ -490,8 +490,9 @@ export async function deleteUser(
 ): Promise<void> {
     await requireAdmin(client, userId);
     const target = result(
-        await admin.from('profiles').select('id').eq('email', targetEmail).single(),
+        await admin.from('profiles').select('id, email').eq('email', targetEmail).single(),
     ) as Row;
+    if (target.id === userId) throw new Error('You cannot delete your own administrator account.');
     await withLockedDedupe(admin, 'user:delete:' + target.id, requestId, userId, async () => {
         const { error } = await admin.auth.admin.deleteUser(target.id);
         if (error) throw new Error(error.message);

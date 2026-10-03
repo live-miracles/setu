@@ -228,16 +228,17 @@ export function Users({ dashboard }: Props) {
                         aria-label="Back to users"
                         title="Back to users"
                     />
-                    {canManageConfig(dashboard.me) && (
-                        <Button
-                            type="primary"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => setDeleting(selectedUser)}
-                            aria-label="Delete user"
-                            title="Delete user"
-                        />
-                    )}
+                    {canManageConfig(dashboard.me) &&
+                        selectedUser.Email.toLowerCase() !== dashboard.me.Email.toLowerCase() && (
+                            <Button
+                                type="primary"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => setDeleting(selectedUser)}
+                                aria-label="Delete user"
+                                title="Delete user"
+                            />
+                        )}
                 </Space>
             }>
             <DetailSection

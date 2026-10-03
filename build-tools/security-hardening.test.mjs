@@ -147,6 +147,42 @@ test('signed image uploads require access to their target resource', async () =>
     assert.match(adminUpload.path, /^admin-1\/inventory_type\/type-1\//);
 });
 
+test('an administrator cannot delete their own account', async () => {
+    const settings = await importSource(
+        'supabase/functions/api/settings.ts',
+        `const requireAdmin = async () => ({ id: 'admin-1', role: 'admin' });
+         const requireApprover = requireAdmin;
+         const requireNonEmpty = (value) => String(value).trim();
+         const result = (response) => response.data;
+         const userDto = (value) => value;
+         const withLockedDedupe = async () => { throw new Error('must not claim a deletion'); };\n`,
+    );
+    const builder = {
+        select() {
+            return this;
+        },
+        eq() {
+            return this;
+        },
+        single() {
+            return Promise.resolve({
+                data: { id: 'admin-1', email: 'admin@example.test' },
+                error: null,
+            });
+        },
+    };
+    await assert.rejects(
+        settings.deleteUser(
+            {},
+            { from: () => builder },
+            'admin-1',
+            'admin@example.test',
+            'request-123',
+        ),
+        /cannot delete your own administrator account/,
+    );
+});
+
 test('idempotency claims and lookups are isolated by actor', async () => {
     const core = await importSource(
         'supabase/functions/api/core.ts',
