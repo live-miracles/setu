@@ -8,6 +8,7 @@ import {
     withLockedDedupe,
     type Row,
 } from './core.ts';
+import { boundedText, MAX_NAME_LENGTH, MAX_PHONE_LENGTH } from './validation.ts';
 
 const USER_ROLES = ['admin', 'approver', 'viewer', 'user'];
 
@@ -459,15 +460,25 @@ export async function updateUser(
             .update({
                 name:
                     patch.name !== undefined
-                        ? requireNonEmpty(patch.name, 'Name is required.')
+                        ? boundedText(
+                              requireNonEmpty(patch.name, 'Name is required.'),
+                              'Name',
+                              MAX_NAME_LENGTH,
+                          )
                         : target.name,
                 role: patch.role !== undefined ? patch.role : target.role,
                 department_id:
                     patch.departmentId !== undefined
                         ? patch.departmentId || null
                         : target.department_id,
-                phone: patch.phone !== undefined ? String(patch.phone) : target.phone,
-                whatsapp: patch.whatsapp !== undefined ? String(patch.whatsapp) : target.whatsapp,
+                phone:
+                    patch.phone !== undefined
+                        ? boundedText(patch.phone, 'Phone', MAX_PHONE_LENGTH)
+                        : target.phone,
+                whatsapp:
+                    patch.whatsapp !== undefined
+                        ? boundedText(patch.whatsapp, 'WhatsApp', MAX_PHONE_LENGTH)
+                        : target.whatsapp,
             })
             .eq('email', targetEmail)
             .select('*')

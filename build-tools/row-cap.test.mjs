@@ -30,7 +30,10 @@ const bundle = await build({
                         export const emailArg = (value) => value;
                         export const isValidEmail = () => true;
                         export const MAX_PARTICIPANTS = 50;
-                        export const MAX_COMMENT_LENGTH = 4000;`,
+                        export const MAX_COMMENT_LENGTH = 4000;
+                        export const MAX_NAME_LENGTH = 200;
+                        export const MAX_PHONE_LENGTH = 50;
+                        export const boundedText = (value) => String(value ?? '').trim();`,
                 }));
             },
         },

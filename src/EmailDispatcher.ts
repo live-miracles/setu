@@ -74,10 +74,7 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
                 sent++;
             } catch (error) {
                 failed++;
-                updateRow(supabaseUrl, serviceRoleKey, row.id, {
-                    status: 'failed',
-                    last_error: String(error),
-                });
+                updateRow(supabaseUrl, serviceRoleKey, row.id, failureUpdate(row.attempts, error));
             }
         }
 
@@ -85,6 +82,24 @@ function runCommentEmailDispatcher(): { processed: number; sent: number; failed:
     } finally {
         lock.releaseLock();
     }
+}
+
+const MAX_DELIVERY_ATTEMPTS = 5;
+
+/**
+ * A failed send is retried with a growing delay (a transient quota or network
+ * error must not lose a notification); only after MAX_DELIVERY_ATTEMPTS does
+ * the row stay failed. `attempts` already counts the attempt that just failed.
+ */
+function failureUpdate(attempts: number, error: unknown): Record<string, string> {
+    const lastError = String(error);
+    if (attempts >= MAX_DELIVERY_ATTEMPTS) return { status: 'failed', last_error: lastError };
+    const delayMs = Math.max(1, attempts) * 10 * 60 * 1000;
+    return {
+        status: 'pending',
+        last_error: lastError,
+        next_attempt_at: new Date(Date.now() + delayMs).toISOString(),
+    };
 }
 
 function formatEmailBody(

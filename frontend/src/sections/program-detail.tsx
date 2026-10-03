@@ -23,7 +23,7 @@ import {
     getProgramRequestActions,
     shiftProgramSessions,
 } from '../ui/program-actions';
-import { canApprove } from '../workflows';
+import { canApprove, canWrite } from '../workflows';
 import { DetailSection } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
 import { AppLoading } from '../ui/app-loading';
@@ -80,10 +80,11 @@ export function ProgramDetail({
         });
     const currentUserEmail = dashboard.me.Email.trim().toLowerCase();
     const owner =
-        request.UserId.trim().toLowerCase() === currentUserEmail ||
-        (request.participants || []).some(
-            (email) => email.trim().toLowerCase() === currentUserEmail,
-        );
+        canWrite(dashboard.me) &&
+        (request.UserId.trim().toLowerCase() === currentUserEmail ||
+            (request.participants || []).some(
+                (email) => email.trim().toLowerCase() === currentUserEmail,
+            ));
     const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
     const deletable =
         ['draft', 'cancelled', 'rejected'].includes(request.Status) &&

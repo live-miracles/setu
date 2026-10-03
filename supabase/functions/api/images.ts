@@ -1,5 +1,5 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { currentProfile, requireNonEmpty, result, type Row } from './core.ts';
+import { currentWriter, requireNonEmpty, result, type Row } from './core.ts';
 
 const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];
 const IMAGE_BUCKET = 'request-images';
@@ -17,7 +17,7 @@ export async function createImageUploadUrl(
         throw new Error('That file type is not supported.');
     requireNonEmpty(fileName, 'A file name is required.');
     const target = requireNonEmpty(targetId, 'An image target is required.');
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     if (targetType === 'inventory_type') {
         if (actor.role !== 'admin') throw new Error('Administrator access is required.');
         result(await admin.from('inventory_types').select('id').eq('id', target).single());

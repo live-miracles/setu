@@ -23,7 +23,7 @@ import { createRecordDestination } from '../ui/create-record';
 import { RequestBlock } from '../ui/request-block';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
 import { addDays, formatDateTimeLocal, toIsoDate } from '../ui/date';
-import { canApprove } from '../workflows';
+import { canApprove, canWrite } from '../workflows';
 import { Modal, Page, SaveFooter, TextField, useSave } from './refine-shared';
 
 type Props = { dashboard: DashboardPayload };
@@ -248,13 +248,15 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             title={title}
             headingContent={boardFilters}
             action={
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => setCreating(true)}
-                    aria-label={`Add ${title.toLowerCase()}`}
-                    title={`Add ${title.toLowerCase()}`}
-                />
+                canWrite(dashboard.me) && (
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setCreating(true)}
+                        aria-label={`Add ${title.toLowerCase()}`}
+                        title={`Add ${title.toLowerCase()}`}
+                    />
+                )
             }>
             <div className="antd-request-list">
                 {loading && <Typography.Text type="secondary">Loading requests…</Typography.Text>}

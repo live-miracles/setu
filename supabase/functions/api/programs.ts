@@ -1,6 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
-    currentProfile,
+    currentWriter,
     fetchAll,
     profilesFor,
     requireNonEmpty,
@@ -449,7 +449,7 @@ export async function createProgramRequest(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const type = requireNonEmpty(input.type, 'Program type is required.');
     const name =
@@ -531,7 +531,7 @@ export async function updateProgramRequest(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const type = requireNonEmpty(input.type, 'Program type is required.');
     const name =
@@ -596,6 +596,9 @@ export async function updateProgramRequest(
             if (nextStatus !== existing.status && !isApprover) {
                 throw new Error('Only an approver can change the status.');
             }
+            if (nextStatus === 'approved' && !newPlaceId) {
+                throw new Error('A place must be assigned before approval.');
+            }
             const updated = result(
                 await admin
                     .from('program_requests')
@@ -648,7 +651,7 @@ export async function updateProgramRequestParticipants(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const participantEmails = parseParticipants(input.participants);
     await withLockedDedupe(
@@ -687,7 +690,7 @@ export async function performProgramRequestAction(
     note: string,
     dedupeRequestId: string,
 ): Promise<string> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const { result: nextStatus } = await withLockedDedupe(
         admin,
         'program_request:' + id + ':' + action,
@@ -713,7 +716,7 @@ export async function deleteProgramRequest(
     id: string,
     requestId: string,
 ): Promise<void> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     await withLockedDedupe(admin, 'program_request:delete:' + id, requestId, userId, async () => {
         const [requestRes, participantsRes] = await Promise.all([

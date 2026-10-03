@@ -1,5 +1,5 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { requiredStringArg } from './validation.ts';
+import { boundedText, MAX_NAME_LENGTH, MAX_PHONE_LENGTH, requiredStringArg } from './validation.ts';
 
 export type Row = Record<string, any>;
 
@@ -48,6 +48,14 @@ export function requireNonEmpty(value: unknown, message: string): string {
 
 export async function currentProfile(client: SupabaseClient, userId: string): Promise<Row> {
     return result(await client.from('profiles').select('*').eq('id', userId).single()) as Row;
+}
+
+// Viewer is the organization-wide read-only role: it may read every request but
+// never create, edit, transition, delete or comment on one.
+export async function currentWriter(client: SupabaseClient, userId: string): Promise<Row> {
+    const profile = await currentProfile(client, userId);
+    if (profile.role === 'viewer') throw new Error('Viewer access is read-only.');
+    return profile;
 }
 
 export async function requireAdmin(client: SupabaseClient, userId: string): Promise<Row> {
@@ -183,14 +191,16 @@ export async function updateOwnProfile(
     const changes: Row = {};
     if (patch.name !== undefined) {
         if (!String(patch.name).trim()) throw new Error('Name is required.');
-        changes.name = String(patch.name).trim();
+        changes.name = boundedText(patch.name, 'Name', MAX_NAME_LENGTH);
     }
     if (patch.departmentId !== undefined) changes.department_id = patch.departmentId || null;
     if (patch.phone !== undefined) {
         if (!String(patch.phone).trim()) throw new Error('Phone is required.');
-        changes.phone = String(patch.phone).trim();
+        changes.phone = boundedText(patch.phone, 'Phone', MAX_PHONE_LENGTH);
     }
-    if (patch.whatsapp !== undefined) changes.whatsapp = String(patch.whatsapp || '').trim();
+    if (patch.whatsapp !== undefined) {
+        changes.whatsapp = boundedText(patch.whatsapp, 'WhatsApp', MAX_PHONE_LENGTH);
+    }
     if (!Object.keys(changes).length) return currentUser(client, userId);
     const updated = result(
         await client.from('profiles').update(changes).eq('id', userId).select('*').single(),

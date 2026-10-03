@@ -55,6 +55,11 @@ export function canManageConfig(me: UserDTO): boolean {
     return me.Role === 'admin';
 }
 
+// Viewer is the organization-wide read-only role (the API refuses its writes).
+export function canWrite(me: UserDTO): boolean {
+    return me.Role !== 'viewer';
+}
+
 export function canApprove(me: UserDTO): boolean {
     return me.Role === 'admin' || me.Role === 'approver';
 }
@@ -63,6 +68,7 @@ export function getInventoryRequestActions(
     request: InventoryRequestDTO,
     me: UserDTO,
 ): InventoryRequestAction[] {
+    if (!canWrite(me)) return [];
     const email = me.Email.trim().toLowerCase();
     const owner =
         request.UserId.trim().toLowerCase() === email ||

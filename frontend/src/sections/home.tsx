@@ -48,6 +48,10 @@ function sectionAction(title: string, onClick: () => void) {
 }
 
 type RequestKind = 'programs' | 'inventory';
+
+// Program requests are PRG-n everywhere else (detail page, request blocks).
+const requestSerial = (kind: RequestKind, displayId: number) =>
+    `${kind === 'programs' ? 'PRG' : 'REQ'}-${displayId}`;
 type HomeRequest = {
     Id: string;
     DisplayId: number;
@@ -101,7 +105,7 @@ function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: Re
             render={(request) => (
                 <div className="home-list-row">
                     <Typography.Text strong className="home-list-title">
-                        REQ-{request.DisplayId} · {request.Name}
+                        {requestSerial(kind, request.DisplayId)} · {request.Name}
                     </Typography.Text>
                     <Tag>{request.Status}</Tag>
                 </div>
@@ -255,11 +259,11 @@ export function Home({ dashboard }: Props) {
                                     : inventoryRequestPath(request.Id),
                             )
                         }
-                        render={({ comment, request }) => (
+                        render={({ comment, request, kind }) => (
                             <div className="home-comment-row">
                                 <div className="home-list-row">
                                     <Typography.Text strong className="home-list-title">
-                                        REQ-{request.DisplayId} · {request.Name}
+                                        {requestSerial(kind, request.DisplayId)} · {request.Name}
                                     </Typography.Text>
                                     <Typography.Text type="secondary" className="home-comment-meta">
                                         {comment.userName || comment.UserId} ·{' '}

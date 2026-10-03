@@ -57,7 +57,8 @@ test('signed image uploads require access to their target resource', async () =>
         'supabase/functions/api/images.ts',
         `const requireNonEmpty = (value) => String(value).trim();
          const result = (response) => { if (response.error) throw new Error(response.error.message); return response.data; };
-         const currentProfile = async (client) => client.profile;\n`,
+         const currentProfile = async (client) => client.profile;
+         const currentWriter = currentProfile;\n`,
     );
     const rows = {
         inventory_types: [{ id: 'type-1' }],

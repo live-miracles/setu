@@ -1,6 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
-    currentProfile,
+    currentWriter,
     fetchAll,
     profilesFor,
     requireNonEmpty,
@@ -307,17 +307,40 @@ export async function requireDepartment(admin: SupabaseClient, id: string): Prom
     return data;
 }
 
-export async function validateInventoryItems(admin: SupabaseClient, items: Row[]): Promise<Row[]> {
+const MAX_REQUEST_ITEM_LINES = 100;
+const MAX_ITEM_QUANTITY = 100000;
+
+// Only approvers may request a type marked not requestable (the UI hides those
+// types from everyone else); a type already on the request stays allowed so
+// editing an existing request is never blocked by a later catalog change.
+export async function validateInventoryItems(
+    admin: SupabaseClient,
+    items: Row[],
+    options: { allowNonRequestable?: boolean; existingTypeIds?: Set<string> } = {},
+): Promise<Row[]> {
+    if ((items || []).length > MAX_REQUEST_ITEM_LINES) {
+        throw new Error(`A request can have at most ${MAX_REQUEST_ITEM_LINES} item lines.`);
+    }
     const validated = await Promise.all(
         (items || []).map(async (line) => {
-            if (!(Number(line.quantity) > 0)) throw new Error('Quantity must be positive.');
+            const quantity = Number(line.quantity);
+            if (!Number.isInteger(quantity) || quantity <= 0 || quantity > MAX_ITEM_QUANTITY) {
+                throw new Error('Quantity must be a whole number greater than zero.');
+            }
             const { data: type, error } = await admin
                 .from('inventory_types')
-                .select('id')
+                .select('id, requestable')
                 .eq('id', line.inventoryTypeId)
                 .maybeSingle();
             if (error) throw new Error(error.message);
             if (!type) throw new Error('Inventory type not found.');
+            if (
+                type.requestable === false &&
+                !options.allowNonRequestable &&
+                !options.existingTypeIds?.has(type.id)
+            ) {
+                throw new Error('This inventory type cannot be requested.');
+            }
             const condition = String(line.condition || '');
             if (condition && ['returned', 'damaged', 'missing'].indexOf(condition) === -1) {
                 throw new Error('Invalid return condition.');
@@ -345,7 +368,7 @@ export async function validateInventoryItems(admin: SupabaseClient, items: Row[]
             }
             return {
                 inventory_type_id: line.inventoryTypeId,
-                quantity: Number(line.quantity),
+                quantity,
                 return_condition: condition || null,
                 label_ids: labelIds,
             };
@@ -426,7 +449,7 @@ export async function createInventoryRequest(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
     const requesterEmail = String(input.userId || actor.email).toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
@@ -437,7 +460,9 @@ export async function createInventoryRequest(
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
         throw new Error('End date must be on or after start date.');
     }
-    const items = await validateInventoryItems(admin, input.items || []);
+    const items = await validateInventoryItems(admin, input.items || [], {
+        allowNonRequestable: isApprover,
+    });
     const department = await requireDepartment(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
@@ -488,7 +513,7 @@ export async function updateInventoryRequest(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const name = requireNonEmpty(input.name, 'Name is required.');
     const requesterEmail = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
@@ -496,7 +521,20 @@ export async function updateInventoryRequest(
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
         throw new Error('End date must be on or after start date.');
     }
-    const items = await validateInventoryItems(admin, input.items || []);
+    const existingTypeIds = new Set(
+        (
+            result(
+                await admin
+                    .from('inventory_request_items')
+                    .select('inventory_type_id')
+                    .eq('request_id', id),
+            ) as Row[]
+        ).map((row) => row.inventory_type_id as string),
+    );
+    const items = await validateInventoryItems(admin, input.items || [], {
+        allowNonRequestable: isApprover,
+        existingTypeIds,
+    });
     const department = await requireDepartment(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
@@ -565,7 +603,7 @@ export async function updateInventoryRequestParticipants(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     const participantEmails = parseParticipants(input.participants);
     await withLockedDedupe(
@@ -610,7 +648,7 @@ export async function performInventoryRequestAction(
     note: string,
     dedupeRequestId: string,
 ): Promise<string> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const { result: nextStatus } = await withLockedDedupe(
         admin,
         'inventory_request:' + id + ':' + action,
@@ -636,7 +674,7 @@ export async function deleteInventoryRequest(
     id: string,
     requestId: string,
 ): Promise<void> {
-    const actor = await currentProfile(client, userId);
+    const actor = await currentWriter(client, userId);
     const isApprover = actor.role === 'admin' || actor.role === 'approver';
     await withLockedDedupe(admin, 'inventory_request:delete:' + id, requestId, userId, async () => {
         const [requestRes, participantsRes] = await Promise.all([
