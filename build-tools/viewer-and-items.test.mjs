@@ -31,6 +31,7 @@ const bundle = await build({
                 build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
                     contents: `export const requiredStringArg = (value) => String(value ?? '').trim();
                         export const emailArg = (value) => value;
+                        export const requireUnchangedWorkflowStatus = () => {};
                         export const isValidEmail = () => true;
                         export const MAX_PARTICIPANTS = 50;
                         export const MAX_COMMENT_LENGTH = 4000;

@@ -31,6 +31,12 @@ export function requiredStringArg(value: unknown, message: string): string {
 export const MAX_COMMENT_LENGTH = 4000;
 export const MAX_PARTICIPANTS = 50;
 
+export function requireUnchangedWorkflowStatus(requested: unknown, existing: string): void {
+    if (requested !== undefined && requested !== existing) {
+        throw new Error('Request status must be changed with a workflow action.');
+    }
+}
+
 // Addresses are stored and later passed to the mail worker as a single
 // recipient, so reject anything that could address several people (commas,
 // semicolons, angle brackets) or carry whitespace/control characters.
