@@ -14,6 +14,7 @@ import { useDashboard } from '../dashboard-context';
 import { programRequestPath, programsPath } from '../paths';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
+import { instantToLocalInput, localInputToInstant } from '../ui/date';
 import { formatProgramSessionSchedule } from '../ui/format';
 import {
     buildDuplicateProgramInput,
@@ -326,7 +327,15 @@ export function ProgramDetail({
     const editSession = (index: number | null) => {
         setSessionIndex(index);
         setSessionTypeError(false);
-        setSessionDraft(index === null ? defaultSessionDraft(sessions) : { ...sessions[index] });
+        setSessionDraft(
+            index === null
+                ? defaultSessionDraft(sessions)
+                : {
+                      ...sessions[index],
+                      StartDateTime: instantToLocalInput(sessions[index].StartDateTime),
+                      EndDateTime: instantToLocalInput(sessions[index].EndDateTime),
+                  },
+        );
         setSessionOpen(true);
     };
     const saveSession = async (event: FormEvent) => {
@@ -349,10 +358,15 @@ export function ProgramDetail({
         const endInput = form.elements.namedItem('endDateTime') as HTMLInputElement | null;
         endInput?.setCustomValidity('');
         setSessionTypeError(false);
+        const savedDraft = {
+            ...sessionDraft,
+            StartDateTime: localInputToInstant(sessionDraft.StartDateTime),
+            EndDateTime: localInputToInstant(sessionDraft.EndDateTime),
+        };
         const nextSessions =
             sessionIndex === null
-                ? [...sessions, sessionDraft]
-                : sessions.map((s, i) => (i === sessionIndex ? sessionDraft : s));
+                ? [...sessions, savedDraft]
+                : sessions.map((s, i) => (i === sessionIndex ? savedDraft : s));
         setSessionIndex(null);
         setSessionOpen(false);
         await persistSessions(nextSessions);

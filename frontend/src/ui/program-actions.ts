@@ -64,7 +64,10 @@ export function getProgramRequestActions(
 }
 
 export function getLocalDateFromSession(startDateTime: string): string {
-    const date = startDateTime.slice(0, 10);
+    // The stored instant's own date can differ from the viewer's local date
+    // (e.g. 00:00 IST is the previous day in UTC), so read it in local time.
+    const parsed = new Date(startDateTime);
+    const date = Number.isNaN(parsed.getTime()) ? startDateTime.slice(0, 10) : toIsoDate(parsed);
     localDateToDayNumber(date);
     return date;
 }

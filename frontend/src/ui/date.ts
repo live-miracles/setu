@@ -49,3 +49,16 @@ export function localDateToDayNumber(date: string): number {
 export function isValidHexColor(value: string): boolean {
     return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
 }
+
+// Session times are stored as real instants (ISO with offset). The datetime-local
+// inputs work in the viewer's local wall-clock time, so convert at that edge:
+// showing a stored instant in the editor, and saving what was typed.
+export function instantToLocalInput(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value.slice(0, 16) : formatDateTimeLocal(date);
+}
+
+export function localInputToInstant(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}

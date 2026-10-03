@@ -5,6 +5,7 @@ import {
     getLocalDateFromSession,
     shiftProgramSessions,
 } from './program-actions';
+import { instantToLocalInput, localInputToInstant } from './date';
 
 function assert(condition: boolean, message: string): void {
     if (!condition) throw new Error(message);
@@ -192,5 +193,20 @@ export function runProgramActionAssertions(): void {
         unchanged[0].StartDateTime === source.sessions[0].StartDateTime &&
             unchanged[1].EndDateTime === source.sessions[1].EndDateTime,
         'same first-session date should leave sessions unchanged',
+    );
+
+    // Stored instants and the datetime-local editor must agree in any time zone.
+    const localEvening = new Date(2030, 0, 1, 18, 30);
+    assert(
+        instantToLocalInput(localEvening.toISOString()) === '2030-01-01T18:30',
+        'the editor shows a stored instant in local time',
+    );
+    assert(
+        localInputToInstant('2030-01-01T18:30') === localEvening.toISOString(),
+        'the editor value is saved as the same instant',
+    );
+    assert(
+        getLocalDateFromSession(new Date(2030, 0, 1, 0, 0).toISOString()) === '2030-01-01',
+        'a local-midnight session keeps its local date',
     );
 }
