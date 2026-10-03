@@ -39,6 +39,7 @@ export function TableView({
                         allowClear
                         prefix={<SearchOutlined />}
                         placeholder={searchPlaceholder}
+                        aria-label={searchPlaceholder}
                         value={searchValue}
                         onChange={(event) => onSearch(event.target.value)}
                         onPressEnter={() => onSearch(searchValue || '')}
