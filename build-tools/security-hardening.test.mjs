@@ -281,7 +281,7 @@ test('an incomplete idempotency claim remains retryable', async () => {
 
 test('idempotency completion is stored separately from the result', async () => {
     const sql = await readFile(
-        new URL('supabase/migrations/20261002000000_idempotency_completion.sql', rootUrl),
+        new URL('supabase/migrations/20261003000000_idempotency_completion.sql', rootUrl),
         'utf8',
     );
     assert.match(sql, /add column completed boolean not null default false/);
