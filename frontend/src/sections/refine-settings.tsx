@@ -969,6 +969,7 @@ export function SettingsResourcePage({
                     allowClear
                     prefix={<SearchOutlined />}
                     placeholder={`Search ${config.title.toLowerCase()}`}
+                    aria-label={`Search ${config.title.toLowerCase()}`}
                     value={search}
                     onChange={(event) => {
                         const value = event.target.value;

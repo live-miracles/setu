@@ -202,6 +202,7 @@ export function Users({ dashboard }: Props) {
                     allowClear
                     prefix={<SearchOutlined />}
                     placeholder="Search users"
+                    aria-label="Search users"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     onPressEnter={() => setAppliedSearch(search)}
