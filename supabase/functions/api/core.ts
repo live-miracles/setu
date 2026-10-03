@@ -42,6 +42,29 @@ export async function fetchAll(
     }
 }
 
+// Long `.in(...)` lists travel in the request URL, which gateways cap at a few
+// KB (~100 UUIDs is comfortably below it). fetchAllIn de-dups the ids, splits
+// them into chunks and pages each chunk; the callback gets one chunk plus the
+// page bounds and must order by a unique column.
+const IN_CHUNK_SIZE = 100;
+
+export async function fetchAllIn(
+    ids: Iterable<string>,
+    page: (
+        chunk: string[],
+        from: number,
+        to: number,
+    ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+): Promise<Row[]> {
+    const uniqueIds = [...new Set([...ids].filter(Boolean))];
+    const rows: Row[] = [];
+    for (let index = 0; index < uniqueIds.length; index += IN_CHUNK_SIZE) {
+        const chunk = uniqueIds.slice(index, index + IN_CHUNK_SIZE);
+        rows.push(...(await fetchAll((from, to) => page(chunk, from, to))));
+    }
+    return rows;
+}
+
 export function requireNonEmpty(value: unknown, message: string): string {
     return requiredStringArg(value == null ? '' : String(value), message);
 }
@@ -164,9 +187,9 @@ export async function profilesFor(
     admin: SupabaseClient,
     ids: Iterable<string>,
 ): Promise<Map<string, Row>> {
-    const uniqueIds = [...new Set([...ids].filter(Boolean))];
-    if (!uniqueIds.length) return new Map();
-    const rows = result(await admin.from('profiles').select('*').in('id', uniqueIds)) as Row[];
+    const rows = await fetchAllIn(ids, (chunk, from, to) =>
+        admin.from('profiles').select('*').in('id', chunk).order('id').range(from, to),
+    );
     return new Map(rows.map((profile) => [profile.id, profile]));
 }
 

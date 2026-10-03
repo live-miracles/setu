@@ -1,10 +1,8 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { fetchAll, profilesFor, result, userDto, type Row } from './core.ts';
+import { fetchAll, fetchAllIn, profilesFor, result, userDto, type Row } from './core.ts';
 
 export const DASHBOARD_REQUEST_LIMIT = 250;
 export const ONGOING_INVENTORY_STATUSES = ['draft', 'submitted', 'approved', 'issued'];
-
-const noRows = () => Promise.resolve({ data: [] as Row[], error: null });
 
 export async function dashboard(
     client: SupabaseClient,
@@ -19,11 +17,15 @@ export async function dashboard(
             client.from('inventory_types').select('*').order('name').order('id').range(from, to),
         ).then((data) => ({ data, error: null })),
         client.rpc('inventory_availability'),
-        client
-            .from('rosters')
-            .select('*')
-            .gte('end_at', new Date().toISOString())
-            .order('start_at'),
+        fetchAll((from, to) =>
+            client
+                .from('rosters')
+                .select('*')
+                .gte('end_at', new Date().toISOString())
+                .order('start_at')
+                .order('id')
+                .range(from, to),
+        ).then((data) => ({ data, error: null })),
         client
             .from('inventory_requests')
             .select('*')
@@ -69,58 +71,73 @@ export async function dashboard(
     ] = responses.map((r) => result(r)) as Row[];
     const inventoryRequestIds = inventory.map((x: Row) => x.id);
     const programRequestIds = programs.map((x: Row) => x.id);
-    const relatedResponses = await Promise.all([
-        inventoryRequestIds.length
-            ? client
-                  .from('inventory_request_items')
-                  .select('*')
-                  .in('request_id', inventoryRequestIds)
-            : noRows(),
-        inventoryRequestIds.length
-            ? client
-                  .from('inventory_request_participants')
-                  .select('*')
-                  .in('request_id', inventoryRequestIds)
-            : noRows(),
-        programRequestIds.length
-            ? client
-                  .from('program_sessions')
-                  .select('*')
-                  .in('request_id', programRequestIds)
-                  .order('start_at')
-            : noRows(),
-        programRequestIds.length
-            ? client
-                  .from('program_request_participants')
-                  .select('*')
-                  .in('request_id', programRequestIds)
-            : noRows(),
-        inventoryRequestIds.length
-            ? client
-                  .from('comments')
-                  .select('*')
-                  .in('inventory_request_id', inventoryRequestIds)
-                  .order('created_at')
-            : noRows(),
-        programRequestIds.length
-            ? client
-                  .from('comments')
-                  .select('*')
-                  .in('program_request_id', programRequestIds)
-                  .order('created_at')
-            : noRows(),
-    ]);
+    // Page and chunk every dependent lookup: PostgREST truncates a response at
+    // max-rows, and a long `.in(...)` list overflows the gateway's URL limit
+    // (250 requests with a few items each is already ~30 KB of ids).
     const [items, inventoryParticipants, sessions, programParticipants, ...commentRows] =
-        relatedResponses.map((r) => result(r)) as Row[][];
-    const itemIds = items.map((x: Row) => x.id);
-    const requestItemLabels = result(
-        itemIds.length
-            ? await client
-                  .from('inventory_request_item_labels')
-                  .select('*')
-                  .in('request_item_id', itemIds)
-            : await noRows(),
-    ) as Row[];
+        await Promise.all([
+            fetchAllIn(inventoryRequestIds, (chunk, from, to) =>
+                client
+                    .from('inventory_request_items')
+                    .select('*')
+                    .in('request_id', chunk)
+                    .order('id')
+                    .range(from, to),
+            ),
+            fetchAllIn(inventoryRequestIds, (chunk, from, to) =>
+                client
+                    .from('inventory_request_participants')
+                    .select('*')
+                    .in('request_id', chunk)
+                    .order('id')
+                    .range(from, to),
+            ),
+            fetchAllIn(programRequestIds, (chunk, from, to) =>
+                client
+                    .from('program_sessions')
+                    .select('*')
+                    .in('request_id', chunk)
+                    .order('start_at')
+                    .order('id')
+                    .range(from, to),
+            ),
+            fetchAllIn(programRequestIds, (chunk, from, to) =>
+                client
+                    .from('program_request_participants')
+                    .select('*')
+                    .in('request_id', chunk)
+                    .order('id')
+                    .range(from, to),
+            ),
+            fetchAllIn(inventoryRequestIds, (chunk, from, to) =>
+                client
+                    .from('comments')
+                    .select('*')
+                    .in('inventory_request_id', chunk)
+                    .order('created_at')
+                    .order('id')
+                    .range(from, to),
+            ),
+            fetchAllIn(programRequestIds, (chunk, from, to) =>
+                client
+                    .from('comments')
+                    .select('*')
+                    .in('program_request_id', chunk)
+                    .order('created_at')
+                    .order('id')
+                    .range(from, to),
+            ),
+        ]);
+    const requestItemLabels = await fetchAllIn(
+        items.map((x: Row) => x.id),
+        (chunk, from, to) =>
+            client
+                .from('inventory_request_item_labels')
+                .select('*')
+                .in('request_item_id', chunk)
+                .order('id')
+                .range(from, to),
+    );
     const comments = commentRows.flat();
     const departmentsById = new Map(departments.map((x: Row) => [x.id, x]));
     const placesById = new Map(places.map((x: Row) => [x.id, x]));

@@ -2,6 +2,7 @@ import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     currentWriter,
     fetchAll,
+    fetchAllIn,
     profilesFor,
     requireNonEmpty,
     result,
@@ -280,18 +281,25 @@ export async function assertPlaceAvailability(
     currentRequestId?: string,
 ): Promise<void> {
     if (!placeId || !sessions.length) return;
-    const requests = result(
-        await admin
+    const requests = await fetchAll((from, to) =>
+        admin
             .from('program_requests')
             .select('id')
             .eq('place_id', placeId)
-            .eq('status', 'approved'),
-    ) as Row[];
+            .eq('status', 'approved')
+            .order('id')
+            .range(from, to),
+    );
     const otherIds = requests.map((r) => r.id).filter((id) => id !== currentRequestId);
     if (!otherIds.length) return;
-    const otherSessions = result(
-        await admin.from('program_sessions').select('start_at, end_at').in('request_id', otherIds),
-    ) as Row[];
+    const otherSessions = await fetchAllIn(otherIds, (chunk, from, to) =>
+        admin
+            .from('program_sessions')
+            .select('id, start_at, end_at')
+            .in('request_id', chunk)
+            .order('id')
+            .range(from, to),
+    );
     const bufferMs = 60 * 60 * 1000;
     const conflict = otherSessions.some((other) =>
         sessions.some((session) =>
@@ -336,18 +344,23 @@ export async function getAvailablePlaces(
     }));
     const places = result(await admin.from('places').select('*').order('name')) as Row[];
     if (!sessions.length) return places.map((p) => ({ Id: p.id, Name: p.name }));
-    const approved = result(
-        await admin.from('program_requests').select('id, place_id').eq('status', 'approved'),
-    ) as Row[];
+    const approved = await fetchAll((from, to) =>
+        admin
+            .from('program_requests')
+            .select('id, place_id')
+            .eq('status', 'approved')
+            .order('id')
+            .range(from, to),
+    );
     const relevantIds = approved.filter((r) => r.id !== currentRequestId).map((r) => r.id);
-    const otherSessions = relevantIds.length
-        ? (result(
-              await admin
-                  .from('program_sessions')
-                  .select('request_id, start_at, end_at')
-                  .in('request_id', relevantIds),
-          ) as Row[])
-        : [];
+    const otherSessions = await fetchAllIn(relevantIds, (chunk, from, to) =>
+        admin
+            .from('program_sessions')
+            .select('id, request_id, start_at, end_at')
+            .in('request_id', chunk)
+            .order('id')
+            .range(from, to),
+    );
     const placeIdByRequest = new Map(approved.map((r) => [r.id, r.place_id]));
     const bufferMs = 60 * 60 * 1000;
     return places
@@ -380,27 +393,41 @@ export async function getCalendarMonth(
     year: number,
     month: number,
 ): Promise<Row> {
-    const [placesRes, departmentsRes, requestsRes] = await Promise.all([
+    const [placesRes, departmentsRes, requests] = await Promise.all([
         admin.from('places').select('*').order('name'),
         admin.from('departments').select('*'),
-        admin.from('program_requests').select('*').eq('status', 'approved'),
+        fetchAll((from, to) =>
+            admin
+                .from('program_requests')
+                .select('*')
+                .eq('status', 'approved')
+                .order('id')
+                .range(from, to),
+        ),
     ]);
     const places = result(placesRes) as Row[];
     const placesById = new Map(places.map((p) => [p.id, p]));
     const departmentsById = new Map((result(departmentsRes) as Row[]).map((d) => [d.id, d]));
-    const requests = result(requestsRes) as Row[];
     const requestIds = requests.map((r) => r.id);
-    const [sessionsRows, participantRows] = requestIds.length
-        ? await Promise.all([
-              admin.from('program_sessions').select('*').in('request_id', requestIds),
-              admin.from('program_request_participants').select('*').in('request_id', requestIds),
-          ])
-        : [
-              { data: [], error: null },
-              { data: [], error: null },
-          ];
-    const sessions = result(sessionsRows) as Row[];
-    const participants = result(participantRows) as Row[];
+    const [sessions, participants] = await Promise.all([
+        fetchAllIn(requestIds, (chunk, from, to) =>
+            admin
+                .from('program_sessions')
+                .select('*')
+                .in('request_id', chunk)
+                .order('start_at')
+                .order('id')
+                .range(from, to),
+        ),
+        fetchAllIn(requestIds, (chunk, from, to) =>
+            admin
+                .from('program_request_participants')
+                .select('*')
+                .in('request_id', chunk)
+                .order('id')
+                .range(from, to),
+        ),
+    ]);
     const sessionsByRequest = groupByKey(sessions, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
     const profilesById = await profilesFor(
