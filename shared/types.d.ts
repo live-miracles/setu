@@ -605,12 +605,6 @@ interface Api {
 
     addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO;
 
-    uploadImage(
-        base64Data: string,
-        fileName: string,
-        mimeType: string,
-        previousImageId?: string,
-    ): string;
     createImageUploadUrl(
         fileName: string,
         mimeType: string,
@@ -618,7 +612,7 @@ interface Api {
         targetId: string,
     ): { path: string; token: string };
 
-    // The bucket backing uploadImage is public, so a stored image id/path can
+    // The request-images bucket is public, so a stored image id/path can
     // be turned into a stable public URL in the browser.
     getImageUrl(imageId: string): string;
 }

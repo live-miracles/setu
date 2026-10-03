@@ -52,33 +52,6 @@ test('API distinguishes missing credentials from missing server configuration', 
     delete globalThis.__handlerEnvironment;
 });
 
-test('image replacement rejects paths outside the current user folder', async () => {
-    const images = await importSource(
-        'supabase/functions/api/images.ts',
-        `const requireNonEmpty = (value) => String(value).trim();
-         const result = (response) => { if (response.error) throw new Error(response.error.message); return response.data; };
-         const currentProfile = async (client) => client.profile;\n`,
-    );
-    assert.equal(images.isOwnedImagePath('user-a', 'user-a/photo.png'), true);
-    assert.equal(images.isOwnedImagePath('user-a', 'user-b/photo.png'), false);
-    assert.equal(images.isOwnedImagePath('user-a', 'user-a/../user-b/photo.png'), false);
-
-    let storageCalled = false;
-    const admin = {
-        storage: {
-            from: () => {
-                storageCalled = true;
-                return {};
-            },
-        },
-    };
-    await assert.rejects(
-        images.uploadImage(admin, 'user-a', 'eA==', 'photo.png', 'image/png', 'user-b/photo.png'),
-        /another user/,
-    );
-    assert.equal(storageCalled, false);
-});
-
 test('signed image uploads require access to their target resource', async () => {
     const images = await importSource(
         'supabase/functions/api/images.ts',

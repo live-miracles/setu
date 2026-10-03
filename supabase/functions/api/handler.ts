@@ -49,7 +49,7 @@ import {
     updateProgramRequestParticipants,
 } from './programs.ts';
 import { addComment } from './comments.ts';
-import { createImageUploadUrl, getImageUrl, uploadImage } from './images.ts';
+import { createImageUploadUrl, getImageUrl } from './images.ts';
 import { createRoster, deleteRoster, listRosters, updateRoster } from './roster.ts';
 import {
     createAllowedEmailDomain,
@@ -643,19 +643,6 @@ const operationHandlers: Record<string, OperationHandler> = {
                 String(args[0]),
                 String(args[1]),
                 String(args[2]),
-            ),
-        );
-    },
-
-    uploadImage: async ({ client, admin, userId, args }) => {
-        return respond(
-            await uploadImage(
-                admin,
-                userId,
-                String(args[0]),
-                String(args[1]),
-                String(args[2]),
-                String(args[3] || ''),
             ),
         );
     },
