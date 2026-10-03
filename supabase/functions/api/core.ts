@@ -27,37 +27,19 @@ export function result<T>(
 // page comes back. Callers must order by a unique column (add `.order('id')`
 // last) so pages neither overlap nor skip rows.
 const PAGE_SIZE = 1000;
-// Long `.in(...)` lists are sent in the request URL, which gateways limit to a
-// few KB; ~100 UUIDs stays comfortably below that.
-const IN_CHUNK_SIZE = 100;
 
-type Page = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
-
-export async function fetchAll(page: (from: number, to: number) => Page): Promise<Row[]> {
+export async function fetchAll(
+    page: (
+        from: number,
+        to: number,
+    ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+): Promise<Row[]> {
     const rows: Row[] = [];
     for (let from = 0; ; from += PAGE_SIZE) {
         const batch = result(await page(from, from + PAGE_SIZE - 1)) as Row[];
         rows.push(...batch);
         if (batch.length < PAGE_SIZE) return rows;
     }
-}
-
-// fetchAll for `.in(column, ids)` filters: splits ids into URL-safe chunks and
-// pages each chunk. The callback receives one chunk plus the page bounds.
-export async function fetchAllIn(
-    ids: Iterable<string>,
-    page: (chunk: string[], from: number, to: number) => Page,
-): Promise<Row[]> {
-    const uniqueIds = [...new Set([...ids].filter(Boolean))];
-    const chunks: string[][] = [];
-    for (let index = 0; index < uniqueIds.length; index += IN_CHUNK_SIZE) {
-        chunks.push(uniqueIds.slice(index, index + IN_CHUNK_SIZE));
-    }
-    const rows: Row[] = [];
-    for (const chunk of chunks) {
-        rows.push(...(await fetchAll((from, to) => page(chunk, from, to))));
-    }
-    return rows;
 }
 
 export function requireNonEmpty(value: unknown, message: string): string {
@@ -172,9 +154,9 @@ export async function profilesFor(
     admin: SupabaseClient,
     ids: Iterable<string>,
 ): Promise<Map<string, Row>> {
-    const rows = await fetchAllIn(ids, (chunk, from, to) =>
-        admin.from('profiles').select('*').in('id', chunk).order('id').range(from, to),
-    );
+    const uniqueIds = [...new Set([...ids].filter(Boolean))];
+    if (!uniqueIds.length) return new Map();
+    const rows = result(await admin.from('profiles').select('*').in('id', uniqueIds)) as Row[];
     return new Map(rows.map((profile) => [profile.id, profile]));
 }
 

@@ -2,7 +2,6 @@ import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     currentProfile,
     fetchAll,
-    fetchAllIn,
     profilesFor,
     requireNonEmpty,
     result,
@@ -271,56 +270,6 @@ export function rangesOverlap(
     return leftStart < rightEnd && rightStart < leftEnd;
 }
 
-const PLACE_BUFFER_MS = 60 * 60 * 1000;
-
-// Sessions that could conflict with `sessions` (same one-hour buffer), looked
-// up by time window rather than by loading every approved program, joined to
-// the approved requests they belong to. Optionally restricted to one place.
-async function approvedSessionsNear(
-    admin: SupabaseClient,
-    sessions: Row[],
-    currentRequestId?: string,
-    placeId?: string,
-): Promise<{ placeId: string | null; start_at: string; end_at: string }[]> {
-    const starts = sessions.map((s) => Date.parse(s.start_at)).filter((ms) => !Number.isNaN(ms));
-    const ends = sessions.map((s) => Date.parse(s.end_at)).filter((ms) => !Number.isNaN(ms));
-    if (!starts.length || !ends.length) return [];
-    const windowStart = new Date(Math.min(...starts) - PLACE_BUFFER_MS).toISOString();
-    const windowEnd = new Date(Math.max(...ends) + PLACE_BUFFER_MS).toISOString();
-    const nearby = await fetchAll((from, to) =>
-        admin
-            .from('program_sessions')
-            .select('id, request_id, start_at, end_at')
-            .lt('start_at', windowEnd)
-            .gt('end_at', windowStart)
-            .order('id')
-            .range(from, to),
-    );
-    const requests = await fetchAllIn(
-        nearby.map((session) => session.request_id),
-        (chunk, from, to) => {
-            let query = admin
-                .from('program_requests')
-                .select('id, place_id')
-                .in('id', chunk)
-                .eq('status', 'approved');
-            if (placeId) query = query.eq('place_id', placeId);
-            return query.order('id').range(from, to);
-        },
-    );
-    const placeByRequest = new Map(requests.map((request) => [request.id, request.place_id]));
-    return nearby
-        .filter(
-            (session) =>
-                placeByRequest.has(session.request_id) && session.request_id !== currentRequestId,
-        )
-        .map((session) => ({
-            placeId: placeByRequest.get(session.request_id) ?? null,
-            start_at: session.start_at,
-            end_at: session.end_at,
-        }));
-}
-
 // A place can't host two approved programs within an hour of each other —
 // ported from assertPlaceAvailability in Programs.ts.
 export async function assertPlaceAvailability(
@@ -330,7 +279,19 @@ export async function assertPlaceAvailability(
     currentRequestId?: string,
 ): Promise<void> {
     if (!placeId || !sessions.length) return;
-    const otherSessions = await approvedSessionsNear(admin, sessions, currentRequestId, placeId);
+    const requests = result(
+        await admin
+            .from('program_requests')
+            .select('id')
+            .eq('place_id', placeId)
+            .eq('status', 'approved'),
+    ) as Row[];
+    const otherIds = requests.map((r) => r.id).filter((id) => id !== currentRequestId);
+    if (!otherIds.length) return;
+    const otherSessions = result(
+        await admin.from('program_sessions').select('start_at, end_at').in('request_id', otherIds),
+    ) as Row[];
+    const bufferMs = 60 * 60 * 1000;
     const conflict = otherSessions.some((other) =>
         sessions.some((session) =>
             sessionsOverlapWithBuffer(
@@ -338,7 +299,7 @@ export async function assertPlaceAvailability(
                 session.end_at,
                 other.start_at,
                 other.end_at,
-                PLACE_BUFFER_MS,
+                bufferMs,
             ),
         ),
     );
@@ -374,20 +335,33 @@ export async function getAvailablePlaces(
     }));
     const places = result(await admin.from('places').select('*').order('name')) as Row[];
     if (!sessions.length) return places.map((p) => ({ Id: p.id, Name: p.name }));
-    const otherSessions = await approvedSessionsNear(admin, sessions, currentRequestId);
+    const approved = result(
+        await admin.from('program_requests').select('id, place_id').eq('status', 'approved'),
+    ) as Row[];
+    const relevantIds = approved.filter((r) => r.id !== currentRequestId).map((r) => r.id);
+    const otherSessions = relevantIds.length
+        ? (result(
+              await admin
+                  .from('program_sessions')
+                  .select('request_id, start_at, end_at')
+                  .in('request_id', relevantIds),
+          ) as Row[])
+        : [];
+    const placeIdByRequest = new Map(approved.map((r) => [r.id, r.place_id]));
+    const bufferMs = 60 * 60 * 1000;
     return places
         .filter(
             (place) =>
                 !otherSessions.some(
                     (other) =>
-                        other.placeId === place.id &&
+                        placeIdByRequest.get(other.request_id) === place.id &&
                         sessions.some((session) =>
                             sessionsOverlapWithBuffer(
                                 session.start_at,
                                 session.end_at,
                                 other.start_at,
                                 other.end_at,
-                                PLACE_BUFFER_MS,
+                                bufferMs,
                             ),
                         ),
                 ),
@@ -405,6 +379,33 @@ export async function getCalendarMonth(
     year: number,
     month: number,
 ): Promise<Row> {
+    const [placesRes, departmentsRes, requestsRes] = await Promise.all([
+        admin.from('places').select('*').order('name'),
+        admin.from('departments').select('*'),
+        admin.from('program_requests').select('*').eq('status', 'approved'),
+    ]);
+    const places = result(placesRes) as Row[];
+    const placesById = new Map(places.map((p) => [p.id, p]));
+    const departmentsById = new Map((result(departmentsRes) as Row[]).map((d) => [d.id, d]));
+    const requests = result(requestsRes) as Row[];
+    const requestIds = requests.map((r) => r.id);
+    const [sessionsRows, participantRows] = requestIds.length
+        ? await Promise.all([
+              admin.from('program_sessions').select('*').in('request_id', requestIds),
+              admin.from('program_request_participants').select('*').in('request_id', requestIds),
+          ])
+        : [
+              { data: [], error: null },
+              { data: [], error: null },
+          ];
+    const sessions = result(sessionsRows) as Row[];
+    const participants = result(participantRows) as Row[];
+    const sessionsByRequest = groupByKey(sessions, 'request_id');
+    const participantsByRequest = groupByKey(participants, 'request_id');
+    const profilesById = await profilesFor(
+        admin,
+        requests.map((r) => r.requester_id),
+    );
     // The browser buckets sessions by *local* date, so a session in the first or
     // last hours of a local month can fall in the neighbouring UTC month. Pad
     // the window by a day each side (more than any UTC offset); the client only
@@ -412,60 +413,6 @@ export async function getCalendarMonth(
     const DAY_MS = 24 * 60 * 60 * 1000;
     const monthStart = Date.UTC(year, month - 1, 1) - DAY_MS;
     const monthEnd = Date.UTC(year, month, 1) + DAY_MS;
-    const [placesRes, departmentsRes, monthSessionRows] = await Promise.all([
-        admin.from('places').select('*').order('name'),
-        admin.from('departments').select('*'),
-        // Only sessions touching this month decide which programs appear.
-        fetchAll((from, to) =>
-            admin
-                .from('program_sessions')
-                .select('request_id')
-                .lt('start_at', new Date(monthEnd).toISOString())
-                .gt('end_at', new Date(monthStart).toISOString())
-                .order('id')
-                .range(from, to),
-        ),
-    ]);
-    const places = result(placesRes) as Row[];
-    const placesById = new Map(places.map((p) => [p.id, p]));
-    const departmentsById = new Map((result(departmentsRes) as Row[]).map((d) => [d.id, d]));
-    const requests = await fetchAllIn(
-        monthSessionRows.map((row) => row.request_id),
-        (chunk, from, to) =>
-            admin
-                .from('program_requests')
-                .select('*')
-                .in('id', chunk)
-                .eq('status', 'approved')
-                .order('id')
-                .range(from, to),
-    );
-    const requestIds = requests.map((r) => r.id);
-    const [sessions, participants] = await Promise.all([
-        fetchAllIn(requestIds, (chunk, from, to) =>
-            admin
-                .from('program_sessions')
-                .select('*')
-                .in('request_id', chunk)
-                .order('start_at')
-                .order('id')
-                .range(from, to),
-        ),
-        fetchAllIn(requestIds, (chunk, from, to) =>
-            admin
-                .from('program_request_participants')
-                .select('*')
-                .in('request_id', chunk)
-                .order('id')
-                .range(from, to),
-        ),
-    ]);
-    const sessionsByRequest = groupByKey(sessions, 'request_id');
-    const participantsByRequest = groupByKey(participants, 'request_id');
-    const profilesById = await profilesFor(
-        admin,
-        requests.map((r) => r.requester_id),
-    );
     const programs: Row[] = [];
     requests.forEach((request) => {
         const allSessions = sessionsByRequest.get(request.id) || [];
