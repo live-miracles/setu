@@ -220,11 +220,20 @@ export async function getProgramRequest(
 }
 
 const PROGRAM_REQUEST_STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
+const MAX_PROGRAM_SESSIONS = 100;
+
+function boundedProgramSessions(value: unknown): Row[] {
+    if (!Array.isArray(value)) throw new Error('Program sessions must be a list.');
+    if (value.length > MAX_PROGRAM_SESSIONS) {
+        throw new Error(`A program can have at most ${MAX_PROGRAM_SESSIONS} sessions.`);
+    }
+    return value as Row[];
+}
 
 // `name` is only required when Type is 'Other' — every other program type
 // carries its own name (matches PROGRAM_REQUIRED_FIELDS in Programs.ts).
-export function validateProgramSessions(sessions: Row[], requireAtLeastOne = true): Row[] {
-    const cleaned = (sessions || []).map((session) => {
+export function validateProgramSessions(sessions: unknown, requireAtLeastOne = true): Row[] {
+    const cleaned = boundedProgramSessions(sessions).map((session) => {
         const sessionType = requireNonEmpty(session.type, 'Session type is required.');
         const startDateTime = requireNonEmpty(session.startDateTime, 'Session start is required.');
         const endDateTime = requireNonEmpty(session.endDateTime, 'Session end is required.');
@@ -328,9 +337,9 @@ export async function assertProgramSessionsNotBlockedForUser(
 export async function getAvailablePlaces(
     admin: SupabaseClient,
     currentRequestId: string,
-    inputSessions: Row[],
+    inputSessions: unknown,
 ): Promise<Row[]> {
-    const sessions = (inputSessions || []).map((s) => ({
+    const sessions = boundedProgramSessions(inputSessions).map((s) => ({
         start_at: s.startDateTime || '',
         end_at: s.endDateTime || '',
     }));

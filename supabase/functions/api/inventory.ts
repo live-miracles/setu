@@ -309,20 +309,22 @@ export async function requireDepartment(admin: SupabaseClient, id: string): Prom
 
 const MAX_REQUEST_ITEM_LINES = 100;
 const MAX_ITEM_QUANTITY = 100000;
+const MAX_LABELS_PER_ITEM = 100;
 
 // Only approvers may request a type marked not requestable (the UI hides those
 // types from everyone else); a type already on the request stays allowed so
 // editing an existing request is never blocked by a later catalog change.
 export async function validateInventoryItems(
     admin: SupabaseClient,
-    items: Row[],
+    items: unknown,
     options: { allowNonRequestable?: boolean; existingTypeIds?: Set<string> } = {},
 ): Promise<Row[]> {
-    if ((items || []).length > MAX_REQUEST_ITEM_LINES) {
+    if (!Array.isArray(items)) throw new Error('Request items must be a list.');
+    if (items.length > MAX_REQUEST_ITEM_LINES) {
         throw new Error(`A request can have at most ${MAX_REQUEST_ITEM_LINES} item lines.`);
     }
     const validated = await Promise.all(
-        (items || []).map(async (line) => {
+        items.map(async (line) => {
             const quantity = Number(line.quantity);
             if (!Number.isInteger(quantity) || quantity <= 0 || quantity > MAX_ITEM_QUANTITY) {
                 throw new Error('Quantity must be a whole number greater than zero.');
@@ -348,6 +350,9 @@ export async function validateInventoryItems(
             const rawLabelIds = (Array.isArray(line.labelIds) ? line.labelIds : [])
                 .map((labelId) => String(labelId).trim())
                 .filter(Boolean);
+            if (rawLabelIds.length > MAX_LABELS_PER_ITEM) {
+                throw new Error(`An item can have at most ${MAX_LABELS_PER_ITEM} labels.`);
+            }
             const labelIds = Array.from(new Set(rawLabelIds));
             if (labelIds.length !== rawLabelIds.length) {
                 throw new Error('A label was added more than once.');

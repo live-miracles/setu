@@ -14,7 +14,8 @@ const bundle = await build({
                 performInventoryRequestAction, deleteInventoryRequest, validateInventoryItems }
                 from './supabase/functions/api/inventory';
             export { createProgramRequest, updateProgramRequest, updateProgramRequestParticipants,
-                performProgramRequestAction, deleteProgramRequest } from './supabase/functions/api/programs';
+                performProgramRequestAction, deleteProgramRequest, validateProgramSessions }
+                from './supabase/functions/api/programs';
             export { createImageUploadUrl } from './supabase/functions/api/images';
             export { updateOwnProfile } from './supabase/functions/api/core';
         `,
@@ -187,6 +188,25 @@ test('inventory lines need whole positive quantities and requestable types', asy
             Array.from({ length: 101 }, () => line('open', 1)),
         ),
         /at most 100/,
+    );
+    await assert.rejects(api.validateInventoryItems(admin, {}), /must be a list/);
+    await assert.rejects(
+        api.validateInventoryItems(admin, [
+            { inventoryTypeId: 'open', quantity: 1, labelIds: Array(101).fill('label') },
+        ]),
+        /at most 100 labels/,
+    );
+});
+
+test('program sessions are a bounded list', () => {
+    assert.throws(() => api.validateProgramSessions({}), /must be a list/);
+    assert.throws(
+        () =>
+            api.validateProgramSessions(
+                Array.from({ length: 101 }, () => ({})),
+                false,
+            ),
+        /at most 100 sessions/,
     );
 });
 
