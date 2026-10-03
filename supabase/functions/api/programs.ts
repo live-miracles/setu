@@ -18,9 +18,8 @@ import {
     matchesSearch,
     paginate,
 } from './query.ts';
-import { emailArg } from './validation.ts';
+import { emailArg, requireUnchangedWorkflowStatus } from './validation.ts';
 import {
-    insertActionComment,
     parseParticipants,
     replaceParticipants,
     requireDepartment,
@@ -220,7 +219,6 @@ export async function getProgramRequest(
     );
 }
 
-const PROGRAM_REQUEST_STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
 const MAX_PROGRAM_SESSIONS = 100;
 
 function boundedProgramSessions(value: unknown): Row[] {
@@ -598,11 +596,6 @@ export async function updateProgramRequest(
     );
     const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
-    const requestedStatus = input.status as string | undefined;
-    if (requestedStatus && PROGRAM_REQUEST_STATUSES.indexOf(requestedStatus) === -1) {
-        throw new Error('Invalid status.');
-    }
-
     const { result: dto } = await withLockedDedupe(
         admin,
         'program_request:update:' + id,
@@ -628,13 +621,7 @@ export async function updateProgramRequest(
             if (existing.requester_id !== requestedBy.id && !isApprover) {
                 throw new Error('You cannot reassign the requester.');
             }
-            const nextStatus = requestedStatus || existing.status;
-            if (nextStatus !== existing.status && !isApprover) {
-                throw new Error('Only an approver can change the status.');
-            }
-            if (nextStatus === 'approved' && !newPlaceId) {
-                throw new Error('A place must be assigned before approval.');
-            }
+            requireUnchangedWorkflowStatus(input.status, String(existing.status));
             const updated = result(
                 await admin
                     .from('program_requests')
@@ -646,7 +633,6 @@ export async function updateProgramRequest(
                         place_id: newPlaceId,
                         department_id: department.id,
                         lead_email: leadEmail,
-                        status: nextStatus,
                     })
                     .eq('id', id)
                     .select('*')
@@ -664,15 +650,6 @@ export async function updateProgramRequest(
                 if (error) throw new Error(error.message);
             }
             await replaceParticipants(admin, 'program_request_participants', id, participantEmails);
-            if (nextStatus !== existing.status) {
-                await insertActionComment(
-                    admin,
-                    'program_request',
-                    id,
-                    actor.id,
-                    'Changed the status to ' + nextStatus + '.',
-                );
-            }
             return updated;
         },
     );

@@ -40,6 +40,19 @@ test('email validation accepts one address and rejects multi-recipient or malfor
     assert.throws(() => validation.emailArg('   ', 'Lead email is required.'), /required/);
 });
 
+test('program status changes must use a workflow action', async () => {
+    const validation = await load('supabase/functions/api/validation.ts', {
+        prelude: validationPrelude,
+        from: 'export const MAX_COMMENT_LENGTH',
+    });
+    assert.doesNotThrow(() => validation.requireUnchangedWorkflowStatus(undefined, 'submitted'));
+    assert.doesNotThrow(() => validation.requireUnchangedWorkflowStatus('submitted', 'submitted'));
+    assert.throws(
+        () => validation.requireUnchangedWorkflowStatus('approved', 'submitted'),
+        /workflow action/,
+    );
+});
+
 test('participant lists are validated, de-duplicated and capped', async () => {
     const prelude = `${validationPrelude}
         const MAX_PARTICIPANTS = 50;
