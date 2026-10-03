@@ -2,6 +2,7 @@ import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     currentWriter,
     fetchAll,
+    fetchAllIn,
     profilesFor,
     requireNonEmpty,
     result,
@@ -177,34 +178,55 @@ export async function getInventoryRequest(
     admin: SupabaseClient,
     id: string,
 ): Promise<Row> {
-    const [
-        requestRes,
-        typesRes,
-        departmentsRes,
-        itemsRes,
-        requestItemLabelsRes,
-        labelsRes,
-        participantsRes,
-        commentsRes,
-    ] = await Promise.all([
+    const [requestRes, departmentsRes, itemsRes, participantsRes, commentsRes] = await Promise.all([
         client.from('inventory_requests').select('*').eq('id', id).single(),
-        client.from('inventory_types').select('*'),
         client.from('departments').select('*'),
         client.from('inventory_request_items').select('*').eq('request_id', id),
-        client.from('inventory_request_item_labels').select('*'),
-        client.from('inventory_type_labels').select('*'),
         client.from('inventory_request_participants').select('*').eq('request_id', id),
         client.from('comments').select('*').eq('inventory_request_id', id).order('created_at'),
     ]);
     const request = result(requestRes) as Row;
-    const typesById = new Map((result(typesRes) as Row[]).map((x) => [x.id, x]));
     const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
     const items = result(itemsRes) as Row[];
-    const requestItemIds = new Set(items.map((item) => item.id));
-    const labelsById = new Map((result(labelsRes) as Row[]).map((label) => [label.id, label]));
+    // Only the label assignments, types and labels this request uses: reading
+    // the whole catalogs (and every assignment) both wastes work and hits the
+    // row cap, silently dropping labels from the detail page.
+    const assignments = await fetchAllIn(
+        items.map((item) => item.id),
+        (chunk, from, to) =>
+            client
+                .from('inventory_request_item_labels')
+                .select('*')
+                .in('request_item_id', chunk)
+                .order('id')
+                .range(from, to),
+    );
+    const [types, labels] = await Promise.all([
+        fetchAllIn(
+            items.map((item) => item.inventory_type_id),
+            (chunk, from, to) =>
+                client
+                    .from('inventory_types')
+                    .select('*')
+                    .in('id', chunk)
+                    .order('id')
+                    .range(from, to),
+        ),
+        fetchAllIn(
+            assignments.map((assignment) => assignment.inventory_type_label_id),
+            (chunk, from, to) =>
+                client
+                    .from('inventory_type_labels')
+                    .select('*')
+                    .in('id', chunk)
+                    .order('id')
+                    .range(from, to),
+        ),
+    ]);
+    const typesById = new Map(types.map((x) => [x.id, x]));
+    const labelsById = new Map(labels.map((label) => [label.id, label]));
     const labelsByItemId = new Map<string, Row[]>();
-    (result(requestItemLabelsRes) as Row[]).forEach((assignment) => {
-        if (!requestItemIds.has(assignment.request_item_id)) return;
+    assignments.forEach((assignment) => {
         const label = labelsById.get(assignment.inventory_type_label_id);
         if (!label) return;
         const values = labelsByItemId.get(assignment.request_item_id) || [];

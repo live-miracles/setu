@@ -11,9 +11,12 @@ const bundle = await build({
         resolveDir: process.cwd(),
         contents: `
             export { fetchAll } from './supabase/functions/api/core';
-            export { getCalendarMonth, listProgramRequests } from './supabase/functions/api/programs';
-            export { listInventoryRequests } from './supabase/functions/api/inventory';
+            export { listProgramRequests } from './supabase/functions/api/programs';
+            export { getInventoryRequest, listInventoryRequests } from './supabase/functions/api/inventory';
             export { listRosters } from './supabase/functions/api/roster';
+            export { dashboard } from './supabase/functions/api/dashboard';
+            export { profilesFor } from './supabase/functions/api/core';
+            export { assertPlaceAvailability, getAvailablePlaces, getCalendarMonth } from './supabase/functions/api/programs';
             export { listInventoryTypes } from './supabase/functions/api/reference';
         `,
     },
@@ -58,6 +61,8 @@ function fakeClient(tables, calls = []) {
                 eq: (column, value) => (filters.push((row) => row[column] === value), query),
                 lt: (column, value) => (filters.push((row) => row[column] < value), query),
                 gt: (column, value) => (filters.push((row) => row[column] > value), query),
+                gte: (column, value) => (filters.push((row) => row[column] >= value), query),
+                limit: (count) => ((bounds = [0, count - 1]), query),
                 is: (column, value) => (filters.push((row) => row[column] === value), query),
                 not: (column, op, value) => (
                     filters.push((row) => !(op === 'is' && row[column] === value)),
@@ -266,4 +271,161 @@ test('calendar keeps sessions that only fall in this month in the viewer local t
     );
     const april = await api.getCalendarMonth(client, 2031, 4);
     assert.equal(april.programs.length, 0);
+});
+
+test('dashboard loads every dependent row for 250 requests without oversized id lists', async () => {
+    const requests = Array.from({ length: 250 }, (_, i) => ({
+        id: pad(i),
+        display_id: i,
+        name: `R${i}`,
+        requester_id: 'u1',
+        status: 'draft',
+        updated_at: new Date(Date.UTC(2031, 0, 1, 0, 0, i)).toISOString(),
+    }));
+    // 5 items and 6 comments per request: 1250 items and 1500 comments, past the row cap.
+    const items = requests.flatMap((request, i) =>
+        Array.from({ length: 5 }, (_, j) => ({
+            id: `i${pad(i)}${j}`,
+            request_id: request.id,
+            inventory_type_id: 't1',
+            quantity: 1,
+        })),
+    );
+    const comments = requests.flatMap((request, i) =>
+        Array.from({ length: 6 }, (_, j) => ({
+            id: `c${pad(i)}${j}`,
+            inventory_request_id: request.id,
+            author_id: 'u1',
+            message: `m${j}`,
+            created_at: new Date(Date.UTC(2031, 1, 1, 0, 0, i * 6 + j)).toISOString(),
+        })),
+    );
+    const client = fakeClient({
+        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1', role: 'admin' }],
+        departments: [],
+        places: [],
+        inventory_types: [{ id: 't1', name: 'Camera', brand: 'Acme' }],
+        rosters: [],
+        inventory_requests: requests,
+        inventory_type_labels: [],
+        program_requests: [],
+        home_content: [{ id: true, guidelines: '' }],
+        shift_types: [],
+        program_types: [],
+        program_languages: [],
+        session_types: [],
+        blocks: [],
+        inventory_request_items: items,
+        inventory_request_participants: [],
+        program_sessions: [],
+        program_request_participants: [],
+        comments,
+        inventory_request_item_labels: [
+            { id: 'a1', request_item_id: items.at(-1).id, inventory_type_label_id: 'l1' },
+        ],
+    });
+    client.rpc = async () => ({ data: [], error: null });
+    const payload = await api.dashboard(client, client, 'u1');
+    assert.equal(payload.inventoryRequests.length, 250);
+    assert.equal(
+        payload.inventoryRequests.reduce((total, request) => total + request.items.length, 0),
+        1250,
+    );
+    assert.equal(
+        payload.inventoryRequests.reduce((total, request) => total + request.comments.length, 0),
+        1500,
+    );
+});
+
+test('calendar and place checks work with hundreds of approved programs', async () => {
+    const requests = Array.from({ length: 1100 }, (_, i) => ({
+        id: pad(i),
+        display_id: i,
+        name: `P${i}`,
+        requester_id: 'u1',
+        status: 'approved',
+        place_id: 'pl1',
+    }));
+    // One session per program, on distinct days of 2031-2034, plus a probe slot for request 0.
+    const sessions = requests.map((request, i) => {
+        const day = new Date(Date.UTC(2031, 0, 1 + i));
+        const date = day.toISOString().slice(0, 10);
+        return {
+            id: pad(i),
+            request_id: request.id,
+            session_type: 'Talk',
+            start_at: `${date}T10:00:00Z`,
+            end_at: `${date}T11:00:00Z`,
+        };
+    });
+    const client = fakeClient({
+        places: [
+            { id: 'pl1', name: 'Hall' },
+            { id: 'pl2', name: 'Room' },
+        ],
+        departments: [],
+        program_requests: requests,
+        program_sessions: sessions,
+        program_request_participants: [],
+        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1' }],
+    });
+    const january = await api.getCalendarMonth(client, 2031, 1);
+    // 31 days of January plus 1 February, kept by the one-day local-time padding.
+    assert.equal(january.programs.length, 32);
+
+    const probe = [{ startDateTime: '2033-01-05T10:30:00Z', endDateTime: '2033-01-05T11:30:00Z' }];
+    assert.deepEqual(
+        (await api.getAvailablePlaces(client, '', probe)).map((place) => place.Id),
+        ['pl2'],
+    );
+    await assert.rejects(
+        api.assertPlaceAvailability(client, 'pl1', [
+            { start_at: '2033-01-05T11:30:00Z', end_at: '2033-01-05T12:00:00Z' },
+        ]),
+        /unavailable/,
+    );
+    await api.assertPlaceAvailability(client, 'pl2', [
+        { start_at: '2033-01-05T11:30:00Z', end_at: '2033-01-05T12:00:00Z' },
+    ]);
+});
+
+test('profilesFor handles more users than fit in one request URL', async () => {
+    const profiles = Array.from({ length: 480 }, (_, i) => ({ id: pad(i), email: `u${i}@x.org` }));
+    const byId = await api.profilesFor(
+        fakeClient({ profiles }),
+        profiles.map((p) => p.id),
+    );
+    assert.equal(byId.size, 480);
+});
+
+test('inventory detail loads only the labels and types its items use', async () => {
+    const labels = Array.from({ length: 1200 }, (_, i) => ({
+        id: `l${pad(i)}`,
+        display_id: i,
+        inventory_type_id: 't1',
+        name: `L${pad(i)}`,
+    }));
+    const client = fakeClient({
+        inventory_requests: [
+            { id: 'r1', display_id: 1, name: 'Kit', requester_id: 'u1', status: 'issued' },
+        ],
+        departments: [],
+        inventory_request_items: [
+            { id: 'i1', request_id: 'r1', inventory_type_id: 't1', quantity: 1 },
+        ],
+        inventory_request_item_labels: [
+            { id: 'a1', request_item_id: 'i1', inventory_type_label_id: labels.at(-1).id },
+            { id: 'a2', request_item_id: 'other', inventory_type_label_id: labels[0].id },
+        ],
+        inventory_types: [{ id: 't1', name: 'Camera', brand: 'Acme' }],
+        inventory_type_labels: labels,
+        inventory_request_participants: [],
+        comments: [],
+        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1' }],
+    });
+    const request = await api.getInventoryRequest(client, client, 'r1');
+    assert.deepEqual(
+        request.items.map((item) => [item.itemName, item.labels.map((label) => label.Name)]),
+        [['Acme · Camera', [labels.at(-1).name]]],
+    );
 });

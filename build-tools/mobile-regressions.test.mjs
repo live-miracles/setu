@@ -15,6 +15,14 @@ async function importDashboard() {
             return response.data;
         };
         const fetchAll = async (page) => result(await page(0, 999));
+        const fetchAllIn = async (ids, page) => {
+            const unique = [...new Set([...ids].filter(Boolean))];
+            const rows = [];
+            for (let index = 0; index < unique.length; index += 100) {
+                rows.push(...result(await page(unique.slice(index, index + 100), 0, 999)));
+            }
+            return rows;
+        };
         const profilesFor = async (_admin, ids) => new Map(
             ids.filter(Boolean).map((id) => [id, { id, email: id + '@example.test', name: id }]),
         );
@@ -147,12 +155,14 @@ test('dashboard bounds request data and scopes dependent rows', async () => {
         'program_sessions',
         'program_request_participants',
     ]) {
-        const call = calls.find(
+        const scoped = calls.filter(
             ([operation, calledTable, column]) =>
                 operation === 'in' && calledTable === table && column === 'request_id',
         );
-        assert.ok(call, `${table} should be scoped to dashboard request ids`);
-        assert.equal(call[3].length, 250);
+        assert.ok(scoped.length, `${table} should be scoped to dashboard request ids`);
+        // Chunked so no request URL carries hundreds of ids.
+        assert.ok(scoped.every((call) => call[3].length <= 100));
+        assert.equal(new Set(scoped.flatMap((call) => call[3])).size, 250);
     }
     assert.ok(
         calls.some(
