@@ -2,13 +2,7 @@ import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { currentProfile, requireNonEmpty, result, type Row } from './core.ts';
 
 const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];
-const MAX_IMAGE_BYTES = 50 * 1024;
 const IMAGE_BUCKET = 'request-images';
-const IMAGE_CACHE_CONTROL = '31536000';
-
-export function isOwnedImagePath(userId: string, path: string): boolean {
-    return Boolean(path) && !path.split('/').includes('..') && path.startsWith(`${userId}/`);
-}
 
 export async function createImageUploadUrl(
     client: SupabaseClient,
@@ -56,54 +50,6 @@ export async function createImageUploadUrl(
     const { data, error } = await admin.storage.from(IMAGE_BUCKET).createSignedUploadUrl(path);
     if (error) throw new Error(error.message);
     return { path, token: data.token };
-}
-
-export async function uploadImage(
-    admin: SupabaseClient,
-    userId: string,
-    base64Data: string,
-    fileName: string,
-    mimeType: string,
-    previousImageId: string,
-): Promise<string> {
-    if (ALLOWED_IMAGE_MIME_TYPES.indexOf(mimeType) === -1) {
-        throw new Error('That file type is not supported.');
-    }
-    requireNonEmpty(fileName, 'A file name is required.');
-    const previousPath = String(previousImageId || '').trim();
-    if (previousPath && !isOwnedImagePath(userId, previousPath)) {
-        throw new Error('You cannot replace an image owned by another user.');
-    }
-    // Reject oversized payloads before decoding so a huge string cannot exhaust
-    // the function's memory; base64 expands the byte count by 4/3.
-    if (base64Data.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4) {
-        throw new Error('The selected file is too large.');
-    }
-    let bytes: Uint8Array;
-    try {
-        bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-    } catch {
-        throw new Error('The selected file is not valid image data.');
-    }
-    if (bytes.length > MAX_IMAGE_BYTES) throw new Error('The selected file is too large.');
-
-    const extension = mimeType.split('/')[1] || 'jpg';
-    const path = `${userId}/${crypto.randomUUID()}.${extension}`;
-    const { error } = await admin.storage.from(IMAGE_BUCKET).upload(path, bytes, {
-        cacheControl: IMAGE_CACHE_CONTROL,
-        contentType: mimeType,
-        upsert: false,
-    });
-    if (error) throw new Error(error.message);
-
-    // Storage has no in-place binary replace either — upload the new object
-    // first, then best-effort remove the old one, so a failed upload never
-    // leaves a request pointing at nothing (same trade-off as the source
-    // app's Drive create-then-trash sequence).
-    if (previousPath && previousPath !== path) {
-        await admin.storage.from(IMAGE_BUCKET).remove([previousPath]);
-    }
-    return path;
 }
 
 // Images live in a public bucket. The object path is still random and uploads
