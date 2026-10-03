@@ -21,6 +21,27 @@ export function result<T>(
     return value.data;
 }
 
+// PostgREST caps every response at the project's max-rows setting (1000 by
+// default) and silently truncates anything larger, so a plain select('*') on a
+// growing table quietly drops rows. fetchAll pages with range() until a short
+// page comes back. Callers must order by a unique column (add `.order('id')`
+// last) so pages neither overlap nor skip rows.
+const PAGE_SIZE = 1000;
+
+export async function fetchAll(
+    page: (
+        from: number,
+        to: number,
+    ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+): Promise<Row[]> {
+    const rows: Row[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+        const batch = result(await page(from, from + PAGE_SIZE - 1)) as Row[];
+        rows.push(...batch);
+        if (batch.length < PAGE_SIZE) return rows;
+    }
+}
+
 export function requireNonEmpty(value: unknown, message: string): string {
     return requiredStringArg(value == null ? '' : String(value), message);
 }

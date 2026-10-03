@@ -1,5 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
+    fetchAll,
     profilesFor,
     requireApprover,
     requireNonEmpty,
@@ -18,9 +19,9 @@ export async function listRosters(
     // preview; this is the paginated listing behind the Roster page. RLS
     // limits this read to authenticated users; write operations below still
     // require approver access.
-    const rosters = (result(await client.from('rosters').select('*')) as Row[]).sort((a, b) =>
-        String(b.start_at).localeCompare(String(a.start_at)),
-    );
+    const rosters = (
+        await fetchAll((from, to) => client.from('rosters').select('*').order('id').range(from, to))
+    ).sort((a, b) => String(b.start_at).localeCompare(String(a.start_at)));
     const shiftTypes = result(await client.from('shift_types').select('id, name')) as Row[];
     const shiftTypesById = new Map(shiftTypes.map((x) => [x.id, x]));
     const profilesById = await profilesFor(

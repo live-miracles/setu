@@ -1,5 +1,5 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { profilesFor, result, userDto, type Row } from './core.ts';
+import { fetchAll, profilesFor, result, userDto, type Row } from './core.ts';
 
 export const DASHBOARD_REQUEST_LIMIT = 250;
 export const ONGOING_INVENTORY_STATUSES = ['draft', 'submitted', 'approved', 'issued'];
@@ -15,7 +15,9 @@ export async function dashboard(
         client.from('profiles').select('*').eq('id', userId).single(),
         client.from('departments').select('*').order('name'),
         client.from('places').select('*').order('name'),
-        client.from('inventory_types').select('*').order('name'),
+        fetchAll((from, to) =>
+            client.from('inventory_types').select('*').order('name').order('id').range(from, to),
+        ).then((data) => ({ data, error: null })),
         client.rpc('inventory_availability'),
         client
             .from('rosters')
@@ -28,7 +30,14 @@ export async function dashboard(
             .in('status', ONGOING_INVENTORY_STATUSES)
             .order('updated_at', { ascending: false })
             .limit(DASHBOARD_REQUEST_LIMIT),
-        client.from('inventory_type_labels').select('*').order('name'),
+        fetchAll((from, to) =>
+            client
+                .from('inventory_type_labels')
+                .select('*')
+                .order('name')
+                .order('id')
+                .range(from, to),
+        ).then((data) => ({ data, error: null })),
         client
             .from('program_requests')
             .select('*')

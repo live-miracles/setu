@@ -1,6 +1,7 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     currentProfile,
+    fetchAll,
     profilesFor,
     requireNonEmpty,
     result,
@@ -83,29 +84,24 @@ export async function listInventoryRequests(
     page: number,
     query: Row,
 ): Promise<Row> {
-    const [
-        typesRes,
-        departmentsRes,
-        requestsRes,
-        itemsRes,
-        requestItemLabelsRes,
-        labelsRes,
-        participantsRes,
-    ] = await Promise.all([
-        client.from('inventory_types').select('*'),
-        client.from('departments').select('*'),
-        client.from('inventory_requests').select('*'),
-        client.from('inventory_request_items').select('*'),
-        client.from('inventory_request_item_labels').select('*'),
-        client.from('inventory_type_labels').select('*'),
-        client.from('inventory_request_participants').select('*'),
-    ]);
-    const typesById = new Map((result(typesRes) as Row[]).map((x) => [x.id, x]));
-    const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
-    const requests = result(requestsRes) as Row[];
-    const items = result(itemsRes) as Row[];
-    const requestItemLabels = result(requestItemLabelsRes) as Row[];
-    const labelsById = new Map((result(labelsRes) as Row[]).map((label) => [label.id, label]));
+    const allRows = (table: string) =>
+        fetchAll((from, to) => client.from(table).select('*').order('id').range(from, to));
+    const [departments, types, requests, items, requestItemLabels, labels, participants] =
+        await Promise.all([
+            client
+                .from('departments')
+                .select('*')
+                .then((res) => result(res) as Row[]),
+            allRows('inventory_types'),
+            allRows('inventory_requests'),
+            allRows('inventory_request_items'),
+            allRows('inventory_request_item_labels'),
+            allRows('inventory_type_labels'),
+            allRows('inventory_request_participants'),
+        ]);
+    const typesById = new Map(types.map((x) => [x.id, x]));
+    const departmentsById = new Map(departments.map((x) => [x.id, x]));
+    const labelsById = new Map(labels.map((label) => [label.id, label]));
     const labelsByItemId = new Map<string, Row[]>();
     requestItemLabels.forEach((assignment) => {
         const label = labelsById.get(assignment.inventory_type_label_id);
@@ -117,13 +113,13 @@ export async function listInventoryRequests(
     items.forEach((item) => {
         item.labels = labelsByItemId.get(item.id) || [];
     });
-    const participants = result(participantsRes) as Row[];
-    const commentsByTarget = await commentsByTargetFor(client, admin, 'inventory_request_id');
+    const commentsByTarget = await commentsByTargetFor(client, 'inventory_request_id');
     const itemsByRequest = groupByKey(items, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
     const profilesById = await profilesFor(admin, [
         ...requests.map((x) => x.requester_id),
         ...participants.map((x) => x.profile_id),
+        ...[...commentsByTarget.values()].flat().map((x) => x.author_id),
     ]);
 
     const dtos = requests.map((x) =>

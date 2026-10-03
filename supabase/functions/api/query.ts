@@ -1,5 +1,5 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { profilesFor, result, type Row } from './core.ts';
+import { fetchAll, type Row } from './core.ts';
 
 export function paginate<T>(rows: T[], page: number, pageSize: number): Row {
     const safePage = Math.max(1, Math.floor(page) || 1);
@@ -72,23 +72,26 @@ export function commentDto(x: Row, profilesById: Map<string, Row>): Row {
 // Comments' own RLS policy ("users read visible comments") already checks
 // can_view_inventory_request/can_view_program_request/is_approver() per
 // row, so a plain select through the user-scoped `client` — not `admin` —
-// already comes back containing only rows this caller may see.
+// already comes back containing only rows this caller may see. Returns raw
+// rows (the request DTO builders map them with commentDto); callers include
+// the authors in their profile lookup.
 export async function commentsByTargetFor(
     client: SupabaseClient,
-    admin: SupabaseClient,
     column: 'inventory_request_id' | 'program_request_id',
 ): Promise<Map<string, Row[]>> {
-    const comments = result(
-        await client.from('comments').select('*').not(column, 'is', null).order('created_at'),
-    ) as Row[];
-    const profilesById = await profilesFor(
-        admin,
-        comments.map((x) => x.author_id),
+    const comments = await fetchAll((from, to) =>
+        client
+            .from('comments')
+            .select('*')
+            .not(column, 'is', null)
+            .order('created_at')
+            .order('id')
+            .range(from, to),
     );
     const byTarget = new Map<string, Row[]>();
     comments.forEach((x) => {
         const values = byTarget.get(x[column]) || [];
-        values.push(commentDto(x, profilesById));
+        values.push(x);
         byTarget.set(x[column], values);
     });
     return byTarget;

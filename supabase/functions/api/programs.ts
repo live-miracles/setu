@@ -1,6 +1,7 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     currentProfile,
+    fetchAll,
     profilesFor,
     requireNonEmpty,
     result,
@@ -96,25 +97,39 @@ export async function listProgramRequests(
     page: number,
     query: Row,
 ): Promise<Row> {
-    const [placesRes, departmentsRes, requestsRes, sessionsRes, participantsRes] =
-        await Promise.all([
-            client.from('places').select('*'),
-            client.from('departments').select('*'),
-            client.from('program_requests').select('*'),
-            client.from('program_sessions').select('*').order('start_at'),
-            client.from('program_request_participants').select('*'),
-        ]);
-    const placesById = new Map((result(placesRes) as Row[]).map((x) => [x.id, x]));
-    const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
-    const requests = result(requestsRes) as Row[];
-    const sessions = result(sessionsRes) as Row[];
-    const participants = result(participantsRes) as Row[];
-    const commentsByTarget = await commentsByTargetFor(client, admin, 'program_request_id');
+    const [places, departments, requests, sessions, participants] = await Promise.all([
+        client
+            .from('places')
+            .select('*')
+            .then((res) => result(res) as Row[]),
+        client
+            .from('departments')
+            .select('*')
+            .then((res) => result(res) as Row[]),
+        fetchAll((from, to) =>
+            client.from('program_requests').select('*').order('id').range(from, to),
+        ),
+        fetchAll((from, to) =>
+            client
+                .from('program_sessions')
+                .select('*')
+                .order('start_at')
+                .order('id')
+                .range(from, to),
+        ),
+        fetchAll((from, to) =>
+            client.from('program_request_participants').select('*').order('id').range(from, to),
+        ),
+    ]);
+    const placesById = new Map(places.map((x) => [x.id, x]));
+    const departmentsById = new Map(departments.map((x) => [x.id, x]));
+    const commentsByTarget = await commentsByTargetFor(client, 'program_request_id');
     const sessionsByRequest = groupByKey(sessions, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
     const profilesById = await profilesFor(admin, [
         ...requests.map((x) => x.requester_id),
         ...participants.map((x) => x.profile_id),
+        ...[...commentsByTarget.values()].flat().map((x) => x.author_id),
     ]);
 
     const dtos = requests.map((x) =>
@@ -392,8 +407,13 @@ export async function getCalendarMonth(
         admin,
         requests.map((r) => r.requester_id),
     );
-    const monthStart = Date.UTC(year, month - 1, 1);
-    const monthEnd = Date.UTC(year, month, 1);
+    // The browser buckets sessions by *local* date, so a session in the first or
+    // last hours of a local month can fall in the neighbouring UTC month. Pad
+    // the window by a day each side (more than any UTC offset); the client only
+    // draws sessions whose local date is inside the visible month.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const monthStart = Date.UTC(year, month - 1, 1) - DAY_MS;
+    const monthEnd = Date.UTC(year, month, 1) + DAY_MS;
     const programs: Row[] = [];
     requests.forEach((request) => {
         const allSessions = sessionsByRequest.get(request.id) || [];
