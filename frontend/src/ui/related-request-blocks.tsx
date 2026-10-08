@@ -1,4 +1,4 @@
-import { Empty, Pagination, Tag, Typography } from 'antd';
+import { Pagination, Tag, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { RequestBlock } from './request-block';
 
@@ -9,7 +9,6 @@ export function RelatedRequestBlocks({
     kind,
     items,
     dashboard,
-    emptyMessage,
     hrefFor,
     onOpen,
 }: {
@@ -17,7 +16,6 @@ export function RelatedRequestBlocks({
     kind: 'program' | 'inventory';
     items: (ProgramRequestDTO | InventoryRequestDTO)[];
     dashboard: DashboardPayload;
-    emptyMessage: string;
     hrefFor?: (id: string) => string;
     onOpen: (id: string) => void;
 }) {
@@ -42,22 +40,18 @@ export function RelatedRequestBlocks({
                     />
                 )}
             </div>
-            {items.length ? (
-                <div className="department-related-grid">
-                    {pageItems.map((item) => (
-                        <RequestBlock
-                            key={item.Id}
-                            kind={kind}
-                            row={item}
-                            dashboard={dashboard}
-                            href={hrefFor?.(item.Id)}
-                            onClick={() => onOpen(item.Id)}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <Empty description={emptyMessage} />
-            )}
+            <div className="department-related-grid">
+                {pageItems.map((item) => (
+                    <RequestBlock
+                        key={item.Id}
+                        kind={kind}
+                        row={item}
+                        dashboard={dashboard}
+                        href={hrefFor?.(item.Id)}
+                        onClick={() => onOpen(item.Id)}
+                    />
+                ))}
+            </div>
         </section>
     );
 }

@@ -19,6 +19,7 @@ import {
     DeleteOutlined,
     DownloadOutlined,
     EditOutlined,
+    HistoryOutlined,
     PlusOutlined,
     SearchOutlined,
     UploadOutlined,
@@ -42,6 +43,7 @@ import { formatDateTimeLocal } from '../ui/date';
 import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
 import {
+    inventoryItemHasLabel,
     inventoryLabelQrFilename,
     inventoryTypeDisplayName,
     inventoryQrValue,
@@ -516,6 +518,7 @@ export function SettingsResourcePage({
     const [labelEditor, setLabelEditor] = useState<InventoryLabel | null>(null);
     const [labelEditorName, setLabelEditorName] = useState('');
     const [labelBusy, setLabelBusy] = useState(false);
+    const [historyLabel, setHistoryLabel] = useState<InventoryLabel | null>(null);
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
     const hasSearch = true;
@@ -997,6 +1000,16 @@ export function SettingsResourcePage({
             )}
         </div>
     );
+    const inventoryTypeRequests = selectedInventoryType
+        ? dashboard.inventoryRequests.filter((request) =>
+              request.items.some((item) => item.InventoryTypeId === selectedInventoryType.Id),
+          )
+        : [];
+    const historyLabelRequests = historyLabel
+        ? dashboard.inventoryRequests.filter((request) =>
+              request.items.some((item) => inventoryItemHasLabel(item, historyLabel.Id)),
+          )
+        : [];
     const inventoryTypeDetail = selectedInventoryType && (
         <>
             <div className="antd-page-heading">
@@ -1210,14 +1223,10 @@ export function SettingsResourcePage({
                                                 )}
                                                 <Button
                                                     type="text"
-                                                    icon={<DownloadOutlined />}
-                                                    onClick={() =>
-                                                        void downloadInventoryTypeQr(
-                                                            selectedInventoryType,
-                                                            label,
-                                                        )
-                                                    }
-                                                    aria-label={`Download QR for ${label.Name}`}
+                                                    icon={<HistoryOutlined />}
+                                                    onClick={() => setHistoryLabel(label)}
+                                                    aria-label={`View requests for ${label.Name}`}
+                                                    title="View requests"
                                                 />
                                                 {canEdit && (
                                                     <Button
@@ -1244,21 +1253,18 @@ export function SettingsResourcePage({
                         )}
                     </TableView>
                 </DetailSection>
-                <DetailSection span="full">
-                    <RelatedRequestBlocks
-                        title="Inventory requests"
-                        kind="inventory"
-                        items={dashboard.inventoryRequests.filter((request) =>
-                            request.items.some(
-                                (item) => item.InventoryTypeId === selectedInventoryType.Id,
-                            ),
-                        )}
-                        dashboard={dashboard}
-                        emptyMessage="No inventory requests have used this equipment."
-                        hrefFor={inventoryRequestPath}
-                        onOpen={(id) => navigate(inventoryRequestPath(id))}
-                    />
-                </DetailSection>
+                {inventoryTypeRequests.length > 0 && (
+                    <DetailSection span="full">
+                        <RelatedRequestBlocks
+                            title="Inventory requests"
+                            kind="inventory"
+                            items={inventoryTypeRequests}
+                            dashboard={dashboard}
+                            hrefFor={inventoryRequestPath}
+                            onOpen={(id) => navigate(inventoryRequestPath(id))}
+                        />
+                    </DetailSection>
+                )}
             </DetailSections>
         </>
     );
@@ -1328,14 +1334,14 @@ export function SettingsResourcePage({
                         ]}
                     />
                 </DetailSection>
-                <DetailSection span="full">
-                    <section className="related-list">
-                        <div className="related-request-heading">
-                            <Typography.Title level={3}>
-                                Users <Tag>{departmentUsers.length}</Tag>
-                            </Typography.Title>
-                        </div>
-                        {departmentUsers.length ? (
+                {departmentUsers.length > 0 && (
+                    <DetailSection span="full">
+                        <section className="related-list">
+                            <div className="related-request-heading">
+                                <Typography.Title level={3}>
+                                    Users <Tag>{departmentUsers.length}</Tag>
+                                </Typography.Title>
+                            </div>
                             <div className="department-related-grid">
                                 {departmentUsers.map((user) => (
                                     <UserBlock
@@ -1347,33 +1353,33 @@ export function SettingsResourcePage({
                                     />
                                 ))}
                             </div>
-                        ) : (
-                            <Empty description="No users in this department." />
-                        )}
-                    </section>
-                </DetailSection>
-                <DetailSection span="full">
-                    <RelatedRequestBlocks
-                        title="Programs"
-                        kind="program"
-                        items={departmentPrograms}
-                        dashboard={dashboard}
-                        emptyMessage="No program requests for this department."
-                        hrefFor={programRequestPath}
-                        onOpen={(id) => navigate(programRequestPath(id))}
-                    />
-                </DetailSection>
-                <DetailSection span="full">
-                    <RelatedRequestBlocks
-                        title="Inventory requests"
-                        kind="inventory"
-                        items={departmentInventoryRequests}
-                        dashboard={dashboard}
-                        emptyMessage="No inventory requests for this department."
-                        hrefFor={inventoryRequestPath}
-                        onOpen={(id) => navigate(inventoryRequestPath(id))}
-                    />
-                </DetailSection>
+                        </section>
+                    </DetailSection>
+                )}
+                {departmentPrograms.length > 0 && (
+                    <DetailSection span="full">
+                        <RelatedRequestBlocks
+                            title="Programs"
+                            kind="program"
+                            items={departmentPrograms}
+                            dashboard={dashboard}
+                            hrefFor={programRequestPath}
+                            onOpen={(id) => navigate(programRequestPath(id))}
+                        />
+                    </DetailSection>
+                )}
+                {departmentInventoryRequests.length > 0 && (
+                    <DetailSection span="full">
+                        <RelatedRequestBlocks
+                            title="Inventory requests"
+                            kind="inventory"
+                            items={departmentInventoryRequests}
+                            dashboard={dashboard}
+                            hrefFor={inventoryRequestPath}
+                            onOpen={(id) => navigate(inventoryRequestPath(id))}
+                        />
+                    </DetailSection>
+                )}
             </DetailSections>
         </>
     );
@@ -1440,6 +1446,28 @@ export function SettingsResourcePage({
                         />
                         <SaveFooter label="Save" busy={labelBusy} errorMessage="" />
                     </form>
+                </Modal>
+            )}
+            {historyLabel && (
+                <Modal
+                    open
+                    title={`Requests for ${historyLabel.Name}`}
+                    onCancel={() => setHistoryLabel(null)}
+                    footer={null}
+                    width={720}
+                    destroyOnHidden>
+                    {historyLabelRequests.length ? (
+                        <RelatedRequestBlocks
+                            title="Inventory requests"
+                            kind="inventory"
+                            items={historyLabelRequests}
+                            dashboard={dashboard}
+                            hrefFor={inventoryRequestPath}
+                            onOpen={(id) => navigate(inventoryRequestPath(id))}
+                        />
+                    ) : (
+                        <Empty description="This label has not been used in any request." />
+                    )}
                 </Modal>
             )}
             {deleting && (

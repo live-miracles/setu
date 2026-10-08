@@ -264,28 +264,30 @@ export function Users({ dashboard }: Props) {
                     ]}
                 />
             </DetailSection>
-            <DetailSection span="full">
-                <RelatedRequestBlocks
-                    title="Programs"
-                    kind="program"
-                    items={userPrograms}
-                    dashboard={dashboard}
-                    emptyMessage="No program requests from this user."
-                    hrefFor={programRequestPath}
-                    onOpen={(id) => navigate(programRequestPath(id))}
-                />
-            </DetailSection>
-            <DetailSection span="full">
-                <RelatedRequestBlocks
-                    title="Inventory requests"
-                    kind="inventory"
-                    items={userInventoryRequests}
-                    dashboard={dashboard}
-                    emptyMessage="No inventory requests from this user."
-                    hrefFor={inventoryRequestPath}
-                    onOpen={(id) => navigate(inventoryRequestPath(id))}
-                />
-            </DetailSection>
+            {userPrograms.length > 0 && (
+                <DetailSection span="full">
+                    <RelatedRequestBlocks
+                        title="Programs"
+                        kind="program"
+                        items={userPrograms}
+                        dashboard={dashboard}
+                        hrefFor={programRequestPath}
+                        onOpen={(id) => navigate(programRequestPath(id))}
+                    />
+                </DetailSection>
+            )}
+            {userInventoryRequests.length > 0 && (
+                <DetailSection span="full">
+                    <RelatedRequestBlocks
+                        title="Inventory requests"
+                        kind="inventory"
+                        items={userInventoryRequests}
+                        dashboard={dashboard}
+                        hrefFor={inventoryRequestPath}
+                        onOpen={(id) => navigate(inventoryRequestPath(id))}
+                    />
+                </DetailSection>
+            )}
         </DetailLayout>
     );
     return (
