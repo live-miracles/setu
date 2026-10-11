@@ -152,3 +152,30 @@ export function compareLabelNames(a: string, b: string): number {
 export function sortInventoryLabels(labels: InventoryLabel[] = []): InventoryLabel[] {
     return [...labels].sort((a, b) => compareLabelNames(a.Name, b.Name));
 }
+
+export type InventoryGroupBy = 'brand' | 'location';
+
+export type InventoryGroup<T> = { key: string; title: string; rows: T[] };
+
+// Groups inventory types by brand or location. Groups sort alphabetically
+// (numbers compared numerically), types inside a group by display name, and
+// types without a value land in a trailing "No brand" / "No location" group.
+export function groupInventoryTypes<
+    T extends { Brand?: unknown; Name?: unknown; Location?: unknown },
+>(rows: T[], groupBy: InventoryGroupBy): InventoryGroup<T>[] {
+    const field = groupBy === 'brand' ? 'Brand' : 'Location';
+    const groups = new Map<string, T[]>();
+    rows.forEach((row) => {
+        const key = String(row[field] || '').trim();
+        groups.set(key, [...(groups.get(key) || []), row]);
+    });
+    return [...groups.entries()]
+        .sort(([a], [b]) => (a && b ? compareLabelNames(a, b) : a ? -1 : b ? 1 : 0))
+        .map(([key, groupRows]) => ({
+            key,
+            title: key || (groupBy === 'brand' ? 'No brand' : 'No location'),
+            rows: [...groupRows].sort((a, b) =>
+                compareLabelNames(inventoryTypeDisplayName(a), inventoryTypeDisplayName(b)),
+            ),
+        }));
+}

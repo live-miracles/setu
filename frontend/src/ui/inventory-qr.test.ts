@@ -2,6 +2,7 @@ import {
     addScannedInventoryItem,
     addScannedInventoryItemForIssue,
     findInventoryTypeByQrValue,
+    groupInventoryTypes,
     inventoryItemHasLabel,
     inventoryQrValue,
     inventoryTypeQrFilename,
@@ -140,5 +141,30 @@ export function runInventoryQrAssertions(): void {
     assert(
         sortedNames.join(',') === 'Adapter,Cable 2,cable 5,Cable 10',
         'labels should sort alphabetically with numbers compared numerically',
+    );
+
+    const groupable = [
+        { Id: '1', Brand: 'Sony', Name: 'Camera', Location: 'Studio 10' },
+        { Id: '2', Brand: 'Canon', Name: 'Lens', Location: ' Studio 2 ' },
+        { Id: '3', Brand: '', Name: 'Cable', Location: '' },
+        { Id: '4', Brand: 'Sony', Name: 'Battery', Location: 'Studio 2' },
+    ];
+    const byBrand = groupInventoryTypes(groupable, 'brand');
+    assert(
+        byBrand.map((group) => group.title).join(',') === 'Canon,Sony,No brand',
+        'brand groups should sort alphabetically with a trailing group for no brand',
+    );
+    assert(
+        byBrand[1].rows.map((row) => row.Id).join(',') === '4,1',
+        'types inside a brand group should sort by display name',
+    );
+    const byLocation = groupInventoryTypes(groupable, 'location');
+    assert(
+        byLocation.map((group) => group.title).join(',') === 'Studio 2,Studio 10,No location',
+        'location groups should compare numbers numerically and trim whitespace',
+    );
+    assert(
+        byLocation[0].rows.map((row) => row.Id).join(',') === '2,4',
+        'types inside a location group should sort by display name',
     );
 }

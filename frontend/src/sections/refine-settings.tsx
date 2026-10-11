@@ -43,6 +43,7 @@ import { formatDateTimeLocal } from '../ui/date';
 import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
 import {
+    groupInventoryTypes,
     inventoryItemHasLabel,
     inventoryLabelQrFilename,
     inventoryTypeDisplayName,
@@ -50,6 +51,7 @@ import {
     inventoryTypeQrPrintLabel,
     sortInventoryLabels,
     inventoryTypeQrFilename,
+    type InventoryGroupBy,
 } from '../ui/inventory-qr';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
@@ -519,6 +521,7 @@ export function SettingsResourcePage({
     const [labelEditorName, setLabelEditorName] = useState('');
     const [labelBusy, setLabelBusy] = useState(false);
     const [historyLabel, setHistoryLabel] = useState<InventoryLabel | null>(null);
+    const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>('brand');
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
     const hasSearch = true;
@@ -898,41 +901,52 @@ export function SettingsResourcePage({
             <Typography.Text type="secondary">Loading…</Typography.Text>
         </div>
     ) : filteredRows.length > 0 ? (
-        <div className="inventory-type-grid">
-            {filteredRows.map((row) => {
-                return (
-                    <BlockCard
-                        key={row.Id}
-                        className="inventory-type-card"
-                        href={inventoryTypePath(String(row.Id))}
-                        onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
-                        <div className="inventory-type-card-heading">
-                            <strong>{inventoryTypeDisplayName(row) || 'Unnamed equipment'}</strong>
-                            {row.Location && (
-                                <span className="inventory-type-card-description">
-                                    {String(row.Location)}
-                                </span>
-                            )}
-                            {row.TotalQuantity != null && (
-                                <span
-                                    className={`inventory-type-card-availability ${stockLevelTextClass(Number(row.availableQuantity), Number(row.TotalQuantity))}`}>
-                                    {formatInventoryAvailability(
-                                        Number(row.availableQuantity),
-                                        Number(row.TotalQuantity),
+        <div className="grid gap-6">
+            {groupInventoryTypes(filteredRows, inventoryGroupBy).map((group) => (
+                <section key={group.key}>
+                    <div className="related-request-heading">
+                        <Typography.Title level={3}>
+                            {group.title} <Tag>{group.rows.length}</Tag>
+                        </Typography.Title>
+                    </div>
+                    <div className="inventory-type-grid">
+                        {group.rows.map((row) => (
+                            <BlockCard
+                                key={row.Id}
+                                className="inventory-type-card"
+                                href={inventoryTypePath(String(row.Id))}
+                                onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
+                                <div className="inventory-type-card-heading">
+                                    <strong>
+                                        {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
+                                    </strong>
+                                    {row.Location && inventoryGroupBy !== 'location' && (
+                                        <span className="inventory-type-card-description">
+                                            {String(row.Location)}
+                                        </span>
                                     )}
-                                </span>
-                            )}
-                        </div>
-                        <div className="inventory-type-card-image">
-                            <RequestImage
-                                imageId={String(row.ImageId || '')}
-                                alt={inventoryTypeDisplayName(row)}
-                                fallback={<span>No photo</span>}
-                            />
-                        </div>
-                    </BlockCard>
-                );
-            })}
+                                    {row.TotalQuantity != null && (
+                                        <span
+                                            className={`inventory-type-card-availability ${stockLevelTextClass(Number(row.availableQuantity), Number(row.TotalQuantity))}`}>
+                                            {formatInventoryAvailability(
+                                                Number(row.availableQuantity),
+                                                Number(row.TotalQuantity),
+                                            )}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="inventory-type-card-image">
+                                    <RequestImage
+                                        imageId={String(row.ImageId || '')}
+                                        alt={inventoryTypeDisplayName(row)}
+                                        fallback={<span>No photo</span>}
+                                    />
+                                </div>
+                            </BlockCard>
+                        ))}
+                    </div>
+                </section>
+            ))}
         </div>
     ) : (
         <Empty description={config.emptyMessage} />
@@ -968,6 +982,17 @@ export function SettingsResourcePage({
                 <Typography.Title level={2}>{config.title}</Typography.Title>
             </div>
             <Space className="antd-board-filters" wrap>
+                {config.kind === 'inventory-type' && (
+                    <Select
+                        value={inventoryGroupBy}
+                        onChange={setInventoryGroupBy}
+                        aria-label="Group inventory types by"
+                        options={[
+                            { value: 'brand', label: 'Group by brand' },
+                            { value: 'location', label: 'Group by location' },
+                        ]}
+                    />
+                )}
                 <Input
                     allowClear
                     prefix={<SearchOutlined />}
