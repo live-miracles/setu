@@ -987,9 +987,11 @@ export function SettingsResourcePage({
                         value={inventoryGroupBy}
                         onChange={setInventoryGroupBy}
                         aria-label="Group inventory types by"
+                        popupMatchSelectWidth={false}
                         options={[
-                            { value: 'brand', label: 'Group by brand' },
-                            { value: 'location', label: 'Group by location' },
+                            { value: '', label: 'Group by', disabled: true },
+                            { value: 'brand', label: 'Brand' },
+                            { value: 'location', label: 'Location' },
                         ]}
                     />
                 )}
