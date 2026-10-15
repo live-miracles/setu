@@ -28,20 +28,14 @@ const CAPTION_GAP_MM = 1.2;
 const CAPTION_BASELINE_MM =
     QR_TOP_MM + QR_SIZE_MM + CAPTION_GAP_MM + CAPTION_SIZE * 0.72 * PT_TO_MM;
 const CELL_HEIGHT_MM = CAPTION_BASELINE_MM + 1.2;
-// Thin gap between stickers: one scissor cut separates neighbors.
-const CELL_GAP_MM = 1;
 // Helvetica Bold digits are 0.556 of the font size wide; use a slightly wider
 // estimate so the code always fits inside its sticker.
 const CHAR_WIDTH = 0.6;
 
-const COLUMNS = Math.floor(
-    (PAGE_WIDTH_MM - 2 * PAGE_MARGIN_MM + CELL_GAP_MM) / (CELL_WIDTH_MM + CELL_GAP_MM),
-);
-const ROWS = Math.floor(
-    (PAGE_HEIGHT_MM - 2 * PAGE_MARGIN_MM + CELL_GAP_MM) / (CELL_HEIGHT_MM + CELL_GAP_MM),
-);
+const COLUMNS = Math.floor((PAGE_WIDTH_MM - 2 * PAGE_MARGIN_MM) / CELL_WIDTH_MM);
+const ROWS = Math.floor((PAGE_HEIGHT_MM - 2 * PAGE_MARGIN_MM) / CELL_HEIGHT_MM);
 export const STICKERS_PER_PAGE = COLUMNS * ROWS;
-const GRID_LEFT_MM = (PAGE_WIDTH_MM - (COLUMNS * (CELL_WIDTH_MM + CELL_GAP_MM) - CELL_GAP_MM)) / 2;
+const GRID_LEFT_MM = (PAGE_WIDTH_MM - COLUMNS * CELL_WIDTH_MM) / 2;
 
 const num = (value: number) => value.toFixed(2);
 
@@ -58,25 +52,39 @@ function codeOps(code: string, cellLeftMm: number, baselineMm: number): string {
 }
 
 function stickerOps(entry: QrStickerEntry, slot: number): string {
-    const cellLeftMm = GRID_LEFT_MM + (slot % COLUMNS) * (CELL_WIDTH_MM + CELL_GAP_MM);
-    const cellTopMm = PAGE_MARGIN_MM + Math.floor(slot / COLUMNS) * (CELL_HEIGHT_MM + CELL_GAP_MM);
+    const column = slot % COLUMNS;
+    const row = Math.floor(slot / COLUMNS);
+    const cellLeftMm = GRID_LEFT_MM + column * CELL_WIDTH_MM;
+    const cellTopMm = PAGE_MARGIN_MM + row * CELL_HEIGHT_MM;
     const { modules } = entry;
     const moduleMm = QR_SIZE_MM / modules.size;
     const qrLeftMm = cellLeftMm + (CELL_WIDTH_MM - QR_SIZE_MM) / 2;
     const qrTopMm = cellTopMm + QR_TOP_MM;
-    // Light cell outline doubles as a cutting guide.
-    let ops = `0.8 G 0.25 w ${num(cellLeftMm * MM)} ${num((PAGE_HEIGHT_MM - cellTopMm - CELL_HEIGHT_MM) * MM)} ${num(CELL_WIDTH_MM * MM)} ${num(CELL_HEIGHT_MM * MM)} re S\n`;
+    // Stickers touch, so neighbors share a single cutting line: each sticker
+    // draws its right and bottom edges, and the first column and row also
+    // draw their left and top edges.
+    const left = cellLeftMm * MM;
+    const right = (cellLeftMm + CELL_WIDTH_MM) * MM;
+    const top = (PAGE_HEIGHT_MM - cellTopMm) * MM;
+    const bottom = (PAGE_HEIGHT_MM - cellTopMm - CELL_HEIGHT_MM) * MM;
+    const edges = [
+        `${num(right)} ${num(top)} m ${num(right)} ${num(bottom)} l`,
+        `${num(left)} ${num(bottom)} m ${num(right)} ${num(bottom)} l`,
+        ...(column === 0 ? [`${num(left)} ${num(top)} m ${num(left)} ${num(bottom)} l`] : []),
+        ...(row === 0 ? [`${num(left)} ${num(top)} m ${num(right)} ${num(top)} l`] : []),
+    ];
+    let ops = `0.8 G 0.25 w ${edges.join(' ')} S\n`;
     ops += '0 g\n';
-    for (let row = 0; row < modules.size; row++) {
+    for (let moduleRow = 0; moduleRow < modules.size; moduleRow++) {
         let col = 0;
         while (col < modules.size) {
-            if (!modules.get(row, col)) {
+            if (!modules.get(moduleRow, col)) {
                 col++;
                 continue;
             }
             const start = col;
-            while (col < modules.size && modules.get(row, col)) col++;
-            ops += `${num((qrLeftMm + start * moduleMm) * MM)} ${num((PAGE_HEIGHT_MM - qrTopMm - (row + 1) * moduleMm) * MM)} ${num((col - start) * moduleMm * MM)} ${num(moduleMm * MM)} re\n`;
+            while (col < modules.size && modules.get(moduleRow, col)) col++;
+            ops += `${num((qrLeftMm + start * moduleMm) * MM)} ${num((PAGE_HEIGHT_MM - qrTopMm - (moduleRow + 1) * moduleMm) * MM)} ${num((col - start) * moduleMm * MM)} ${num(moduleMm * MM)} re\n`;
         }
     }
     ops += 'f\n';
