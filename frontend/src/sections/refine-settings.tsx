@@ -19,6 +19,7 @@ import {
     DeleteOutlined,
     DownloadOutlined,
     EditOutlined,
+    FilePdfOutlined,
     HistoryOutlined,
     PlusOutlined,
     SearchOutlined,
@@ -48,11 +49,11 @@ import {
     inventoryLabelQrFilename,
     inventoryTypeDisplayName,
     inventoryQrValue,
-    inventoryTypeQrPrintLabel,
     sortInventoryLabels,
     inventoryTypeQrFilename,
     type InventoryGroupBy,
 } from '../ui/inventory-qr';
+import { buildQrStickerPdf, inventoryLabelStickerEntries } from '../ui/inventory-qr-pdf';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { prepareInventoryImage } from '../ui/inventory-image';
@@ -521,6 +522,7 @@ export function SettingsResourcePage({
     const [labelEditorName, setLabelEditorName] = useState('');
     const [labelBusy, setLabelBusy] = useState(false);
     const [historyLabel, setHistoryLabel] = useState<InventoryLabel | null>(null);
+    const [qrPdfBusy, setQrPdfBusy] = useState(false);
     const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>('brand');
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
@@ -648,61 +650,28 @@ export function SettingsResourcePage({
     }
     async function createInventoryTypeQrDataUrl(row: Row, label?: InventoryLabel): Promise<string> {
         const QRCode = (await import('qrcode')).default;
-        const qrDataUrl = await QRCode.toDataURL(inventoryQrValue(row as InventoryTypeDTO, label), {
-            margin: 2,
-            width: 256,
-        });
+        const code = inventoryQrValue(row as InventoryTypeDTO, label);
+        const qrDataUrl = await QRCode.toDataURL(code, { margin: 2, width: 256 });
         const image = new Image();
         image.src = qrDataUrl;
         await new Promise<void>((resolve, reject) => {
             image.onload = () => resolve();
             image.onerror = () => reject(new Error('Unable to prepare QR code image.'));
         });
-        const displayLabel = inventoryTypeQrPrintLabel(row as InventoryTypeDTO, label);
+        const captionHeight = 48;
         const canvas = document.createElement('canvas');
-        const labelPadding = 12;
-        const lineHeight = 30;
-        const labelWidth = 232;
         canvas.width = 256;
+        canvas.height = 256 + captionHeight;
         const context = canvas.getContext('2d');
         if (!context) throw new Error('Unable to prepare QR code image.');
-        context.font = '24px sans-serif';
-        const words = displayLabel.split(/\s+/);
-        const lines: string[] = [];
-        let line = '';
-        const fitWithEllipsis = (text: string): string => {
-            let fitted = text;
-            while (fitted.length > 1 && context.measureText(`${fitted}…`).width > labelWidth) {
-                fitted = fitted.slice(0, -1).trimEnd();
-            }
-            return `${fitted}…`;
-        };
-        words.forEach((word, index) => {
-            const candidate = line ? `${line} ${word}` : word;
-            if (line && context.measureText(candidate).width > labelWidth) {
-                lines.push(line);
-                line = '';
-                if (lines.length === 1) line = word;
-                else line = fitWithEllipsis(`${line} ${words.slice(index).join(' ')}`.trim());
-            } else {
-                line = candidate;
-            }
-        });
-        if (line) lines.push(line);
-        if (lines.length > 2) lines.splice(2);
-        canvas.height = 256 + labelPadding * 2 + lines.length * lineHeight;
-        // Setting canvas.height resets the drawing context state, including
-        // the font, so apply the print font again after sizing the canvas.
-        context.font = '24px sans-serif';
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, 0, 0, 256, 256);
-        context.fillStyle = '#333333';
+        context.fillStyle = '#000000';
+        context.font = 'bold 40px sans-serif';
         context.textAlign = 'center';
         context.textBaseline = 'top';
-        lines.forEach((text, index) => {
-            context.fillText(text, canvas.width / 2, 256 + labelPadding + index * lineHeight);
-        });
+        context.fillText(code, canvas.width / 2, 256 + 2, canvas.width - 16);
         return canvas.toDataURL('image/png');
     }
     async function downloadInventoryTypeQr(row: Row, label?: InventoryLabel) {
@@ -718,6 +687,30 @@ export function SettingsResourcePage({
             link.remove();
         } catch (error) {
             showErrorAlert(error);
+        }
+    }
+    async function downloadLabelQrPdf() {
+        setQrPdfBusy(true);
+        try {
+            const QRCode = (await import('qrcode')).default;
+            const entries = inventoryLabelStickerEntries(
+                rows as InventoryTypeDTO[],
+                (text) => QRCode.create(text, { errorCorrectionLevel: 'Q' }).modules,
+            );
+            const url = URL.createObjectURL(
+                new Blob([buildQrStickerPdf(entries)], { type: 'application/pdf' }),
+            );
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'inventory-label-qr-codes.pdf';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setQrPdfBusy(false);
         }
     }
     async function removeInventoryLabel(label: InventoryLabel) {
@@ -1016,6 +1009,17 @@ export function SettingsResourcePage({
                     title={`Search ${config.title.toLowerCase()}`}
                 />
             </Space>
+            {config.kind === 'inventory-type' && (
+                <Button
+                    type="primary"
+                    icon={<FilePdfOutlined />}
+                    loading={qrPdfBusy}
+                    disabled={!rows.some((row) => (row.labels || []).length)}
+                    onClick={() => void downloadLabelQrPdf()}
+                    aria-label="Download label QR codes PDF"
+                    title="Download label QR codes PDF"
+                />
+            )}
             {canEdit && (
                 <Button
                     type="primary"
@@ -1158,8 +1162,10 @@ export function SettingsResourcePage({
                                         .catch(showErrorAlert);
                                 }}
                                 aria-label="QR code to download"
+                                popupMatchSelectWidth={false}
                                 options={[
-                                    { value: '', label: 'Inventory type (no label)' },
+                                    { value: 'heading', label: 'QR code for', disabled: true },
+                                    { value: '', label: 'Inventory type' },
                                     ...sortInventoryLabels(selectedInventoryType.labels).map(
                                         (label) => ({
                                             value: label.Id,

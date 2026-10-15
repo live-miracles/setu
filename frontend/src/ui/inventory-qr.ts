@@ -124,19 +124,6 @@ export function inventoryTypeDisplayName(type: { Brand?: unknown; Name?: unknown
         .join(' · ');
 }
 
-export function inventoryTypeQrPrintLabel(
-    type: Pick<InventoryTypeDTO, 'DisplayId' | 'Model' | 'Name'>,
-    label?: Pick<InventoryLabel, 'DisplayId' | 'Name'>,
-): string {
-    const itemName = [type.Model, type.Name]
-        .map((value) => String(value || '').trim())
-        .filter(Boolean)
-        .join(' ');
-    const labelName = label ? ` - ${String(label.Name || '').trim()}` : '';
-    const qrValue = label ? `${type.DisplayId}-${label.DisplayId}` : String(type.DisplayId);
-    return `${qrValue} | ${itemName || 'Inventory type'}${labelName}`;
-}
-
 export function inventoryTypeQrLabel(name: string, maxLength = 32): string {
     const value = name.trim();
     if (value.length <= maxLength) return value;
