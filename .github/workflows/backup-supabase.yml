@@ -1,0 +1,81 @@
+name: Back up Supabase
+
+on:
+    schedule:
+        # Weekly, Sunday 03:00 UTC. With 21 days of artifact retention this
+        # keeps about 3 backups.
+        - cron: '0 3 * * 0'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: supabase-backup
+    cancel-in-progress: false
+
+jobs:
+    backup:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            # Same IPv4 pooler workaround as deploy-supabase.yml.
+            - name: Link Supabase project
+              env:
+                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+                  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+                  PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF_PROD }}
+              run: npx supabase link --project-ref "$PROJECT_REF"
+
+            # Data only: the schema is already in supabase/migrations/. `auth`
+            # is included because public.profiles references auth.users; the
+            # session and token tables are excluded because they are large,
+            # sensitive, and useless after a restore. Storage (images) is not
+            # backed up.
+            - name: Dump database
+              env:
+                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+                  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+              run: |
+                  npx supabase db dump --linked --data-only --use-copy \
+                    --schema public,auth \
+                    --exclude auth.audit_log_entries,auth.refresh_tokens,auth.sessions,auth.flow_state,auth.one_time_tokens,auth.mfa_amr_claims \
+                    --file data.sql
+
+            - name: Verify dump
+              run: |
+                  # An empty or truncated dump must fail the run instead of
+                  # silently replacing good backups.
+                  test -s data.sql
+                  grep -q '^COPY "public"."profiles"' data.sql
+                  grep -q '^COPY "auth"."users"' data.sql
+
+            - name: Compress and encrypt
+              env:
+                  BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+              run: |
+                  test -n "$BACKUP_PASSPHRASE"
+                  gzip --best data.sql
+                  gpg --batch --yes --symmetric --cipher-algo AES256 \
+                    --passphrase-fd 3 --output "setu-prod-$(date -u +%F).sql.gz.gpg" \
+                    data.sql.gz 3<<< "$BACKUP_PASSPHRASE"
+                  ls -l ./*.gpg
+
+            - name: Upload encrypted backup
+              uses: actions/upload-artifact@v4
+              with:
+                  name: setu-prod-backup-${{ github.run_number }}
+                  path: setu-prod-*.sql.gz.gpg
+                  retention-days: 21
+                  if-no-files-found: error

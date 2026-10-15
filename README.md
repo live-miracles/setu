@@ -43,6 +43,46 @@ See the providers' current plan details before relying on these numbers:
 [Vercel pricing](https://vercel.com/pricing), and
 [Resend pricing](https://resend.com/pricing/).
 
+## Database backups
+
+The free Supabase plan has no managed backups.
+[`.github/workflows/backup-supabase.yml`](.github/workflows/backup-supabase.yml)
+dumps the production database every Sunday (and on demand via **Actions →
+Back up Supabase → Run workflow**), encrypts it with GPG, and uploads it as a
+workflow artifact kept for 21 days — about 3 weekly backups. GitHub emails the
+repository owner if a run fails.
+
+- It backs up data only (the `public` and `auth` schemas, minus session and
+  token tables); the schema comes from `supabase/migrations/`. Storage images
+  are not backed up.
+- It needs one new repository secret, `BACKUP_PASSPHRASE`, plus the existing
+  `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF_PROD` and
+  `SUPABASE_DB_PASSWORD_PROD`. Keep a copy of the passphrase outside GitHub
+  (for example in a password manager); without it the backups cannot be read.
+- Artifacts can be downloaded from the workflow run page (Actions tab).
+
+To restore into a fresh Supabase project:
+
+```bash
+# 1. Create the schema.
+npx supabase link --project-ref <new-project-ref>
+npx supabase db push
+
+# 2. Decrypt the downloaded artifact.
+gpg --decrypt setu-prod-YYYY-MM-DD.sql.gz.gpg | gunzip > data.sql
+
+# 3. Load it using the project's session pooler connection string
+#    (Project Settings → Database). First delete rows the migrations seed,
+#    because a duplicate key makes COPY skip that whole table:
+psql "<connection-string>" \
+  -c "truncate public.home_content, public.program_types cascade"
+psql "<connection-string>" -v ON_ERROR_STOP=1 -f data.sql
+```
+
+After restoring, redeploy the Edge Function and point Supabase Auth and the
+frontend at the new project (see [Deploy to Vercel](#deploy-to-vercel)).
+Restore a backup into a scratch project occasionally to confirm it works.
+
 ## Architecture
 
 ```text
