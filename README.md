@@ -48,18 +48,30 @@ See the providers' current plan details before relying on these numbers:
 The free Supabase plan has no managed backups.
 [`.github/workflows/backup-supabase.yml`](.github/workflows/backup-supabase.yml)
 dumps the production database every Sunday (and on demand via **Actions →
-Back up Supabase → Run workflow**), encrypts it with GPG, and uploads it as a
-workflow artifact kept for 21 days — about 3 weekly backups. GitHub emails the
+Back up Supabase → Run workflow**), encrypts it with
+[age](https://github.com/FiloSottile/age), and uploads it as a workflow
+artifact kept for 21 days — about 3 weekly backups. GitHub emails the
 repository owner if a run fails.
 
 - It backs up data only (the `public` and `auth` schemas, minus session and
   token tables); the schema comes from `supabase/migrations/`. Storage images
   are not backed up.
-- It needs one new repository secret, `BACKUP_PASSPHRASE`, plus the existing
-  `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF_PROD` and
-  `SUPABASE_DB_PASSWORD_PROD`. Keep a copy of the passphrase outside GitHub
-  (for example in a password manager); without it the backups cannot be read.
+- Artifacts of a public repository can be downloaded by any GitHub user, so the
+  dump is encrypted to a public key. The matching private key is never stored
+  on GitHub: without it the backups cannot be read, so keep it in a password
+  manager plus one offline copy.
+- It needs one new repository secret, `BACKUP_AGE_PUBLIC_KEY` (the public key,
+  starting with `age1`), plus the existing `SUPABASE_ACCESS_TOKEN`,
+  `SUPABASE_PROJECT_REF_PROD` and `SUPABASE_DB_PASSWORD_PROD`.
 - Artifacts can be downloaded from the workflow run page (Actions tab).
+
+To create the key pair once, install [age](https://github.com/FiloSottile/age)
+and run the following outside this repository. It prints the public key and
+writes the private key to `setu-backup-key.txt`:
+
+```bash
+age-keygen -o setu-backup-key.txt
+```
 
 To restore into a fresh Supabase project:
 
@@ -69,7 +81,7 @@ npx supabase link --project-ref <new-project-ref>
 npx supabase db push
 
 # 2. Decrypt the downloaded artifact.
-gpg --decrypt setu-prod-YYYY-MM-DD.sql.gz.gpg | gunzip > data.sql
+age --decrypt -i setu-backup-key.txt setu-prod-YYYY-MM-DD.sql.gz.age | gunzip > data.sql
 
 # 3. Load it using the project's session pooler connection string
 #    (Project Settings → Database). First delete rows the migrations seed,

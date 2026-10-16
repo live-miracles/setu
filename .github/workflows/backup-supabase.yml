@@ -61,21 +61,25 @@ jobs:
                   grep -q '^COPY "public"."profiles"' data.sql
                   grep -q '^COPY "auth"."users"' data.sql
 
+            # Artifacts of a public repository can be downloaded by any GitHub
+            # user, so the dump is encrypted to a public key. The matching
+            # private key is kept offline and is never stored on GitHub.
             - name: Compress and encrypt
               env:
-                  BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+                  BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
               run: |
-                  test -n "$BACKUP_PASSPHRASE"
+                  test -n "$BACKUP_AGE_PUBLIC_KEY"
+                  sudo apt-get update -qq
+                  sudo apt-get install -y -qq age
                   gzip --best data.sql
-                  gpg --batch --yes --symmetric --cipher-algo AES256 \
-                    --passphrase-fd 3 --output "setu-prod-$(date -u +%F).sql.gz.gpg" \
-                    data.sql.gz 3<<< "$BACKUP_PASSPHRASE"
-                  ls -l ./*.gpg
+                  age --recipient "$BACKUP_AGE_PUBLIC_KEY" \
+                    --output "setu-prod-$(date -u +%F).sql.gz.age" data.sql.gz
+                  ls -l ./*.age
 
             - name: Upload encrypted backup
               uses: actions/upload-artifact@v4
               with:
                   name: setu-prod-backup-${{ github.run_number }}
-                  path: setu-prod-*.sql.gz.gpg
+                  path: setu-prod-*.sql.gz.age
                   retention-days: 21
                   if-no-files-found: error
