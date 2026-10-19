@@ -41,16 +41,17 @@ export function runRosterTableAssertions(): void {
     );
 
     assert(model.rows.length === 4, 'date rows should include every date through the last shift');
-    assert(model.rows[0].label === 'Sun, Aug 2', 'date label should include weekday');
+    // The month/day order follows the runtime locale ("Aug 2" or "2 Aug").
+    assert(/^Sun, (Aug 2|2 Aug)$/.test(model.rows[0].label), 'date label should include weekday');
     assert(model.volunteers[0].lanes.length === 2, 'overlap should create a second lane');
     assert(
         model.volunteers[0].lanes[0].shifts[0].startIndex === 0,
         'first shift starts at row zero',
     );
     assert(model.volunteers[0].lanes[0].shifts[0].endIndex === 2, 'multi-day shift spans rows');
-    assert(formatRosterTableDate('2026-08-02') === 'Sun, Aug 2', 'date formatter');
+    assert(/^Sun, (Aug 2|2 Aug)$/.test(formatRosterTableDate('2026-08-02')), 'date formatter');
     assert(
-        formatRosterTableTimes(roster({ StartTime: '04:00', EndTime: '' })) === '4:00 AM',
+        /^4:00 AM$/i.test(formatRosterTableTimes(roster({ StartTime: '04:00', EndTime: '' }))),
         'partial timing',
     );
     assert(

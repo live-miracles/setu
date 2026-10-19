@@ -108,7 +108,8 @@ export function runCalendarTableAssertions(): void {
         'window ends at latest upcoming date',
     );
     assert(model.rows.length === 3, 'window includes dates without sessions');
-    assert(model.rows[2].label === 'Tue, Aug 11', 'date label includes weekday');
+    // The month/day order follows the runtime locale ("Aug 11" or "11 Aug").
+    assert(/^Tue, (Aug 11|11 Aug)$/.test(model.rows[2].label), 'date label includes weekday');
     assert(model.places[0].Name === '', 'unassigned programs use a leading untitled column');
     assert(
         model.places

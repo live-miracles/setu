@@ -1,20 +1,14 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { compileCss } from './shell.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outputDir = mkdtempSync(path.join(tmpdir(), 'setu-layout-'));
 const outputFile = path.join(outputDir, 'app.css');
 
 try {
-    execFileSync(
-        path.join(root, 'node_modules/.bin/tailwindcss'),
-        ['-i', path.join(root, 'frontend/input.css'), '-o', outputFile, '--minify'],
-        { cwd: root, stdio: 'ignore' },
-    );
+    compileCss(outputFile);
     const css = readFileSync(outputFile, 'utf8');
     const appContentRule = css.match(/\.app-content\{([^}]*)\}/)?.[1] || '';
 
