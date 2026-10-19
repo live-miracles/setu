@@ -1,4 +1,4 @@
-import { inventoryQrValue, sortInventoryLabels } from './inventory-qr';
+import { inventoryQrValue } from './inventory-qr';
 
 // Builds a printable A4 sheet of small QR stickers as a PDF. QR codes are drawn
 // as vector squares (no images, no PDF library), so they stay sharp at the
@@ -124,16 +124,20 @@ export function buildQrStickerPdf(entries: QrStickerEntry[]): Uint8Array<ArrayBu
     return new TextEncoder().encode(pdf);
 }
 
-// One sticker per labeled item; the unlabeled inventory type QR codes are
-// left out on purpose.
+// One sticker per labeled item, in ascending code order (type number, then
+// label number); the unlabeled inventory type QR codes are left out on purpose.
 export function inventoryLabelStickerEntries(
     types: InventoryTypeDTO[],
     createModules: (text: string) => QrModules,
 ): QrStickerEntry[] {
-    return types.flatMap((type) =>
-        sortInventoryLabels(type.labels).map((label) => {
-            const code = inventoryQrValue(type, label);
-            return { modules: createModules(code), code };
-        }),
-    );
+    return [...types]
+        .sort((a, b) => a.DisplayId - b.DisplayId)
+        .flatMap((type) =>
+            [...(type.labels || [])]
+                .sort((a, b) => a.DisplayId - b.DisplayId)
+                .map((label) => {
+                    const code = inventoryQrValue(type, label);
+                    return { modules: createModules(code), code };
+                }),
+        );
 }

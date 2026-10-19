@@ -15,23 +15,30 @@ export function runInventoryQrPdfAssertions(): void {
     const entries = inventoryLabelStickerEntries(
         [
             {
+                Id: 'type-3',
+                DisplayId: 35,
+                Name: 'Lens',
+                labels: [{ Id: 'label-3', DisplayId: 1, InventoryTypeId: 'type-3', Name: 'A' }],
+            },
+            {
                 Id: 'type-1',
                 DisplayId: 34,
                 Brand: 'Sony',
                 Name: 'Camera',
                 labels: [
-                    { Id: 'label-2', DisplayId: 2, InventoryTypeId: 'type-1', Name: 'Case 10' },
-                    { Id: 'label-1', DisplayId: 1, InventoryTypeId: 'type-1', Name: 'Case 2' },
+                    { Id: 'label-10', DisplayId: 10, InventoryTypeId: 'type-1', Name: 'Case 1' },
+                    { Id: 'label-2', DisplayId: 2, InventoryTypeId: 'type-1', Name: 'Case 2' },
+                    { Id: 'label-1', DisplayId: 1, InventoryTypeId: 'type-1', Name: 'Case 3' },
                 ],
             },
-            { Id: 'type-2', DisplayId: 35, Name: 'Cable', labels: [] },
+            { Id: 'type-2', DisplayId: 5, Name: 'Cable', labels: [] },
         ] as unknown as InventoryTypeDTO[],
         () => checkerboard,
     );
-    assert(entries.length === 2, 'only labeled items should get a sticker');
+    assert(entries.length === 4, 'only labeled items should get a sticker');
     assert(
-        entries[0].code === '34-1' && entries[1].code === '34-2',
-        'stickers should use the label QR value and follow label order',
+        entries.map((entry) => entry.code).join(',') === '34-1,34-2,34-10,35-1',
+        'stickers should use the label QR value in ascending numeric order, not name order',
     );
 
     const text = new TextDecoder().decode(buildQrStickerPdf(entries));
