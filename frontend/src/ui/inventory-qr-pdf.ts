@@ -10,6 +10,9 @@ export type QrStickerEntry = {
     modules: QrModules;
     // The value printed under the QR code, e.g. "34-12".
     code: string;
+    // The inventory type name, printed small above the QR code and cut off
+    // where it no longer fits the sticker width.
+    name?: string;
 };
 
 const MM = 72 / 25.4;
@@ -18,15 +21,20 @@ const PAGE_WIDTH_MM = 210;
 const PAGE_HEIGHT_MM = 297;
 const PAGE_MARGIN_MM = 10;
 const QR_SIZE_MM = 12.6;
-// Quiet zone around the QR code, kept inside the sticker so it still scans
-// after cutting along the outline.
-const QR_TOP_MM = 2;
 const CELL_WIDTH_MM = 16.5;
+// Cap height of Helvetica is about 0.72 of the font size.
+const CAP_HEIGHT = 0.72;
+const NAME_SIZE = 5.5;
+const NAME_TOP_MM = 1;
+const NAME_BASELINE_MM = NAME_TOP_MM + NAME_SIZE * CAP_HEIGHT * PT_TO_MM;
+// Space between the type name and the QR code, and above the QR code when
+// there is no name, kept inside the sticker so it still scans after cutting
+// along the outline.
+const QR_TOP_MM = NAME_BASELINE_MM + 1.5;
 const CAPTION_SIZE = 9;
 const CAPTION_GAP_MM = 1.2;
-// Cap height of Helvetica is about 0.72 of the font size.
 const CAPTION_BASELINE_MM =
-    QR_TOP_MM + QR_SIZE_MM + CAPTION_GAP_MM + CAPTION_SIZE * 0.72 * PT_TO_MM;
+    QR_TOP_MM + QR_SIZE_MM + CAPTION_GAP_MM + CAPTION_SIZE * CAP_HEIGHT * PT_TO_MM;
 const CELL_HEIGHT_MM = CAPTION_BASELINE_MM + 1.2;
 // Helvetica Bold digits are 0.556 of the font size wide; use a slightly wider
 // estimate so the code always fits inside its sticker.
@@ -39,6 +47,19 @@ const GRID_LEFT_MM = (PAGE_WIDTH_MM - COLUMNS * CELL_WIDTH_MM) / 2;
 
 const num = (value: number) => value.toFixed(2);
 
+// Helvetica-Bold advance widths (1/1000 em) for ASCII 32-126, from the font's
+// AFM metrics, so type names are cut exactly where they stop fitting.
+const HELVETICA_BOLD_WIDTHS = [
+    278, 333, 474, 556, 556, 889, 722, 278, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556,
+    556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611, 975, 722, 722, 722, 722, 667,
+    611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667,
+    667, 611, 333, 278, 333, 584, 556, 278, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556,
+    278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584,
+];
+
+const charWidth = (char: string, size: number) =>
+    (HELVETICA_BOLD_WIDTHS[char.charCodeAt(0) - 32] * size) / 1000;
+
 function codeOps(code: string, cellLeftMm: number, baselineMm: number): string {
     // Codes are digits and hyphens; dropping anything else keeps the file
     // plain ASCII, which also lets byte offsets be computed from string lengths.
@@ -49,6 +70,37 @@ function codeOps(code: string, cellLeftMm: number, baselineMm: number): string {
     const x = cellLeftMm * MM + (CELL_WIDTH_MM * MM - textWidth) / 2;
     const y = (PAGE_HEIGHT_MM - baselineMm) * MM;
     return `BT /F1 ${num(size)} Tf ${num(x)} ${num(y)} Td (${text}) Tj ET\n`;
+}
+
+// Keeps the file plain ASCII (so byte offsets can be computed from string
+// lengths): accents are dropped from their letters, other characters removed.
+function asciiText(value: string): string {
+    return value
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/[^\x20-\x7e]/g, '')
+        .trim();
+}
+
+const textWidth = (text: string, size: number) =>
+    [...text].reduce((sum, char) => sum + charWidth(char, size), 0);
+
+// Prints only the first characters of the type name that fit the sticker
+// width; a long name is simply cut off.
+function nameOps(name: string, cellLeftMm: number, baselineMm: number): string {
+    const maxWidth = (CELL_WIDTH_MM - 2) * MM;
+    let text = '';
+    for (const char of asciiText(name)) {
+        if (textWidth(text + char, NAME_SIZE) > maxWidth) break;
+        text += char;
+    }
+    text = text.trimEnd();
+    if (!text) return '';
+    const x = cellLeftMm * MM + (CELL_WIDTH_MM * MM - textWidth(text, NAME_SIZE)) / 2;
+    const y = (PAGE_HEIGHT_MM - baselineMm) * MM;
+    const escaped = text.replace(/[\\()]/g, '\\$&');
+    return `BT /F1 ${num(NAME_SIZE)} Tf ${num(x)} ${num(y)} Td (${escaped}) Tj ET\n`;
 }
 
 function stickerOps(entry: QrStickerEntry, slot: number): string {
@@ -88,6 +140,7 @@ function stickerOps(entry: QrStickerEntry, slot: number): string {
         }
     }
     ops += 'f\n';
+    if (entry.name) ops += nameOps(entry.name, cellLeftMm, cellTopMm + NAME_BASELINE_MM);
     ops += codeOps(entry.code, cellLeftMm, cellTopMm + CAPTION_BASELINE_MM);
     return ops;
 }
@@ -125,7 +178,8 @@ export function buildQrStickerPdf(entries: QrStickerEntry[]): Uint8Array<ArrayBu
 }
 
 // One sticker per labeled item, in ascending code order (type number, then
-// label number); the unlabeled inventory type QR codes are left out on purpose.
+// label number), captioned with the type name; the unlabeled inventory type
+// QR codes are left out on purpose.
 export function inventoryLabelStickerEntries(
     types: InventoryTypeDTO[],
     createModules: (text: string) => QrModules,
@@ -137,7 +191,7 @@ export function inventoryLabelStickerEntries(
                 .sort((a, b) => a.DisplayId - b.DisplayId)
                 .map((label) => {
                     const code = inventoryQrValue(type, label);
-                    return { modules: createModules(code), code };
+                    return { modules: createModules(code), code, name: type.Name };
                 }),
         );
 }

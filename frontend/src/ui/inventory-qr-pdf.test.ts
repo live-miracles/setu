@@ -41,8 +41,45 @@ export function runInventoryQrPdfAssertions(): void {
         'stickers should use the label QR value in ascending numeric order, not name order',
     );
 
+    assert(
+        entries[0].name === 'Camera' && entries[3].name === 'Lens',
+        'stickers should carry their inventory type name',
+    );
+
     const text = new TextDecoder().decode(buildQrStickerPdf(entries));
     assert(text.startsWith('%PDF-1.4\n') && text.endsWith('%%EOF\n'), 'pdf should be framed');
+    const printedNames = (name?: string) =>
+        [
+            ...new TextDecoder()
+                .decode(buildQrStickerPdf([{ ...entries[0], name }]))
+                .matchAll(/\/F1 ([\d.]+) Tf [\d.]+ [\d.]+ Td \((.*)\) Tj ET/g),
+        ]
+            .filter((match) => match[2] !== entries[0].code)
+            .map((match) => ({ size: Number(match[1]), text: match[2] }));
+    assert(
+        printedNames('Camera').length === 1 &&
+            printedNames('Camera')[0].text === 'Camera' &&
+            printedNames('Camera')[0].size < 9,
+        'the type name should print above the QR code in a smaller font than the code',
+    );
+    const longName = 'Professional broadcast camera kit';
+    const cutLong = printedNames(longName)[0].text;
+    assert(
+        cutLong.length > 0 && cutLong.length < longName.length && longName.startsWith(cutLong),
+        'a long type name should be cut to the first characters that fit',
+    );
+    assert(
+        printedNames('i'.repeat(40))[0].text.length > printedNames('W'.repeat(40))[0].text.length,
+        'name cutoff should follow glyph widths, not character count',
+    );
+    assert(
+        printedNames('Café (2)')[0].text === 'Cafe \\(2\\)',
+        'accents are dropped and parentheses escaped',
+    );
+    assert(
+        printedNames('日本語').length === 0 && printedNames('').length === 0,
+        'a name without printable characters should be omitted',
+    );
     assert(text.includes('/Count 1 '), 'a few stickers should fit on one page');
     assert(
         text.includes('(34-1) Tj') && text.includes('(34-2) Tj'),
