@@ -920,7 +920,7 @@ export function SettingsResourcePage({
                         </Typography.Title>
                     </div>
                     <div className="inventory-type-grid">
-                        {group.rows.map((row) => (
+                        {group.rows.map((row, index) => (
                             <BlockCard
                                 key={row.Id}
                                 className="inventory-type-card"
@@ -933,6 +933,11 @@ export function SettingsResourcePage({
                                     {row.Location && inventoryGroupBy !== 'location' && (
                                         <span className="inventory-type-card-description">
                                             {String(row.Location)}
+                                        </span>
+                                    )}
+                                    {group.counts && (
+                                        <span className="inventory-type-card-description">
+                                            {group.counts[index]} here
                                         </span>
                                     )}
                                     {row.TotalQuantity != null && (
