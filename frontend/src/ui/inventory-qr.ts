@@ -140,7 +140,7 @@ export function sortInventoryLabels(labels: InventoryLabel[] = []): InventoryLab
     return [...labels].sort((a, b) => compareLabelNames(a.Name, b.Name));
 }
 
-export type InventoryGroupBy = 'brand' | 'location';
+export type InventoryGroupBy = 'brand' | 'location' | 'serial';
 
 export type InventoryGroup<T> = {
     key: string;
@@ -159,6 +159,7 @@ export function inventoryLabelLocation(name: unknown): string {
 }
 
 type GroupableInventoryType = {
+    DisplayId?: unknown;
     Brand?: unknown;
     Name?: unknown;
     Location?: unknown;
@@ -186,11 +187,25 @@ export function inventoryTypeLocationCounts(row: GroupableInventoryType): Map<st
 // Groups inventory types by brand or location. Groups sort alphabetically
 // (numbers compared numerically), types inside a group by display name, and
 // types without a value land in a trailing "No brand" / "No location" group.
-// By location, a type appears under every location its labels name.
+// By location, a type appears under every location its labels name. By serial,
+// all types form one list ordered by their QR number (DisplayId).
 export function groupInventoryTypes<T extends GroupableInventoryType>(
     rows: T[],
     groupBy: InventoryGroupBy,
 ): InventoryGroup<T>[] {
+    if (groupBy === 'serial') {
+        const serial = (row: T) => {
+            const value = Number(row.DisplayId);
+            return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+        };
+        return [
+            {
+                key: 'serial',
+                title: 'All by QR number',
+                rows: [...rows].sort((a, b) => serial(a) - serial(b)),
+            },
+        ];
+    }
     const groups = new Map<string, Array<{ row: T; count: number }>>();
     rows.forEach((row) => {
         const entries =

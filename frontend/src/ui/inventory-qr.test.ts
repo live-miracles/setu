@@ -218,4 +218,16 @@ export function runInventoryQrAssertions(): void {
         groupInventoryTypes(labelled, 'brand').every((group) => group.counts === undefined),
         'brand groups should not carry location counts',
     );
+    const bySerial = groupInventoryTypes(
+        [
+            { Id: 'b', DisplayId: 10, Brand: 'Sony', Name: 'B' },
+            { Id: 'a', DisplayId: 2, Brand: 'Zeiss', Name: 'A' },
+            { Id: 'c', DisplayId: 1, Brand: '', Name: 'C' },
+        ],
+        'serial',
+    );
+    assert(
+        bySerial.length === 1 && bySerial[0].rows.map((row) => row.Id).join(',') === 'c,a,b',
+        'serial grouping should list every type once in QR number order',
+    );
 }

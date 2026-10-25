@@ -928,6 +928,8 @@ export function SettingsResourcePage({
                                 onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                                 <div className="inventory-type-card-heading">
                                     <strong>
+                                        {inventoryGroupBy === 'serial' &&
+                                            `#${String(row.DisplayId)} `}
                                         {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
                                     </strong>
                                     {row.Location && inventoryGroupBy !== 'location' && (
@@ -1007,6 +1009,7 @@ export function SettingsResourcePage({
                             { value: '', label: 'Group by', disabled: true },
                             { value: 'brand', label: 'Brand' },
                             { value: 'location', label: 'Location' },
+                            { value: 'serial', label: 'Serial (QR number)' },
                         ]}
                     />
                 )}
