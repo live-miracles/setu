@@ -304,12 +304,15 @@ export function InventoryDetail({
     const selectedInventoryType = dashboard.inventoryTypes.find(
         (type) => type.Id === itemDraft.InventoryTypeId,
     );
-    const selectableInventoryTypes = dashboard.inventoryTypes.filter(
-        (type) =>
-            canApprove(dashboard.me) ||
-            type.Requestable !== false ||
-            type.Id === itemDraft.InventoryTypeId,
-    );
+    const selectableInventoryTypes = dashboard.inventoryTypes
+        .filter(
+            (type) =>
+                canApprove(dashboard.me) ||
+                type.Requestable !== false ||
+                type.Id === itemDraft.InventoryTypeId,
+        )
+        .map((type) => ({ value: type.Id, label: inventoryTypeDisplayName(type) }))
+        .sort((a, b) => compareLabelNames(a.label, b.label));
     const uploadRequestImage = async (file: File) => {
         if (!file) return;
         try {
@@ -769,13 +772,11 @@ export function InventoryDetail({
                                     }))
                                 }
                                 className="antd-full-width"
-                                placeholder="Select inventory type">
-                                {selectableInventoryTypes.map((type) => (
-                                    <Select.Option key={type.Id} value={type.Id}>
-                                        {inventoryTypeDisplayName(type)}
-                                    </Select.Option>
-                                ))}
-                            </Select>
+                                placeholder="Select inventory type"
+                                showSearch
+                                optionFilterProp="label"
+                                options={selectableInventoryTypes}
+                            />
                             {selectedInventoryType && (
                                 <div className="inventory-type-detail-image mt-3">
                                     <RequestImage
