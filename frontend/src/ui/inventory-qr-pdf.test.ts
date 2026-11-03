@@ -1,8 +1,11 @@
 import {
     STICKERS_PER_PAGE,
+    STICKER_COLUMNS,
     buildQrStickerPdf,
+    inventoryLabelLocations,
     inventoryLabelStickerEntries,
     type QrModules,
+    type QrStickerEntry,
 } from './inventory-qr-pdf';
 
 function assert(condition: boolean, message: string): void {
@@ -44,6 +47,103 @@ export function runInventoryQrPdfAssertions(): void {
     assert(
         entries[0].name === 'Camera' && entries[3].name === 'Lens',
         'stickers should carry their inventory type name',
+    );
+
+    assert(
+        entries.every((entry) => entry.group === undefined),
+        'stickers get no group heading when no type has a location',
+    );
+
+    const located = [
+        {
+            Id: 't1',
+            DisplayId: 1,
+            Name: 'Camera',
+            Location: 'Studio',
+            labels: [{ DisplayId: 1 }],
+        },
+        {
+            Id: 't2',
+            DisplayId: 2,
+            Name: 'Lens',
+            Location: 'Store room ',
+            labels: [{ DisplayId: 1 }, { DisplayId: 2 }],
+        },
+        { Id: 't3', DisplayId: 3, Name: 'Cable', Location: 'Archive', labels: [] },
+        { Id: 't4', DisplayId: 4, Name: 'Tripod', labels: [{ DisplayId: 1 }] },
+        {
+            Id: 't5',
+            DisplayId: 5,
+            Name: 'Mic',
+            Location: 'Studio',
+            labels: [{ DisplayId: 1 }],
+        },
+    ] as unknown as InventoryTypeDTO[];
+    assert(
+        inventoryLabelLocations(located)
+            .map((location) => `${location.title}:${location.labelCount}`)
+            .join(',') === 'Store room:2,Studio:2,No location:1',
+        'locations without labels should be left out and types without a location grouped last',
+    );
+    const locatedEntries = (locationKeys?: string[]) =>
+        inventoryLabelStickerEntries(located, () => checkerboard, locationKeys);
+    const codesFor = (locationKeys?: string[]) =>
+        locatedEntries(locationKeys)
+            .map((entry) => entry.code)
+            .join(',');
+    assert(
+        codesFor() === '2-1,2-2,1-1,5-1,4-1',
+        'stickers should be grouped by location, then sorted by code inside each location',
+    );
+    assert(
+        locatedEntries()
+            .map((entry) => entry.group)
+            .join(',') === 'Store room,Store room,Studio,Studio,No location',
+        'stickers should carry their location as the group heading',
+    );
+    assert(
+        codesFor(['Studio', 'Store room']) === '2-1,2-2,1-1,5-1',
+        'only the chosen locations should be included, in the usual location order',
+    );
+    assert(codesFor(['']) === '4-1', 'an empty key should select types without a location');
+    assert(codesFor([]) === '', 'an empty selection should include nothing');
+
+    const sticker = (code: string, group?: string): QrStickerEntry => ({
+        modules: checkerboard,
+        code,
+        group,
+    });
+    const pageCount = (stickers: QrStickerEntry[]) =>
+        Number(/\/Count (\d+) /.exec(new TextDecoder().decode(buildQrStickerPdf(stickers)))?.[1]);
+    const twoGroups = [sticker('1', 'Store room'), sticker('2', 'Studio')];
+    const twoGroupsText = new TextDecoder().decode(buildQrStickerPdf(twoGroups));
+    assert(
+        twoGroupsText.includes('(Store room) Tj') && twoGroupsText.includes('(Studio) Tj'),
+        'each group should print its heading',
+    );
+    assert(
+        pageCount(twoGroups) === 1,
+        'a new group should continue on the same page instead of starting a new one',
+    );
+    const yOf = (code: string) =>
+        Number(
+            new RegExp(`/F1 [\\d.]+ Tf [\\d.]+ ([\\d.]+) Td \\(${code}\\) Tj`).exec(
+                twoGroupsText,
+            )?.[1],
+        );
+    assert(
+        yOf('1') - yOf('2') > 60,
+        'a group should start on its own row even when the previous row is not full',
+    );
+    const filled = (rows: number, group: string, code: string) =>
+        Array.from({ length: rows * STICKER_COLUMNS }, () => sticker(code, group));
+    assert(
+        pageCount([...filled(11, 'A', '1'), sticker('2', 'B')]) === 1,
+        'a heading and its first row should fit in the space left on the page',
+    );
+    assert(
+        pageCount([...filled(12, 'A', '1'), sticker('2', 'B')]) === 2,
+        'a heading should move to the next page together with its first row, never alone',
     );
 
     const text = new TextDecoder().decode(buildQrStickerPdf(entries));

@@ -1,4 +1,4 @@
-import { inventoryQrValue } from './inventory-qr';
+import { groupInventoryTypes, inventoryQrValue } from './inventory-qr';
 
 // Builds a printable A4 sheet of small QR stickers as a PDF. QR codes are drawn
 // as vector squares (no images, no PDF library), so they stay sharp at the
@@ -13,6 +13,9 @@ export type QrStickerEntry = {
     // The inventory type name, printed small above the QR code and cut off
     // where it no longer fits the sticker width.
     name?: string;
+    // Entries of one group must be consecutive. Each group starts on a new
+    // sticker row under a heading with this title, e.g. the location.
+    group?: string;
 };
 
 const MM = 72 / 25.4;
@@ -36,12 +39,17 @@ const CAPTION_GAP_MM = 1.2;
 const CAPTION_BASELINE_MM =
     QR_TOP_MM + QR_SIZE_MM + CAPTION_GAP_MM + CAPTION_SIZE * CAP_HEIGHT * PT_TO_MM;
 const CELL_HEIGHT_MM = CAPTION_BASELINE_MM + 1.2;
+const HEADING_SIZE = 10;
+const HEADING_BASELINE_MM = 1.5 + HEADING_SIZE * CAP_HEIGHT * PT_TO_MM;
+const HEADING_HEIGHT_MM = HEADING_BASELINE_MM + 2;
 // Helvetica Bold digits are 0.556 of the font size wide; use a slightly wider
 // estimate so the code always fits inside its sticker.
 const CHAR_WIDTH = 0.6;
 
 const COLUMNS = Math.floor((PAGE_WIDTH_MM - 2 * PAGE_MARGIN_MM) / CELL_WIDTH_MM);
 const ROWS = Math.floor((PAGE_HEIGHT_MM - 2 * PAGE_MARGIN_MM) / CELL_HEIGHT_MM);
+export const STICKER_COLUMNS = COLUMNS;
+// Without group headings; a heading takes some of a page's space.
 export const STICKERS_PER_PAGE = COLUMNS * ROWS;
 const GRID_LEFT_MM = (PAGE_WIDTH_MM - COLUMNS * CELL_WIDTH_MM) / 2;
 
@@ -86,35 +94,52 @@ function asciiText(value: string): string {
 const textWidth = (text: string, size: number) =>
     [...text].reduce((sum, char) => sum + charWidth(char, size), 0);
 
-// Prints only the first characters of the type name that fit the sticker
-// width; a long name is simply cut off.
-function nameOps(name: string, cellLeftMm: number, baselineMm: number): string {
-    const maxWidth = (CELL_WIDTH_MM - 2) * MM;
+// Keeps only the first characters of the text that fit the width; a long
+// text is simply cut off.
+function fitText(value: string, size: number, maxWidth: number): string {
     let text = '';
-    for (const char of asciiText(name)) {
-        if (textWidth(text + char, NAME_SIZE) > maxWidth) break;
+    for (const char of asciiText(value)) {
+        if (textWidth(text + char, size) > maxWidth) break;
         text += char;
     }
-    text = text.trimEnd();
+    return text.trimEnd();
+}
+
+const escapePdfText = (text: string) => text.replace(/[\\()]/g, '\\$&');
+
+function nameOps(name: string, cellLeftMm: number, baselineMm: number): string {
+    const text = fitText(name, NAME_SIZE, (CELL_WIDTH_MM - 2) * MM);
     if (!text) return '';
     const x = cellLeftMm * MM + (CELL_WIDTH_MM * MM - textWidth(text, NAME_SIZE)) / 2;
     const y = (PAGE_HEIGHT_MM - baselineMm) * MM;
-    const escaped = text.replace(/[\\()]/g, '\\$&');
-    return `BT /F1 ${num(NAME_SIZE)} Tf ${num(x)} ${num(y)} Td (${escaped}) Tj ET\n`;
+    return `BT /F1 ${num(NAME_SIZE)} Tf ${num(x)} ${num(y)} Td (${escapePdfText(text)}) Tj ET\n`;
 }
 
-function stickerOps(entry: QrStickerEntry, slot: number): string {
-    const column = slot % COLUMNS;
-    const row = Math.floor(slot / COLUMNS);
+// A group title on its own row, left-aligned with the sticker grid.
+function headingOps(title: string, topMm: number): string {
+    const text = fitText(title, HEADING_SIZE, COLUMNS * CELL_WIDTH_MM * MM);
+    if (!text) return '';
+    const x = GRID_LEFT_MM * MM;
+    const y = (PAGE_HEIGHT_MM - topMm - HEADING_BASELINE_MM) * MM;
+    return `0 g BT /F1 ${num(HEADING_SIZE)} Tf ${num(x)} ${num(y)} Td (${escapePdfText(text)}) Tj ET\n`;
+}
+
+// topEdge: draw the sticker's top cutting line, which is not already the
+// bottom line of a sticker above it (first row on a page or under a heading).
+function stickerOps(
+    entry: QrStickerEntry,
+    column: number,
+    cellTopMm: number,
+    topEdge: boolean,
+): string {
     const cellLeftMm = GRID_LEFT_MM + column * CELL_WIDTH_MM;
-    const cellTopMm = PAGE_MARGIN_MM + row * CELL_HEIGHT_MM;
     const { modules } = entry;
     const moduleMm = QR_SIZE_MM / modules.size;
     const qrLeftMm = cellLeftMm + (CELL_WIDTH_MM - QR_SIZE_MM) / 2;
     const qrTopMm = cellTopMm + QR_TOP_MM;
     // Stickers touch, so neighbors share a single cutting line: each sticker
-    // draws its right and bottom edges, and the first column and row also
-    // draw their left and top edges.
+    // draws its right and bottom edges, and the first column and the top row
+    // of a block also draw their left and top edges.
     const left = cellLeftMm * MM;
     const right = (cellLeftMm + CELL_WIDTH_MM) * MM;
     const top = (PAGE_HEIGHT_MM - cellTopMm) * MM;
@@ -123,7 +148,7 @@ function stickerOps(entry: QrStickerEntry, slot: number): string {
         `${num(right)} ${num(top)} m ${num(right)} ${num(bottom)} l`,
         `${num(left)} ${num(bottom)} m ${num(right)} ${num(bottom)} l`,
         ...(column === 0 ? [`${num(left)} ${num(top)} m ${num(left)} ${num(bottom)} l`] : []),
-        ...(row === 0 ? [`${num(left)} ${num(top)} m ${num(right)} ${num(top)} l`] : []),
+        ...(topEdge ? [`${num(left)} ${num(top)} m ${num(right)} ${num(top)} l`] : []),
     ];
     let ops = `0.8 G 0.25 w ${edges.join(' ')} S\n`;
     ops += '0 g\n';
@@ -145,9 +170,48 @@ function stickerOps(entry: QrStickerEntry, slot: number): string {
     return ops;
 }
 
+// Fills pages row by row. A new group starts on a fresh row under its heading,
+// without a page break, so the paper is used fully; the heading always stays
+// on the same page as the first row of its stickers.
+function layoutPages(entries: QrStickerEntry[]): string[] {
+    const pages: string[] = [];
+    const bottomMm = PAGE_HEIGHT_MM - PAGE_MARGIN_MM;
+    let y = PAGE_MARGIN_MM;
+    let column = 0;
+    let topEdge = true;
+    entries.forEach((entry, index) => {
+        const newGroup = entry.group !== undefined && entry.group !== entries[index - 1]?.group;
+        if (newGroup && column > 0) {
+            y += CELL_HEIGHT_MM;
+            column = 0;
+        }
+        if (column === 0) {
+            topEdge = false;
+            const needMm = (newGroup ? HEADING_HEIGHT_MM : 0) + CELL_HEIGHT_MM;
+            if (!pages.length || y + needMm > bottomMm + 0.001) {
+                pages.push('');
+                y = PAGE_MARGIN_MM;
+                topEdge = true;
+            }
+            if (newGroup) {
+                pages[pages.length - 1] += headingOps(entry.group as string, y);
+                y += HEADING_HEIGHT_MM;
+                topEdge = true;
+            }
+        }
+        pages[pages.length - 1] += stickerOps(entry, column, y, topEdge);
+        if (++column === COLUMNS) {
+            column = 0;
+            y += CELL_HEIGHT_MM;
+        }
+    });
+    return pages;
+}
+
 export function buildQrStickerPdf(entries: QrStickerEntry[]): Uint8Array<ArrayBuffer> {
     if (!entries.length) throw new Error('There are no QR codes to export.');
-    const pageCount = Math.ceil(entries.length / STICKERS_PER_PAGE);
+    const streams = layoutPages(entries);
+    const pageCount = streams.length;
     const firstPageObject = 4;
     const objects = [
         '<< /Type /Catalog /Pages 2 0 R >>',
@@ -155,10 +219,7 @@ export function buildQrStickerPdf(entries: QrStickerEntry[]): Uint8Array<ArrayBu
         '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
     ];
     for (let page = 0; page < pageCount; page++) {
-        const stream = entries
-            .slice(page * STICKERS_PER_PAGE, (page + 1) * STICKERS_PER_PAGE)
-            .map((entry, slot) => stickerOps(entry, slot))
-            .join('');
+        const stream = streams[page];
         objects.push(
             `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(PAGE_WIDTH_MM * MM)} ${num(PAGE_HEIGHT_MM * MM)}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${firstPageObject + page * 2 + 1} 0 R >>`,
             `<< /Length ${stream.length} >>\nstream\n${stream}endstream`,
@@ -177,21 +238,53 @@ export function buildQrStickerPdf(entries: QrStickerEntry[]): Uint8Array<ArrayBu
     return new TextEncoder().encode(pdf);
 }
 
-// One sticker per labeled item, in ascending code order (type number, then
-// label number), captioned with the type name; the unlabeled inventory type
-// QR codes are left out on purpose.
+export type LabelLocation = { key: string; title: string; labelCount: number };
+
+// The locations that have at least one labeled item, in the same order as the
+// "Group by location" view. The key is the trimmed location ('' for types
+// without one), which is what inventoryLabelStickerEntries filters on.
+export function inventoryLabelLocations(types: InventoryTypeDTO[]): LabelLocation[] {
+    return groupInventoryTypes(types, 'location')
+        .map((group) => ({
+            key: group.key,
+            title: group.title,
+            labelCount: group.rows.reduce((sum, type) => sum + (type.labels || []).length, 0),
+        }))
+        .filter((location) => location.labelCount > 0);
+}
+
+// One sticker per labeled item, captioned with the type name; the unlabeled
+// inventory type QR codes are left out on purpose. Stickers are grouped by
+// location (headed with its name, in the "Group by location" order) and sorted
+// by code (type number, then label number) inside each. When every type lacks
+// a location there is nothing to head, so no groups are made. When
+// locationKeys is given, only types in those locations are included.
 export function inventoryLabelStickerEntries(
     types: InventoryTypeDTO[],
     createModules: (text: string) => QrModules,
+    locationKeys?: string[],
 ): QrStickerEntry[] {
-    return [...types]
-        .sort((a, b) => a.DisplayId - b.DisplayId)
-        .flatMap((type) =>
-            [...(type.labels || [])]
-                .sort((a, b) => a.DisplayId - b.DisplayId)
-                .map((label) => {
-                    const code = inventoryQrValue(type, label);
-                    return { modules: createModules(code), code, name: type.Name };
-                }),
-        );
+    const wanted = locationKeys && new Set(locationKeys);
+    const groups = groupInventoryTypes(
+        types.filter((type) => !wanted || wanted.has(String(type.Location || '').trim())),
+        'location',
+    );
+    const showGroups = groups.some((group) => group.key);
+    return groups.flatMap((group) =>
+        [...group.rows]
+            .sort((a, b) => a.DisplayId - b.DisplayId)
+            .flatMap((type) =>
+                [...(type.labels || [])]
+                    .sort((a, b) => a.DisplayId - b.DisplayId)
+                    .map((label) => {
+                        const code = inventoryQrValue(type, label);
+                        return {
+                            modules: createModules(code),
+                            code,
+                            name: type.Name,
+                            ...(showGroups ? { group: group.title } : {}),
+                        };
+                    }),
+            ),
+    );
 }

@@ -8,6 +8,7 @@ import {
     Form,
     Input,
     Modal,
+    Popover,
     Select,
     Space,
     Table,
@@ -53,7 +54,11 @@ import {
     inventoryTypeQrFilename,
     type InventoryGroupBy,
 } from '../ui/inventory-qr';
-import { buildQrStickerPdf, inventoryLabelStickerEntries } from '../ui/inventory-qr-pdf';
+import {
+    buildQrStickerPdf,
+    inventoryLabelLocations,
+    inventoryLabelStickerEntries,
+} from '../ui/inventory-qr-pdf';
 import { TableView } from '../ui/table-view';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { prepareInventoryImage } from '../ui/inventory-image';
@@ -523,6 +528,8 @@ export function SettingsResourcePage({
     const [labelBusy, setLabelBusy] = useState(false);
     const [historyLabel, setHistoryLabel] = useState<InventoryLabel | null>(null);
     const [qrPdfBusy, setQrPdfBusy] = useState(false);
+    const [qrPdfOpen, setQrPdfOpen] = useState(false);
+    const [qrPdfLocations, setQrPdfLocations] = useState<string[]>([]);
     const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>('brand');
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
@@ -689,6 +696,14 @@ export function SettingsResourcePage({
             showErrorAlert(error);
         }
     }
+    const labelLocations =
+        config.kind === 'inventory-type' ? inventoryLabelLocations(rows as InventoryTypeDTO[]) : [];
+    function toggleQrPdfOpen(open: boolean) {
+        // Every location starts ticked, so a plain click on Download still
+        // exports everything.
+        if (open) setQrPdfLocations(labelLocations.map((location) => location.key));
+        setQrPdfOpen(open);
+    }
     async function downloadLabelQrPdf() {
         setQrPdfBusy(true);
         try {
@@ -696,6 +711,7 @@ export function SettingsResourcePage({
             const entries = inventoryLabelStickerEntries(
                 rows as InventoryTypeDTO[],
                 (text) => QRCode.create(text, { errorCorrectionLevel: 'Q' }).modules,
+                qrPdfLocations,
             );
             const url = URL.createObjectURL(
                 new Blob([buildQrStickerPdf(entries)], { type: 'application/pdf' }),
@@ -707,6 +723,7 @@ export function SettingsResourcePage({
             link.click();
             link.remove();
             URL.revokeObjectURL(url);
+            setQrPdfOpen(false);
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -1010,15 +1027,63 @@ export function SettingsResourcePage({
                 />
             </Space>
             {config.kind === 'inventory-type' && (
-                <Button
-                    type="primary"
-                    icon={<FilePdfOutlined />}
-                    loading={qrPdfBusy}
-                    disabled={!rows.some((row) => (row.labels || []).length)}
-                    onClick={() => void downloadLabelQrPdf()}
-                    aria-label="Download label QR codes PDF"
-                    title="Download label QR codes PDF"
-                />
+                <Popover
+                    trigger="click"
+                    placement="bottomRight"
+                    open={qrPdfOpen}
+                    onOpenChange={toggleQrPdfOpen}
+                    title="Label QR codes PDF"
+                    content={
+                        <Space direction="vertical">
+                            <Checkbox
+                                checked={qrPdfLocations.length === labelLocations.length}
+                                indeterminate={
+                                    qrPdfLocations.length > 0 &&
+                                    qrPdfLocations.length < labelLocations.length
+                                }
+                                onChange={(event) =>
+                                    setQrPdfLocations(
+                                        event.target.checked
+                                            ? labelLocations.map((location) => location.key)
+                                            : [],
+                                    )
+                                }>
+                                All locations
+                            </Checkbox>
+                            {labelLocations.map((location) => (
+                                <Checkbox
+                                    key={location.key}
+                                    checked={qrPdfLocations.includes(location.key)}
+                                    onChange={(event) =>
+                                        setQrPdfLocations(
+                                            event.target.checked
+                                                ? [...qrPdfLocations, location.key]
+                                                : qrPdfLocations.filter(
+                                                      (key) => key !== location.key,
+                                                  ),
+                                        )
+                                    }>
+                                    {location.title} ({location.labelCount})
+                                </Checkbox>
+                            ))}
+                            <Button
+                                type="primary"
+                                icon={<FilePdfOutlined />}
+                                loading={qrPdfBusy}
+                                disabled={!qrPdfLocations.length}
+                                onClick={() => void downloadLabelQrPdf()}>
+                                Download PDF
+                            </Button>
+                        </Space>
+                    }>
+                    <Button
+                        type="primary"
+                        icon={<FilePdfOutlined />}
+                        disabled={!labelLocations.length}
+                        aria-label="Download label QR codes PDF"
+                        title="Download label QR codes PDF"
+                    />
+                </Popover>
             )}
             {canEdit && (
                 <Button
