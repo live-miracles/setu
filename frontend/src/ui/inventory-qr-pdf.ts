@@ -1,4 +1,4 @@
-import { groupInventoryTypes, inventoryQrValue } from './inventory-qr';
+import { groupInventoryTypes, inventoryLabelLocationKey, inventoryQrValue } from './inventory-qr';
 
 // Builds a printable A4 sheet of small QR stickers as a PDF. QR codes are drawn
 // as vector squares (no images, no PDF library), so they stay sharp at the
@@ -248,33 +248,42 @@ export function inventoryLabelLocations(types: InventoryTypeDTO[]): LabelLocatio
         .map((group) => ({
             key: group.key,
             title: group.title,
-            labelCount: group.rows.reduce((sum, type) => sum + (type.labels || []).length, 0),
+            labelCount: group.rows.reduce((sum, type) => sum + labelsAt(type, group.key).length, 0),
         }))
         .filter((location) => location.labelCount > 0);
+}
+
+// A type's labels that sit in one location, by the label's own location
+// ("serial | Studio 2") or else the type's Location.
+function labelsAt(type: InventoryTypeDTO, locationKey: string) {
+    return (type.labels || []).filter(
+        (label) => inventoryLabelLocationKey(type, label) === locationKey,
+    );
 }
 
 // One sticker per labeled item, captioned with the type name; the unlabeled
 // inventory type QR codes are left out on purpose. Stickers are grouped by
 // location (headed with its name, in the "Group by location" order) and sorted
-// by code (type number, then label number) inside each. When every type lacks
-// a location there is nothing to head, so no groups are made. When
-// locationKeys is given, only types in those locations are included.
+// by code (type number, then label number) inside each. A label belongs to the
+// location in its name, else to its type's Location, so each label prints
+// once. When every type lacks a location there is nothing to head, so no
+// groups are made. When locationKeys is given, only those locations are
+// included.
 export function inventoryLabelStickerEntries(
     types: InventoryTypeDTO[],
     createModules: (text: string) => QrModules,
     locationKeys?: string[],
 ): QrStickerEntry[] {
     const wanted = locationKeys && new Set(locationKeys);
-    const groups = groupInventoryTypes(
-        types.filter((type) => !wanted || wanted.has(String(type.Location || '').trim())),
-        'location',
+    const groups = groupInventoryTypes(types, 'location').filter(
+        (group) => !wanted || wanted.has(group.key),
     );
     const showGroups = groups.some((group) => group.key);
     return groups.flatMap((group) =>
         [...group.rows]
             .sort((a, b) => a.DisplayId - b.DisplayId)
             .flatMap((type) =>
-                [...(type.labels || [])]
+                labelsAt(type, group.key)
                     .sort((a, b) => a.DisplayId - b.DisplayId)
                     .map((label) => {
                         const code = inventoryQrValue(type, label);

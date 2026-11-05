@@ -108,6 +108,46 @@ export function runInventoryQrPdfAssertions(): void {
     assert(codesFor(['']) === '4-1', 'an empty key should select types without a location');
     assert(codesFor([]) === '', 'an empty selection should include nothing');
 
+    const studios = [
+        {
+            Id: 'cam',
+            DisplayId: 7,
+            Name: 'Camera',
+            Location: 'Studio 1-12',
+            labels: [
+                { DisplayId: 2, Name: 'SN-2 | Studio 2' },
+                { DisplayId: 1, Name: 'SN-1 | Studio 1' },
+                { DisplayId: 3, Name: '1 | Studio 2' },
+                { DisplayId: 4, Name: 'Spare' },
+            ],
+        },
+        {
+            Id: 'kvm',
+            DisplayId: 3,
+            Name: 'KVM',
+            Location: 'Studio 1-12',
+            labels: [{ DisplayId: 1, Name: 'A1 | Backup | Studio 2' }],
+        },
+    ] as unknown as InventoryTypeDTO[];
+    assert(
+        inventoryLabelLocations(studios)
+            .map((location) => `${location.title}:${location.labelCount}`)
+            .join(',') === 'Studio 1:1,Studio 1-12:1,Studio 2:3',
+        'label locations should be counted per label, not per type',
+    );
+    const studioEntries = inventoryLabelStickerEntries(studios, () => checkerboard);
+    assert(
+        studioEntries.map((entry) => `${entry.group}:${entry.code}`).join(',') ===
+            'Studio 1:7-1,Studio 1-12:7-4,Studio 2:3-1,Studio 2:7-2,Studio 2:7-3',
+        'each label should print once, under the location in its name',
+    );
+    assert(
+        inventoryLabelStickerEntries(studios, () => checkerboard, ['Studio 2'])
+            .map((entry) => entry.code)
+            .join(',') === '3-1,7-2,7-3',
+        'choosing a studio should print only the labels in that studio',
+    );
+
     const sticker = (code: string, group?: string): QrStickerEntry => ({
         modules: checkerboard,
         code,
