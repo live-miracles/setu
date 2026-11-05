@@ -158,6 +158,15 @@ export function inventoryLabelLocation(name: unknown): string {
     return parts.length > 1 ? parts[parts.length - 1].trim() : '';
 }
 
+// The location one labelled unit counts towards: the location in the label
+// name, else the type's own Location. Matches the keys of location groups.
+export function inventoryLabelLocationKey(
+    type: { Location?: unknown },
+    label: { Name?: unknown },
+): string {
+    return inventoryLabelLocation(label.Name) || String(type.Location || '').trim();
+}
+
 type GroupableInventoryType = {
     DisplayId?: unknown;
     Brand?: unknown;
@@ -177,7 +186,7 @@ export function inventoryTypeLocationCounts(row: GroupableInventoryType): Map<st
     };
     const fallback = String(row.Location || '').trim();
     const labels = row.labels || [];
-    labels.forEach((label) => add(inventoryLabelLocation(label.Name) || fallback, 1));
+    labels.forEach((label) => add(inventoryLabelLocationKey(row, label), 1));
     const total = row.TotalQuantity == null ? null : Number(row.TotalQuantity);
     if (total != null && Number.isFinite(total)) add(fallback, total - labels.length);
     if (counts.size === 0) counts.set(fallback, 0);

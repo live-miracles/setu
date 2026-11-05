@@ -1058,22 +1058,26 @@ export function SettingsResourcePage({
                                 }>
                                 All locations
                             </Checkbox>
-                            {labelLocations.map((location) => (
-                                <Checkbox
-                                    key={location.key}
-                                    checked={qrPdfLocations.includes(location.key)}
-                                    onChange={(event) =>
-                                        setQrPdfLocations(
-                                            event.target.checked
-                                                ? [...qrPdfLocations, location.key]
-                                                : qrPdfLocations.filter(
-                                                      (key) => key !== location.key,
-                                                  ),
-                                        )
-                                    }>
-                                    {location.title} ({location.labelCount})
-                                </Checkbox>
-                            ))}
+                            <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+                                <Space direction="vertical">
+                                    {labelLocations.map((location) => (
+                                        <Checkbox
+                                            key={location.key}
+                                            checked={qrPdfLocations.includes(location.key)}
+                                            onChange={(event) =>
+                                                setQrPdfLocations(
+                                                    event.target.checked
+                                                        ? [...qrPdfLocations, location.key]
+                                                        : qrPdfLocations.filter(
+                                                              (key) => key !== location.key,
+                                                          ),
+                                                )
+                                            }>
+                                            {location.title} ({location.labelCount})
+                                        </Checkbox>
+                                    ))}
+                                </Space>
+                            </div>
                             <Button
                                 type="primary"
                                 icon={<FilePdfOutlined />}
