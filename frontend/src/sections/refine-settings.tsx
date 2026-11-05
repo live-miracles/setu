@@ -920,7 +920,7 @@ export function SettingsResourcePage({
                         </Typography.Title>
                     </div>
                     <div className="inventory-type-grid">
-                        {group.rows.map((row) => (
+                        {group.rows.map((row, index) => (
                             <BlockCard
                                 key={row.Id}
                                 className="inventory-type-card"
@@ -928,11 +928,18 @@ export function SettingsResourcePage({
                                 onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                                 <div className="inventory-type-card-heading">
                                     <strong>
+                                        {inventoryGroupBy === 'serial' &&
+                                            `#${String(row.DisplayId)} `}
                                         {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
                                     </strong>
                                     {row.Location && inventoryGroupBy !== 'location' && (
                                         <span className="inventory-type-card-description">
                                             {String(row.Location)}
+                                        </span>
+                                    )}
+                                    {group.counts && (
+                                        <span className="inventory-type-card-description">
+                                            {group.counts[index]} here
                                         </span>
                                     )}
                                     {row.TotalQuantity != null && (
@@ -1002,6 +1009,7 @@ export function SettingsResourcePage({
                             { value: '', label: 'Group by', disabled: true },
                             { value: 'brand', label: 'Brand' },
                             { value: 'location', label: 'Location' },
+                            { value: 'serial', label: 'Serial (QR number)' },
                         ]}
                     />
                 )}

@@ -4,6 +4,7 @@ import {
     findInventoryTypeByQrValue,
     groupInventoryTypes,
     inventoryItemHasLabel,
+    inventoryLabelLocation,
     inventoryQrValue,
     inventoryTypeQrFilename,
     inventoryTypeQrLabel,
@@ -166,5 +167,67 @@ export function runInventoryQrAssertions(): void {
     assert(
         byLocation[0].rows.map((row) => row.Id).join(',') === '2,4',
         'types inside a location group should sort by display name',
+    );
+
+    const labelled = [
+        {
+            Id: 'cam',
+            Brand: 'Sony',
+            Name: 'Camera',
+            Location: 'Studio 1-12',
+            TotalQuantity: 4,
+            labels: [
+                { Name: 'SN-1 | Studio 2' },
+                { Name: '1 | Studio 10' },
+                { Name: '2 | Studio 10' },
+                { Name: 'Spare' },
+            ],
+        },
+        {
+            Id: 'mic',
+            Brand: 'Shure',
+            Name: 'Mic',
+            Location: 'Studio 2',
+            TotalQuantity: 1,
+            labels: [],
+        },
+    ];
+    assert(
+        inventoryLabelLocation('A1-001 | PG-1 | Studio 3 Backup') === 'Studio 3 Backup' &&
+            inventoryLabelLocation('Spare') === '',
+        'a label location should be the text after the last separator',
+    );
+    const byLabelLocation = groupInventoryTypes(labelled, 'location');
+    assert(
+        byLabelLocation.map((group) => group.title).join(',') === 'Studio 1-12,Studio 2,Studio 10',
+        'types should appear under every location their labels name',
+    );
+    const studio2 = byLabelLocation.find((group) => group.title === 'Studio 2');
+    assert(
+        studio2?.rows.map((row) => row.Id).join(',') === 'mic,cam' &&
+            studio2?.counts?.join(',') === '1,1',
+        'a location group should list each type once with its unit count there',
+    );
+    assert(
+        byLabelLocation.find((group) => group.title === 'Studio 10')?.counts?.join(',') === '2' &&
+            byLabelLocation.find((group) => group.title === 'Studio 1-12')?.counts?.join(',') ===
+                '1',
+        'unlabelled units and labels without a location should count at the type location',
+    );
+    assert(
+        groupInventoryTypes(labelled, 'brand').every((group) => group.counts === undefined),
+        'brand groups should not carry location counts',
+    );
+    const bySerial = groupInventoryTypes(
+        [
+            { Id: 'b', DisplayId: 10, Brand: 'Sony', Name: 'B' },
+            { Id: 'a', DisplayId: 2, Brand: 'Zeiss', Name: 'A' },
+            { Id: 'c', DisplayId: 1, Brand: '', Name: 'C' },
+        ],
+        'serial',
+    );
+    assert(
+        bySerial.length === 1 && bySerial[0].rows.map((row) => row.Id).join(',') === 'c,a,b',
+        'serial grouping should list every type once in QR number order',
     );
 }

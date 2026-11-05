@@ -140,29 +140,93 @@ export function sortInventoryLabels(labels: InventoryLabel[] = []): InventoryLab
     return [...labels].sort((a, b) => compareLabelNames(a.Name, b.Name));
 }
 
-export type InventoryGroupBy = 'brand' | 'location';
+export type InventoryGroupBy = 'brand' | 'location' | 'serial';
 
-export type InventoryGroup<T> = { key: string; title: string; rows: T[] };
+export type InventoryGroup<T> = {
+    key: string;
+    title: string;
+    rows: T[];
+    // Location grouping only: how many units of each row (same order as rows)
+    // sit in this location.
+    counts?: number[];
+};
+
+// Location written in a label name, by the "serial | location" convention:
+// the text after the last " | ". Labels without one have no location.
+export function inventoryLabelLocation(name: unknown): string {
+    const parts = String(name || '').split('|');
+    return parts.length > 1 ? parts[parts.length - 1].trim() : '';
+}
+
+type GroupableInventoryType = {
+    DisplayId?: unknown;
+    Brand?: unknown;
+    Name?: unknown;
+    Location?: unknown;
+    TotalQuantity?: unknown;
+    labels?: Array<{ Name?: unknown }>;
+};
+
+// Units per location for one type. Labels count towards the location in their
+// name; labels without one, and units beyond the labelled ones, count towards
+// the type's own Location field.
+export function inventoryTypeLocationCounts(row: GroupableInventoryType): Map<string, number> {
+    const counts = new Map<string, number>();
+    const add = (key: string, n: number) => {
+        if (n > 0) counts.set(key, (counts.get(key) || 0) + n);
+    };
+    const fallback = String(row.Location || '').trim();
+    const labels = row.labels || [];
+    labels.forEach((label) => add(inventoryLabelLocation(label.Name) || fallback, 1));
+    const total = row.TotalQuantity == null ? null : Number(row.TotalQuantity);
+    if (total != null && Number.isFinite(total)) add(fallback, total - labels.length);
+    if (counts.size === 0) counts.set(fallback, 0);
+    return counts;
+}
 
 // Groups inventory types by brand or location. Groups sort alphabetically
 // (numbers compared numerically), types inside a group by display name, and
 // types without a value land in a trailing "No brand" / "No location" group.
-export function groupInventoryTypes<
-    T extends { Brand?: unknown; Name?: unknown; Location?: unknown },
->(rows: T[], groupBy: InventoryGroupBy): InventoryGroup<T>[] {
-    const field = groupBy === 'brand' ? 'Brand' : 'Location';
-    const groups = new Map<string, T[]>();
+// By location, a type appears under every location its labels name. By serial,
+// all types form one list ordered by their QR number (DisplayId).
+export function groupInventoryTypes<T extends GroupableInventoryType>(
+    rows: T[],
+    groupBy: InventoryGroupBy,
+): InventoryGroup<T>[] {
+    if (groupBy === 'serial') {
+        const serial = (row: T) => {
+            const value = Number(row.DisplayId);
+            return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+        };
+        return [
+            {
+                key: 'serial',
+                title: 'All by QR number',
+                rows: [...rows].sort((a, b) => serial(a) - serial(b)),
+            },
+        ];
+    }
+    const groups = new Map<string, Array<{ row: T; count: number }>>();
     rows.forEach((row) => {
-        const key = String(row[field] || '').trim();
-        groups.set(key, [...(groups.get(key) || []), row]);
+        const entries =
+            groupBy === 'brand'
+                ? new Map([[String(row.Brand || '').trim(), 0]])
+                : inventoryTypeLocationCounts(row);
+        entries.forEach((count, key) => {
+            groups.set(key, [...(groups.get(key) || []), { row, count }]);
+        });
     });
     return [...groups.entries()]
         .sort(([a], [b]) => (a && b ? compareLabelNames(a, b) : a ? -1 : b ? 1 : 0))
-        .map(([key, groupRows]) => ({
-            key,
-            title: key || (groupBy === 'brand' ? 'No brand' : 'No location'),
-            rows: [...groupRows].sort((a, b) =>
-                compareLabelNames(inventoryTypeDisplayName(a), inventoryTypeDisplayName(b)),
-            ),
-        }));
+        .map(([key, entries]) => {
+            const sorted = [...entries].sort((a, b) =>
+                compareLabelNames(inventoryTypeDisplayName(a.row), inventoryTypeDisplayName(b.row)),
+            );
+            return {
+                key,
+                title: key || (groupBy === 'brand' ? 'No brand' : 'No location'),
+                rows: sorted.map((entry) => entry.row),
+                ...(groupBy === 'location' ? { counts: sorted.map((entry) => entry.count) } : {}),
+            };
+        });
 }
