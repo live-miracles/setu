@@ -13,6 +13,10 @@ export type QrStickerEntry = {
     // The inventory type name, printed small above the QR code and cut off
     // where it no longer fits the sticker width.
     name?: string;
+    // Where the item belongs, printed under the code in a short form (e.g.
+    // "Big PCR Cupboard 3" -> "BPCR C3") so a cut-out sticker still says where
+    // the item goes. Set only for Small and Big PCR locations.
+    location?: string;
     // Entries of one group must be consecutive. Each group starts on a new
     // sticker row under a heading with this title, e.g. the location.
     group?: string;
@@ -27,18 +31,24 @@ const QR_SIZE_MM = 12.6;
 const CELL_WIDTH_MM = 16.5;
 // Cap height of Helvetica is about 0.72 of the font size.
 const CAP_HEIGHT = 0.72;
-const NAME_SIZE = 5.5;
+// The type name, the code and the location all print in the same font size.
+const TEXT_SIZE = 7;
+const NAME_SIZE = TEXT_SIZE;
 const NAME_TOP_MM = 1;
 const NAME_BASELINE_MM = NAME_TOP_MM + NAME_SIZE * CAP_HEIGHT * PT_TO_MM;
 // Space between the type name and the QR code, and above the QR code when
 // there is no name, kept inside the sticker so it still scans after cutting
 // along the outline.
 const QR_TOP_MM = NAME_BASELINE_MM + 1.5;
-const CAPTION_SIZE = 9;
+const CAPTION_SIZE = TEXT_SIZE;
 const CAPTION_GAP_MM = 1.2;
 const CAPTION_BASELINE_MM =
     QR_TOP_MM + QR_SIZE_MM + CAPTION_GAP_MM + CAPTION_SIZE * CAP_HEIGHT * PT_TO_MM;
+const LOCATION_SIZE = TEXT_SIZE;
+const LOCATION_BASELINE_MM = CAPTION_BASELINE_MM + 1 + LOCATION_SIZE * CAP_HEIGHT * PT_TO_MM;
 const CELL_HEIGHT_MM = CAPTION_BASELINE_MM + 1.2;
+// Stickers get the location line only when a sheet prints locations.
+const LOCATED_CELL_HEIGHT_MM = LOCATION_BASELINE_MM + 1.2;
 const HEADING_SIZE = 10;
 const HEADING_BASELINE_MM = 1.5 + HEADING_SIZE * CAP_HEIGHT * PT_TO_MM;
 const HEADING_HEIGHT_MM = HEADING_BASELINE_MM + 2;
@@ -74,8 +84,9 @@ function codeOps(code: string, cellLeftMm: number, baselineMm: number): string {
     const text = code.replace(/[^0-9A-Za-z-]/g, '');
     if (!text) return '';
     const size = Math.min(CAPTION_SIZE, ((CELL_WIDTH_MM - 2) * MM) / (text.length * CHAR_WIDTH));
-    const textWidth = text.length * size * CHAR_WIDTH;
-    const x = cellLeftMm * MM + (CELL_WIDTH_MM * MM - textWidth) / 2;
+    // Centre on the real glyph widths so the code lines up with the name and
+    // location printed above and below it.
+    const x = cellLeftMm * MM + (CELL_WIDTH_MM * MM - textWidth(text, size)) / 2;
     const y = (PAGE_HEIGHT_MM - baselineMm) * MM;
     return `BT /F1 ${num(size)} Tf ${num(x)} ${num(y)} Td (${text}) Tj ET\n`;
 }
@@ -115,6 +126,38 @@ function nameOps(name: string, cellLeftMm: number, baselineMm: number): string {
     return `BT /F1 ${num(NAME_SIZE)} Tf ${num(x)} ${num(y)} Td (${escapePdfText(text)}) Tj ET\n`;
 }
 
+// Small and Big PCR rooms (their cupboards and desks): the only locations
+// printed on stickers.
+export function isPcrLocation(location: string): boolean {
+    return /\b(Big PCR|Small PCR|BPCR|SPCR)\b/i.test(location);
+}
+
+// Short form of a location for the sticker, e.g. "Big PCR Cupboard TOP 2" ->
+// "BPCR Top2", "Studio 11 stock area" -> "S11 Stock".
+export function stickerLocationShortName(location: string): string {
+    return location
+        .replace(/^Drishti\s+/i, '')
+        .replace(/\bBig PCR\b/gi, 'BPCR')
+        .replace(/\bCupboard\s+TOP\s+(\d+)/gi, 'Top$1')
+        .replace(/\bCupboard\s+(\d+)/gi, 'C$1')
+        .replace(/\bStudio\s+(\d+)/gi, 'S$1')
+        .replace(/\bstock area\b/gi, 'Stock')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function locationOps(location: string, cellLeftMm: number, baselineMm: number): string {
+    const text = fitText(
+        stickerLocationShortName(location),
+        LOCATION_SIZE,
+        (CELL_WIDTH_MM - 2) * MM,
+    );
+    if (!text) return '';
+    const x = cellLeftMm * MM + (CELL_WIDTH_MM * MM - textWidth(text, LOCATION_SIZE)) / 2;
+    const y = (PAGE_HEIGHT_MM - baselineMm) * MM;
+    return `BT /F1 ${num(LOCATION_SIZE)} Tf ${num(x)} ${num(y)} Td (${escapePdfText(text)}) Tj ET\n`;
+}
+
 // A group title on its own row, left-aligned with the sticker grid.
 function headingOps(title: string, topMm: number): string {
     const text = fitText(title, HEADING_SIZE, COLUMNS * CELL_WIDTH_MM * MM);
@@ -131,6 +174,7 @@ function stickerOps(
     column: number,
     cellTopMm: number,
     topEdge: boolean,
+    cellHeightMm: number,
 ): string {
     const cellLeftMm = GRID_LEFT_MM + column * CELL_WIDTH_MM;
     const { modules } = entry;
@@ -143,7 +187,7 @@ function stickerOps(
     const left = cellLeftMm * MM;
     const right = (cellLeftMm + CELL_WIDTH_MM) * MM;
     const top = (PAGE_HEIGHT_MM - cellTopMm) * MM;
-    const bottom = (PAGE_HEIGHT_MM - cellTopMm - CELL_HEIGHT_MM) * MM;
+    const bottom = (PAGE_HEIGHT_MM - cellTopMm - cellHeightMm) * MM;
     const edges = [
         `${num(right)} ${num(top)} m ${num(right)} ${num(bottom)} l`,
         `${num(left)} ${num(bottom)} m ${num(right)} ${num(bottom)} l`,
@@ -167,6 +211,8 @@ function stickerOps(
     ops += 'f\n';
     if (entry.name) ops += nameOps(entry.name, cellLeftMm, cellTopMm + NAME_BASELINE_MM);
     ops += codeOps(entry.code, cellLeftMm, cellTopMm + CAPTION_BASELINE_MM);
+    if (entry.location)
+        ops += locationOps(entry.location, cellLeftMm, cellTopMm + LOCATION_BASELINE_MM);
     return ops;
 }
 
@@ -174,6 +220,9 @@ function stickerOps(
 // without a page break, so the paper is used fully; the heading always stays
 // on the same page as the first row of its stickers.
 function layoutPages(entries: QrStickerEntry[]): string[] {
+    const cellHeightMm = entries.some((entry) => entry.location)
+        ? LOCATED_CELL_HEIGHT_MM
+        : CELL_HEIGHT_MM;
     const pages: string[] = [];
     const bottomMm = PAGE_HEIGHT_MM - PAGE_MARGIN_MM;
     let y = PAGE_MARGIN_MM;
@@ -182,12 +231,12 @@ function layoutPages(entries: QrStickerEntry[]): string[] {
     entries.forEach((entry, index) => {
         const newGroup = entry.group !== undefined && entry.group !== entries[index - 1]?.group;
         if (newGroup && column > 0) {
-            y += CELL_HEIGHT_MM;
+            y += cellHeightMm;
             column = 0;
         }
         if (column === 0) {
             topEdge = false;
-            const needMm = (newGroup ? HEADING_HEIGHT_MM : 0) + CELL_HEIGHT_MM;
+            const needMm = (newGroup ? HEADING_HEIGHT_MM : 0) + cellHeightMm;
             if (!pages.length || y + needMm > bottomMm + 0.001) {
                 pages.push('');
                 y = PAGE_MARGIN_MM;
@@ -199,10 +248,10 @@ function layoutPages(entries: QrStickerEntry[]): string[] {
                 topEdge = true;
             }
         }
-        pages[pages.length - 1] += stickerOps(entry, column, y, topEdge);
+        pages[pages.length - 1] += stickerOps(entry, column, y, topEdge, cellHeightMm);
         if (++column === COLUMNS) {
             column = 0;
-            y += CELL_HEIGHT_MM;
+            y += cellHeightMm;
         }
     });
     return pages;
@@ -291,6 +340,7 @@ export function inventoryLabelStickerEntries(
                             modules: createModules(code),
                             code,
                             name: type.Name,
+                            ...(isPcrLocation(group.key) ? { location: group.key } : {}),
                             ...(showGroups ? { group: group.title } : {}),
                         };
                     }),
