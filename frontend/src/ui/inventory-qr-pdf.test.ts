@@ -4,6 +4,8 @@ import {
     buildQrStickerPdf,
     inventoryLabelLocations,
     inventoryLabelStickerEntries,
+    isPcrLocation,
+    stickerLocationShortName,
     type QrModules,
     type QrStickerEntry,
 } from './inventory-qr-pdf';
@@ -107,6 +109,54 @@ export function runInventoryQrPdfAssertions(): void {
     );
     assert(codesFor(['']) === '4-1', 'an empty key should select types without a location');
     assert(codesFor([]) === '', 'an empty selection should include nothing');
+    assert(
+        locatedEntries(['Studio']).every((entry) => entry.location === undefined),
+        'stickers outside the PCR rooms should not print a location',
+    );
+    const pcrEntries = inventoryLabelStickerEntries(
+        [
+            {
+                Id: 'p1',
+                DisplayId: 9,
+                Name: 'Mouse',
+                Location: 'Big PCR Cupboard 3',
+                labels: [{ DisplayId: 1, Name: '1 | Big PCR Cupboard 3' }],
+            },
+            {
+                Id: 'p2',
+                DisplayId: 8,
+                Name: 'Cable',
+                Location: 'SPCR Cupboard 9',
+                labels: [{ DisplayId: 1 }],
+            },
+        ] as unknown as InventoryTypeDTO[],
+        () => checkerboard,
+    );
+    assert(
+        pcrEntries.map((entry) => entry.location).join(',') ===
+            'Big PCR Cupboard 3,SPCR Cupboard 9',
+        'Small and Big PCR stickers should carry their location',
+    );
+    assert(
+        isPcrLocation('BPCR 3') && isPcrLocation('Small PCR') && !isPcrLocation('Studio 2'),
+        'only Small and Big PCR locations should count as PCR',
+    );
+    assert(
+        [
+            'Big PCR Cupboard 3',
+            'Big PCR Cupboard TOP 2',
+            'Studio 11 stock area',
+            'Drishti Studio 12',
+            'SPCR Cupboard 9',
+        ]
+            .map(stickerLocationShortName)
+            .join(',') === 'BPCR C3,BPCR Top2,S11 Stock,S12,SPCR C9',
+        'locations should print in a short form',
+    );
+    const withLocation = new TextDecoder().decode(
+        buildQrStickerPdf([{ modules: checkerboard, code: '1-1', location: 'Big PCR Cupboard 3' }]),
+    );
+    assert(withLocation.includes('(BPCR C3) Tj'), 'the short location should print on the sticker');
 
     const studios = [
         {
@@ -177,12 +227,25 @@ export function runInventoryQrPdfAssertions(): void {
     );
     const filled = (rows: number, group: string, code: string) =>
         Array.from({ length: rows * STICKER_COLUMNS }, () => sticker(code, group));
+    const rowsPerPage = STICKERS_PER_PAGE / STICKER_COLUMNS;
     assert(
-        pageCount([...filled(11, 'A', '1'), sticker('2', 'B')]) === 1,
+        pageCount([...filled(rowsPerPage - 2, 'A', '1'), sticker('2', 'B')]) === 1,
         'a heading and its first row should fit in the space left on the page',
     );
+    // The most rows of one group that still fit on a single page.
+    let fullRows = rowsPerPage;
+    while (pageCount(filled(fullRows, 'A', '1')) > 1) fullRows--;
+    const overflowText = new TextDecoder().decode(
+        buildQrStickerPdf([...filled(fullRows, 'A', '1'), sticker('2', 'B')]),
+    );
+    const secondPageAt = overflowText.indexOf(
+        '/Type /Page /Parent',
+        overflowText.indexOf('/Type /Page /Parent') + 1,
+    );
     assert(
-        pageCount([...filled(12, 'A', '1'), sticker('2', 'B')]) === 2,
+        /\/Count 2 /.test(overflowText) &&
+            secondPageAt > 0 &&
+            overflowText.indexOf('(B) Tj') > secondPageAt,
         'a heading should move to the next page together with its first row, never alone',
     );
 
@@ -199,8 +262,8 @@ export function runInventoryQrPdfAssertions(): void {
     assert(
         printedNames('Camera').length === 1 &&
             printedNames('Camera')[0].text === 'Camera' &&
-            printedNames('Camera')[0].size < 9,
-        'the type name should print above the QR code in a smaller font than the code',
+            printedNames('Camera')[0].size === 7,
+        'the type name should print above the QR code in the same size as the code',
     );
     const longName = 'Professional broadcast camera kit';
     const cutLong = printedNames(longName)[0].text;
@@ -231,8 +294,8 @@ export function runInventoryQrPdfAssertions(): void {
                 new TextDecoder().decode(buildQrStickerPdf([{ ...entries[0], code }])),
             )?.[1],
         );
-    assert(fontSize('34-1') === 9, 'short codes should print at the full caption size');
-    assert(fontSize('1234-5678') < 9, 'long codes should shrink to fit inside the sticker');
+    assert(fontSize('34-1') === 7, 'short codes should print at the full caption size');
+    assert(fontSize('12345-67890') < 7, 'long codes should shrink to fit inside the sticker');
     const startxref = Number(/startxref\n(\d+)\n/.exec(text)?.[1]);
     assert(text.slice(startxref, startxref + 4) === 'xref', 'startxref should point at xref');
     const offsets = [...text.slice(startxref).matchAll(/(\d{10}) 00000 n /g)].map((match) =>
