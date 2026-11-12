@@ -96,6 +96,40 @@ for (const kind of ['Inventory', 'Program']) {
         );
     });
 
+    test(`${kind}: unapprove and reopen are approver-only and status-specific`, () => {
+        const request = {
+            UserId: 'owner@example.com',
+            participants: ['guest@example.com'],
+        };
+        const allowed = { unapprove: 'approved', reopen: 'cancelled' };
+        const statuses = [
+            'draft',
+            'submitted',
+            'approved',
+            'rejected',
+            'cancelled',
+            ...(kind === 'Inventory' ? ['issued', 'closed'] : []),
+        ];
+        for (const [action, validStatus] of Object.entries(allowed)) {
+            for (const status of statuses) {
+                assert.equal(transition(status, action), status === validStatus);
+                for (const role of ['user', 'viewer', 'approver', 'admin']) {
+                    // Owners and participants get no access to reverse a decision.
+                    for (const email of ['owner@example.com', 'guest@example.com']) {
+                        assert.equal(
+                            actions(
+                                { ...request, Status: status },
+                                { Role: role, Email: email },
+                            ).includes(action),
+                            status === validStatus && (role === 'approver' || role === 'admin'),
+                            `${action} for ${role} on ${status}`,
+                        );
+                    }
+                }
+            }
+        }
+    });
+
     test(`${kind}: authenticated actor, RPC errors, and retry deduplication`, async () => {
         const ledger = new Map();
         const actor = { id: 'authenticated-actor', role: 'user' };

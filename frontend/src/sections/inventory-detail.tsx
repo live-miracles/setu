@@ -913,11 +913,6 @@ export function InventoryDetail({
             {pendingAction && (
                 <ActionConfirmation
                     action={pendingAction}
-                    description={
-                        pendingAction === 'revise'
-                            ? 'Return this rejected request to draft? Its details and activity will be kept. You must submit it again for approval after making changes.'
-                            : undefined
-                    }
                     onCancel={() => setPendingAction(null)}
                     onConfirm={async () => {
                         setPendingAction(null);

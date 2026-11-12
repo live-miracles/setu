@@ -170,6 +170,31 @@ export function runProgramActionAssertions(): void {
     );
 
     assert(
+        getProgramRequestActions({ ...source, Status: 'approved' }, user('approver')).join(',') ===
+            'cancel,unapprove',
+        'approvers should be able to withdraw an approval',
+    );
+    assert(
+        getProgramRequestActions({ ...source, Status: 'cancelled' }, user('admin')).join(',') ===
+            'reopen',
+        'admins should be able to reopen a cancelled program',
+    );
+    for (const status of ['approved', 'cancelled'] as const) {
+        assert(
+            getProgramRequestActions(
+                { ...source, Status: status },
+                user('user', 'owner@example.com'),
+            ).join(',') === '',
+            `requesters should not reverse ${status} programs`,
+        );
+        assert(
+            getProgramRequestActions({ ...source, Status: status }, user('viewer')).join(',') ===
+                '',
+            `viewers should not reverse ${status} programs`,
+        );
+    }
+
+    assert(
         getLocalDateFromSession(source.sessions[0].StartDateTime) === '2026-08-10',
         'first session date should use the local calendar date',
     );

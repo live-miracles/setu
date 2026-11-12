@@ -50,7 +50,15 @@ export function getProgramRequestActions(
     if (!canWrite(me)) return [];
     if (canApprove(me)) {
         return (
-            ['submit', 'approve', 'reject', 'cancel', 'revise'] as ProgramRequestAction[]
+            [
+                'submit',
+                'approve',
+                'reject',
+                'cancel',
+                'revise',
+                'unapprove',
+                'reopen',
+            ] as ProgramRequestAction[]
         ).filter((action) => canTransitionProgramRequest(request.Status, action));
     }
     const email = me.Email.trim().toLowerCase();

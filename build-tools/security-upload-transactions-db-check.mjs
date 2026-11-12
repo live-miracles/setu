@@ -78,6 +78,17 @@ try {
         ),
     );
 
+    // The latest definition of the action functions adds unapprove and reopen.
+    await db.exec(
+        await readFile(
+            new URL(
+                '../supabase/migrations/20261112010000_reopen_and_unapprove_requests.sql',
+                import.meta.url,
+            ),
+            'utf8',
+        ),
+    );
+
     const bucket = (
         await db.query(
             "select file_size_limit, allowed_mime_types from storage.buckets where id = 'request-images'",
@@ -198,6 +209,66 @@ try {
         ).rows[0].count,
         1,
     );
+
+    // Unapprove and reopen: approver-only, valid from one status each, audited.
+    const statusOf = async (table, id) =>
+        (await db.query(`select status from ${table} where id = $1`, [id])).rows[0].status;
+    const commentCount = async (column, id) =>
+        (
+            await db.query(`select count(*)::integer as count from comments where ${column} = $1`, [
+                id,
+            ])
+        ).rows[0].count;
+    for (const [kind, table, column, action, base] of [
+        ['inventory', 'inventory_requests', 'inventory_request_id', inventoryAction, 40],
+        ['program', 'program_requests', 'program_request_id', programAction, 50],
+    ]) {
+        const insert = (n, status) =>
+            kind === 'inventory'
+                ? db.query('insert into inventory_requests values ($1, $2, $3)', [
+                      uuid(n),
+                      uuid(1),
+                      status,
+                  ])
+                : db.query('insert into program_requests values ($1, $2, $3, $4)', [
+                      uuid(n),
+                      uuid(1),
+                      status,
+                      uuid(30),
+                  ]);
+        await insert(base + 1, 'approved');
+        await insert(base + 2, 'cancelled');
+        await insert(base + 3, 'draft');
+
+        // The requester (a plain user) and a viewer cannot reverse decisions.
+        await assert.rejects(action(uuid(base + 1), 'unapprove', uuid(1)), /Approver access/);
+        await assert.rejects(action(uuid(base + 2), 'reopen', uuid(1)), /Approver access/);
+        await assert.rejects(action(uuid(base + 2), 'reopen', uuid(3)), /Approver access/);
+
+        assert.equal((await action(uuid(base + 1), 'unapprove')).rows[0].status, 'submitted');
+        assert.equal(await statusOf(table, uuid(base + 1)), 'submitted');
+        assert.equal(await commentCount(column, uuid(base + 1)), 1);
+        // A submitted request can no longer be unapproved, only decided again.
+        await assert.rejects(action(uuid(base + 1), 'unapprove'), /Invalid transition/);
+        await assert.rejects(action(uuid(base + 1), 'reopen'), /Invalid transition/);
+
+        assert.equal((await action(uuid(base + 2), 'reopen')).rows[0].status, 'draft');
+        assert.equal(await statusOf(table, uuid(base + 2)), 'draft');
+        assert.equal(await commentCount(column, uuid(base + 2)), 1);
+        await assert.rejects(action(uuid(base + 2), 'reopen'), /Invalid transition/);
+        await assert.rejects(action(uuid(base + 3), 'unapprove'), /Invalid transition/);
+        await assert.rejects(action(uuid(base + 3), 'reopen'), /Invalid transition/);
+    }
+    // Closed inventory requests stay final, and an issued one cannot be unapproved.
+    await db.query('insert into inventory_requests values ($1, $2, $3), ($4, $2, $5)', [
+        uuid(60),
+        uuid(1),
+        'closed',
+        uuid(61),
+        'issued',
+    ]);
+    await assert.rejects(inventoryAction(uuid(60), 'reopen'), /Invalid transition/);
+    await assert.rejects(inventoryAction(uuid(61), 'unapprove'), /Invalid transition/);
 
     for (const role of ['anon', 'authenticated']) {
         await db.exec(`reset role; set role ${role}`);

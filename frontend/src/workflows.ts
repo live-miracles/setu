@@ -6,10 +6,10 @@
 const INVENTORY_REQUEST_TRANSITIONS: Record<InventoryRequestStatus, InventoryRequestAction[]> = {
     draft: ['submit', 'cancel'],
     submitted: ['approve', 'reject', 'cancel'],
-    approved: ['issue', 'cancel'],
+    approved: ['issue', 'cancel', 'unapprove'],
     rejected: ['revise', 'close'],
     issued: ['close'],
-    cancelled: ['close'],
+    cancelled: ['reopen', 'close'],
     closed: [],
 };
 
@@ -22,13 +22,14 @@ export function canTransitionInventoryRequest(
 
 // No issue/return/close step — a program request only ever moves draft ->
 // submitted -> approved/rejected, with cancellation available before a final
-// decision. Rejected requests can return to draft for revision.
+// decision. Rejected requests can return to draft for revision, approvers can
+// withdraw an approval (back to submitted) and reopen a cancelled request.
 const PROGRAM_REQUEST_TRANSITIONS: Record<ProgramRequestStatus, ProgramRequestAction[]> = {
     draft: ['submit', 'cancel'],
     submitted: ['approve', 'reject', 'cancel'],
-    approved: ['cancel'],
+    approved: ['cancel', 'unapprove'],
     rejected: ['revise'],
-    cancelled: [],
+    cancelled: ['reopen'],
 };
 
 export function canTransitionProgramRequest(
@@ -84,6 +85,8 @@ export function getInventoryRequestActions(
             'close',
             'cancel',
             'revise',
+            'unapprove',
+            'reopen',
         ] as InventoryRequestAction[]
     )
         .filter((action) => canTransitionInventoryRequest(request.Status, action))
