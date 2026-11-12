@@ -1,5 +1,13 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { fetchAll, fetchAllIn, profilesFor, result, userDto, type Row } from './core.ts';
+import {
+    fetchAll,
+    fetchAllIn,
+    inventoryLabelDto,
+    profilesFor,
+    result,
+    userDto,
+    type Row,
+} from './core.ts';
 import { attachItemLabels, inventoryRequestDto } from './inventory.ts';
 import { programRequestDto } from './programs.ts';
 import { groupByKey } from './query.ts';
@@ -201,12 +209,7 @@ export async function dashboard(
             availableQuantity: availableById.get(x.id) ?? x.total_quantity,
             labels: inventoryLabels
                 .filter((label: Row) => label.inventory_type_id === x.id)
-                .map((label: Row) => ({
-                    Id: label.id,
-                    DisplayId: label.display_id,
-                    InventoryTypeId: label.inventory_type_id,
-                    Name: label.name,
-                })),
+                .map(inventoryLabelDto),
         })),
         upcomingRosters: rosters.map((x: Row) => ({
             Id: x.id,

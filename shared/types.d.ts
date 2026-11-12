@@ -92,6 +92,8 @@ interface InventoryLabel {
     DisplayId: number;
     InventoryTypeId: string;
     Name: string;
+    // Where this unit sits; empty means the inventory type's own Location.
+    Location: string;
 }
 
 // Status-change history (who/when) lives in Comments — every transition is
@@ -392,10 +394,12 @@ interface CreateInventoryTypeInput {
 interface CreateInventoryLabelInput {
     inventoryTypeId: string;
     name: string;
+    location: string;
 }
 
 interface UpdateInventoryLabelInput {
     name: string;
+    location: string;
 }
 
 interface CreateInventoryRequestInput {

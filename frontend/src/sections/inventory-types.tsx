@@ -33,7 +33,9 @@ import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
 import {
+    compareGroupKeys,
     groupInventoryTypes,
+    inventoryLabelLocationKey,
     inventoryLabelQrFilename,
     inventoryTypeDisplayName,
     inventoryQrValue,
@@ -180,11 +182,13 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const [labelEditorOpen, setLabelEditorOpen] = useState(false);
     const [labelEditor, setLabelEditor] = useState<InventoryLabel | null>(null);
     const [labelEditorName, setLabelEditorName] = useState('');
+    const [labelEditorLocation, setLabelEditorLocation] = useState('');
     const [labelBusy, setLabelBusy] = useState(false);
     const [historyLabel, setHistoryLabel] = useState<InventoryLabel | null>(null);
     const [qrPdfBusy, setQrPdfBusy] = useState(false);
     const [qrPdfOpen, setQrPdfOpen] = useState(false);
     const [qrPdfLocations, setQrPdfLocations] = useState<string[]>([]);
+    const [qrPdfPrintLocation, setQrPdfPrintLocation] = useState(false);
     const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>('brand');
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
@@ -253,6 +257,17 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             showSavingBadge(false);
         }
     }
+    // Suggested when typing a label location, so one place is not spelled two ways.
+    const inventoryLocationOptions = Array.from(
+        new Set(
+            (rows as InventoryTypeDTO[]).flatMap((row) => [
+                String(row.Location || '').trim(),
+                ...(row.labels || []).map((label) => String(label.Location || '').trim()),
+            ]),
+        ),
+    )
+        .filter(Boolean)
+        .sort(compareGroupKeys);
     const labelLocations = inventoryLabelLocations(rows as InventoryTypeDTO[]);
     function toggleQrPdfOpen(open: boolean) {
         // Every location starts ticked, so a plain click on Download still
@@ -268,6 +283,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 rows as InventoryTypeDTO[],
                 (text) => QRCode.create(text, { errorCorrectionLevel: 'Q' }).modules,
                 qrPdfLocations,
+                { printLocation: qrPdfPrintLocation },
             );
             const url = URL.createObjectURL(
                 new Blob([buildQrStickerPdf(entries)], { type: 'application/pdf' }),
@@ -304,17 +320,20 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     function openAddInventoryLabel() {
         setLabelEditor(null);
         setLabelEditorName('');
+        setLabelEditorLocation('');
         setLabelEditorOpen(true);
     }
     function openEditInventoryLabel(label: InventoryLabel) {
         setLabelEditor(label);
         setLabelEditorName(label.Name);
+        setLabelEditorLocation(label.Location || '');
         setLabelEditorOpen(true);
     }
     function closeInventoryLabelEditor() {
         setLabelEditorOpen(false);
         setLabelEditor(null);
         setLabelEditorName('');
+        setLabelEditorLocation('');
     }
     async function saveInventoryLabel(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -324,7 +343,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             if (labelEditor) {
                 await api.updateInventoryLabel(
                     labelEditor.Id,
-                    { name: labelEditorName.trim() },
+                    { name: labelEditorName.trim(), location: labelEditorLocation.trim() },
                     generateRequestId(),
                 );
             } else {
@@ -332,6 +351,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     {
                         inventoryTypeId: String(selectedInventoryType.Id),
                         name: labelEditorName.trim(),
+                        location: labelEditorLocation.trim(),
                     },
                     generateRequestId(),
                 );
@@ -362,7 +382,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                         </Typography.Title>
                     </div>
                     <div className="inventory-type-grid">
-                        {group.rows.map((row, index) => (
+                        {group.rows.map((row) => (
                             <BlockCard
                                 key={row.Id}
                                 className="inventory-type-card"
@@ -377,11 +397,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                     {row.Location && inventoryGroupBy !== 'location' && (
                                         <span className="inventory-type-card-description">
                                             {String(row.Location)}
-                                        </span>
-                                    )}
-                                    {group.counts && (
-                                        <span className="inventory-type-card-description">
-                                            {group.counts[index]} here
                                         </span>
                                     )}
                                     {row.TotalQuantity != null && (
@@ -492,6 +507,11 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                 ))}
                             </Space>
                         </div>
+                        <Checkbox
+                            checked={qrPdfPrintLocation}
+                            onChange={(event) => setQrPdfPrintLocation(event.target.checked)}>
+                            Print location on stickers
+                        </Checkbox>
                         <Button
                             type="primary"
                             icon={<FilePdfOutlined />}
@@ -736,6 +756,15 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                         render: (_: unknown, label: InventoryLabel) => label.Name,
                                     },
                                     {
+                                        title: 'Location',
+                                        key: 'Location',
+                                        render: (_: unknown, label: InventoryLabel) =>
+                                            inventoryLabelLocationKey(
+                                                selectedInventoryType as InventoryTypeDTO,
+                                                label,
+                                            ) || '—',
+                                    },
+                                    {
                                         title: 'Actions',
                                         key: 'actions',
                                         align: 'right' as const,
@@ -825,6 +854,18 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             required
                             onChange={(event) => setLabelEditorName(event.target.value)}
                         />
+                        <TextField
+                            name="labelLocation"
+                            label="Location (optional, defaults to the type's location)"
+                            value={labelEditorLocation}
+                            list="inventory-label-location-options"
+                            onChange={(event) => setLabelEditorLocation(event.target.value)}
+                        />
+                        <datalist id="inventory-label-location-options">
+                            {inventoryLocationOptions.map((location) => (
+                                <option key={location} value={location} />
+                            ))}
+                        </datalist>
                         <SaveFooter label="Save" busy={labelBusy} errorMessage="" />
                     </form>
                 </Modal>

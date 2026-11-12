@@ -4,8 +4,6 @@ import {
     buildQrStickerPdf,
     inventoryLabelLocations,
     inventoryLabelStickerEntries,
-    isPcrLocation,
-    stickerLocationShortName,
     type QrModules,
     type QrStickerEntry,
 } from './inventory-qr-pdf';
@@ -110,53 +108,21 @@ export function runInventoryQrPdfAssertions(): void {
     assert(codesFor(['']) === '4-1', 'an empty key should select types without a location');
     assert(codesFor([]) === '', 'an empty selection should include nothing');
     assert(
-        locatedEntries(['Studio']).every((entry) => entry.location === undefined),
-        'stickers outside the PCR rooms should not print a location',
+        locatedEntries().every((entry) => entry.location === undefined),
+        'stickers should not print a location unless asked to',
     );
-    const pcrEntries = inventoryLabelStickerEntries(
-        [
-            {
-                Id: 'p1',
-                DisplayId: 9,
-                Name: 'Mouse',
-                Location: 'Big PCR Cupboard 3',
-                labels: [{ DisplayId: 1, Name: '1 | Big PCR Cupboard 3' }],
-            },
-            {
-                Id: 'p2',
-                DisplayId: 8,
-                Name: 'Cable',
-                Location: 'SPCR Cupboard 9',
-                labels: [{ DisplayId: 1 }],
-            },
-        ] as unknown as InventoryTypeDTO[],
-        () => checkerboard,
-    );
+    const printed = inventoryLabelStickerEntries(located, () => checkerboard, undefined, {
+        printLocation: true,
+    });
     assert(
-        pcrEntries.map((entry) => entry.location).join(',') ===
-            'Big PCR Cupboard 3,SPCR Cupboard 9',
-        'Small and Big PCR stickers should carry their location',
-    );
-    assert(
-        isPcrLocation('BPCR 3') && isPcrLocation('Small PCR') && !isPcrLocation('Studio 2'),
-        'only Small and Big PCR locations should count as PCR',
-    );
-    assert(
-        [
-            'Big PCR Cupboard 3',
-            'Big PCR Cupboard TOP 2',
-            'Studio 11 stock area',
-            'Drishti Studio 12',
-            'SPCR Cupboard 9',
-        ]
-            .map(stickerLocationShortName)
-            .join(',') === 'BPCR C3,BPCR Top2,S11 Stock,S12,SPCR C9',
-        'locations should print in a short form',
+        printed.map((entry) => entry.location ?? '').join(',') ===
+            'Store room,Store room,Studio,Studio,',
+        'stickers should carry their location when asked to, and none when they have no location',
     );
     const withLocation = new TextDecoder().decode(
-        buildQrStickerPdf([{ modules: checkerboard, code: '1-1', location: 'Big PCR Cupboard 3' }]),
+        buildQrStickerPdf([{ modules: checkerboard, code: '1-1', location: 'Studio 2' }]),
     );
-    assert(withLocation.includes('(BPCR C3) Tj'), 'the short location should print on the sticker');
+    assert(withLocation.includes('(Studio 2) Tj'), 'the location should print on the sticker');
 
     const studios = [
         {
@@ -165,10 +131,10 @@ export function runInventoryQrPdfAssertions(): void {
             Name: 'Camera',
             Location: 'Studio 1-12',
             labels: [
-                { DisplayId: 2, Name: 'SN-2 | Studio 2' },
-                { DisplayId: 1, Name: 'SN-1 | Studio 1' },
-                { DisplayId: 3, Name: '1 | Studio 2' },
-                { DisplayId: 4, Name: 'Spare' },
+                { DisplayId: 2, Name: 'SN-2', Location: ' Studio 2 ' },
+                { DisplayId: 1, Name: 'SN-1', Location: 'Studio 1' },
+                { DisplayId: 3, Name: '1 | spare', Location: 'Studio 2' },
+                { DisplayId: 4, Name: 'Spare', Location: '' },
             ],
         },
         {
@@ -176,7 +142,7 @@ export function runInventoryQrPdfAssertions(): void {
             DisplayId: 3,
             Name: 'KVM',
             Location: 'Studio 1-12',
-            labels: [{ DisplayId: 1, Name: 'A1 | Backup | Studio 2' }],
+            labels: [{ DisplayId: 1, Name: 'A1 | Backup', Location: 'Studio 2' }],
         },
     ] as unknown as InventoryTypeDTO[];
     assert(
@@ -189,7 +155,7 @@ export function runInventoryQrPdfAssertions(): void {
     assert(
         studioEntries.map((entry) => `${entry.group}:${entry.code}`).join(',') ===
             'Studio 1:7-1,Studio 1-12:7-4,Studio 2:3-1,Studio 2:7-2,Studio 2:7-3',
-        'each label should print once, under the location in its name',
+        'each label should print once, under its own location else its type location',
     );
     assert(
         inventoryLabelStickerEntries(studios, () => checkerboard, ['Studio 2'])

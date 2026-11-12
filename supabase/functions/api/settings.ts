@@ -1,5 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
+    inventoryLabelDto,
     requireAdmin,
     requireApprover,
     requireNonEmpty,
@@ -217,12 +218,7 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
         ImageId: row.image_path,
         TotalQuantity: row.total_quantity,
         availableQuantity: available ? available.available_quantity : row.total_quantity,
-        labels: labels.map((label) => ({
-            Id: label.id,
-            DisplayId: label.display_id,
-            InventoryTypeId: label.inventory_type_id,
-            Name: label.name,
-        })),
+        labels: labels.map(inventoryLabelDto),
     };
 }
 
@@ -236,6 +232,7 @@ export async function createInventoryLabel(
     await requireAdmin(client, userId);
     const inventoryTypeId = requireNonEmpty(input.inventoryTypeId, 'Inventory type is required.');
     const name = requireNonEmpty(input.name, 'Label name is required.');
+    const location = boundedText(input.location, 'Location', MAX_NAME_LENGTH);
     const { result: label } = await withLockedDedupe(
         admin,
         'inventory-label:create:' + inventoryTypeId,
@@ -253,19 +250,14 @@ export async function createInventoryLabel(
             return result(
                 await admin
                     .from('inventory_type_labels')
-                    .insert({ inventory_type_id: inventoryTypeId, name })
+                    .insert({ inventory_type_id: inventoryTypeId, name, location })
                     .select('*')
                     .single(),
                 'A label with this name already exists for this inventory type.',
             ) as Row;
         },
     );
-    return {
-        Id: label.id,
-        DisplayId: label.display_id,
-        InventoryTypeId: label.inventory_type_id,
-        Name: label.name,
-    };
+    return inventoryLabelDto(label);
 }
 
 export async function deleteInventoryLabel(
@@ -293,6 +285,7 @@ export async function updateInventoryLabel(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Label name is required.');
+    const location = boundedText(input.location, 'Location', MAX_NAME_LENGTH);
     const { result: label } = await withLockedDedupe(
         admin,
         'inventory-label:update:' + id,
@@ -302,19 +295,14 @@ export async function updateInventoryLabel(
             result(
                 await admin
                     .from('inventory_type_labels')
-                    .update({ name })
+                    .update({ name, location })
                     .eq('id', id)
                     .select('*')
                     .single(),
                 'A label with this name already exists for this inventory type.',
             ) as Row,
     );
-    return {
-        Id: label.id,
-        DisplayId: label.display_id,
-        InventoryTypeId: label.inventory_type_id,
-        Name: label.name,
-    };
+    return inventoryLabelDto(label);
 }
 
 export async function createInventoryType(

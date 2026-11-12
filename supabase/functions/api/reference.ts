@@ -1,6 +1,7 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     fetchAll,
+    inventoryLabelDto,
     requireAdmin,
     requireNonEmpty,
     result,
@@ -60,14 +61,7 @@ export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]>
         ImageId: x.image_path,
         TotalQuantity: x.total_quantity,
         availableQuantity: availableById.get(x.id) ?? x.total_quantity,
-        labels: labels
-            .filter((label) => label.inventory_type_id === x.id)
-            .map((label) => ({
-                Id: label.id,
-                DisplayId: label.display_id,
-                InventoryTypeId: label.inventory_type_id,
-                Name: label.name,
-            })),
+        labels: labels.filter((label) => label.inventory_type_id === x.id).map(inventoryLabelDto),
     }));
 }
 

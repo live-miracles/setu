@@ -3,6 +3,7 @@ import {
     currentWriter,
     fetchAll,
     fetchAllIn,
+    inventoryLabelDto,
     profilesFor,
     requireNonEmpty,
     result,
@@ -72,12 +73,7 @@ export function inventoryRequestDto(
                 .map((value) => String(value || '').trim())
                 .filter(Boolean)
                 .join(' · '),
-            labels: (i.labels || []).map((label: Row) => ({
-                Id: label.id,
-                DisplayId: label.display_id,
-                InventoryTypeId: label.inventory_type_id,
-                Name: label.name,
-            })),
+            labels: (i.labels || []).map(inventoryLabelDto),
         })),
         comments: comments.map((c) => commentDto(c, profilesById)),
     };

@@ -1,10 +1,11 @@
 import {
     addScannedInventoryItem,
     addScannedInventoryItemForIssue,
+    compareGroupKeys,
     findInventoryTypeByQrValue,
     groupInventoryTypes,
     inventoryItemHasLabel,
-    inventoryLabelLocation,
+    inventoryLabelLocationKey,
     inventoryQrValue,
     inventoryTypeQrFilename,
     inventoryTypeQrLabel,
@@ -137,6 +138,7 @@ export function runInventoryQrAssertions(): void {
             DisplayId: index,
             InventoryTypeId: 'inventory-type-uuid-1',
             Name,
+            Location: '',
         })),
     ).map((label) => label.Name);
     assert(
@@ -169,54 +171,31 @@ export function runInventoryQrAssertions(): void {
         'types inside a location group should sort by display name',
     );
 
-    const labelled = [
-        {
-            Id: 'cam',
-            Brand: 'Sony',
-            Name: 'Camera',
-            Location: 'Studio 1-12',
-            TotalQuantity: 4,
-            labels: [
-                { Name: 'SN-1 | Studio 2' },
-                { Name: '1 | Studio 10' },
-                { Name: '2 | Studio 10' },
-                { Name: 'Spare' },
+    assert(
+        groupInventoryTypes(
+            [
+                {
+                    Id: 'cam',
+                    Name: 'Camera',
+                    Location: 'Studio 1',
+                    labels: [{ Location: 'Studio 2' }, { Location: 'Studio 3' }],
+                },
             ],
-        },
-        {
-            Id: 'mic',
-            Brand: 'Shure',
-            Name: 'Mic',
-            Location: 'Studio 2',
-            TotalQuantity: 1,
-            labels: [],
-        },
-    ];
-    assert(
-        inventoryLabelLocation('A1-001 | PG-1 | Studio 3 Backup') === 'Studio 3 Backup' &&
-            inventoryLabelLocation('Spare') === '',
-        'a label location should be the text after the last separator',
-    );
-    const byLabelLocation = groupInventoryTypes(labelled, 'location');
-    assert(
-        byLabelLocation.map((group) => group.title).join(',') === 'Studio 1-12,Studio 2,Studio 10',
-        'types should appear under every location their labels name',
-    );
-    const studio2 = byLabelLocation.find((group) => group.title === 'Studio 2');
-    assert(
-        studio2?.rows.map((row) => row.Id).join(',') === 'mic,cam' &&
-            studio2?.counts?.join(',') === '1,1',
-        'a location group should list each type once with its unit count there',
+            'location',
+        ).length === 1,
+        'a type should appear once in the location view, under its own location',
     );
     assert(
-        byLabelLocation.find((group) => group.title === 'Studio 10')?.counts?.join(',') === '2' &&
-            byLabelLocation.find((group) => group.title === 'Studio 1-12')?.counts?.join(',') ===
-                '1',
-        'unlabelled units and labels without a location should count at the type location',
+        inventoryLabelLocationKey({ Location: ' Studio 1 ' }, { Location: ' Studio 2 ' }) ===
+            'Studio 2' &&
+            inventoryLabelLocationKey({ Location: ' Studio 1 ' }, { Location: '' }) ===
+                'Studio 1' &&
+            inventoryLabelLocationKey({}, {}) === '',
+        'a label should sit in its own location, else its type location, trimmed',
     );
     assert(
-        groupInventoryTypes(labelled, 'brand').every((group) => group.counts === undefined),
-        'brand groups should not carry location counts',
+        ['', 'Studio 10', 'Studio 2'].sort(compareGroupKeys).join(',') === 'Studio 2,Studio 10,',
+        'group keys should compare numbers numerically with the empty key last',
     );
     const bySerial = groupInventoryTypes(
         [

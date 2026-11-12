@@ -172,6 +172,16 @@ export async function withLockedDedupe<T>(
     }
 }
 
+export function inventoryLabelDto(label: Row): Row {
+    return {
+        Id: label.id,
+        DisplayId: label.display_id,
+        InventoryTypeId: label.inventory_type_id,
+        Name: label.name,
+        Location: label.location || '',
+    };
+}
+
 export function userDto(profile: Row, departments: Map<string, Row>): Row {
     return {
         Email: profile.email,

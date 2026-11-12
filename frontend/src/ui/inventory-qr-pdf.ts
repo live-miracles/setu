@@ -1,4 +1,4 @@
-import { groupInventoryTypes, inventoryLabelLocationKey, inventoryQrValue } from './inventory-qr';
+import { compareGroupKeys, inventoryLabelLocationKey, inventoryQrValue } from './inventory-qr';
 
 // Builds a printable A4 sheet of small QR stickers as a PDF. QR codes are drawn
 // as vector squares (no images, no PDF library), so they stay sharp at the
@@ -13,9 +13,8 @@ export type QrStickerEntry = {
     // The inventory type name, printed small above the QR code and cut off
     // where it no longer fits the sticker width.
     name?: string;
-    // Where the item belongs, printed under the code in a short form (e.g.
-    // "Big PCR Cupboard 3" -> "BPCR C3") so a cut-out sticker still says where
-    // the item goes. Set only for Small and Big PCR locations.
+    // Where the item belongs, printed under the code so a cut-out sticker still
+    // says where the item goes. Cut off where it no longer fits the sticker.
     location?: string;
     // Entries of one group must be consecutive. Each group starts on a new
     // sticker row under a heading with this title, e.g. the location.
@@ -126,32 +125,8 @@ function nameOps(name: string, cellLeftMm: number, baselineMm: number): string {
     return `BT /F1 ${num(NAME_SIZE)} Tf ${num(x)} ${num(y)} Td (${escapePdfText(text)}) Tj ET\n`;
 }
 
-// Small and Big PCR rooms (their cupboards and desks): the only locations
-// printed on stickers.
-export function isPcrLocation(location: string): boolean {
-    return /\b(Big PCR|Small PCR|BPCR|SPCR)\b/i.test(location);
-}
-
-// Short form of a location for the sticker, e.g. "Big PCR Cupboard TOP 2" ->
-// "BPCR Top2", "Studio 11 stock area" -> "S11 Stock".
-export function stickerLocationShortName(location: string): string {
-    return location
-        .replace(/^Drishti\s+/i, '')
-        .replace(/\bBig PCR\b/gi, 'BPCR')
-        .replace(/\bCupboard\s+TOP\s+(\d+)/gi, 'Top$1')
-        .replace(/\bCupboard\s+(\d+)/gi, 'C$1')
-        .replace(/\bStudio\s+(\d+)/gi, 'S$1')
-        .replace(/\bstock area\b/gi, 'Stock')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
 function locationOps(location: string, cellLeftMm: number, baselineMm: number): string {
-    const text = fitText(
-        stickerLocationShortName(location),
-        LOCATION_SIZE,
-        (CELL_WIDTH_MM - 2) * MM,
-    );
+    const text = fitText(location, LOCATION_SIZE, (CELL_WIDTH_MM - 2) * MM);
     if (!text) return '';
     const x = cellLeftMm * MM + (CELL_WIDTH_MM * MM - textWidth(text, LOCATION_SIZE)) / 2;
     const y = (PAGE_HEIGHT_MM - baselineMm) * MM;
@@ -289,61 +264,66 @@ export function buildQrStickerPdf(entries: QrStickerEntry[]): Uint8Array<ArrayBu
 
 export type LabelLocation = { key: string; title: string; labelCount: number };
 
-// The locations that have at least one labeled item, in the same order as the
-// "Group by location" view. The key is the trimmed location ('' for types
-// without one), which is what inventoryLabelStickerEntries filters on.
-export function inventoryLabelLocations(types: InventoryTypeDTO[]): LabelLocation[] {
-    return groupInventoryTypes(types, 'location')
-        .map((group) => ({
-            key: group.key,
-            title: group.title,
-            labelCount: group.rows.reduce((sum, type) => sum + labelsAt(type, group.key).length, 0),
-        }))
-        .filter((location) => location.labelCount > 0);
+type LocatedLabel = { type: InventoryTypeDTO; label: InventoryLabel };
+
+// Every label under the location it sits in (its own Location, else its
+// type's), in the same order as the "Group by location" view. The key is the
+// trimmed location ('' for none).
+function labelsByLocation(types: InventoryTypeDTO[]): Array<[string, LocatedLabel[]]> {
+    const groups = new Map<string, LocatedLabel[]>();
+    types.forEach((type) =>
+        (type.labels || []).forEach((label) => {
+            const key = inventoryLabelLocationKey(type, label);
+            groups.set(key, [...(groups.get(key) || []), { type, label }]);
+        }),
+    );
+    return [...groups.entries()].sort(([a], [b]) => compareGroupKeys(a, b));
 }
 
-// A type's labels that sit in one location, by the label's own location
-// ("serial | Studio 2") or else the type's Location.
-function labelsAt(type: InventoryTypeDTO, locationKey: string) {
-    return (type.labels || []).filter(
-        (label) => inventoryLabelLocationKey(type, label) === locationKey,
-    );
+const locationTitle = (key: string) => key || 'No location';
+
+// The locations that have at least one labeled item. The key is what
+// inventoryLabelStickerEntries filters on.
+export function inventoryLabelLocations(types: InventoryTypeDTO[]): LabelLocation[] {
+    return labelsByLocation(types).map(([key, labels]) => ({
+        key,
+        title: locationTitle(key),
+        labelCount: labels.length,
+    }));
 }
 
 // One sticker per labeled item, captioned with the type name; the unlabeled
 // inventory type QR codes are left out on purpose. Stickers are grouped by
-// location (headed with its name, in the "Group by location" order) and sorted
-// by code (type number, then label number) inside each. A label belongs to the
-// location in its name, else to its type's Location, so each label prints
-// once. When every type lacks a location there is nothing to head, so no
-// groups are made. When locationKeys is given, only those locations are
-// included.
+// location (headed with its name) and sorted by code (type number, then label
+// number) inside each. A label belongs to its own Location, else to its type's
+// Location, so each label prints once. When no label has a location there is
+// nothing to head, so no groups are made. When locationKeys is given, only
+// those locations are included. With printLocation, each sticker also prints
+// its location.
 export function inventoryLabelStickerEntries(
     types: InventoryTypeDTO[],
     createModules: (text: string) => QrModules,
     locationKeys?: string[],
+    { printLocation = false }: { printLocation?: boolean } = {},
 ): QrStickerEntry[] {
     const wanted = locationKeys && new Set(locationKeys);
-    const groups = groupInventoryTypes(types, 'location').filter(
-        (group) => !wanted || wanted.has(group.key),
-    );
-    const showGroups = groups.some((group) => group.key);
-    return groups.flatMap((group) =>
-        [...group.rows]
-            .sort((a, b) => a.DisplayId - b.DisplayId)
-            .flatMap((type) =>
-                labelsAt(type, group.key)
-                    .sort((a, b) => a.DisplayId - b.DisplayId)
-                    .map((label) => {
-                        const code = inventoryQrValue(type, label);
-                        return {
-                            modules: createModules(code),
-                            code,
-                            name: type.Name,
-                            ...(isPcrLocation(group.key) ? { location: group.key } : {}),
-                            ...(showGroups ? { group: group.title } : {}),
-                        };
-                    }),
-            ),
+    const groups = labelsByLocation(types).filter(([key]) => !wanted || wanted.has(key));
+    const showGroups = groups.some(([key]) => key);
+    return groups.flatMap(([key, labels]) =>
+        [...labels]
+            .sort(
+                (a, b) =>
+                    a.type.DisplayId - b.type.DisplayId || a.label.DisplayId - b.label.DisplayId,
+            )
+            .map(({ type, label }) => {
+                const code = inventoryQrValue(type, label);
+                return {
+                    modules: createModules(code),
+                    code,
+                    name: type.Name,
+                    ...(printLocation && key ? { location: key } : {}),
+                    ...(showGroups ? { group: locationTitle(key) } : {}),
+                };
+            }),
     );
 }
