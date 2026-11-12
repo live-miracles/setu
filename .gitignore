@@ -1,9 +1,5 @@
 # dependencies
 /node_modules
-/\.clasp-build
-
-# clasp (environment-specific; recreate via `clasp create`/`clasp clone`)
-/.clasp.json
 
 # build artifacts
 /frontend/dist

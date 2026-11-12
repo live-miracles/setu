@@ -11,9 +11,9 @@ inventory, programs, home content, and user settings.
 
 This architecture can run on the free tiers of Supabase and Vercel for both
 the Setu and Setu Dev environments, within each provider's current quotas and
-terms. Supabase hosts the database, Storage, and Edge Functions; Apps Script
-runs the 10-minute comment-email worker, and Vercel only serves the static
-frontend. Supabase's current Free
+terms. Supabase hosts the database, Storage, and Edge Functions, including the
+10-minute comment-email worker that sends through the Gmail API, and Vercel
+only serves the static frontend. Supabase's current Free
 plan includes two active projects, 500,000 Edge Function invocations, 1 GB of
 file storage, and 500 MB of database storage per project. Free projects pause
 after 7 days with no API activity — each project's pause timer is independent,
@@ -34,9 +34,10 @@ these):
 Trigger a manual run from the **Actions** tab (**Keep Supabase projects
 alive → Run workflow**) to verify it after setup.
 
-Comment email delivery depends on the Google Workspace account running the
-Apps Script worker. Apps Script has Workspace email-recipient and execution
-quotas, so this path is intended for Setu's low-volume internal notifications.
+Comment email delivery uses the Gmail API sending limits of the mailbox that
+authorized it (roughly 500 recipients a day for a consumer Gmail account and
+2,000 for Google Workspace), so this path is intended for Setu's low-volume
+internal notifications.
 
 See the providers' current plan details before relying on these numbers:
 [Supabase pricing](https://supabase.com/pricing),
@@ -198,24 +199,62 @@ npx supabase functions deploy api
 
 Comment email delivery
 
-Comments enqueue email rows transactionally in `email_outbox`. The Apps Script
-worker in `src/EmailDispatcher.ts` claims at most 100 pending rows through the
-Supabase RPC, sends them using the Workspace account's `MailApp` permission, and
-marks each row `sent` or `failed`. It uses a script lock to prevent overlapping
-runs and never clears a row before its send succeeds.
+Comments enqueue email rows transactionally in `email_outbox`. Every ten
+minutes pg_cron calls `public.run_comment_email_dispatch()`, which posts to the
+`email-dispatcher` Edge Function with a shared secret. The function exchanges a
+stored Google refresh token for an access token, claims at most 50 pending rows
+through the `claim_comment_email_batch` RPC, sends each one with the Gmail API
+`users.messages.send` endpoint, and marks it `sent`. A failed send is retried
+with a growing delay and marked `failed` after five attempts. Rows are claimed
+with `for update skip locked`, so overlapping runs never send the same row
+twice. If the token refresh fails, no rows are claimed.
 
-After the first Apps Script deployment, run `installEmailDispatcherTrigger`
-once from the Apps Script editor. Configure these Script Properties on the
-Apps Script project: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
-Set `APP_URL` to the deployed Setu origin so comment emails can include
-working “View request” links.
-`EMAIL_SENDER_NAME` defaults to `Live Stream Setu`. Emails use `MailApp` with
-`noReply: true`, matching the existing GCP monitor workflow. The service-role
-key is stored only in Apps Script properties and must never be placed in
-frontend code. Set `CC_EMAIL` to an additional address that should receive a
+One-time Gmail setup (free; repeat the last two steps if the token is revoked):
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a
+   project (a personal account can own it), enable the **Gmail API**, and set up
+   the OAuth consent screen. Add the `https://www.googleapis.com/auth/gmail.send`
+   scope. With an **External** consent screen, set the publishing status to
+   **In production**: refresh tokens issued in **Testing** expire after 7 days.
+   An unverified app shows a warning on the one-time sign-in, which is fine for
+   a single sending mailbox.
+2. Create an OAuth client of type **Web application** and add
+   `https://developers.google.com/oauthplayground` as an authorized redirect URI.
+3. In the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground),
+   open the settings, tick **Use your own OAuth credentials**, and enter the
+   client ID and secret. Authorize the `gmail.send` scope while signed in as the
+   mailbox that should send the emails, then exchange the authorization code
+   and copy the refresh token. If the sign-in says the app is blocked by an
+   administrator, that Workspace does not allow third-party Gmail access; use a
+   different mailbox or ask the admin to trust the OAuth client.
+4. Set the function secrets (on each project) and deploy:
+
+```bash
+npx supabase secrets set GOOGLE_CLIENT_ID=<client-id> GOOGLE_CLIENT_SECRET=<client-secret> GOOGLE_REFRESH_TOKEN=<refresh-token> GMAIL_SENDER=<sending-address> EMAIL_DISPATCH_SECRET=<random-string> --project-ref <project-ref>
+```
+
+```bash
+npx supabase functions deploy email-dispatcher --no-verify-jwt --project-ref <project-ref>
+```
+
+5. Store the scheduler's endpoint and the same shared secret in Vault by running
+   this in the SQL editor (skip any secret that already exists):
+
+```sql
+select vault.create_secret('https://<project-ref>.supabase.co', 'setu_project_url');
+select vault.create_secret('<same-random-string>', 'setu_email_dispatch_secret');
+```
+
+`GMAIL_SENDER` must be the authorized mailbox's address (or one of its Gmail
+“Send mail as” aliases). Optional secrets: `EMAIL_SENDER_NAME` (defaults to
+`Live Stream Setu`), `EMAIL_REPLY_TO` (where replies should go instead of the
+sending mailbox), `EMAIL_TIME_ZONE` for session times (defaults to
+`Asia/Kolkata`), and `CC_EMAIL`, an additional address that should receive a
 copy of every email; multiple comma-separated addresses are supported. The
 configured address is added alongside the lead and request participants, with
-duplicates and the primary recipient removed automatically.
+duplicates and the primary recipient removed automatically. “View request”
+links use the existing `SETU_APP_ORIGIN` secret. Until the required secrets
+are set, the function does nothing and queued rows stay pending.
 Email subjects use the request serial, the same combined request title shown
 in the detail view, and the start month/year, for example
 `PRG-7 - English Workshop Title | Sep 2026`. The body starts with the author's
@@ -223,12 +262,8 @@ name and comment, renders the full session or inventory list as an HTML `<ul>`,
 and ends with a clickable “View request” link to the request in Setu. A
 plain-text body is included as a fallback.
 
-The GitHub deployment workflow uses the previous clasp flow. It expects the
-repository secrets `CLASPRC_JSON`, `APPS_SCRIPT_ID`, and
-`APPS_SCRIPT_DEPLOYMENT_ID`; it runs for version tags (`v*`) or manually from
-the Actions tab.
-
-Supabase migrations and the `api` Edge Function are deployed automatically to
+Supabase migrations and the `api` and `email-dispatcher` Edge Functions are
+deployed automatically to
 both Setu production and Setu Dev by
 `.github/workflows/deploy-supabase.yml` when Supabase migrations, functions,
 configuration, or dependency files change on `master`. Add the
@@ -236,7 +271,7 @@ configuration, or dependency files change on `master`. Add the
 `SUPABASE_PROJECT_REF_DEV` as repository secrets, then use the workflow's
 manual dispatch when needed. The token must have permission for both projects.
 The workflow selects each project using its secret project ref, applies
-migrations, and deploys the API function independently to each project; manual
+migrations, and deploys both functions independently to each project; manual
 dispatch runs both deployment areas.
 
 Email-domain access control

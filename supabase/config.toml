@@ -6,6 +6,10 @@ project_id = "setu"
 enabled = true
 uri = "pg-functions://postgres/public/restrict_user_by_email_domain"
 
+# Called by pg_cron with a shared secret header instead of a user JWT.
+[functions.email-dispatcher]
+verify_jwt = false
+
 [api]
 enabled = true
 schemas = ["public", "storage"]
