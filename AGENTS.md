@@ -32,6 +32,11 @@
 - Use clearly fictional placeholders or environment variables instead, and check changed files for accidental personal data or project-specific identifiers before committing.
 - Treat credentials such as `SUPABASE_ACCESS_TOKEN` as secrets: provide them through environment variables, CI/CD secret storage, or the relevant provider's secret manager. Never commit, print, copy, or include their values in source files, documentation, logs, or issue reports.
 
+## Security review
+
+- `docs/security-review.md` documents the app's security controls and the intentional design decisions (public operational images, shared approved-program calendar, domain allowlist and existing sessions). Read it before reviewing the code for security issues or reporting findings, so documented decisions are not reported as vulnerabilities.
+- Keep it current: update it in the same change whenever you modify a control or a design decision it describes.
+
 ## Validation before commits
 
 - Before committing, always review the complete diff again to confirm the changes are correct, scoped to the request, and free of obvious bugs or regressions.

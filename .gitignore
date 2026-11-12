@@ -20,5 +20,4 @@
 *.tsbuildinfo
 
 # Other
-/docs/*
-!/docs/agents/
+/docs/superpowers/

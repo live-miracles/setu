@@ -282,6 +282,8 @@ export async function getAvailablePlaces(
 // they're the requester/a participant, so this reads through `admin` rather
 // than the RLS-scoped `client` (which would narrow a plain `user` down to
 // just their own requests, same as the request-detail pages already do).
+// Intentional design decision; see docs/security-review.md, "Shared
+// approved-program calendar".
 export async function getCalendarMonth(
     admin: SupabaseClient,
     year: number,

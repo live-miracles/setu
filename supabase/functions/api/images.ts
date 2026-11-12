@@ -54,7 +54,9 @@ export async function createImageUploadUrl(
 
 // Images live in a public bucket. The object path is still random and uploads
 // and deletes remain behind this trusted Edge Function, while reads use a
-// stable URL so browsers and Supabase's CDN can cache the asset.
+// stable URL so browsers and Supabase's CDN can cache the asset. This is an
+// intentional design decision (non-sensitive images only); see
+// docs/security-review.md, "Public delivery of operational images".
 export async function getImageUrl(admin: SupabaseClient, imageId: string): Promise<string> {
     const path = String(imageId || '').trim();
     if (!path) return '';

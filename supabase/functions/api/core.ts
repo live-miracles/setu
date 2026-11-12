@@ -96,6 +96,9 @@ export async function requireApprover(client: SupabaseClient, userId: string): P
     return profile;
 }
 
+// The allowlist is enforced at this API boundary and does not revoke existing
+// Supabase sessions. Intentional design decision; see docs/security-review.md,
+// "Domain allowlist and existing sessions".
 export async function emailDomainAllowed(admin: SupabaseClient, email: string): Promise<boolean> {
     return Boolean(result(await admin.rpc('is_email_domain_allowed', { candidate_email: email })));
 }

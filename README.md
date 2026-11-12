@@ -109,6 +109,9 @@ Browser → Vercel static app → Supabase Auth
 - `supabase/migrations/` contains the database schema.
 - `supabase/functions/api/` contains the authenticated API boundary.
 - `shared/types.d.ts` contains the frontend/API contract.
+- [`docs/security-review.md`](docs/security-review.md) documents the security controls and the
+  intentional design decisions (public operational images, shared approved-program calendar,
+  domain allowlist and existing sessions) that automated scanners may flag.
 
 ## Requirements
 
