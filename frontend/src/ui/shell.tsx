@@ -18,7 +18,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import appLogo from '../../assets/logo.png';
-import loadingBackground from '../../assets/loading-background.avif';
 import { useDashboardOptional } from '../dashboard-context';
 import {
     blocksPath,
@@ -229,7 +228,7 @@ export function Shell({
 
     return (
         <AntApp>
-            <Layout className="app-layout" style={{ backgroundImage: `url(${loadingBackground})` }}>
+            <Layout className="app-layout">
                 <Header className="app-header">
                     <Button
                         type="text"

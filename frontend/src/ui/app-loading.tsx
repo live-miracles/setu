@@ -1,6 +1,5 @@
 import { Spin, Typography } from 'antd';
 import { useState } from 'react';
-import loadingBackground from '../../assets/loading-background.avif';
 import { getRandomQuote } from './quotes';
 
 const APP_LOADING_EVENT = 'setu:app-loading';
@@ -22,8 +21,7 @@ export function AppLoading({ inline = false }: { inline?: boolean } = {}) {
         <div
             className={`app-loading${inline ? ' app-loading-inline' : ''}`}
             role="status"
-            aria-live="polite"
-            style={{ backgroundImage: `url(${loadingBackground})` }}>
+            aria-live="polite">
             <Spin size="large" />
             <Typography.Text className="app-loading-quote">“{quote}”</Typography.Text>
         </div>

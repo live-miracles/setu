@@ -2,7 +2,9 @@
 @import 'tailwindcss';
 
 @theme {
-    --font-sans: 'Avenir Next', Avenir, 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+    --font-sans:
+        Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, ui-sans-serif, system-ui,
+        sans-serif;
     --font-serif: Georgia, 'Times New Roman', ui-serif, serif;
     --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
     --color-error: var(--setu-error);
@@ -10,22 +12,22 @@
 }
 
 :root {
-    --setu-paper: #f4eedf;
-    --setu-surface: #fffaf0;
-    --setu-ink: #29251f;
-    --setu-line: #d8cdb9;
-    --setu-accent: #c84f12;
-    --setu-accent-hover: #b84710;
-    --setu-error: #b85c62;
-    --setu-error-hover: #a64b53;
-    --setu-error-active: #923d46;
-    --setu-error-bg: #f8e8ea;
-    --setu-error-bg-hover: #f3dce0;
-    --setu-error-border: #ddaeb2;
-    --setu-error-border-hover: #d0969d;
-    --setu-error-text: #9f424a;
-    --setu-error-text-hover: #8d3740;
-    --setu-positive: #b9dfbd;
+    --setu-paper: #f6f5f4;
+    --setu-surface: #ffffff;
+    --setu-ink: #1a1a1a;
+    --setu-line: #e5e3df;
+    --setu-accent: #5645d4;
+    --setu-accent-hover: #4534b3;
+    --setu-error: #e03131;
+    --setu-error-hover: #c92a2a;
+    --setu-error-active: #a61e1e;
+    --setu-error-bg: #fdecec;
+    --setu-error-bg-hover: #fbdede;
+    --setu-error-border: #f2b3b3;
+    --setu-error-border-hover: #e88a8a;
+    --setu-error-text: #c92a2a;
+    --setu-error-text-hover: #a61e1e;
+    --setu-positive: #a8e0b7;
     --setu-blocked: #e98b8b;
 }
 
@@ -633,9 +635,6 @@ form,
     min-height: 100vh;
     overflow: hidden;
     background-color: var(--setu-paper);
-    background-position: center;
-    background-size: cover;
-    background-repeat: no-repeat;
 }
 
 .app-header {
@@ -712,8 +711,7 @@ form,
     overflow: hidden;
     isolation: isolate;
     color: var(--setu-ink);
-    background-position: center;
-    background-size: cover;
+    background-color: var(--setu-paper);
 }
 
 .app-loading-inline {
@@ -1178,7 +1176,7 @@ a.record-block {
 a.record-block:hover,
 a.record-block:focus-visible {
     border-color: color-mix(in srgb, var(--setu-accent) 55%, var(--setu-line));
-    box-shadow: 0 0.25rem 0.75rem rgb(41 37 31 / 8%);
+    box-shadow: 0 0.25rem 0.75rem rgb(26 26 26 / 8%);
 }
 
 .record-block[role='button']:focus-visible,
@@ -1451,7 +1449,7 @@ a.record-block:focus-visible {
     right: 0.35rem;
     padding: 0.15rem;
     border-radius: 0.35rem;
-    background: rgb(255 250 240 / 88%);
+    background: rgb(255 255 255 / 88%);
     backdrop-filter: blur(0.25rem);
 }
 

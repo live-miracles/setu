@@ -1,7 +1,6 @@
-import { Refine } from '@refinedev/core';
-import { useNotificationProvider } from '@refinedev/antd';
+import { Refine, type NotificationProvider } from '@refinedev/core';
 import { App as AntApp, ConfigProvider, type ThemeConfig } from 'antd';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { queryClient } from '../query-client';
 import { REFINE_RESOURCE_NAMES, setuDataProvider } from './refine-data-provider';
 import { setErrorNotifier } from './feedback';
@@ -10,28 +9,61 @@ import { setErrorNotifier } from './feedback';
 // and visual tokens while Refine owns the resource boundary for the React
 // surfaces; React Router owns the URL (see app.tsx).
 
-// antd computes its whole derived palette from these seed tokens via color
-// math, so they must be real colors, not CSS var() references — keep these
-// in sync with the --setu-* custom properties in input.css.
+// Notion-inspired tokens (see awesome-design-md/design-md/notion). antd
+// computes its whole derived palette from these seed tokens via color math,
+// so they must be real colors, not CSS var() references — keep these in sync
+// with the --setu-* custom properties in input.css.
 export const SETU_ANTD_THEME: ThemeConfig = {
     token: {
-        colorPrimary: '#c84f12',
-        colorInfo: '#c84f12',
-        colorError: '#b85c62',
-        colorErrorHover: '#a64b53',
-        colorErrorActive: '#923d46',
-        colorErrorBg: '#f8e8ea',
-        colorErrorBgHover: '#f3dce0',
-        colorErrorBorder: '#ddaeb2',
-        colorErrorBorderHover: '#d0969d',
-        colorErrorText: '#9f424a',
-        colorErrorTextHover: '#8d3740',
-        colorBgBase: '#fffaf0',
-        colorTextBase: '#29251f',
-        borderRadius: 6,
-        fontFamily: "'Avenir Next', Avenir, 'Segoe UI', sans-serif",
+        colorPrimary: '#5645d4',
+        colorInfo: '#0075de',
+        colorLink: '#0075de',
+        colorSuccess: '#1aae39',
+        colorWarning: '#dd5b00',
+        colorError: '#e03131',
+        colorErrorHover: '#c92a2a',
+        colorErrorActive: '#a61e1e',
+        colorErrorBg: '#fdecec',
+        colorErrorBgHover: '#fbdede',
+        colorErrorBorder: '#f2b3b3',
+        colorErrorBorderHover: '#e88a8a',
+        colorErrorText: '#c92a2a',
+        colorErrorTextHover: '#a61e1e',
+        colorBgBase: '#ffffff',
+        colorBgLayout: '#f6f5f4',
+        colorTextBase: '#1a1a1a',
+        colorBorder: '#c8c4be',
+        colorBorderSecondary: '#e5e3df',
+        borderRadius: 8,
+        borderRadiusLG: 12,
+        fontFamily:
+            "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
+    },
+    components: {
+        // Notion buttons are flat; antd's default drop shadows are dropped.
+        Button: { primaryShadow: 'none', defaultShadow: 'none', dangerShadow: 'none' },
+        Table: { headerBg: '#f6f5f4' },
     },
 };
+
+// Refine's hooks report mutation success/failure through this provider. It
+// maps them onto antd notifications so the app does not need @refinedev/antd.
+function useAntNotificationProvider(): NotificationProvider {
+    const { notification } = AntApp.useApp();
+    return useMemo(
+        () => ({
+            open: ({ key, message, description, type }) =>
+                notification.open({
+                    key,
+                    message,
+                    description,
+                    type: type === 'progress' ? 'info' : type,
+                }),
+            close: (key) => notification.destroy(key),
+        }),
+        [notification],
+    );
+}
 
 // Mounted once at the app root (see app.tsx) — replaces the old per-navigation
 // mountRefinePage()/unmountRefinePage() bridge, along with the single-resource
@@ -48,7 +80,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
 }
 
 function RefineProvider({ children }: { children: ReactNode }) {
-    const notificationProvider = useNotificationProvider();
+    const notificationProvider = useAntNotificationProvider();
     const { notification } = AntApp.useApp();
     useEffect(() => {
         setErrorNotifier((config) => notification.error(config));
