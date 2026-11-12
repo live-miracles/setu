@@ -31,6 +31,8 @@ import { Roster } from './sections/roster';
 import { Users } from './sections/users';
 import { Calendar } from './sections/calendar';
 import { CreateRecord, RequestTable } from './sections/requests';
+import { DepartmentsPage } from './sections/departments';
+import { InventoryTypesPage } from './sections/inventory-types';
 import { HomeContentPage, SettingsResourcePage } from './sections/refine-settings';
 
 export function App() {
@@ -139,10 +141,7 @@ export function App() {
                         path={departmentsPath}
                         element={
                             <RequireRole me={me} allow={canApprove}>
-                                <SettingsResourcePage
-                                    resourceName="departments"
-                                    dashboard={dashboard}
-                                />
+                                <DepartmentsPage dashboard={dashboard} />
                             </RequireRole>
                         }
                     />
@@ -150,10 +149,7 @@ export function App() {
                         path={`${departmentsPath}/:id`}
                         element={
                             <RequireRole me={me} allow={canApprove}>
-                                <SettingsResourcePage
-                                    resourceName="departments"
-                                    dashboard={dashboard}
-                                />
+                                <DepartmentsPage dashboard={dashboard} />
                             </RequireRole>
                         }
                     />
@@ -167,21 +163,11 @@ export function App() {
                     />
                     <Route
                         path={inventoryTypesPath}
-                        element={
-                            <SettingsResourcePage
-                                resourceName="inventory-types"
-                                dashboard={dashboard}
-                            />
-                        }
+                        element={<InventoryTypesPage dashboard={dashboard} />}
                     />
                     <Route
                         path={`${inventoryTypesPath}/:id`}
-                        element={
-                            <SettingsResourcePage
-                                resourceName="inventory-types"
-                                dashboard={dashboard}
-                            />
-                        }
+                        element={<InventoryTypesPage dashboard={dashboard} />}
                     />
                     <Route
                         path={blocksPath}

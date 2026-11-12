@@ -1,53 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'esbuild';
+import { loadBundle } from './test-support.mjs';
 
-const bundle = await build({
-    bundle: true,
-    format: 'esm',
-    platform: 'node',
-    write: false,
-    stdin: {
-        resolveDir: process.cwd(),
-        contents: `
-            export { getInventoryRequestActions, canTransitionInventoryRequest,
-                canTransitionProgramRequest } from './frontend/src/workflows';
-            export { getProgramRequestActions } from './frontend/src/ui/program-actions';
+const api = await loadBundle(`
+            export { getInventoryRequestActions, getProgramRequestActions }
+                from './frontend/src/workflows';
+            export { canTransition } from './supabase/functions/_shared/request-policy';
             export { performInventoryRequestAction } from './supabase/functions/api/inventory';
             export { performProgramRequestAction } from './supabase/functions/api/programs';
-        `,
-    },
-    plugins: [
-        {
-            name: 'unused-input-validation',
-            setup(build) {
-                // These tests call workflow functions directly, not the HTTP parser.
-                build.onResolve({ filter: /\/validation\.ts$/ }, () => ({
-                    path: 'validation',
-                    namespace: 'test',
-                }));
-                build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-                    contents: `export const requiredStringArg = (value) => value;
-                        export const emailArg = (value) => value;
-                        export const requireUnchangedWorkflowStatus = () => {};
-                        export const isValidEmail = () => true;
-                        export const MAX_PARTICIPANTS = 50;
-                        export const MAX_COMMENT_LENGTH = 4000;
-                        export const MAX_NAME_LENGTH = 200;
-                        export const MAX_PHONE_LENGTH = 50;
-                        export const boundedText = (value) => String(value ?? '').trim();`,
-                }));
-            },
-        },
-    ],
-});
-const api = await import(
-    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
-);
+        `);
 
 for (const kind of ['Inventory', 'Program']) {
     const actions = api[`get${kind}RequestActions`];
-    const transition = api[`canTransition${kind}Request`];
+    const transition = (status, action) => api.canTransition(kind.toLowerCase(), status, action);
     test(`${kind}: revise visibility follows ownership and approval permissions`, () => {
         const request = {
             Status: 'rejected',

@@ -58,3 +58,25 @@ export function programFormValues(request: ProgramRequestDTO) {
         Status: request.Status,
     };
 }
+
+// The API takes sessions and item lines in their own input shapes; every page
+// that saves a request maps its state through these, not by hand.
+export function toProgramSessionInputs(sessions: ProgramSession[]) {
+    return sessions.map((session) => ({
+        name: session.Name,
+        type: session.Type,
+        startDateTime: session.StartDateTime,
+        endDateTime: session.EndDateTime,
+    }));
+}
+
+export function toInventoryItemInputs(items: InventoryItemDTO[]) {
+    return items.map((item) => ({
+        inventoryTypeId: item.InventoryTypeId,
+        quantity: item.Quantity,
+        condition: item.Condition,
+        labelIds: (item.labels || []).map((label) =>
+            typeof label === 'string' ? label : label.Id,
+        ),
+    }));
+}

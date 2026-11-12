@@ -20,11 +20,19 @@ import {
 } from './query.ts';
 import { emailArg, requireUnchangedWorkflowStatus } from './validation.ts';
 import {
+    assertCanEdit,
+    deleteRequest,
+    isApprover,
+    loadRequestAccess,
     parseParticipants,
+    performRequestAction,
     replaceParticipants,
     requireDepartment,
     requireRequesterProfile,
-} from './inventory.ts';
+    updateRequestParticipants,
+    type RequestKindConfig,
+} from './requests.ts';
+import { assertPlaceAvailability, availablePlaces } from './scheduling.ts';
 
 export function programSessionDto(x: Row): Row {
     return {
@@ -148,6 +156,8 @@ export async function listProgramRequests(
     const filtered = dtos
         .filter((r) => statuses.length === 0 || statuses.indexOf(r.Status) !== -1)
         .filter((r) => !query.placeId || r.PlaceId === query.placeId)
+        .filter((r) => !query.departmentId || r.DepartmentId === query.departmentId)
+        .filter((r) => !query.requesterEmail || r.UserId === query.requesterEmail)
         .filter((r) => matchesProgramDateScope(r, query.dateScope))
         .filter((r) =>
             matchesSearch(query.q, [
@@ -255,91 +265,6 @@ export function validateProgramSessions(sessions: unknown, requireAtLeastOne = t
     return cleaned;
 }
 
-export function sessionsOverlapWithBuffer(
-    leftStart: string,
-    leftEnd: string,
-    rightStart: string,
-    rightEnd: string,
-    bufferMs: number,
-): boolean {
-    const ls = Date.parse(leftStart);
-    const le = Date.parse(leftEnd);
-    const rs = Date.parse(rightStart);
-    const re = Date.parse(rightEnd);
-    if ([ls, le, rs, re].some((value) => Number.isNaN(value))) return false;
-    return ls < re + bufferMs && rs < le + bufferMs;
-}
-
-export function rangesOverlap(
-    leftStart: string,
-    leftEnd: string,
-    rightStart: string,
-    rightEnd: string,
-): boolean {
-    return leftStart < rightEnd && rightStart < leftEnd;
-}
-
-// A place can't host two approved programs within an hour of each other —
-// ported from assertPlaceAvailability in Programs.ts.
-export async function assertPlaceAvailability(
-    admin: SupabaseClient,
-    placeId: string | null,
-    sessions: Row[],
-    currentRequestId?: string,
-): Promise<void> {
-    if (!placeId || !sessions.length) return;
-    const requests = await fetchAll((from, to) =>
-        admin
-            .from('program_requests')
-            .select('id')
-            .eq('place_id', placeId)
-            .eq('status', 'approved')
-            .order('id')
-            .range(from, to),
-    );
-    const otherIds = requests.map((r) => r.id).filter((id) => id !== currentRequestId);
-    if (!otherIds.length) return;
-    const otherSessions = await fetchAllIn(otherIds, (chunk, from, to) =>
-        admin
-            .from('program_sessions')
-            .select('id, start_at, end_at')
-            .in('request_id', chunk)
-            .order('id')
-            .range(from, to),
-    );
-    const bufferMs = 60 * 60 * 1000;
-    const conflict = otherSessions.some((other) =>
-        sessions.some((session) =>
-            sessionsOverlapWithBuffer(
-                session.start_at,
-                session.end_at,
-                other.start_at,
-                other.end_at,
-                bufferMs,
-            ),
-        ),
-    );
-    if (conflict) {
-        throw new Error(
-            'This place is unavailable: its session is within one hour of another scheduled program.',
-        );
-    }
-}
-
-// Blocks with no place set apply to every non-approver submission.
-export async function assertProgramSessionsNotBlockedForUser(
-    admin: SupabaseClient,
-    sessions: Row[],
-): Promise<void> {
-    const blocks = result(await admin.from('blocks').select('*').is('place_id', null)) as Row[];
-    const blocking = blocks.find((block) =>
-        sessions.some((session) =>
-            rangesOverlap(session.start_at, session.end_at, block.start_at, block.end_at),
-        ),
-    );
-    if (blocking) throw new Error('This request overlaps with a blocked time: ' + blocking.name);
-}
-
 export async function getAvailablePlaces(
     admin: SupabaseClient,
     currentRequestId: string,
@@ -349,45 +274,7 @@ export async function getAvailablePlaces(
         start_at: s.startDateTime || '',
         end_at: s.endDateTime || '',
     }));
-    const places = result(await admin.from('places').select('*').order('name')) as Row[];
-    if (!sessions.length) return places.map((p) => ({ Id: p.id, Name: p.name }));
-    const approved = await fetchAll((from, to) =>
-        admin
-            .from('program_requests')
-            .select('id, place_id')
-            .eq('status', 'approved')
-            .order('id')
-            .range(from, to),
-    );
-    const relevantIds = approved.filter((r) => r.id !== currentRequestId).map((r) => r.id);
-    const otherSessions = await fetchAllIn(relevantIds, (chunk, from, to) =>
-        admin
-            .from('program_sessions')
-            .select('id, request_id, start_at, end_at')
-            .in('request_id', chunk)
-            .order('id')
-            .range(from, to),
-    );
-    const placeIdByRequest = new Map(approved.map((r) => [r.id, r.place_id]));
-    const bufferMs = 60 * 60 * 1000;
-    return places
-        .filter(
-            (place) =>
-                !otherSessions.some(
-                    (other) =>
-                        placeIdByRequest.get(other.request_id) === place.id &&
-                        sessions.some((session) =>
-                            sessionsOverlapWithBuffer(
-                                session.start_at,
-                                session.end_at,
-                                other.start_at,
-                                other.end_at,
-                                bufferMs,
-                            ),
-                        ),
-                ),
-        )
-        .map((p) => ({ Id: p.id, Name: p.name }));
+    return availablePlaces(admin, currentRequestId, sessions);
 }
 
 // The calendar is an org-wide events view, not a personal request list — every
@@ -484,7 +371,7 @@ export async function createProgramRequest(
     requestId: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
+    const approver = isApprover(actor);
     const type = requireNonEmpty(input.type, 'Program type is required.');
     const name =
         type === 'Other'
@@ -493,10 +380,10 @@ export async function createProgramRequest(
     const language = requireNonEmpty(input.language, 'Language is required.');
     const requesterEmail = String(input.userId || actor.email).toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
-    if (requestedBy.email !== actor.email && !isApprover) {
+    if (requestedBy.email !== actor.email && !approver) {
         throw new Error('You cannot create a request on behalf of another user.');
     }
-    if (input.placeId && !isApprover) throw new Error('Only an approver can assign a place.');
+    if (input.placeId && !approver) throw new Error('Only an approver can assign a place.');
     let place: Row | null = null;
     if (input.placeId) {
         const { data, error } = await admin
@@ -566,7 +453,7 @@ export async function updateProgramRequest(
     requestId: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
+    const approver = isApprover(actor);
     const type = requireNonEmpty(input.type, 'Program type is required.');
     const name =
         type === 'Other'
@@ -602,23 +489,14 @@ export async function updateProgramRequest(
         requestId,
         userId,
         async () => {
-            const [existingRes, participantsRes] = await Promise.all([
-                admin.from('program_requests').select('*').eq('id', id).single(),
-                admin.from('program_request_participants').select('*').eq('request_id', id),
-            ]);
-            const existing = result(existingRes) as Row;
-            const existingParticipants = result(participantsRes) as Row[];
-            const isOwner =
-                existing.requester_id === actor.id ||
-                existingParticipants.some((p) => p.profile_id === actor.id);
-            if (!(isApprover || (isOwner && existing.status === 'draft'))) {
-                throw new Error('You are not allowed to edit this request.');
-            }
+            const access = await loadRequestAccess(admin, programRequestKind, id, actor);
+            assertCanEdit(actor, access);
+            const existing = access.request;
             const newPlaceId = place ? place.id : null;
-            if (existing.place_id !== newPlaceId && !isApprover) {
+            if (existing.place_id !== newPlaceId && !approver) {
                 throw new Error('Only an approver can change the assigned place.');
             }
-            if (existing.requester_id !== requestedBy.id && !isApprover) {
+            if (existing.requester_id !== requestedBy.id && !approver) {
                 throw new Error('You cannot reassign the requester.');
             }
             requireUnchangedWorkflowStatus(input.status, String(existing.status));
@@ -649,14 +527,28 @@ export async function updateProgramRequest(
                     .insert(sessions.map((s) => ({ ...s, request_id: id })));
                 if (error) throw new Error(error.message);
             }
-            await replaceParticipants(admin, 'program_request_participants', id, participantEmails);
+            await replaceParticipants(
+                admin,
+                programRequestKind.participantsTable,
+                id,
+                participantEmails,
+            );
             return updated;
         },
     );
     return getProgramRequest(client, admin, dto.id);
 }
 
-export async function updateProgramRequestParticipants(
+const programRequestKind: RequestKindConfig = {
+    kind: 'program',
+    scope: 'program_request',
+    table: 'program_requests',
+    participantsTable: 'program_request_participants',
+    actionRpc: 'perform_program_request_action_tx',
+    read: getProgramRequest,
+};
+
+export function updateProgramRequestParticipants(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
@@ -664,37 +556,20 @@ export async function updateProgramRequestParticipants(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentWriter(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
-    const participantEmails = parseParticipants(input.participants);
-    await withLockedDedupe(
+    return updateRequestParticipants(
+        programRequestKind,
+        client,
         admin,
-        'program_request:participants:' + id,
-        requestId,
         userId,
-        async () => {
-            const [existingRes, participantsRes] = await Promise.all([
-                admin.from('program_requests').select('*').eq('id', id).single(),
-                admin.from('program_request_participants').select('*').eq('request_id', id),
-            ]);
-            const existing = result(existingRes) as Row;
-            const existingParticipants = result(participantsRes) as Row[];
-            const canEdit =
-                isApprover ||
-                existing.requester_id === actor.id ||
-                existingParticipants.some((p) => p.profile_id === actor.id);
-            if (!canEdit)
-                throw new Error('You are not allowed to edit participants on this request.');
-            await replaceParticipants(admin, 'program_request_participants', id, participantEmails);
-            return null;
-        },
+        id,
+        input,
+        requestId,
     );
-    return getProgramRequest(client, admin, id);
 }
 
 // The RPC locks the request (and its place during approval), validates the
 // transition, updates status and writes the activity comment atomically.
-export async function performProgramRequestAction(
+export function performProgramRequestAction(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
@@ -703,50 +578,24 @@ export async function performProgramRequestAction(
     note: string,
     dedupeRequestId: string,
 ): Promise<string> {
-    const actor = await currentWriter(client, userId);
-    const { result: nextStatus } = await withLockedDedupe(
+    return performRequestAction(
+        programRequestKind,
+        client,
         admin,
-        'program_request:' + id + ':' + action,
-        dedupeRequestId,
         userId,
-        async () =>
-            result(
-                await admin.rpc('perform_program_request_action_tx', {
-                    p_request_id: id,
-                    p_action: action,
-                    p_actor_id: actor.id,
-                    p_note: note,
-                }),
-            ) as string,
+        id,
+        action,
+        note,
+        dedupeRequestId,
     );
-    return nextStatus;
 }
 
-export async function deleteProgramRequest(
+export function deleteProgramRequest(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
     id: string,
     requestId: string,
 ): Promise<void> {
-    const actor = await currentWriter(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
-    await withLockedDedupe(admin, 'program_request:delete:' + id, requestId, userId, async () => {
-        const [requestRes, participantsRes] = await Promise.all([
-            admin.from('program_requests').select('*').eq('id', id).single(),
-            admin.from('program_request_participants').select('*').eq('request_id', id),
-        ]);
-        const request = result(requestRes) as Row;
-        const participants = result(participantsRes) as Row[];
-        const owner =
-            request.requester_id === actor.id ||
-            participants.some((p) => p.profile_id === actor.id);
-        if (!isApprover && !owner) throw new Error('You are not allowed to delete this request.');
-        if (['draft', 'cancelled', 'rejected'].indexOf(request.status) === -1) {
-            throw new Error('This request can no longer be deleted.');
-        }
-        const { error } = await admin.from('program_requests').delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    return deleteRequest(programRequestKind, client, admin, userId, id, requestId);
 }

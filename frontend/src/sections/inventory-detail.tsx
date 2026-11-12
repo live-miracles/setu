@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useCustomMutation, useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
+import { useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
 import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
 import {
     ArrowLeftOutlined,
@@ -26,8 +26,7 @@ import {
     sortInventoryLabels,
     parseInventoryQrValue,
 } from '../ui/inventory-qr';
-import { prepareInventoryImage } from '../ui/inventory-image';
-import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
+import { uploadTargetImage } from '../ui/image-upload';
 import { RequestImage } from '../ui/request-image';
 import { inventoryTypeDisplayName } from '../ui/inventory-qr';
 import { QrScanner } from '../ui/qr-scanner';
@@ -36,9 +35,12 @@ import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
 import { requestStatusTagColor } from '../ui/request-status';
-import { inventoryFormValues, inventoryRequestFields } from '../ui/request-fields';
-import { canApprove, canWrite, getInventoryRequestActions, isRequestOverdue } from '../workflows';
-import { supabase } from '../supabase';
+import {
+    inventoryFormValues,
+    inventoryRequestFields,
+    toInventoryItemInputs,
+} from '../ui/request-fields';
+import { canApprove, getRequestPermissions, isRequestOverdue } from '../workflows';
 import { Activity, ParticipantsEditor } from './detail-activity';
 import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
 import { ActionConfirmation, Empty, Modal, SaveFooter, TextField, useSave } from './refine-shared';
@@ -59,7 +61,6 @@ export function InventoryDetail({
     const { refreshDashboard } = useDashboard();
     const { mutateAsync: updateInventoryRequest } = useUpdate();
     const { mutateAsync: deleteInventoryRequest } = useDelete();
-    const { mutateAsync: customMutate } = useCustomMutation();
     const invalidate = useInvalidate();
     const invalidateThisRequest = () =>
         invalidate({
@@ -67,20 +68,17 @@ export function InventoryDetail({
             id: request.Id,
             invalidates: ['list', 'many', 'detail'],
         });
-    const currentUserEmail = dashboard.me.Email.trim().toLowerCase();
-    const owner =
-        canWrite(dashboard.me) &&
-        (request.UserId.trim().toLowerCase() === currentUserEmail ||
-            (request.participants || []).some(
-                (email) => email.trim().toLowerCase() === currentUserEmail,
-            ));
+    const permissions = getRequestPermissions<InventoryRequestAction>(
+        'inventory',
+        request,
+        dashboard.me,
+    );
     const approver = canApprove(dashboard.me);
     const overdue = isRequestOverdue(request);
     const canEditItemCondition = approver && ['issued', 'closed'].includes(request.Status);
     const showItemCondition = ['issued', 'closed'].includes(request.Status);
-    const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
-    const deletable =
-        ['draft', 'cancelled'].includes(request.Status) && (canApprove(dashboard.me) || owner);
+    const editable = permissions.canEdit;
+    const deletable = permissions.canDelete;
     const [editing, setEditing] = useState(false);
     const [pendingAction, setPendingAction] = useState<InventoryRequestAction | null>(null);
     const [pendingDelete, setPendingDelete] = useState(false);
@@ -128,14 +126,7 @@ export function InventoryDetail({
                 id: request.Id,
                 values: {
                     ...inventoryRequestFields(request),
-                    items: nextItems.map((item) => ({
-                        inventoryTypeId: item.InventoryTypeId,
-                        quantity: item.Quantity,
-                        condition: item.Condition,
-                        labelIds: (item.labels || []).map((label) =>
-                            typeof label === 'string' ? label : label.Id,
-                        ),
-                    })),
+                    items: toInventoryItemInputs(nextItems),
                 },
                 successNotification: false,
                 errorNotification: false,
@@ -206,14 +197,7 @@ export function InventoryDetail({
                     departmentId: values.DepartmentId,
                     leadEmail: values.LeadEmail,
                     participants: values.Participants,
-                    items: items.map((item) => ({
-                        inventoryTypeId: item.InventoryTypeId,
-                        quantity: item.Quantity,
-                        condition: item.Condition,
-                        labelIds: (item.labels || []).map((label) =>
-                            typeof label === 'string' ? label : label.Id,
-                        ),
-                    })),
+                    items: toInventoryItemInputs(items),
                 },
                 successNotification: false,
                 errorNotification: false,
@@ -229,17 +213,11 @@ export function InventoryDetail({
         const serialized = participants.join(', ');
         showSavingBadge(true);
         try {
-            await customMutate({
-                url: 'updateInventoryRequestParticipants',
-                method: 'post',
-                values: {},
-                meta: {
-                    operation: 'updateInventoryRequestParticipants',
-                    args: [request.Id, { participants: serialized }, generateRequestId()],
-                },
-                successNotification: false,
-                errorNotification: false,
-            });
+            await api.updateInventoryRequestParticipants(
+                request.Id,
+                { participants: serialized },
+                generateRequestId(),
+            );
             setValues((current) => ({ ...current, Participants: serialized }));
             await invalidateThisRequest();
             await refreshDashboard();
@@ -321,21 +299,10 @@ export function InventoryDetail({
         try {
             setImageUploading(true);
             showSavingBadge(true);
-            const prepared = await prepareInventoryImage(file);
-            const upload = await api.createImageUploadUrl(
-                prepared.fileName,
-                prepared.mimeType,
-                'inventory_request',
-                request.Id,
-            );
-            const { error: uploadError } = await supabase()
-                .storage.from(IMAGE_BUCKET)
-                .uploadToSignedUrl(upload.path, upload.token, prepared.blob, {
-                    cacheControl: IMAGE_CACHE_CONTROL,
-                    contentType: prepared.mimeType,
-                });
-            if (uploadError) throw uploadError;
-            const nextImageId = upload.path;
+            const nextImageId = await uploadTargetImage(file, {
+                type: 'inventory_request',
+                id: request.Id,
+            });
             setImageId(nextImageId);
             await updateInventoryRequest({
                 resource: 'inventory-requests',
@@ -343,14 +310,7 @@ export function InventoryDetail({
                 values: {
                     ...inventoryRequestFields(request),
                     imageId: nextImageId,
-                    items: items.map((item) => ({
-                        inventoryTypeId: item.InventoryTypeId,
-                        quantity: item.Quantity,
-                        condition: item.Condition,
-                        labelIds: (item.labels || []).map((label) =>
-                            typeof label === 'string' ? label : label.Id,
-                        ),
-                    })),
+                    items: toInventoryItemInputs(items),
                 },
                 successNotification: false,
                 errorNotification: false,
@@ -371,17 +331,7 @@ export function InventoryDetail({
     const perform = async (action: InventoryRequestAction) => {
         try {
             showSavingBadge(true);
-            await customMutate({
-                url: 'performInventoryRequestAction',
-                method: 'post',
-                values: {},
-                meta: {
-                    operation: 'performInventoryRequestAction',
-                    args: [request.Id, action, '', null, generateRequestId()],
-                },
-                successNotification: false,
-                errorNotification: false,
-            });
+            await api.performInventoryRequestAction(request.Id, action, '', generateRequestId());
             await invalidateThisRequest();
             await refreshDashboard();
             if (action === 'issue') setIssueScanOpen(false);
@@ -391,7 +341,7 @@ export function InventoryDetail({
             showSavingBadge(false);
         }
     };
-    const actions = getInventoryRequestActions(request, dashboard.me);
+    const actions = permissions.actions;
     return (
         <DetailLayout
             title={request.Name || 'Unnamed request'}
@@ -465,7 +415,7 @@ export function InventoryDetail({
                             'Participants',
                             <ParticipantsEditor
                                 participants={request.participants}
-                                editable={canApprove(dashboard.me) || owner}
+                                editable={permissions.canCollaborate}
                                 onSave={saveParticipants}
                             />,
                         ],

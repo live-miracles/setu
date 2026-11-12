@@ -9,6 +9,7 @@ import { inventoryRequestPath, programRequestPath, userPath, usersPath } from '.
 import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
+import { useRelatedRequests } from '../ui/related-requests';
 import { DetailSection } from '../ui/detail-layout';
 import { UserBlock } from '../ui/user-block';
 import { DetailFields, DetailLayout } from './detail-shared';
@@ -186,12 +187,12 @@ export function Users({ dashboard }: Props) {
             user.Whatsapp,
         ]),
     );
-    const userPrograms = selectedUser
-        ? dashboard.programRequests.filter((request) => request.UserId === selectedUser.Email)
-        : [];
-    const userInventoryRequests = selectedUser
-        ? dashboard.inventoryRequests.filter((request) => request.UserId === selectedUser.Email)
-        : [];
+    const userFilter = selectedUser ? { requesterEmail: selectedUser.Email } : null;
+    const userPrograms = useRelatedRequests<ProgramRequestDTO>('program-requests', userFilter);
+    const userInventoryRequests = useRelatedRequests<InventoryRequestDTO>(
+        'inventory-requests',
+        userFilter,
+    );
     const userHeader = (
         <div className="antd-page-heading resource-page-heading">
             <div>
@@ -264,24 +265,26 @@ export function Users({ dashboard }: Props) {
                     ]}
                 />
             </DetailSection>
-            {userPrograms.length > 0 && (
+            {userPrograms.total > 0 && (
                 <DetailSection span="full">
                     <RelatedRequestBlocks
                         title="Programs"
                         kind="program"
-                        items={userPrograms}
+                        items={userPrograms.items}
+                        total={userPrograms.total}
                         dashboard={dashboard}
                         hrefFor={programRequestPath}
                         onOpen={(id) => navigate(programRequestPath(id))}
                     />
                 </DetailSection>
             )}
-            {userInventoryRequests.length > 0 && (
+            {userInventoryRequests.total > 0 && (
                 <DetailSection span="full">
                     <RelatedRequestBlocks
                         title="Inventory requests"
                         kind="inventory"
-                        items={userInventoryRequests}
+                        items={userInventoryRequests.items}
+                        total={userInventoryRequests.total}
                         dashboard={dashboard}
                         hrefFor={inventoryRequestPath}
                         onOpen={(id) => navigate(inventoryRequestPath(id))}

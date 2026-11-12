@@ -8,6 +8,7 @@ export function RelatedRequestBlocks({
     title,
     kind,
     items,
+    total = items.length,
     dashboard,
     hrefFor,
     onOpen,
@@ -15,6 +16,8 @@ export function RelatedRequestBlocks({
     title: string;
     kind: 'program' | 'inventory';
     items: (ProgramRequestDTO | InventoryRequestDTO)[];
+    // The true number of related requests when `items` is only the latest page.
+    total?: number;
     dashboard: DashboardPayload;
     hrefFor?: (id: string) => string;
     onOpen: (id: string) => void;
@@ -27,7 +30,7 @@ export function RelatedRequestBlocks({
         <section className="related-list">
             <div className="related-request-heading">
                 <Typography.Title level={3}>
-                    {title} <Tag>{items.length}</Tag>
+                    {title} <Tag>{total}</Tag>
                 </Typography.Title>
                 {items.length > PAGE_SIZE && (
                     <Pagination

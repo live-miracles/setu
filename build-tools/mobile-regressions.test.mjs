@@ -1,35 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { transform } from 'esbuild';
+import { loadBundle } from './test-support.mjs';
 
 const rootUrl = new URL('../', import.meta.url);
 
 async function importDashboard() {
-    const source = (
-        await readFile(new URL('supabase/functions/api/dashboard.ts', rootUrl), 'utf8')
-    ).replace(/^import[\s\S]*?;\n/gm, '');
-    const prelude = `
-        const result = (response) => {
-            if (response.error) throw new Error(response.error.message);
-            return response.data;
-        };
-        const fetchAll = async (page) => result(await page(0, 999));
-        const fetchAllIn = async (ids, page) => {
-            const unique = [...new Set([...ids].filter(Boolean))];
-            const rows = [];
-            for (let index = 0; index < unique.length; index += 100) {
-                rows.push(...result(await page(unique.slice(index, index + 100), 0, 999)));
-            }
-            return rows;
-        };
-        const profilesFor = async (_admin, ids) => new Map(
-            ids.filter(Boolean).map((id) => [id, { id, email: id + '@example.test', name: id }]),
-        );
-        const userDto = (profile) => ({ Email: profile.email, Name: profile.name, Role: profile.role });
-    `;
-    const { code } = await transform(prelude + source, { loader: 'ts', format: 'esm' });
-    return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+    return loadBundle(`export { dashboard } from './supabase/functions/api/dashboard';`);
 }
 
 test('dashboard bounds request data and scopes dependent rows', async () => {
@@ -133,7 +110,7 @@ test('dashboard bounds request data and scopes dependent rows', async () => {
         rpc: async () => ({ data: [], error: null }),
     };
 
-    const payload = await dashboard(client, {}, 'actor-1');
+    const payload = await dashboard(client, { from }, 'actor-1');
     assert.equal(payload.inventoryRequests.length, 250);
     assert.equal(payload.programRequests.length, 250);
     assert.equal(

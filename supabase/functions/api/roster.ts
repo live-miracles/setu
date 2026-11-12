@@ -9,6 +9,7 @@ import {
     type Row,
 } from './core.ts';
 import { paginate } from './query.ts';
+import { isApproverRole } from '../_shared/request-policy.ts';
 
 export async function listRosters(
     client: SupabaseClient,
@@ -90,7 +91,7 @@ export async function requireValidRosterInput(admin: SupabaseClient, input: Row)
         .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) throw new Error('User not found.');
-    if (data.role !== 'admin' && data.role !== 'approver') {
+    if (!isApproverRole(data.role)) {
         throw new Error('Roster assignee must be an administrator or approver.');
     }
     return { user: data, shiftType };

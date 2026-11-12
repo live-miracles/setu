@@ -1,104 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'esbuild';
+import { loadBundle, fakeClient } from './test-support.mjs';
 
-const bundle = await build({
-    bundle: true,
-    format: 'esm',
-    platform: 'node',
-    write: false,
-    stdin: {
-        resolveDir: process.cwd(),
-        contents: `
+const api = await loadBundle(`
             export { fetchAll } from './supabase/functions/api/core';
             export { listProgramRequests } from './supabase/functions/api/programs';
             export { getInventoryRequest, listInventoryRequests } from './supabase/functions/api/inventory';
             export { listRosters } from './supabase/functions/api/roster';
             export { dashboard } from './supabase/functions/api/dashboard';
             export { profilesFor } from './supabase/functions/api/core';
-            export { assertPlaceAvailability, getAvailablePlaces, getCalendarMonth } from './supabase/functions/api/programs';
+            export { getAvailablePlaces, getCalendarMonth } from './supabase/functions/api/programs';
+            export { assertPlaceAvailability } from './supabase/functions/api/scheduling';
             export { listInventoryTypes } from './supabase/functions/api/reference';
-        `,
-    },
-    plugins: [
-        {
-            name: 'unused-input-validation',
-            setup(build) {
-                build.onResolve({ filter: /\/validation\.ts$/ }, () => ({
-                    path: 'validation',
-                    namespace: 'test',
-                }));
-                build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-                    contents: `export const requiredStringArg = (value) => value;
-                        export const emailArg = (value) => value;
-                        export const requireUnchangedWorkflowStatus = () => {};
-                        export const isValidEmail = () => true;
-                        export const MAX_PARTICIPANTS = 50;
-                        export const MAX_COMMENT_LENGTH = 4000;
-                        export const MAX_NAME_LENGTH = 200;
-                        export const MAX_PHONE_LENGTH = 50;
-                        export const boundedText = (value) => String(value ?? '').trim();`,
-                }));
-            },
-        },
-    ],
-});
-const api = await import(
-    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
-);
-
-// In-memory stand-in for PostgREST: honours filters/order/range, truncates at
-// max-rows like a hosted project, and rejects `.in()` lists too long for a URL.
-const MAX_ROWS = 1000;
-const MAX_IN_VALUES = 100;
-function fakeClient(tables, calls = []) {
-    return {
-        from(table) {
-            const filters = [];
-            const orders = [];
-            let bounds = null;
-            const query = {
-                select: () => query,
-                eq: (column, value) => (filters.push((row) => row[column] === value), query),
-                lt: (column, value) => (filters.push((row) => row[column] < value), query),
-                gt: (column, value) => (filters.push((row) => row[column] > value), query),
-                gte: (column, value) => (filters.push((row) => row[column] >= value), query),
-                limit: (count) => ((bounds = [0, count - 1]), query),
-                is: (column, value) => (filters.push((row) => row[column] === value), query),
-                not: (column, op, value) => (
-                    filters.push((row) => !(op === 'is' && row[column] === value)),
-                    query
-                ),
-                in: (column, values) => {
-                    if (values.length > MAX_IN_VALUES) throw new Error('URI too long');
-                    filters.push((row) => values.includes(row[column]));
-                    return query;
-                },
-                order: (column) => (orders.push(column), query),
-                range: (from, to) => ((bounds = [from, to]), query),
-                single: () => query.then((res) => ({ data: res.data?.[0] ?? null, error: null })),
-                then(resolve, reject) {
-                    let rows = (tables[table] || []).filter((row) => filters.every((f) => f(row)));
-                    rows = [...rows].sort((a, b) => {
-                        for (const column of orders) {
-                            if (a[column] < b[column]) return -1;
-                            if (a[column] > b[column]) return 1;
-                        }
-                        return 0;
-                    });
-                    const from = bounds ? bounds[0] : 0;
-                    const to = bounds ? bounds[1] : MAX_ROWS - 1;
-                    calls.push({ table, from, to });
-                    return Promise.resolve({
-                        data: rows.slice(from, Math.min(to + 1, from + MAX_ROWS)),
-                        error: null,
-                    }).then(resolve, reject);
-                },
-            };
-            return query;
-        },
-    };
-}
+        `);
 
 const pad = (n) => String(n).padStart(6, '0');
 
@@ -434,4 +348,143 @@ test('inventory detail loads only the labels and types its items use', async () 
         request.items.map((item) => [item.itemName, item.labels.map((label) => label.Name)]),
         [['Acme · Camera', [labels.at(-1).name]]],
     );
+});
+
+test('dashboard requests are built by the same DTO builders as the request lists', async () => {
+    const tables = {
+        profiles: [
+            { id: 'u1', email: 'u1@x.org', name: 'U1', role: 'admin' },
+            { id: 'u2', email: 'u2@x.org', name: 'U2', role: 'user' },
+        ],
+        departments: [{ id: 'd1', name: 'Media', short_name: 'MED', lead_email: 'l@x.org' }],
+        places: [{ id: 'pl1', name: 'Hall' }],
+        inventory_types: [{ id: 't1', name: 'Camera', brand: 'Acme' }],
+        inventory_type_labels: [
+            { id: 'l1', display_id: 1, inventory_type_id: 't1', name: 'CAM-1' },
+        ],
+        inventory_requests: [
+            {
+                id: 'ir1',
+                display_id: 1,
+                name: 'Shoot',
+                requester_id: 'u2',
+                status: 'draft',
+                start_date: '2031-01-01',
+                end_date: '2031-01-02',
+                department_id: 'd1',
+                lead_email: 'l@x.org',
+            },
+        ],
+        inventory_request_items: [
+            { id: 'i1', request_id: 'ir1', inventory_type_id: 't1', quantity: 2 },
+        ],
+        inventory_request_item_labels: [
+            { id: 'a1', request_item_id: 'i1', inventory_type_label_id: 'l1' },
+        ],
+        inventory_request_participants: [
+            { id: 'p1', request_id: 'ir1', profile_id: null, external_email: 'ext@x.org' },
+        ],
+        program_requests: [
+            {
+                id: 'pr1',
+                display_id: 1,
+                name: 'Talk',
+                language: 'English',
+                program_type: 'Other',
+                requester_id: 'u2',
+                status: 'approved',
+                place_id: 'pl1',
+                department_id: 'd1',
+                lead_email: 'l@x.org',
+            },
+        ],
+        program_sessions: [
+            {
+                id: 's1',
+                request_id: 'pr1',
+                name: 'Day 1',
+                session_type: 'Talk',
+                start_at: '2031-01-01T10:00:00Z',
+                end_at: '2031-01-01T11:00:00Z',
+            },
+        ],
+        program_request_participants: [],
+        comments: [
+            {
+                id: 'c1',
+                inventory_request_id: 'ir1',
+                author_id: null,
+                author_name: 'Setu Bot',
+                message: 'hello',
+                created_at: '2031-01-01T00:00:00Z',
+            },
+            {
+                id: 'c2',
+                program_request_id: 'pr1',
+                author_id: 'u2',
+                message: 'hi',
+                created_at: '2031-01-01T00:00:00Z',
+            },
+        ],
+        rosters: [],
+        home_content: [{ id: true, guidelines: '' }],
+        shift_types: [],
+        program_types: [],
+        program_languages: [],
+        session_types: [],
+        blocks: [],
+    };
+    const client = { ...fakeClient(tables), rpc: async () => ({ data: [], error: null }) };
+    const board = await api.dashboard(client, client, 'u1');
+    const inventory = await api.listInventoryRequests(client, client, 1, {});
+    const programs = await api.listProgramRequests(client, client, 1, {});
+    assert.deepEqual(board.inventoryRequests, inventory.items);
+    assert.deepEqual(board.programRequests, programs.items);
+    assert.deepEqual(board.departments, [
+        { Id: 'd1', Name: 'Media', ShortName: 'MED', LeadEmail: 'l@x.org' },
+    ]);
+});
+
+test('request lists can be narrowed by department, requester and label', async () => {
+    const base = {
+        profiles: [
+            { id: 'u1', email: 'u1@x.org', name: 'U1' },
+            { id: 'u2', email: 'u2@x.org', name: 'U2' },
+        ],
+        departments: [],
+        places: [],
+        comments: [],
+        inventory_types: [{ id: 't1', name: 'Camera' }],
+        inventory_type_labels: [
+            { id: 'l1', display_id: 1, inventory_type_id: 't1', name: 'CAM-1' },
+            { id: 'l2', display_id: 2, inventory_type_id: 't1', name: 'CAM-2' },
+        ],
+        inventory_requests: [
+            { id: 'ir1', display_id: 1, requester_id: 'u1', status: 'draft', department_id: 'd1' },
+            { id: 'ir2', display_id: 2, requester_id: 'u2', status: 'draft', department_id: 'd2' },
+        ],
+        inventory_request_items: [
+            { id: 'i1', request_id: 'ir1', inventory_type_id: 't1', quantity: 1 },
+            { id: 'i2', request_id: 'ir2', inventory_type_id: 't1', quantity: 1 },
+        ],
+        inventory_request_item_labels: [
+            { id: 'a1', request_item_id: 'i1', inventory_type_label_id: 'l1' },
+            { id: 'a2', request_item_id: 'i2', inventory_type_label_id: 'l2' },
+        ],
+        inventory_request_participants: [],
+        program_requests: [
+            { id: 'pr1', display_id: 1, requester_id: 'u1', status: 'draft', department_id: 'd1' },
+            { id: 'pr2', display_id: 2, requester_id: 'u2', status: 'draft', department_id: 'd2' },
+        ],
+        program_sessions: [],
+        program_request_participants: [],
+    };
+    const client = fakeClient(base);
+    const ids = async (list, query) =>
+        (await list(client, client, 1, query)).items.map((r) => r.Id);
+    assert.deepEqual(await ids(api.listInventoryRequests, { departmentId: 'd2' }), ['ir2']);
+    assert.deepEqual(await ids(api.listInventoryRequests, { requesterEmail: 'u1@x.org' }), ['ir1']);
+    assert.deepEqual(await ids(api.listInventoryRequests, { labelId: 'l2' }), ['ir2']);
+    assert.deepEqual(await ids(api.listProgramRequests, { departmentId: 'd1' }), ['pr1']);
+    assert.deepEqual(await ids(api.listProgramRequests, { requesterEmail: 'u2@x.org' }), ['pr2']);
 });

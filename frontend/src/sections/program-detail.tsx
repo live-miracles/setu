@@ -1,12 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import {
-    useCreate,
-    useCustomMutation,
-    useDelete,
-    useInvalidate,
-    useList,
-    useUpdate,
-} from '@refinedev/core';
+import { useCreate, useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
 import { Button, Form as AntForm, Input, Select, Space, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -20,16 +13,19 @@ import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
     getLocalDateFromSession,
-    getProgramRequestActions,
     shiftProgramSessions,
 } from '../ui/program-actions';
-import { canApprove, canWrite } from '../workflows';
+import { canApprove, getRequestPermissions } from '../workflows';
 import { DetailSection } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
 import { AppLoading } from '../ui/app-loading';
 import { Table } from 'antd';
 import { requestStatusTagColor } from '../ui/request-status';
-import { programFormValues, programRequestFields } from '../ui/request-fields';
+import {
+    programFormValues,
+    programRequestFields,
+    toProgramSessionInputs,
+} from '../ui/request-fields';
 import { Activity, ParticipantsEditor } from './detail-activity';
 import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
 import {
@@ -70,7 +66,6 @@ export function ProgramDetail({
     const { mutateAsync: updateProgramRequest } = useUpdate();
     const { mutateAsync: createProgramRequest } = useCreate();
     const { mutateAsync: deleteProgramRequest } = useDelete();
-    const { mutateAsync: customMutate } = useCustomMutation();
     const invalidate = useInvalidate();
     const invalidateThisRequest = () =>
         invalidate({
@@ -78,17 +73,13 @@ export function ProgramDetail({
             id: request.Id,
             invalidates: ['list', 'many', 'detail'],
         });
-    const currentUserEmail = dashboard.me.Email.trim().toLowerCase();
-    const owner =
-        canWrite(dashboard.me) &&
-        (request.UserId.trim().toLowerCase() === currentUserEmail ||
-            (request.participants || []).some(
-                (email) => email.trim().toLowerCase() === currentUserEmail,
-            ));
-    const editable = canApprove(dashboard.me) || (owner && request.Status === 'draft');
-    const deletable =
-        ['draft', 'cancelled', 'rejected'].includes(request.Status) &&
-        (canApprove(dashboard.me) || owner);
+    const permissions = getRequestPermissions<ProgramRequestAction>(
+        'program',
+        request,
+        dashboard.me,
+    );
+    const editable = permissions.canEdit;
+    const deletable = permissions.canDelete;
     const [editing, setEditing] = useState(false);
     const [sessions, setSessions] = useState<ProgramSession[]>(request.sessions);
     const [sessionIndex, setSessionIndex] = useState<number | null>(null);
@@ -125,15 +116,7 @@ export function ProgramDetail({
     useEffect(() => {
         setAvailablePlacesLoading(true);
         setAvailablePlaceIds([]);
-        api.getAvailablePlaces(
-            request.Id,
-            sessions.map((session) => ({
-                name: session.Name,
-                type: session.Type,
-                startDateTime: session.StartDateTime,
-                endDateTime: session.EndDateTime,
-            })),
-        )
+        api.getAvailablePlaces(request.Id, toProgramSessionInputs(sessions))
             .then((places) => setAvailablePlaceIds(places.map((place) => place.Id)))
             .catch(error)
             .finally(() => setAvailablePlacesLoading(false));
@@ -150,12 +133,7 @@ export function ProgramDetail({
                 id: request.Id,
                 values: {
                     ...programRequestFields(request),
-                    sessions: nextSessions.map((s) => ({
-                        name: s.Name,
-                        type: s.Type,
-                        startDateTime: s.StartDateTime,
-                        endDateTime: s.EndDateTime,
-                    })),
+                    sessions: toProgramSessionInputs(nextSessions),
                 },
                 successNotification: false,
                 errorNotification: false,
@@ -188,12 +166,7 @@ export function ProgramDetail({
                     leadEmail: values.LeadEmail,
                     participants: values.Participants,
                     status: values.Status,
-                    sessions: sessions.map((s) => ({
-                        name: s.Name,
-                        type: s.Type,
-                        startDateTime: s.StartDateTime,
-                        endDateTime: s.EndDateTime,
-                    })),
+                    sessions: toProgramSessionInputs(sessions),
                 },
                 successNotification: false,
                 errorNotification: false,
@@ -209,17 +182,11 @@ export function ProgramDetail({
         const serialized = participants.join(', ');
         showSavingBadge(true);
         try {
-            await customMutate({
-                url: 'updateProgramRequestParticipants',
-                method: 'post',
-                values: {},
-                meta: {
-                    operation: 'updateProgramRequestParticipants',
-                    args: [request.Id, { participants: serialized }, generateRequestId()],
-                },
-                successNotification: false,
-                errorNotification: false,
-            });
+            await api.updateProgramRequestParticipants(
+                request.Id,
+                { participants: serialized },
+                generateRequestId(),
+            );
             setValues((current) => ({ ...current, Participants: serialized }));
             await invalidateThisRequest();
             await refreshDashboard();
@@ -277,12 +244,7 @@ export function ProgramDetail({
                 id: request.Id,
                 values: {
                     ...programRequestFields(request),
-                    sessions: nextSessions.map((s) => ({
-                        name: s.Name,
-                        type: s.Type,
-                        startDateTime: s.StartDateTime,
-                        endDateTime: s.EndDateTime,
-                    })),
+                    sessions: toProgramSessionInputs(nextSessions),
                 },
                 successNotification: false,
                 errorNotification: false,
@@ -341,17 +303,7 @@ export function ProgramDetail({
     const perform = async (action: ProgramRequestAction) => {
         try {
             showSavingBadge(true);
-            await customMutate({
-                url: 'performProgramRequestAction',
-                method: 'post',
-                values: {},
-                meta: {
-                    operation: 'performProgramRequestAction',
-                    args: [request.Id, action, '', generateRequestId()],
-                },
-                successNotification: false,
-                errorNotification: false,
-            });
+            await api.performProgramRequestAction(request.Id, action, '', generateRequestId());
             await invalidateThisRequest();
             await refreshDashboard();
         } catch (e) {
@@ -362,7 +314,7 @@ export function ProgramDetail({
     };
     const update = (key: keyof typeof values, value: string) =>
         setValues((current) => ({ ...current, [key]: value }));
-    const actions = getProgramRequestActions(request, dashboard.me);
+    const actions = permissions.actions;
     const sessionRows = sessions.map((session, index) => ({
         ...session,
         key: `${session.StartDateTime}-${index}`,
@@ -492,7 +444,7 @@ export function ProgramDetail({
                             'Participants',
                             <ParticipantsEditor
                                 participants={request.participants}
-                                editable={canApprove(dashboard.me) || owner}
+                                editable={permissions.canCollaborate}
                                 onSave={saveParticipants}
                             />,
                         ],
@@ -623,7 +575,9 @@ export function ProgramDetail({
                             <Select
                                 value={values.Status}
                                 onChange={(value) => update('Status', value)}
-                                disabled={!canApprove(dashboard.me)}
+                                // Status only changes through workflow actions; the
+                                // server rejects any other change.
+                                disabled
                                 className="antd-full-width">
                                 {PROGRAM_REQUEST_STATUSES.map((status) => (
                                     <Select.Option key={status} value={status}>

@@ -9,6 +9,7 @@ import {
     type Row,
 } from './core.ts';
 import { profilesFor } from './core.ts';
+import { isApproverRole } from '../_shared/request-policy.ts';
 
 function timeDto(value: unknown): string {
     return value == null ? '' : String(value).slice(0, 5);
@@ -184,10 +185,9 @@ export async function listUsers(client: SupabaseClient, userId: string): Promise
     );
     // Mirrors dashboard()'s dashboardProfiles: admins/approvers see everyone,
     // everyone else sees only themselves.
-    const profiles =
-        profile.role === 'admin' || profile.role === 'approver'
-            ? (result(await client.from('profiles').select('*')) as Row[])
-            : [profile];
+    const profiles = isApproverRole(profile.role)
+        ? (result(await client.from('profiles').select('*')) as Row[])
+        : [profile];
     return profiles.map((x) => userDto(x, departmentsById));
 }
 

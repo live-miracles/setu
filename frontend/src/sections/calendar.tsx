@@ -1,4 +1,5 @@
 import { useCustom } from '@refinedev/core';
+import { operationMeta } from '../ui/refine-data-provider';
 import { Button, Empty, Space, Typography } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { useState } from 'react';
@@ -32,7 +33,7 @@ export function Calendar({ dashboard }: Props) {
     const { result, query } = useCustom<CalendarMonthPayload>({
         url: 'getCalendarMonth',
         method: 'get',
-        meta: { operation: 'getCalendarMonth', args: [year, monthNumber] },
+        meta: operationMeta('getCalendarMonth', year, monthNumber),
     });
     const monthData = query.isSuccess ? result.data : null;
     const loading = query.isLoading;

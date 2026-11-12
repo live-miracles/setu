@@ -1,12 +1,11 @@
 import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
-    getProgramRequestActions,
     getLocalDateFromSession,
     shiftProgramSessions,
 } from './program-actions';
 import { instantToLocalInput, localInputToInstant } from './date';
-import { canWrite, getInventoryRequestActions } from '../workflows';
+import { canWrite, getInventoryRequestActions, getProgramRequestActions } from '../workflows';
 
 function assert(condition: boolean, message: string): void {
     if (!condition) throw new Error(message);

@@ -1,145 +1,33 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
-import { useCreate, useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
-import {
-    Button,
-    Card,
-    Checkbox,
-    Empty,
-    Form,
-    Input,
-    Modal,
-    Popover,
-    Select,
-    Space,
-    Table,
-    Tag,
-    Typography,
-} from 'antd';
-import {
-    ArrowLeftOutlined,
-    DeleteOutlined,
-    DownloadOutlined,
-    EditOutlined,
-    FilePdfOutlined,
-    HistoryOutlined,
-    PlusOutlined,
-    SearchOutlined,
-    UploadOutlined,
-} from '@ant-design/icons';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useList } from '@refinedev/core';
+import { Button, Card, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
-import { useDashboard } from '../dashboard-context';
-import {
-    departmentPath,
-    departmentsPath,
-    inventoryRequestPath,
-    inventoryTypePath,
-    inventoryTypesPath,
-    programRequestPath,
-    userPath,
-} from '../paths';
-import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { showErrorAlert } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
 import { formatDateTimeLocal } from '../ui/date';
-import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
-import {
-    groupInventoryTypes,
-    inventoryItemHasLabel,
-    inventoryLabelQrFilename,
-    inventoryTypeDisplayName,
-    inventoryQrValue,
-    sortInventoryLabels,
-    inventoryTypeQrFilename,
-    type InventoryGroupBy,
-} from '../ui/inventory-qr';
-import {
-    buildQrStickerPdf,
-    inventoryLabelLocations,
-    inventoryLabelStickerEntries,
-} from '../ui/inventory-qr-pdf';
 import { TableView } from '../ui/table-view';
-import { formatInventoryAvailability } from '../ui/inventory-stock';
-import { prepareInventoryImage } from '../ui/inventory-image';
-import { IMAGE_BUCKET, IMAGE_CACHE_CONTROL } from '../ui/image-storage';
-import { supabase } from '../supabase';
-import { RequestImage } from '../ui/request-image';
-import { RelatedRequestBlocks } from '../ui/related-request-blocks';
-import { UserBlock } from '../ui/user-block';
-import { BlockCard } from '../ui/block-card';
-import { DetailSection, DetailSections } from '../ui/detail-layout';
-import { ActionConfirmation, SaveFooter, TextField } from './refine-shared';
+import { useDashboard } from '../dashboard-context';
+import { ActionConfirmation } from './refine-shared';
+import {
+    Editor,
+    rowKeyOf,
+    useResourceMutations,
+    type ResourceConfig,
+    type Row,
+} from './settings-editor';
+import { canManageConfig } from '../workflows';
 
-type Field = {
-    field: string;
-    label: string;
-    type?: string;
-    datalistId?: string;
-    hiddenInTable?: boolean;
-    // Names another RESOURCES entry (and refine-data-provider.ts resource)
-    // whose rows populate this select — resolved via its own useList rather
-    // than the shared dashboard blob. optionsLabel adds a blank/"All ..."
-    // entry ahead of the fetched rows when set.
-    optionsResource?: string;
-    optionsLabel?: string;
-    // Only used when adding a new row (never overrides an existing row's value).
-    defaultValue?: () => string;
-};
-type Row = Record<string, any>;
-
-function SettingsDetailFields({ fields }: { fields: Array<[label: string, value: ReactNode]> }) {
-    return (
-        <div className="grid gap-4 sm:grid-cols-2">
-            {fields.map(([label, fieldValue]) => (
-                <div key={label} className="flex min-w-0 items-baseline gap-2">
-                    <dt className="shrink-0 text-xs font-semibold text-black/50">{label}</dt>
-                    <dd className="min-w-0 break-words text-sm">{fieldValue}</dd>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-interface ResourceConfig {
-    kind: string;
-    title: string;
-    addLabel: string;
-    emptyMessage: string;
-    fields: Field[];
-    // Most resources are keyed by a generated Id. Program languages have no
-    // Id column — the name itself is the identifier — so this lets the
-    // shared table below key/match/save rows without every resource needing
-    // one.
-    rowKey?: (row: Row) => string;
-    // Postgres's `order by name` isn't locale/numeric-aware (e.g. "Room 10"
-    // would sort before "Room 2") — resources that need that go through this
-    // instead of relying on the backend's ordering.
-    sortRows?: (rows: Row[]) => Row[];
-    toInput: (values: Record<string, string>) => Record<string, unknown>;
-}
-
-const rowKeyOf = (config: ResourceConfig, row: Row): string =>
-    config.rowKey ? config.rowKey(row) : String(row.Id);
-const value = (data: FormData, field: Field) => String(data.get(field.field) || '');
 const iso = (raw: string) => (raw ? new Date(raw).toISOString() : '');
 // Every settings resource's create/update payload has the same shape (see
 // refine-data-provider.ts, which does the actual api.ts call + dedupe id) —
 // this only translates the form's uppercase field names (matching
 // fields[].field) into the lowercase CreateXInput/UpdateXInput shape.
+// Departments and inventory types have their own pages (departments.tsx,
+// inventory-types.tsx); this shell serves only the simple resources below.
 const RESOURCES: Record<string, ResourceConfig> = {
-    departments: {
-        kind: 'department',
-        title: 'Departments',
-        addLabel: 'Add department',
-        emptyMessage: 'No departments yet.',
-        fields: [
-            { field: 'Name', label: 'Name' },
-            { field: 'ShortName', label: 'Short name' },
-            { field: 'LeadEmail', label: 'Lead email', type: 'email' },
-        ],
-        toInput: (v) => ({ name: v.Name, shortName: v.ShortName, leadEmail: v.LeadEmail }),
-    },
     places: {
         kind: 'place',
         title: 'Places',
@@ -154,53 +42,6 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 }),
             ),
         toInput: (v) => ({ name: v.Name }),
-    },
-    'inventory-types': {
-        kind: 'inventory-type',
-        title: 'Inventory types',
-        addLabel: 'Add equipment',
-        emptyMessage: 'No equipment catalogued yet.',
-        fields: [
-            { field: 'Name', label: 'Name' },
-            { field: 'Brand', label: 'Brand', datalistId: 'inventory-brand-options' },
-            { field: 'Model', label: 'Model' },
-            { field: 'Location', label: 'Location' },
-            { field: 'Description', label: 'Description', hiddenInTable: true },
-            {
-                field: 'TotalQuantity',
-                label: 'Total quantity',
-                type: 'number',
-                hiddenInTable: true,
-            },
-            {
-                field: 'Requestable',
-                label: 'Requestable',
-                type: 'checkbox',
-                hiddenInTable: true,
-            },
-        ],
-        sortRows: (rows) =>
-            [...rows].sort((a, b) => {
-                const brandCompare = String(a.Brand || '').localeCompare(
-                    String(b.Brand || ''),
-                    undefined,
-                    { numeric: true, sensitivity: 'base' },
-                );
-                if (brandCompare !== 0) return brandCompare;
-                return String(a.Name || '').localeCompare(String(b.Name || ''), undefined, {
-                    numeric: true,
-                    sensitivity: 'base',
-                });
-            }),
-        toInput: (v) => ({
-            brand: v.Brand,
-            name: v.Name,
-            model: v.Model,
-            location: v.Location,
-            description: v.Description,
-            requestable: v.Requestable === 'on',
-            totalQuantity: v.TotalQuantity.trim() === '' ? null : Number(v.TotalQuantity),
-        }),
     },
     blocks: {
         kind: 'block',
@@ -293,181 +134,6 @@ function todayAt(hours: number, minutes = 0): string {
     return formatDateTimeLocal(date);
 }
 
-function inputValue(field: Field, raw: unknown): string {
-    if (field.type !== 'datetime-local') return String(raw ?? '');
-    const date = new Date(String(raw || ''));
-    if (Number.isNaN(date.getTime())) return String(raw || '').slice(0, 16);
-    return formatDateTimeLocal(date);
-}
-
-function ColorField({ row, field }: { row?: Row; field: Field }) {
-    const initialColor = inputValue(field, row?.[field.field]);
-    const [color, setColor] = useState(initialColor || '');
-    const pickerValue = color || '#ffffff';
-
-    return (
-        <Space>
-            <input
-                className="settings-color-input"
-                type="color"
-                value={pickerValue}
-                onChange={(event) => setColor(event.currentTarget.value)}
-                aria-label={color ? `Selected color ${color}` : 'Choose a color'}
-            />
-            <input type="hidden" name={field.field} value={color} />
-            <span className="text-xs opacity-60">{color || 'No color selected'}</span>
-            {color && (
-                <Button type="link" size="small" onClick={() => setColor('')}>
-                    Clear
-                </Button>
-            )}
-        </Space>
-    );
-}
-
-function SelectField({ field, row }: { field: Field; row?: Row }) {
-    const { result } = useList({
-        resource: field.optionsResource || '',
-        pagination: { mode: 'off' },
-    });
-    const options = [
-        ...(field.optionsLabel ? [{ value: '', label: field.optionsLabel }] : []),
-        ...(result.data as Row[]).map((option) => ({
-            value: String(option.Id ?? option.Name ?? ''),
-            label: String(option.Name ?? option.Id ?? ''),
-        })),
-    ];
-    const [selected, setSelected] = useState(String(row?.[field.field] ?? ''));
-    return (
-        <>
-            <input type="hidden" name={field.field} value={selected} />
-            <Select
-                value={selected}
-                onChange={setSelected}
-                className="antd-full-width"
-                options={options.map((option) => ({ value: option.value, label: option.label }))}
-            />
-        </>
-    );
-}
-
-function FieldSet({
-    config,
-    row,
-    onSubmit,
-    submitLabel,
-    datalistOptions = {},
-}: {
-    config: ResourceConfig;
-    row?: Row;
-    onSubmit: (values: Record<string, string>) => Promise<void>;
-    submitLabel: string;
-    datalistOptions?: Record<string, string[]>;
-}) {
-    const [busy, setBusy] = useState(false);
-    async function submit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (!event.currentTarget.checkValidity()) {
-            event.currentTarget.reportValidity();
-            return;
-        }
-        setBusy(true);
-        try {
-            const data = new FormData(event.currentTarget);
-            const values = Object.fromEntries(config.fields.map((f) => [f.field, value(data, f)]));
-            await onSubmit(values);
-        } catch (error) {
-            showErrorAlert(error);
-        } finally {
-            setBusy(false);
-        }
-    }
-    return (
-        <form noValidate onSubmit={submit}>
-            {config.fields.map((field, index) => {
-                const defaultValue = row
-                    ? inputValue(field, row[field.field])
-                    : (field.defaultValue?.() ?? inputValue(field, undefined));
-                if (!['checkbox', 'color', 'select'].includes(field.type || '')) {
-                    return (
-                        <span key={field.field}>
-                            <TextField
-                                name={field.field}
-                                label={field.label}
-                                type={field.type || 'text'}
-                                list={field.datalistId}
-                                required={index === 0}
-                                value={defaultValue}
-                            />
-                            {field.datalistId && (
-                                <datalist id={field.datalistId}>
-                                    {(datalistOptions[field.datalistId] || []).map((option) => (
-                                        <option key={option} value={option} />
-                                    ))}
-                                </datalist>
-                            )}
-                        </span>
-                    );
-                }
-                return (
-                    <Form.Item label={field.label} required={index === 0} key={field.field}>
-                        {field.type === 'checkbox' ? (
-                            <Checkbox
-                                name={field.field}
-                                defaultChecked={row ? row[field.field] !== false : true}
-                            />
-                        ) : field.type === 'color' ? (
-                            <ColorField field={field} row={row} />
-                        ) : (
-                            <SelectField field={field} row={row} />
-                        )}
-                    </Form.Item>
-                );
-            })}
-            <Button type="primary" htmlType="submit" loading={busy}>
-                {submitLabel}
-            </Button>
-        </form>
-    );
-}
-
-function Editor({
-    config,
-    row,
-    onClose,
-    onSaved,
-    datalistOptions,
-}: {
-    config: ResourceConfig;
-    row?: Row;
-    onClose: () => void;
-    onSaved: (values: Record<string, string>) => Promise<void>;
-    datalistOptions?: Record<string, string[]>;
-}) {
-    const resourceLabel = config.addLabel.replace(/^Add /, '');
-    return (
-        <Modal
-            open
-            title={row ? `Edit ${resourceLabel}` : config.addLabel}
-            onCancel={onClose}
-            footer={null}
-            destroyOnHidden>
-            <FieldSet
-                config={config}
-                row={row}
-                onSubmit={async (values) => {
-                    // Close only once the save succeeded, so a rejected save
-                    // (duplicate name, validation) keeps what was typed.
-                    await onSaved(values);
-                    onClose();
-                }}
-                datalistOptions={datalistOptions}
-                submitLabel={row ? 'Save' : 'Add'}
-            />
-        </Modal>
-    );
-}
-
 export function SettingsResourcePage({
     resourceName,
     dashboard,
@@ -477,29 +143,16 @@ export function SettingsResourcePage({
     dashboard: DashboardPayload;
     compact?: boolean;
 }) {
-    const navigate = useNavigate();
-    const { refreshDashboard } = useDashboard();
-    const { id: detailId = null } = useParams<{ id: string }>();
     const config = RESOURCES[resourceName];
     if (!config) throw new Error(`Unknown settings resource: ${resourceName}`);
-    const canEdit = dashboard.me.Role === 'admin';
+    const canEdit = canManageConfig(dashboard.me);
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
-    const { result, query } = useList({ resource: resourceName, pagination: { mode: 'off' } });
-    const resourceLoading = query.isLoading;
+    const { result } = useList({ resource: resourceName, pagination: { mode: 'off' } });
     const rawRows = result.data as Row[];
     const rows = config.sortRows ? config.sortRows(rawRows) : rawRows;
-    const inventoryBrandOptions =
-        config.kind === 'inventory-type'
-            ? Array.from(
-                  new Set(rows.map((row) => String(row.Brand || '').trim()).filter(Boolean)),
-              ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-            : [];
-    const { mutateAsync: createRow } = useCreate();
-    const { mutateAsync: updateRow } = useUpdate();
-    const { mutateAsync: deleteRow } = useDelete();
-    const invalidate = useInvalidate();
+    const { save, remove } = useResourceMutations(resourceName, config);
     // blocks' Place field is the only select today — its options come from
     // its own useList (called unconditionally like every other hook here;
     // `enabled: false` skips the request for every other resource kind)
@@ -516,329 +169,27 @@ export function SettingsResourcePage({
             String(row.Name ?? row.Id ?? ''),
         ]),
     );
-    const selectedDepartment =
-        config.kind === 'department' ? rows.find((row) => row.Id === detailId) || null : null;
-    const selectedInventoryType =
-        config.kind === 'inventory-type' ? rows.find((row) => row.Id === detailId) || null : null;
-    const [qrCodeUrl, setQrCodeUrl] = useState('');
-    const [selectedQrLabelId, setSelectedQrLabelId] = useState('');
-    const [labelEditorOpen, setLabelEditorOpen] = useState(false);
-    const [labelEditor, setLabelEditor] = useState<InventoryLabel | null>(null);
-    const [labelEditorName, setLabelEditorName] = useState('');
-    const [labelBusy, setLabelBusy] = useState(false);
-    const [historyLabel, setHistoryLabel] = useState<InventoryLabel | null>(null);
-    const [qrPdfBusy, setQrPdfBusy] = useState(false);
-    const [qrPdfOpen, setQrPdfOpen] = useState(false);
-    const [qrPdfLocations, setQrPdfLocations] = useState<string[]>([]);
-    const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>('brand');
     const [search, setSearch] = useState('');
-    const [appliedSearch, setAppliedSearch] = useState('');
     const hasSearch = true;
-    const filterSearch =
-        config.kind === 'department' || config.kind === 'inventory-type' ? appliedSearch : search;
-    const filteredRows = rows.filter((row) => matchesSearch(filterSearch, Object.values(row)));
+    const filteredRows = rows.filter((row) => matchesSearch(search, Object.values(row)));
     const beginCreate = () => setCreating(true);
     const beginEdit = (row: Row) => setEditing(row);
     const closeEditor = () => {
         setCreating(false);
         setEditing(null);
     };
-    useEffect(() => {
-        if (config.kind !== 'inventory-type' || !selectedInventoryType) {
-            setQrCodeUrl('');
-            setSelectedQrLabelId('');
-            return;
-        }
-        setSelectedQrLabelId('');
-        let active = true;
-        void createInventoryTypeQrDataUrl(selectedInventoryType)
-            .then((dataUrl) => {
-                if (active) setQrCodeUrl(dataUrl);
-            })
-            .catch((error) => {
-                if (active) showErrorAlert(error);
-            });
-        return () => {
-            active = false;
-        };
-    }, [config.kind, selectedInventoryType?.Id]);
-    async function save(values: Record<string, string>) {
-        showSavingBadge(true);
-        try {
-            const mutateOptions = { successNotification: false, errorNotification: false } as const;
-            const payload = config.toInput(values);
-            if (!editing) {
-                const created = await createRow({
-                    resource: resourceName,
-                    values: payload,
-                    ...mutateOptions,
-                });
-                if (config.kind === 'inventory-type') {
-                    navigate(inventoryTypePath(rowKeyOf(config, created.data as Row)), {
-                        replace: true,
-                    });
-                }
-            } else {
-                await updateRow({
-                    resource: resourceName,
-                    id: rowKeyOf(config, editing),
-                    values: payload,
-                    ...mutateOptions,
-                });
-            }
-            // Refine's own query cache already refetches this page's list on
-            // success; refreshDashboard also keeps the shared dashboard blob
-            // in sync for pages that still cross-reference this resource
-            // from there (e.g. a department/place picker) and haven't been
-            // migrated to Refine's hooks yet.
-            await refreshDashboard();
-        } finally {
-            showSavingBadge(false);
-        }
-    }
-    async function remove(row: Row): Promise<boolean> {
-        showSavingBadge(true);
-        try {
-            await deleteRow({
-                resource: resourceName,
-                id: rowKeyOf(config, row),
-                successNotification: false,
-                errorNotification: false,
-            });
-            await refreshDashboard();
-            return true;
-        } catch (error) {
-            showErrorAlert(error);
-            return false;
-        } finally {
-            showSavingBadge(false);
-        }
-    }
-    async function uploadInventoryTypeImage(row: Row, file: File) {
-        showSavingBadge(true);
-        try {
-            const prepared = await prepareInventoryImage(file);
-            const upload = await api.createImageUploadUrl(
-                `InventoryTypes-${String(row.Id)}.jpg`,
-                prepared.mimeType,
-                'inventory_type',
-                String(row.Id),
-            );
-            const { error: uploadError } = await supabase()
-                .storage.from(IMAGE_BUCKET)
-                .uploadToSignedUrl(upload.path, upload.token, prepared.blob, {
-                    cacheControl: IMAGE_CACHE_CONTROL,
-                    contentType: prepared.mimeType,
-                });
-            if (uploadError) throw uploadError;
-            const imageId = upload.path;
-            await updateRow({
-                resource: resourceName,
-                id: row.Id,
-                values: {
-                    brand: String(row.Brand || ''),
-                    name: String(row.Name || ''),
-                    model: String(row.Model || ''),
-                    location: String(row.Location || ''),
-                    description: String(row.Description || ''),
-                    requestable: row.Requestable !== false,
-                    totalQuantity: row.TotalQuantity == null ? null : Number(row.TotalQuantity),
-                    imageId,
-                },
-                successNotification: false,
-                errorNotification: false,
-            });
-            await refreshDashboard();
-        } catch (error) {
-            showErrorAlert(error);
-        } finally {
-            showSavingBadge(false);
-        }
-    }
-    async function createInventoryTypeQrDataUrl(row: Row, label?: InventoryLabel): Promise<string> {
-        const QRCode = (await import('qrcode')).default;
-        const code = inventoryQrValue(row as InventoryTypeDTO, label);
-        const qrDataUrl = await QRCode.toDataURL(code, { margin: 2, width: 256 });
-        const image = new Image();
-        image.src = qrDataUrl;
-        await new Promise<void>((resolve, reject) => {
-            image.onload = () => resolve();
-            image.onerror = () => reject(new Error('Unable to prepare QR code image.'));
-        });
-        const captionHeight = 48;
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256 + captionHeight;
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('Unable to prepare QR code image.');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(image, 0, 0, 256, 256);
-        context.fillStyle = '#000000';
-        context.font = 'bold 40px sans-serif';
-        context.textAlign = 'center';
-        context.textBaseline = 'top';
-        context.fillText(code, canvas.width / 2, 256 + 2, canvas.width - 16);
-        return canvas.toDataURL('image/png');
-    }
-    async function downloadInventoryTypeQr(row: Row, label?: InventoryLabel) {
-        try {
-            const qrDataUrl = await createInventoryTypeQrDataUrl(row, label);
-            const link = document.createElement('a');
-            link.href = qrDataUrl;
-            link.download = label
-                ? inventoryLabelQrFilename(row as InventoryTypeDTO, label)
-                : inventoryTypeQrFilename(row as InventoryTypeDTO);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (error) {
-            showErrorAlert(error);
-        }
-    }
-    const labelLocations =
-        config.kind === 'inventory-type' ? inventoryLabelLocations(rows as InventoryTypeDTO[]) : [];
-    function toggleQrPdfOpen(open: boolean) {
-        // Every location starts ticked, so a plain click on Download still
-        // exports everything.
-        if (open) setQrPdfLocations(labelLocations.map((location) => location.key));
-        setQrPdfOpen(open);
-    }
-    async function downloadLabelQrPdf() {
-        setQrPdfBusy(true);
-        try {
-            const QRCode = (await import('qrcode')).default;
-            const entries = inventoryLabelStickerEntries(
-                rows as InventoryTypeDTO[],
-                (text) => QRCode.create(text, { errorCorrectionLevel: 'Q' }).modules,
-                qrPdfLocations,
-            );
-            const url = URL.createObjectURL(
-                new Blob([buildQrStickerPdf(entries)], { type: 'application/pdf' }),
-            );
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'inventory-label-qr-codes.pdf';
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            URL.revokeObjectURL(url);
-            setQrPdfOpen(false);
-        } catch (error) {
-            showErrorAlert(error);
-        } finally {
-            setQrPdfBusy(false);
-        }
-    }
-    async function removeInventoryLabel(label: InventoryLabel) {
-        setLabelBusy(true);
-        try {
-            await api.deleteInventoryLabel(label.Id, generateRequestId());
-            await invalidate({
-                resource: 'inventory-types',
-                invalidates: ['list', 'many', 'detail'],
-            });
-            await refreshDashboard();
-        } catch (error) {
-            showErrorAlert(error);
-        } finally {
-            setLabelBusy(false);
-        }
-    }
-    function openAddInventoryLabel() {
-        setLabelEditor(null);
-        setLabelEditorName('');
-        setLabelEditorOpen(true);
-    }
-    function openEditInventoryLabel(label: InventoryLabel) {
-        setLabelEditor(label);
-        setLabelEditorName(label.Name);
-        setLabelEditorOpen(true);
-    }
-    function closeInventoryLabelEditor() {
-        setLabelEditorOpen(false);
-        setLabelEditor(null);
-        setLabelEditorName('');
-    }
-    async function saveInventoryLabel(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (!selectedInventoryType || !labelEditorName.trim()) return;
-        setLabelBusy(true);
-        try {
-            if (labelEditor) {
-                await api.updateInventoryLabel(
-                    labelEditor.Id,
-                    { name: labelEditorName.trim() },
-                    generateRequestId(),
-                );
-            } else {
-                await api.createInventoryLabel(
-                    {
-                        inventoryTypeId: String(selectedInventoryType.Id),
-                        name: labelEditorName.trim(),
-                    },
-                    generateRequestId(),
-                );
-            }
-            closeInventoryLabelEditor();
-            await invalidate({
-                resource: 'inventory-types',
-                invalidates: ['list', 'many', 'detail'],
-            });
-            await refreshDashboard();
-        } catch (error) {
-            showErrorAlert(error);
-        } finally {
-            setLabelBusy(false);
-        }
-    }
-    const renderActions = (row: Row, detail = false) => (
-        <Space
-            direction={config.kind === 'department' ? 'vertical' : 'horizontal'}
-            size={detail ? 'middle' : 0}>
-            {canEdit && config.kind === 'inventory-type' && !detail && (
-                <>
-                    <input
-                        id={`inventory-type-image-${row.Id}`}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                            const file = event.target.files?.[0];
-                            event.target.value = '';
-                            if (file) void uploadInventoryTypeImage(row, file);
-                        }}
-                    />
-                    <Button
-                        type="text"
-                        icon={<UploadOutlined />}
-                        onClick={() =>
-                            document.getElementById(`inventory-type-image-${row.Id}`)?.click()
-                        }
-                        aria-label={row.ImageId ? 'Replace photo' : 'Add photo'}
-                        title={row.ImageId ? 'Replace photo' : 'Add photo'}
-                    />
-                </>
-            )}
-            {config.kind === 'inventory-type' && !detail && (
-                <Button
-                    type={detail ? 'primary' : 'text'}
-                    icon={<DownloadOutlined />}
-                    onClick={() => void downloadInventoryTypeQr(row)}
-                    aria-label="Download QR code"
-                    title="Download QR code"
-                />
-            )}
+    const renderActions = (row: Row) => (
+        <Space size={0}>
             {canEdit && (
                 <>
                     <Button
-                        type={detail ? 'primary' : 'text'}
+                        type="text"
                         icon={<EditOutlined />}
                         onClick={() => beginEdit(row)}
                         aria-label="Edit"
                     />
                     <Button
-                        type={detail ? 'primary' : 'text'}
+                        type="text"
                         danger
                         icon={<DeleteOutlined />}
                         onClick={() => setDeleting(row)}
@@ -881,24 +232,6 @@ export function SettingsResourcePage({
                     return String(value ?? '');
                 },
             })),
-        ...(config.kind === 'inventory-type'
-            ? [
-                  {
-                      title: 'Available',
-                      key: 'available',
-                      render: (_: unknown, row: Row) => {
-                          if (row.TotalQuantity == null) return null;
-                          const available = Number(row.availableQuantity);
-                          const total = Number(row.TotalQuantity);
-                          return (
-                              <span className={stockLevelTextClass(available, total)}>
-                                  <strong>{formatInventoryAvailability(available, total)}</strong>
-                              </span>
-                          );
-                      },
-                  },
-              ]
-            : []),
         {
             title: 'Actions',
             key: 'actions',
@@ -906,698 +239,48 @@ export function SettingsResourcePage({
             render: (_: unknown, row: Row) => renderActions(row),
         },
     ];
-    const inventoryTypeCards = resourceLoading ? (
-        <div className="py-8 text-center">
-            <Typography.Text type="secondary">Loading…</Typography.Text>
-        </div>
-    ) : filteredRows.length > 0 ? (
-        <div className="grid gap-6">
-            {groupInventoryTypes(filteredRows, inventoryGroupBy).map((group) => (
-                <section key={group.key}>
-                    <div className="related-request-heading">
-                        <Typography.Title level={3}>
-                            {group.title} <Tag>{group.rows.length}</Tag>
-                        </Typography.Title>
-                    </div>
-                    <div className="inventory-type-grid">
-                        {group.rows.map((row, index) => (
-                            <BlockCard
-                                key={row.Id}
-                                className="inventory-type-card"
-                                href={inventoryTypePath(String(row.Id))}
-                                onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
-                                <div className="inventory-type-card-heading">
-                                    <strong>
-                                        {inventoryGroupBy === 'serial' &&
-                                            `#${String(row.DisplayId)} `}
-                                        {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
-                                    </strong>
-                                    {row.Location && inventoryGroupBy !== 'location' && (
-                                        <span className="inventory-type-card-description">
-                                            {String(row.Location)}
-                                        </span>
-                                    )}
-                                    {group.counts && (
-                                        <span className="inventory-type-card-description">
-                                            {group.counts[index]} here
-                                        </span>
-                                    )}
-                                    {row.TotalQuantity != null && (
-                                        <span
-                                            className={`inventory-type-card-availability ${stockLevelTextClass(Number(row.availableQuantity), Number(row.TotalQuantity))}`}>
-                                            {formatInventoryAvailability(
-                                                Number(row.availableQuantity),
-                                                Number(row.TotalQuantity),
-                                            )}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="inventory-type-card-image">
-                                    <RequestImage
-                                        imageId={String(row.ImageId || '')}
-                                        alt={inventoryTypeDisplayName(row)}
-                                        fallback={<span>No photo</span>}
-                                    />
-                                </div>
-                            </BlockCard>
-                        ))}
-                    </div>
-                </section>
-            ))}
-        </div>
-    ) : (
-        <Empty description={config.emptyMessage} />
-    );
-    const departmentCards = resourceLoading ? (
-        <div className="py-8 text-center">
-            <Typography.Text type="secondary">Loading…</Typography.Text>
-        </div>
-    ) : filteredRows.length > 0 ? (
-        <div className="department-list">
-            {filteredRows.map((row) => (
-                <BlockCard
-                    key={row.Id}
-                    className="department-card"
-                    href={departmentPath(String(row.Id))}
-                    onClick={() => navigate(departmentPath(String(row.Id)))}>
-                    <div className="department-card-content">
-                        <strong>
-                            {String(row.Name || 'Unnamed department')}
-                            {row.ShortName ? ` (${String(row.ShortName)})` : ''}
-                        </strong>
-                        <span>{String(row.LeadEmail || 'No lead email')}</span>
-                    </div>
-                </BlockCard>
-            ))}
-        </div>
-    ) : (
-        <Empty description={config.emptyMessage} />
-    );
-    const departmentHeader = (
-        <div className="antd-page-heading resource-page-heading">
-            <div>
-                <Typography.Title level={2}>{config.title}</Typography.Title>
-            </div>
-            <Space className="antd-board-filters" wrap>
-                {config.kind === 'inventory-type' && (
-                    <Select
-                        value={inventoryGroupBy}
-                        onChange={setInventoryGroupBy}
-                        aria-label="Group inventory types by"
-                        popupMatchSelectWidth={false}
-                        options={[
-                            { value: '', label: 'Group by', disabled: true },
-                            { value: 'brand', label: 'Brand' },
-                            { value: 'location', label: 'Location' },
-                            { value: 'serial', label: 'Serial (QR number)' },
-                        ]}
-                    />
-                )}
-                <Input
-                    allowClear
-                    prefix={<SearchOutlined />}
-                    placeholder={`Search ${config.title.toLowerCase()}`}
-                    aria-label={`Search ${config.title.toLowerCase()}`}
-                    value={search}
-                    onChange={(event) => {
-                        const value = event.target.value;
-                        setSearch(value);
-                        if (!value) setAppliedSearch('');
-                    }}
-                    onPressEnter={() => setAppliedSearch(search)}
-                />
-                <Button
-                    type="primary"
-                    icon={<SearchOutlined />}
-                    onClick={() => setAppliedSearch(search)}
-                    aria-label={`Search ${config.title.toLowerCase()}`}
-                    title={`Search ${config.title.toLowerCase()}`}
-                />
-            </Space>
-            {config.kind === 'inventory-type' && (
-                <Popover
-                    trigger="click"
-                    placement="bottomRight"
-                    open={qrPdfOpen}
-                    onOpenChange={toggleQrPdfOpen}
-                    title="Label QR codes PDF"
-                    content={
-                        <Space direction="vertical">
-                            <Checkbox
-                                checked={qrPdfLocations.length === labelLocations.length}
-                                indeterminate={
-                                    qrPdfLocations.length > 0 &&
-                                    qrPdfLocations.length < labelLocations.length
-                                }
-                                onChange={(event) =>
-                                    setQrPdfLocations(
-                                        event.target.checked
-                                            ? labelLocations.map((location) => location.key)
-                                            : [],
-                                    )
-                                }>
-                                All locations
-                            </Checkbox>
-                            <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-                                <Space direction="vertical">
-                                    {labelLocations.map((location) => (
-                                        <Checkbox
-                                            key={location.key}
-                                            checked={qrPdfLocations.includes(location.key)}
-                                            onChange={(event) =>
-                                                setQrPdfLocations(
-                                                    event.target.checked
-                                                        ? [...qrPdfLocations, location.key]
-                                                        : qrPdfLocations.filter(
-                                                              (key) => key !== location.key,
-                                                          ),
-                                                )
-                                            }>
-                                            {location.title} ({location.labelCount})
-                                        </Checkbox>
-                                    ))}
-                                </Space>
-                            </div>
-                            <Button
-                                type="primary"
-                                icon={<FilePdfOutlined />}
-                                loading={qrPdfBusy}
-                                disabled={!qrPdfLocations.length}
-                                onClick={() => void downloadLabelQrPdf()}>
-                                Download PDF
-                            </Button>
-                        </Space>
-                    }>
-                    <Button
-                        type="primary"
-                        icon={<FilePdfOutlined />}
-                        disabled={!labelLocations.length}
-                        aria-label="Download label QR codes PDF"
-                        title="Download label QR codes PDF"
-                    />
-                </Popover>
-            )}
-            {canEdit && (
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={beginCreate}
-                    aria-label={`Add ${config.kind}`}
-                    title={`Add ${config.kind}`}
-                />
-            )}
-        </div>
-    );
-    const inventoryTypeRequests = selectedInventoryType
-        ? dashboard.inventoryRequests.filter((request) =>
-              request.items.some((item) => item.InventoryTypeId === selectedInventoryType.Id),
-          )
-        : [];
-    const historyLabelRequests = historyLabel
-        ? dashboard.inventoryRequests.filter((request) =>
-              request.items.some((item) => inventoryItemHasLabel(item, historyLabel.Id)),
-          )
-        : [];
-    const inventoryTypeDetail = selectedInventoryType && (
-        <>
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>
-                        {inventoryTypeDisplayName(selectedInventoryType) || 'Unnamed equipment'}
-                    </Typography.Title>
-                </div>
-                <Space wrap>
-                    <Button
-                        type="default"
-                        icon={<ArrowLeftOutlined />}
-                        onClick={() => navigate(inventoryTypesPath, { replace: true })}
-                        aria-label="Back to inventory types"
-                        title="Back to inventory types"
-                    />
-                    {renderActions(selectedInventoryType, true)}
-                </Space>
-            </div>
-            <DetailSections>
-                <DetailSection title="Details">
-                    <SettingsDetailFields
-                        fields={[
-                            ['Serial number', String(selectedInventoryType.DisplayId ?? '—')],
-                            ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
-                            ['Brand', String(selectedInventoryType.Brand || '—')],
-                            ['Model', String(selectedInventoryType.Model || '—')],
-                            ['Location', String(selectedInventoryType.Location || '—')],
-                            ['Description', String(selectedInventoryType.Description || '—')],
-                            ...(selectedInventoryType.TotalQuantity == null
-                                ? []
-                                : [
-                                      [
-                                          'Availability',
-                                          formatInventoryAvailability(
-                                              Number(selectedInventoryType.availableQuantity),
-                                              Number(selectedInventoryType.TotalQuantity),
-                                          ),
-                                      ] as [string, string],
-                                      [
-                                          'Total quantity',
-                                          String(selectedInventoryType.TotalQuantity),
-                                      ] as [string, string],
-                                  ]),
-                            [
-                                'Requestable',
-                                selectedInventoryType.Requestable !== false ? 'Yes' : 'No',
-                            ],
-                        ]}
-                    />
-                </DetailSection>
-                <DetailSection
-                    title="Image"
-                    className="inventory-image-section"
-                    action={
-                        canEdit ? (
-                            <>
-                                <input
-                                    id={`inventory-type-image-${selectedInventoryType.Id}`}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                                        const file = event.target.files?.[0];
-                                        event.target.value = '';
-                                        if (file)
-                                            void uploadInventoryTypeImage(
-                                                selectedInventoryType,
-                                                file,
-                                            );
-                                    }}
-                                />
-                                <Button
-                                    type="primary"
-                                    icon={<UploadOutlined />}
-                                    onClick={() =>
-                                        document
-                                            .getElementById(
-                                                `inventory-type-image-${selectedInventoryType.Id}`,
-                                            )
-                                            ?.click()
-                                    }
-                                    aria-label={
-                                        selectedInventoryType.ImageId
-                                            ? 'Replace photo'
-                                            : 'Add photo'
-                                    }
-                                    title={
-                                        selectedInventoryType.ImageId
-                                            ? 'Replace photo'
-                                            : 'Add photo'
-                                    }
-                                />
-                            </>
-                        ) : null
-                    }>
-                    <div className="inventory-request-image-frame">
-                        <RequestImage
-                            imageId={String(selectedInventoryType.ImageId || '')}
-                            alt={String(selectedInventoryType.Name || '')}
-                            className="inventory-request-image"
-                            fallback={<span>No photo</span>}
-                        />
-                    </div>
-                </DetailSection>
-                <DetailSection
-                    title="QR code"
-                    action={
-                        <Space>
-                            <Select
-                                value={selectedQrLabelId}
-                                onChange={(value) => {
-                                    setSelectedQrLabelId(value);
-                                    const labels = (selectedInventoryType.labels ||
-                                        []) as InventoryLabel[];
-                                    const label = labels.find((entry) => entry.Id === value);
-                                    void createInventoryTypeQrDataUrl(selectedInventoryType, label)
-                                        .then(setQrCodeUrl)
-                                        .catch(showErrorAlert);
-                                }}
-                                aria-label="QR code to download"
-                                popupMatchSelectWidth={false}
-                                options={[
-                                    { value: 'heading', label: 'QR code for', disabled: true },
-                                    { value: '', label: 'Inventory type' },
-                                    ...sortInventoryLabels(selectedInventoryType.labels).map(
-                                        (label) => ({
-                                            value: label.Id,
-                                            label: label.Name,
-                                        }),
-                                    ),
-                                ]}
-                            />
-                            <Button
-                                type="primary"
-                                icon={<DownloadOutlined />}
-                                onClick={() => {
-                                    const labels = (selectedInventoryType.labels ||
-                                        []) as InventoryLabel[];
-                                    const label = labels.find(
-                                        (entry) => entry.Id === selectedQrLabelId,
-                                    );
-                                    void downloadInventoryTypeQr(selectedInventoryType, label);
-                                }}
-                                aria-label="Download QR code"
-                                title="Download QR code"
-                            />
-                        </Space>
-                    }>
-                    <div className="flex justify-center">
-                        {qrCodeUrl ? (
-                            <img
-                                src={qrCodeUrl}
-                                alt={`QR code for ${String(selectedInventoryType.Name || 'inventory type')}`}
-                                width={256}
-                                height="auto"
-                            />
-                        ) : (
-                            <Typography.Text type="secondary">Preparing QR code…</Typography.Text>
-                        )}
-                    </div>
-                </DetailSection>
-                <DetailSection className="table-detail-section">
-                    <TableView
-                        title="Individual labels"
-                        count={(selectedInventoryType.labels || []).length}
-                        action={
-                            canEdit ? (
-                                <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
-                                    onClick={openAddInventoryLabel}
-                                    aria-label="Add label"
-                                    title="Add label"
-                                />
-                            ) : null
-                        }>
-                        {(selectedInventoryType.labels || []).length ? (
-                            <Table
-                                rowKey="Id"
-                                pagination={false}
-                                dataSource={sortInventoryLabels(selectedInventoryType.labels)}
-                                columns={[
-                                    {
-                                        title: 'Serial number',
-                                        dataIndex: 'DisplayId',
-                                        key: 'DisplayId',
-                                        render: (_: unknown, label: InventoryLabel) =>
-                                            String(label.DisplayId ?? '—'),
-                                    },
-                                    {
-                                        title: 'Label name',
-                                        dataIndex: 'Name',
-                                        key: 'Name',
-                                        render: (_: unknown, label: InventoryLabel) => label.Name,
-                                    },
-                                    {
-                                        title: 'Actions',
-                                        key: 'actions',
-                                        align: 'right' as const,
-                                        render: (_: unknown, label: InventoryLabel) => (
-                                            <Space>
-                                                {canEdit && (
-                                                    <Button
-                                                        type="text"
-                                                        icon={<EditOutlined />}
-                                                        disabled={labelBusy}
-                                                        onClick={() =>
-                                                            openEditInventoryLabel(label)
-                                                        }
-                                                        aria-label={`Edit ${label.Name}`}
-                                                    />
-                                                )}
-                                                <Button
-                                                    type="text"
-                                                    icon={<HistoryOutlined />}
-                                                    onClick={() => setHistoryLabel(label)}
-                                                    aria-label={`View requests for ${label.Name}`}
-                                                    title="View requests"
-                                                />
-                                                {canEdit && (
-                                                    <Button
-                                                        type="text"
-                                                        danger
-                                                        icon={<DeleteOutlined />}
-                                                        loading={labelBusy}
-                                                        onClick={() =>
-                                                            void removeInventoryLabel(label)
-                                                        }
-                                                        aria-label={`Delete ${label.Name}`}
-                                                    />
-                                                )}
-                                            </Space>
-                                        ),
-                                    },
-                                ]}
-                                scroll={{ x: 'max-content' }}
-                            />
-                        ) : (
-                            <Typography.Text type="secondary">
-                                No individual labels configured.
-                            </Typography.Text>
-                        )}
-                    </TableView>
-                </DetailSection>
-                {inventoryTypeRequests.length > 0 && (
-                    <DetailSection span="full">
-                        <RelatedRequestBlocks
-                            title="Inventory requests"
-                            kind="inventory"
-                            items={inventoryTypeRequests}
-                            dashboard={dashboard}
-                            hrefFor={inventoryRequestPath}
-                            onOpen={(id) => navigate(inventoryRequestPath(id))}
-                        />
-                    </DetailSection>
-                )}
-            </DetailSections>
-        </>
-    );
-    const departmentUsers = selectedDepartment
-        ? dashboard.users.filter((user) => user.DepartmentId === selectedDepartment.Id)
-        : [];
-    const departmentPrograms = selectedDepartment
-        ? dashboard.programRequests.filter(
-              (request) => request.DepartmentId === selectedDepartment.Id,
-          )
-        : [];
-    const departmentInventoryRequests = selectedDepartment
-        ? dashboard.inventoryRequests.filter(
-              (request) => request.DepartmentId === selectedDepartment.Id,
-          )
-        : [];
-    const departmentDetail = selectedDepartment && (
-        <>
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>
-                        {String(selectedDepartment.Name || 'Unnamed department')}
-                        {selectedDepartment.ShortName
-                            ? ` (${String(selectedDepartment.ShortName)})`
-                            : ''}
-                    </Typography.Title>
-                </div>
-                <Space>
-                    <Button
-                        type="default"
-                        icon={<ArrowLeftOutlined />}
-                        onClick={() => navigate(departmentsPath, { replace: true })}
-                        aria-label="Back to departments"
-                        title="Back to departments"
-                    />
-                    {canEdit && (
-                        <Button
-                            type="primary"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => setDeleting(selectedDepartment)}
-                            aria-label="Delete department"
-                            title="Delete department"
-                        />
-                    )}
-                </Space>
-            </div>
-            <DetailSections>
-                <DetailSection
-                    title="Details"
-                    action={
-                        canEdit ? (
-                            <Button
-                                type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => beginEdit(selectedDepartment)}
-                                aria-label="Edit department"
-                                title="Edit department"
-                            />
-                        ) : null
-                    }>
-                    <SettingsDetailFields
-                        fields={[
-                            ['Name', String(selectedDepartment.Name || 'Unnamed department')],
-                            ['Short name', String(selectedDepartment.ShortName || '—')],
-                            ['Lead email', String(selectedDepartment.LeadEmail || '—')],
-                        ]}
-                    />
-                </DetailSection>
-                {departmentUsers.length > 0 && (
-                    <DetailSection span="full">
-                        <section className="related-list">
-                            <div className="related-request-heading">
-                                <Typography.Title level={3}>
-                                    Users <Tag>{departmentUsers.length}</Tag>
-                                </Typography.Title>
-                            </div>
-                            <div className="department-related-grid">
-                                {departmentUsers.map((user) => (
-                                    <UserBlock
-                                        key={user.Email}
-                                        user={user}
-                                        dashboard={dashboard}
-                                        href={userPath(user.Email)}
-                                        onClick={() => navigate(userPath(user.Email))}
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    </DetailSection>
-                )}
-                {departmentPrograms.length > 0 && (
-                    <DetailSection span="full">
-                        <RelatedRequestBlocks
-                            title="Programs"
-                            kind="program"
-                            items={departmentPrograms}
-                            dashboard={dashboard}
-                            hrefFor={programRequestPath}
-                            onOpen={(id) => navigate(programRequestPath(id))}
-                        />
-                    </DetailSection>
-                )}
-                {departmentInventoryRequests.length > 0 && (
-                    <DetailSection span="full">
-                        <RelatedRequestBlocks
-                            title="Inventory requests"
-                            kind="inventory"
-                            items={departmentInventoryRequests}
-                            dashboard={dashboard}
-                            hrefFor={inventoryRequestPath}
-                            onOpen={(id) => navigate(inventoryRequestPath(id))}
-                        />
-                    </DetailSection>
-                )}
-            </DetailSections>
-        </>
-    );
     return (
         <section
             className={`${compact ? 'antd-settings-compact' : 'antd-page'}${
                 config.kind === 'block' ? ' blocks-page' : ''
-            }${selectedDepartment || selectedInventoryType ? ' detail-page' : ''}`}>
-            {config.kind === 'department' && selectedDepartment ? (
-                departmentDetail
-            ) : config.kind === 'inventory-type' && selectedInventoryType ? (
-                inventoryTypeDetail
-            ) : config.kind === 'department' || config.kind === 'inventory-type' ? (
-                <>
-                    {departmentHeader}
-                    {config.kind === 'department' ? departmentCards : inventoryTypeCards}
-                </>
-            ) : (
-                <>
-                    <div>
-                        <TableView
-                            title={config.title}
-                            count={rows.length}
-                            action={
-                                canEdit ? (
-                                    <Button
-                                        type="primary"
-                                        size="small"
-                                        icon={<PlusOutlined />}
-                                        onClick={beginCreate}
-                                        aria-label={`Add ${config.kind}`}
-                                        title={`Add ${config.kind}`}
-                                    />
-                                ) : null
-                            }
-                            searchValue={hasSearch ? search : undefined}
-                            onSearch={hasSearch ? setSearch : undefined}
-                            searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
-                            <Table
-                                rowKey={(row) => rowKeyOf(config, row)}
-                                columns={columns}
-                                dataSource={filteredRows}
-                                locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
-                                pagination={false}
+            }`}>
+            <div>
+                <TableView
+                    title={config.title}
+                    count={rows.length}
+                    action={
+                        canEdit ? (
+                            <Button
+                                type="primary"
+                                size="small"
+                                icon={<PlusOutlined />}
+                                onClick={beginCreate}
+                                aria-label={`Add ${config.kind}`}
+                                title={`Add ${config.kind}`}
                             />
-                        </TableView>
-                    </div>
-                </>
-            )}
-            {canEdit && labelEditorOpen && selectedInventoryType && (
-                <Modal
-                    open
-                    title={labelEditor ? 'Edit label' : 'Add label'}
-                    onCancel={closeInventoryLabelEditor}
-                    footer={null}
-                    destroyOnHidden>
-                    <form className="grid gap-3" noValidate onSubmit={saveInventoryLabel}>
-                        <TextField
-                            name="labelName"
-                            label="Label name"
-                            value={labelEditorName}
-                            required
-                            onChange={(event) => setLabelEditorName(event.target.value)}
-                        />
-                        <SaveFooter label="Save" busy={labelBusy} errorMessage="" />
-                    </form>
-                </Modal>
-            )}
-            {historyLabel && (
-                <Modal
-                    open
-                    title={`Requests for ${historyLabel.Name}`}
-                    onCancel={() => setHistoryLabel(null)}
-                    footer={null}
-                    width={720}
-                    destroyOnHidden>
-                    {historyLabelRequests.length ? (
-                        <RelatedRequestBlocks
-                            title="Inventory requests"
-                            kind="inventory"
-                            items={historyLabelRequests}
-                            dashboard={dashboard}
-                            hrefFor={inventoryRequestPath}
-                            onOpen={(id) => navigate(inventoryRequestPath(id))}
-                        />
-                    ) : (
-                        <Empty description="This label has not been used in any request." />
-                    )}
-                </Modal>
-            )}
+                        ) : null
+                    }
+                    searchValue={hasSearch ? search : undefined}
+                    onSearch={hasSearch ? setSearch : undefined}
+                    searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
+                    <Table
+                        rowKey={(row) => rowKeyOf(config, row)}
+                        columns={columns}
+                        dataSource={filteredRows}
+                        locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
+                        pagination={false}
+                    />
+                </TableView>
+            </div>
             {deleting && (
                 <ActionConfirmation
                     action="delete"
-                    description={
-                        config.kind === 'inventory-type'
-                            ? `Delete “${deleting[config.fields[0].field]}”? This will also permanently delete its item rows from all existing inventory requests. The requests themselves and their other items will remain.`
-                            : `Delete “${deleting[config.fields[0].field]}”?`
-                    }
+                    description={`Delete “${deleting[config.fields[0].field]}”?`}
                     onCancel={() => setDeleting(null)}
                     onConfirm={async () => {
                         const row = deleting;
                         setDeleting(null);
-                        const removed = await remove(row);
-                        if (!removed) return;
-                        if (config.kind === 'department')
-                            navigate(departmentsPath, { replace: true });
-                        if (config.kind === 'inventory-type')
-                            navigate(inventoryTypesPath, { replace: true });
+                        await remove(row);
                     }}
                 />
             )}
@@ -1606,8 +289,9 @@ export function SettingsResourcePage({
                     config={config}
                     row={editing || undefined}
                     onClose={closeEditor}
-                    onSaved={save}
-                    datalistOptions={{ 'inventory-brand-options': inventoryBrandOptions }}
+                    onSaved={async (values) => {
+                        await save(values, editing);
+                    }}
                 />
             )}
         </section>
@@ -1617,7 +301,7 @@ export function SettingsResourcePage({
 export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
     const { refreshDashboard } = useDashboard();
     const [savingGuidelines, setSavingGuidelines] = useState(false);
-    const canEdit = dashboard.me.Role === 'admin';
+    const canEdit = canManageConfig(dashboard.me);
 
     async function saveGuidelines(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -1669,7 +353,7 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
 }
 
 function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload }) {
-    const canEdit = dashboard.me.Role === 'admin';
+    const canEdit = canManageConfig(dashboard.me);
     const [domains, setDomains] = useState<AllowedEmailDomain[]>([]);
     const [domain, setDomain] = useState('');
     const [loading, setLoading] = useState(canEdit);

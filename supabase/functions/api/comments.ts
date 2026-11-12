@@ -2,6 +2,7 @@ import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { currentProfile, requireNonEmpty, result, withLockedDedupe, type Row } from './core.ts';
 import { commentDto } from './query.ts';
 import { MAX_COMMENT_LENGTH } from './validation.ts';
+import { canCollaborate, canWriteRole } from '../_shared/request-policy.ts';
 
 interface RequestOwner {
     kind: 'inventory_request' | 'program_request';
@@ -65,19 +66,16 @@ export async function addComment(
     dedupeRequestId: string,
 ): Promise<Row> {
     const actor = await currentProfile(client, userId);
-    if (actor.role === 'viewer') throw new Error('Viewer access is read-only.');
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
+    if (!canWriteRole(actor.role)) throw new Error('Viewer access is read-only.');
     const trimmed = requireNonEmpty(message, 'Message is required.');
     if (trimmed.length > MAX_COMMENT_LENGTH) {
         throw new Error(`Comments can be at most ${MAX_COMMENT_LENGTH} characters.`);
     }
     const owner = await findRequestOwner(admin, requestId);
     if (!owner) throw new Error('Request not found.');
-    const canComment =
-        isApprover ||
-        owner.requesterId === actor.id ||
-        owner.participantIds.indexOf(actor.id) !== -1;
-    if (!canComment) throw new Error('You do not have access to this request.');
+    const isParty = owner.requesterId === actor.id || owner.participantIds.indexOf(actor.id) !== -1;
+    if (!canCollaborate({ isParty, role: actor.role }))
+        throw new Error('You do not have access to this request.');
 
     const { result: comment } = await withLockedDedupe(
         admin,

@@ -102,12 +102,7 @@ export async function handleApiRequest(context: Context): Promise<Response> {
         await requireAllowedEmailDomain(admin, authData.user.email || '');
         const operationHandler = operationHandlers[body.operation || ''];
         if (!operationHandler) {
-            return respond(
-                {
-                    error: `The ${String(body.operation || '')} operation has not been migrated yet.`,
-                },
-                501,
-            );
+            return respond({ error: `Unknown operation: ${String(body.operation || '')}.` }, 404);
         }
         return await operationHandler({ client, admin, userId: authData.user.id, args });
     } catch (error) {
@@ -547,9 +542,9 @@ const operationHandlers: Record<string, OperationHandler> = {
     },
 
     performInventoryRequestAction: async ({ client, admin, userId, args }) => {
-        // args[3] (returnItems) is unused — it's unused in the source
-        // app's own implementation too (see the comment above
-        // performInventoryRequestAction).
+        // The dedupe id is the last argument. Clients cached before the unused
+        // returnItems slot was dropped still send it at args[3], so read from
+        // the end rather than by position.
         return respond(
             await performInventoryRequestAction(
                 client,
@@ -558,7 +553,7 @@ const operationHandlers: Record<string, OperationHandler> = {
                 String(args[0]),
                 String(args[1]),
                 String(args[2] || ''),
-                String(args[4]),
+                String(args[args.length - 1]),
             ),
         );
     },

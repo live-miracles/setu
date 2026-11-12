@@ -1,15 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'esbuild';
+import { loadBundle } from './test-support.mjs';
 
-const bundle = await build({
-    bundle: true,
-    format: 'esm',
-    platform: 'node',
-    write: false,
-    stdin: {
-        resolveDir: process.cwd(),
-        contents: `
+const api = await loadBundle(`
             export { createInventoryRequest, updateInventoryRequest, updateInventoryRequestParticipants,
                 performInventoryRequestAction, deleteInventoryRequest, validateInventoryItems }
                 from './supabase/functions/api/inventory';
@@ -18,38 +11,7 @@ const bundle = await build({
                 from './supabase/functions/api/programs';
             export { createImageUploadUrl } from './supabase/functions/api/images';
             export { updateOwnProfile } from './supabase/functions/api/core';
-        `,
-    },
-    plugins: [
-        {
-            name: 'unused-input-validation',
-            setup(build) {
-                build.onResolve({ filter: /\/validation\.ts$/ }, () => ({
-                    path: 'validation',
-                    namespace: 'test',
-                }));
-                build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-                    contents: `export const requiredStringArg = (value) => String(value ?? '').trim();
-                        export const emailArg = (value) => value;
-                        export const requireUnchangedWorkflowStatus = () => {};
-                        export const isValidEmail = () => true;
-                        export const MAX_PARTICIPANTS = 50;
-                        export const MAX_COMMENT_LENGTH = 4000;
-                        export const MAX_NAME_LENGTH = 200;
-                        export const MAX_PHONE_LENGTH = 50;
-                        export const boundedText = (value, label, max) => {
-                            const text = String(value ?? '').trim();
-                            if (text.length > max) throw new Error(label + ' must be at most ' + max + ' characters.');
-                            return text;
-                        };`,
-                }));
-            },
-        },
-    ],
-});
-const api = await import(
-    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
-);
+        `);
 
 const clientFor = (role) => ({
     from: () => ({

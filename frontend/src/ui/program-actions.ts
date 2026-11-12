@@ -1,5 +1,6 @@
-import { canApprove, canTransitionProgramRequest, canWrite } from '../workflows';
+import { getRequestPermissions } from '../workflows';
 import { localDateToDayNumber, toIsoDate } from './date';
+import { toProgramSessionInputs } from './request-fields';
 
 function shiftLocalDateTime(value: string, dayDelta: number): string {
     getLocalDateFromSession(value);
@@ -21,12 +22,7 @@ export function buildDuplicateProgramInput(
         type: request.Type,
         userId: currentUserEmail,
         placeId: '',
-        sessions: sessions.map((session) => ({
-            name: session.Name,
-            type: session.Type,
-            startDateTime: session.StartDateTime,
-            endDateTime: session.EndDateTime,
-        })),
+        sessions: toProgramSessionInputs(sessions),
         departmentId: request.DepartmentId,
         leadEmail: request.LeadEmail,
         participants: request.participants.join(', '),
@@ -34,42 +30,7 @@ export function buildDuplicateProgramInput(
 }
 
 export function canRescheduleProgram(request: ProgramRequestDTO, me: UserDTO): boolean {
-    const email = me.Email.trim().toLowerCase();
-    const isOwner =
-        request.UserId.trim().toLowerCase() === email ||
-        (request.participants || []).some(
-            (participant) => participant.trim().toLowerCase() === email,
-        );
-    return me.Role === 'admin' || me.Role === 'approver' || (request.Status === 'draft' && isOwner);
-}
-
-export function getProgramRequestActions(
-    request: ProgramRequestDTO,
-    me: UserDTO,
-): ProgramRequestAction[] {
-    if (!canWrite(me)) return [];
-    if (canApprove(me)) {
-        return (
-            [
-                'submit',
-                'approve',
-                'reject',
-                'cancel',
-                'revise',
-                'unapprove',
-                'reopen',
-            ] as ProgramRequestAction[]
-        ).filter((action) => canTransitionProgramRequest(request.Status, action));
-    }
-    const email = me.Email.trim().toLowerCase();
-    const isOwner =
-        request.UserId.trim().toLowerCase() === email ||
-        (request.participants || []).some(
-            (participant) => participant.trim().toLowerCase() === email,
-        );
-    if (!isOwner) return [];
-    if (request.Status === 'draft') return ['submit'];
-    return request.Status === 'rejected' ? ['revise'] : [];
+    return getRequestPermissions('program', request, me).canEdit;
 }
 
 export function getLocalDateFromSession(startDateTime: string): string {

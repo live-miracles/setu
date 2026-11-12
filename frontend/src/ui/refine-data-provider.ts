@@ -38,6 +38,13 @@ interface ResourceConfig {
     deleteOne?: (id: string) => Promise<void>;
 }
 
+// Refine's useCustom/useCustomMutation take `meta.operation` + `meta.args`
+// untyped. Build that meta through here so the arguments are checked against
+// the Api interface instead of being a bare array.
+export function operationMeta<K extends keyof Api>(operation: K, ...args: Parameters<Api[K]>) {
+    return { operation, args };
+}
+
 // Turns Refine's generic filters/sorters into the resource-specific query
 // object each paginated list operation expects (InventoryRequestQuery,
 // ProgramRequestQuery). Filters are passed through by field name verbatim

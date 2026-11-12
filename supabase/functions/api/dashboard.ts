@@ -1,8 +1,16 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { fetchAll, fetchAllIn, profilesFor, result, userDto, type Row } from './core.ts';
+import { attachItemLabels, inventoryRequestDto } from './inventory.ts';
+import { programRequestDto } from './programs.ts';
+import { groupByKey } from './query.ts';
+import { departmentDto } from './settings.ts';
+import { isApproverRole, ONGOING_INVENTORY_STATUSES } from '../_shared/request-policy.ts';
 
+// The dashboard carries a bounded, recent sample of requests for the home
+// screen only: at most this many of each kind, and inventory requests still in
+// play. History views (a department's, user's, inventory type's or label's
+// requests) must ask the request list endpoints, which see every request.
 export const DASHBOARD_REQUEST_LIMIT = 250;
-export const ONGOING_INVENTORY_STATUSES = ['draft', 'submitted', 'approved', 'issued'];
 
 export async function dashboard(
     client: SupabaseClient,
@@ -29,7 +37,7 @@ export async function dashboard(
         client
             .from('inventory_requests')
             .select('*')
-            .in('status', ONGOING_INVENTORY_STATUSES)
+            .in('status', [...ONGOING_INVENTORY_STATUSES])
             .order('updated_at', { ascending: false })
             .limit(DASHBOARD_REQUEST_LIMIT),
         fetchAll((from, to) =>
@@ -142,14 +150,7 @@ export async function dashboard(
     const departmentsById = new Map(departments.map((x: Row) => [x.id, x]));
     const placesById = new Map(places.map((x: Row) => [x.id, x]));
     const typesById = new Map(types.map((x: Row) => [x.id, x]));
-    const labelsById = new Map(inventoryLabels.map((x: Row) => [x.id, x]));
-    const labelsByItemId = new Map<string, Row[]>();
-    requestItemLabels.forEach((x: Row) => {
-        const values = labelsByItemId.get(x.request_item_id) || [];
-        const label = labelsById.get(x.inventory_type_label_id);
-        if (label) values.push(label);
-        labelsByItemId.set(x.request_item_id, values);
-    });
+    attachItemLabels(items, requestItemLabels, inventoryLabels);
     const availableById = new Map(
         availability.map((x: Row) => [x.inventory_type_id, x.available_quantity]),
     );
@@ -164,77 +165,27 @@ export async function dashboard(
         ...comments.map((x: Row) => x.author_id),
     ];
     const profilesById = await profilesFor(admin, profileIds);
-    const dashboardProfiles =
-        profile.role === 'admin' || profile.role === 'approver'
-            ? (result(await client.from('profiles').select('*')) as Row[])
-            : [profile];
-    const participants = new Map<string, string[]>();
-    [...inventoryParticipants, ...programParticipants].forEach((x: Row) => {
-        const values = participants.get(x.request_id) || [];
-        values.push(profilesById.get(x.profile_id)?.email || x.external_email || '');
-        participants.set(x.request_id, values.filter(Boolean));
-    });
-    const itemsByRequest = new Map<string, Row[]>();
-    items.forEach((x: Row) => {
-        const values = itemsByRequest.get(x.request_id) || [];
-        values.push({
-            InventoryTypeId: x.inventory_type_id,
-            Quantity: x.quantity,
-            Condition: x.return_condition || '',
-            itemName: [
-                typesById.get(x.inventory_type_id)?.brand,
-                typesById.get(x.inventory_type_id)?.name,
-            ]
-                .map((value) => String(value || '').trim())
-                .filter(Boolean)
-                .join(' · '),
-            labels: (labelsByItemId.get(x.id) || []).map((label: Row) => ({
-                Id: label.id,
-                DisplayId: label.display_id,
-                InventoryTypeId: label.inventory_type_id,
-                Name: label.name,
-            })),
-        });
-        itemsByRequest.set(x.request_id, values);
-    });
-    const sessionsByRequest = new Map<string, Row[]>();
-    sessions.forEach((x: Row) => {
-        const values = sessionsByRequest.get(x.request_id) || [];
-        values.push({
-            Name: x.name || '',
-            Type: x.session_type,
-            StartDateTime: x.start_at,
-            EndDateTime: x.end_at,
-        });
-        sessionsByRequest.set(x.request_id, values);
-    });
+    const dashboardProfiles = isApproverRole(profile.role)
+        ? (result(await client.from('profiles').select('*')) as Row[])
+        : [profile];
+    const itemsByRequest = groupByKey(items, 'request_id');
+    const inventoryParticipantsByRequest = groupByKey(inventoryParticipants, 'request_id');
+    const programParticipantsByRequest = groupByKey(programParticipants, 'request_id');
+    const sessionsByRequest = groupByKey(sessions, 'request_id');
     // Keyed by request id alone: inventory/program request ids are UUIDs
     // from independent tables, so there's no collision risk without also
     // keying by which column was set.
-    const commentsByTarget = new Map<string, Row[]>();
-    comments.forEach((x: Row) => {
-        const requestId = x.inventory_request_id || x.program_request_id;
-        const values = commentsByTarget.get(requestId) || [];
-        const author = profilesById.get(x.author_id);
-        values.push({
-            Id: x.id,
-            Timestamp: x.created_at,
-            RequestId: requestId,
-            UserId: author?.email || '',
-            Message: x.message,
-            userName: author?.name || '',
-        });
-        commentsByTarget.set(requestId, values);
-    });
+    const commentsByRequest = groupByKey(
+        comments.map((x: Row) => ({
+            ...x,
+            request_id: x.inventory_request_id || x.program_request_id,
+        })),
+        'request_id',
+    );
     return {
         me: userDto(profile, departmentsById),
         users: dashboardProfiles.map((x: Row) => userDto(x, departmentsById)),
-        departments: departments.map((x: Row) => ({
-            Id: x.id,
-            Name: x.name,
-            ShortName: x.short_name,
-            LeadEmail: x.lead_email,
-        })),
+        departments: departments.map(departmentDto),
         places: places.map((x: Row) => ({ Id: x.id, Name: x.name })),
         inventoryTypes: types.map((x: Row) => ({
             Id: x.id,
@@ -272,52 +223,28 @@ export async function dashboard(
             UserId: profilesById.get(x.user_id)?.email || '',
             userName: profilesById.get(x.user_id)?.name || '',
         })),
-        inventoryRequests: inventory.map((x: Row) => ({
-            Id: x.id,
-            DisplayId: x.display_id,
-            Name: x.name,
-            UserId: profilesById.get(x.requester_id)?.email || '',
-            StartDate: x.start_date,
-            EndDate: x.end_date,
-            Status: x.status,
-            ImageId: x.image_path,
-            DepartmentId: x.department_id || '',
-            LeadEmail: x.lead_email,
-            Participants: '',
-            ItemsJson: '',
-            CommentsJson: '',
-            userName: profilesById.get(x.requester_id)?.name || '',
-            departmentName: departmentsById.get(x.department_id)?.name || '',
-            participants: participants.get(x.id) || [],
-            items: itemsByRequest.get(x.id) || [],
-            comments: commentsByTarget.get(x.id) || [],
-        })),
-        programRequests: programs.map((x: Row) => {
-            const requestSessions = sessionsByRequest.get(x.id) || [];
-            return {
-                Id: x.id,
-                DisplayId: x.display_id,
-                Name: x.name,
-                Language: x.language,
-                Type: x.program_type,
-                UserId: profilesById.get(x.requester_id)?.email || '',
-                Status: x.status,
-                PlaceId: x.place_id,
-                DepartmentId: x.department_id || '',
-                LeadEmail: x.lead_email,
-                Participants: '',
-                SessionsJson: '',
-                CommentsJson: '',
-                userName: profilesById.get(x.requester_id)?.name || '',
-                placeName: placesById.get(x.place_id)?.name || '',
-                departmentName: departmentsById.get(x.department_id)?.name || '',
-                participants: participants.get(x.id) || [],
-                sessions: requestSessions,
-                sessionStart: requestSessions[0]?.StartDateTime || '',
-                sessionEnd: requestSessions.at(-1)?.EndDateTime || '',
-                comments: commentsByTarget.get(x.id) || [],
-            };
-        }),
+        inventoryRequests: inventory.map((x: Row) =>
+            inventoryRequestDto(
+                x,
+                typesById,
+                departmentsById,
+                profilesById,
+                itemsByRequest.get(x.id) || [],
+                inventoryParticipantsByRequest.get(x.id) || [],
+                commentsByRequest.get(x.id) || [],
+            ),
+        ),
+        programRequests: programs.map((x: Row) =>
+            programRequestDto(
+                x,
+                placesById,
+                departmentsById,
+                profilesById,
+                sessionsByRequest.get(x.id) || [],
+                programParticipantsByRequest.get(x.id) || [],
+                commentsByRequest.get(x.id) || [],
+            ),
+        ),
         homeContent: { Guidelines: home.guidelines },
         shiftTypes: shiftTypes.map((x: Row) => ({
             Id: x.id,

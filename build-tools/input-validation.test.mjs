@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { transform } from 'esbuild';
+import { fakeClient, loadBundle } from './test-support.mjs';
 
 const rootUrl = new URL('../', import.meta.url);
 
@@ -20,10 +21,7 @@ const validationPrelude = `const requiredStringArg = (value, message) => {
 };\n`;
 
 test('email validation accepts one address and rejects multi-recipient or malformed values', async () => {
-    const validation = await load('supabase/functions/api/validation.ts', {
-        prelude: validationPrelude,
-        from: 'export const MAX_COMMENT_LENGTH',
-    });
+    const validation = await loadBundle(`export * from './supabase/functions/api/validation';`);
     assert.equal(validation.emailArg('  Lead@Example.org ', 'required'), 'lead@example.org');
     for (const bad of [
         'a@b.org,c@d.org',
@@ -41,10 +39,7 @@ test('email validation accepts one address and rejects multi-recipient or malfor
 });
 
 test('program status changes must use a workflow action', async () => {
-    const validation = await load('supabase/functions/api/validation.ts', {
-        prelude: validationPrelude,
-        from: 'export const MAX_COMMENT_LENGTH',
-    });
+    const validation = await loadBundle(`export * from './supabase/functions/api/validation';`);
     assert.doesNotThrow(() => validation.requireUnchangedWorkflowStatus(undefined, 'submitted'));
     assert.doesNotThrow(() => validation.requireUnchangedWorkflowStatus('submitted', 'submitted'));
     assert.throws(
@@ -54,14 +49,9 @@ test('program status changes must use a workflow action', async () => {
 });
 
 test('participant lists are validated, de-duplicated and capped', async () => {
-    const prelude = `${validationPrelude}
-        const MAX_PARTICIPANTS = 50;
-        const isValidEmail = (value) => /^[^\\s@,;]+@[^\\s@,;]+\\.[^\\s@,;]+$/.test(value);\n`;
-    const inventory = await load('supabase/functions/api/inventory.ts', {
-        prelude,
-        from: 'export function parseParticipants',
-        to: '// Resolves each participant',
-    });
+    const inventory = await loadBundle(
+        `export { parseParticipants } from './supabase/functions/api/requests';`,
+    );
     assert.deepEqual(inventory.parseParticipants(' A@x.org, a@x.org ,b@y.org,'), [
         'a@x.org',
         'b@y.org',
@@ -149,22 +139,17 @@ test('deleting a user is refused for the caller and for users with history', asy
 });
 
 test('comment length limit is enforced before any request lookup', async () => {
-    const comments = await load('supabase/functions/api/comments.ts', {
-        prelude: `${validationPrelude}
-            const MAX_COMMENT_LENGTH = 4000;
-            const requireNonEmpty = (value, message) => requiredStringArg(value, message);
-            const currentProfile = async () => ({ id: 'user-1', role: 'user' });
-            const result = (response) => response.data;
-            const withLockedDedupe = async () => assert.fail('must not run');
-            const commentDto = (value) => value;\n`,
-    });
+    const comments = await loadBundle(
+        `export { addComment } from './supabase/functions/api/comments';`,
+    );
+    const client = fakeClient({ profiles: [{ id: 'user-1', role: 'user' }] });
     const admin = {
         from() {
             throw new Error('request lookup must not run for an oversized comment');
         },
     };
     await assert.rejects(
-        comments.addComment({}, admin, 'user-1', 'request-1', 'x'.repeat(4001), 'dedupe-123'),
+        comments.addComment(client, admin, 'user-1', 'request-1', 'x'.repeat(4001), 'dedupe-123'),
         /at most 4000/,
     );
 });

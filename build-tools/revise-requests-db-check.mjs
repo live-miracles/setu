@@ -1,5 +1,5 @@
 // Isolated PostgreSQL regression check; does not connect to hosted data.
-// Install @electric-sql/pglite in a temporary directory, then run:
+// Runs as part of `npm test` (db-checks.test.mjs); to run it alone:
 // node build-tools/revise-requests-db-check.mjs /absolute/path/to/pglite/dist/index.js
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';

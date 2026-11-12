@@ -1,43 +1,19 @@
-// Client-side transition guards, mirroring the source app's
-// src/domain/workflows.ts and kept in sync with the server-side state
-// machines in Inventory.ts/Programs.ts. These only decide which action
-// buttons the UI offers — the backend remains the authoritative check.
-
-const INVENTORY_REQUEST_TRANSITIONS: Record<InventoryRequestStatus, InventoryRequestAction[]> = {
-    draft: ['submit', 'cancel'],
-    submitted: ['approve', 'reject', 'cancel'],
-    approved: ['issue', 'cancel', 'unapprove'],
-    rejected: ['revise', 'close'],
-    issued: ['close'],
-    cancelled: ['reopen', 'close'],
-    closed: [],
-};
-
-export function canTransitionInventoryRequest(
-    status: InventoryRequestStatus,
-    action: InventoryRequestAction,
-): boolean {
-    return (INVENTORY_REQUEST_TRANSITIONS[status] || []).indexOf(action) !== -1;
-}
-
-// No issue/return/close step — a program request only ever moves draft ->
-// submitted -> approved/rejected, with cancellation available before a final
-// decision. Rejected requests can return to draft for revision, approvers can
-// withdraw an approval (back to submitted) and reopen a cancelled request.
-const PROGRAM_REQUEST_TRANSITIONS: Record<ProgramRequestStatus, ProgramRequestAction[]> = {
-    draft: ['submit', 'cancel'],
-    submitted: ['approve', 'reject', 'cancel'],
-    approved: ['cancel', 'unapprove'],
-    rejected: ['revise'],
-    cancelled: ['reopen'],
-};
-
-export function canTransitionProgramRequest(
-    status: ProgramRequestStatus,
-    action: ProgramRequestAction,
-): boolean {
-    return (PROGRAM_REQUEST_TRANSITIONS[status] || []).indexOf(action) !== -1;
-}
+// Client-side view of the request policy in
+// supabase/functions/_shared/request-policy.ts — the same module the edge
+// function authorizes with, so the buttons offered here and the checks made
+// there cannot drift. These helpers only adapt DTOs to it; the SQL transition
+// functions remain the authoritative executor.
+import {
+    availableActions,
+    canCollaborate,
+    canDeleteRequest,
+    canEditRequest,
+    canWriteRole,
+    isAdminRole,
+    isApproverRole,
+    isRequestParty,
+    type RequestKind,
+} from '../../supabase/functions/_shared/request-policy';
 
 export function isRequestOverdue(request: InventoryRequestDTO): boolean {
     if (request.Status !== 'issued' || !request.EndDate) return false;
@@ -46,55 +22,55 @@ export function isRequestOverdue(request: InventoryRequestDTO): boolean {
     return new Date(`${request.EndDate}T23:59:59`).getTime() < Date.now();
 }
 
-// Role predicates, mirroring requireAdmin/requireApprover in
-// supabase/functions/api/index.ts — same caveat as the transition tables
-// above: they only decide what the UI offers, and the backend re-checks
-// every one of them. There's no client-side equivalent of
-// canViewAllRequests: request scoping happens server-side, so a `user`
-// simply never receives the rows they can't see.
 export function canManageConfig(me: UserDTO): boolean {
-    return me.Role === 'admin';
+    return isAdminRole(me.Role);
 }
 
 // Viewer is the organization-wide read-only role (the API refuses its writes).
 export function canWrite(me: UserDTO): boolean {
-    return me.Role !== 'viewer';
+    return canWriteRole(me.Role);
 }
 
 export function canApprove(me: UserDTO): boolean {
-    return me.Role === 'admin' || me.Role === 'approver';
+    return isApproverRole(me.Role);
+}
+
+export interface RequestPermissions<Action extends string> {
+    actions: Action[];
+    canEdit: boolean;
+    canDelete: boolean;
+    // Participants (and comments) are open to approvers and the requester side.
+    canCollaborate: boolean;
+}
+
+export function getRequestPermissions<Action extends string>(
+    kind: RequestKind,
+    request: InventoryRequestDTO | ProgramRequestDTO,
+    me: UserDTO,
+): RequestPermissions<Action> {
+    const input = {
+        status: request.Status,
+        role: me.Role,
+        isParty: isRequestParty(me.Email, request.UserId, request.participants || []),
+    };
+    return {
+        actions: availableActions(kind, input) as Action[],
+        canEdit: canEditRequest(input),
+        canDelete: canDeleteRequest(kind, input),
+        canCollaborate: canCollaborate(input),
+    };
 }
 
 export function getInventoryRequestActions(
     request: InventoryRequestDTO,
     me: UserDTO,
 ): InventoryRequestAction[] {
-    if (!canWrite(me)) return [];
-    const email = me.Email.trim().toLowerCase();
-    const owner =
-        request.UserId.trim().toLowerCase() === email ||
-        (request.participants || []).some(
-            (participant) => participant.trim().toLowerCase() === email,
-        );
-    return (
-        [
-            'submit',
-            'approve',
-            'reject',
-            'issue',
-            'close',
-            'cancel',
-            'revise',
-            'unapprove',
-            'reopen',
-        ] as InventoryRequestAction[]
-    )
-        .filter((action) => canTransitionInventoryRequest(request.Status, action))
-        .filter((action) =>
-            action === 'submit'
-                ? owner
-                : action === 'revise'
-                  ? owner || canApprove(me)
-                  : canApprove(me),
-        );
+    return getRequestPermissions<InventoryRequestAction>('inventory', request, me).actions;
+}
+
+export function getProgramRequestActions(
+    request: ProgramRequestDTO,
+    me: UserDTO,
+): ProgramRequestAction[] {
+    return getRequestPermissions<ProgramRequestAction>('program', request, me).actions;
 }

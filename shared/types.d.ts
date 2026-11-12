@@ -294,6 +294,9 @@ interface InventoryRequestQuery {
     q?: string;
     statuses?: InventoryRequestStatus[];
     inventoryTypeId?: string;
+    departmentId?: string;
+    requesterEmail?: string;
+    labelId?: string;
     sortBy?: 'id' | 'name' | 'status' | 'startDate' | 'endDate' | 'requester';
     sortDirection?: SortDirection;
 }
@@ -302,6 +305,8 @@ interface ProgramRequestQuery {
     q?: string;
     statuses?: ProgramRequestStatus[];
     placeId?: string;
+    departmentId?: string;
+    requesterEmail?: string;
     dateScope?: 'ongoing-future' | 'past' | '';
     sortBy?: 'id' | 'name' | 'status' | 'place' | 'sessionStart' | 'requester';
     sortDirection?: SortDirection;
@@ -426,13 +431,6 @@ interface InventoryItemInput {
     quantity: number;
     condition?: ReturnCondition | '';
     labelIds?: string[];
-}
-
-// A return always covers every item on the request in full — see
-// performInventoryRequestAction's 'return' branch in Inventory.ts — so this
-// only needs to carry the condition each item came back in, not a quantity.
-interface ReturnItemInput {
-    condition: ReturnCondition;
 }
 
 interface ProgramSessionInput {
@@ -588,7 +586,6 @@ interface Api {
         requestId: string,
         action: InventoryRequestAction,
         note: string,
-        returnItems: ReturnItemInput[] | null,
         dedupeRequestId: string,
     ): InventoryRequestStatus;
 

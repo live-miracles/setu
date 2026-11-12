@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { transform } from 'esbuild';
+import { fakeClient, loadBundle } from './test-support.mjs';
 
 const rootUrl = new URL('../', import.meta.url);
 
@@ -53,41 +54,18 @@ test('API distinguishes missing credentials from missing server configuration', 
 });
 
 test('signed image uploads require access to their target resource', async () => {
-    const images = await importSource(
-        'supabase/functions/api/images.ts',
-        `const requireNonEmpty = (value) => String(value).trim();
-         const result = (response) => { if (response.error) throw new Error(response.error.message); return response.data; };
-         const currentProfile = async (client) => client.profile;
-         const currentWriter = currentProfile;\n`,
+    const images = await loadBundle(
+        `export { createImageUploadUrl } from './supabase/functions/api/images';`,
     );
     const rows = {
         inventory_types: [{ id: 'type-1' }],
         inventory_requests: [{ id: 'request-1', requester_id: 'owner-1', status: 'draft' }],
         inventory_request_participants: [{ request_id: 'request-1', profile_id: 'participant-1' }],
     };
-    const query = (table) => {
-        let values = rows[table];
-        return {
-            select() {
-                return this;
-            },
-            eq(column, value) {
-                values = values.filter((row) => row[column] === value);
-                return this;
-            },
-            async single() {
-                return values.length === 1
-                    ? { data: values[0], error: null }
-                    : { data: null, error: { message: 'not found' } };
-            },
-            then(resolve) {
-                return Promise.resolve({ data: values, error: null }).then(resolve);
-            },
-        };
-    };
+    const asUser = (profile) => fakeClient({ profiles: [profile] });
     const signedPaths = [];
     const admin = {
-        from: query,
+        ...fakeClient(rows),
         storage: {
             from: () => ({
                 async createSignedUploadUrl(path) {
@@ -100,7 +78,7 @@ test('signed image uploads require access to their target resource', async () =>
 
     await assert.rejects(
         images.createImageUploadUrl(
-            { profile: { id: 'unrelated-1', role: 'user' } },
+            asUser({ id: 'unrelated-1', role: 'user' }),
             admin,
             'unrelated-1',
             'photo.png',
@@ -113,7 +91,7 @@ test('signed image uploads require access to their target resource', async () =>
     assert.equal(signedPaths.length, 0);
 
     const participantUpload = await images.createImageUploadUrl(
-        { profile: { id: 'participant-1', role: 'user' } },
+        asUser({ id: 'participant-1', role: 'user' }),
         admin,
         'participant-1',
         'photo.png',
@@ -126,7 +104,7 @@ test('signed image uploads require access to their target resource', async () =>
 
     await assert.rejects(
         images.createImageUploadUrl(
-            { profile: { id: 'approver-1', role: 'approver' } },
+            asUser({ id: 'approver-1', role: 'approver' }),
             admin,
             'approver-1',
             'photo.png',
@@ -137,7 +115,7 @@ test('signed image uploads require access to their target resource', async () =>
         /Administrator access/,
     );
     const adminUpload = await images.createImageUploadUrl(
-        { profile: { id: 'admin-1', role: 'admin' } },
+        asUser({ id: 'admin-1', role: 'admin' }),
         admin,
         'admin-1',
         'photo.webp',
@@ -149,16 +127,12 @@ test('signed image uploads require access to their target resource', async () =>
 });
 
 test('viewer comments are rejected before request access checks', async () => {
-    const comments = await importSource(
-        'supabase/functions/api/comments.ts',
-        `const currentProfile = async () => ({ id: 'viewer-1', role: 'viewer' });
-         const requireNonEmpty = (value) => String(value).trim();
-         const result = (response) => response.data;
-         const withLockedDedupe = async () => { throw new Error('must not claim a mutation'); };
-         const commentDto = (value) => value;\n`,
+    const comments = await loadBundle(
+        `export { addComment } from './supabase/functions/api/comments';`,
     );
+    const viewerClient = fakeClient({ profiles: [{ id: 'viewer-1', role: 'viewer' }] });
     await assert.rejects(
-        comments.addComment({}, {}, 'viewer-1', 'request-1', 'hello', 'request-123'),
+        comments.addComment(viewerClient, {}, 'viewer-1', 'request-1', 'hello', 'request-123'),
         /read-only/,
     );
 });

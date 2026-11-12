@@ -18,7 +18,20 @@ import {
     matchesSearch,
     paginate,
 } from './query.ts';
-import { emailArg, isValidEmail, MAX_PARTICIPANTS } from './validation.ts';
+import { emailArg } from './validation.ts';
+import {
+    assertCanEdit,
+    deleteRequest,
+    isApprover,
+    loadRequestAccess,
+    parseParticipants,
+    performRequestAction,
+    replaceParticipants,
+    requireDepartment,
+    requireRequesterProfile,
+    updateRequestParticipants,
+    type RequestKindConfig,
+} from './requests.ts';
 
 export function inventoryRequestDto(
     x: Row,
@@ -70,6 +83,23 @@ export function inventoryRequestDto(
     };
 }
 
+// Sets `labels` on each request item row from the label assignments, so the
+// request DTO builder can map them. Used by the list, detail and dashboard reads.
+export function attachItemLabels(items: Row[], assignments: Row[], labels: Row[]): void {
+    const labelsById = new Map(labels.map((label) => [label.id, label]));
+    const labelsByItemId = new Map<string, Row[]>();
+    assignments.forEach((assignment) => {
+        const label = labelsById.get(assignment.inventory_type_label_id);
+        if (!label) return;
+        const values = labelsByItemId.get(assignment.request_item_id) || [];
+        values.push(label);
+        labelsByItemId.set(assignment.request_item_id, values);
+    });
+    items.forEach((item) => {
+        item.labels = labelsByItemId.get(item.id) || [];
+    });
+}
+
 export function inventoryRequestSortValue(request: Row, sortBy: unknown): string | number {
     if (sortBy === 'name') return request.Name;
     if (sortBy === 'status') return request.Status;
@@ -102,18 +132,7 @@ export async function listInventoryRequests(
         ]);
     const typesById = new Map(types.map((x) => [x.id, x]));
     const departmentsById = new Map(departments.map((x) => [x.id, x]));
-    const labelsById = new Map(labels.map((label) => [label.id, label]));
-    const labelsByItemId = new Map<string, Row[]>();
-    requestItemLabels.forEach((assignment) => {
-        const label = labelsById.get(assignment.inventory_type_label_id);
-        if (!label) return;
-        const values = labelsByItemId.get(assignment.request_item_id) || [];
-        values.push(label);
-        labelsByItemId.set(assignment.request_item_id, values);
-    });
-    items.forEach((item) => {
-        item.labels = labelsByItemId.get(item.id) || [];
-    });
+    attachItemLabels(items, requestItemLabels, labels);
     const commentsByTarget = await commentsByTargetFor(client, 'inventory_request_id');
     const itemsByRequest = groupByKey(items, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
@@ -141,6 +160,13 @@ export async function listInventoryRequests(
             (r) =>
                 !query.inventoryTypeId ||
                 r.items.some((i: Row) => i.InventoryTypeId === query.inventoryTypeId),
+        )
+        .filter((r) => !query.departmentId || r.DepartmentId === query.departmentId)
+        .filter((r) => !query.requesterEmail || r.UserId === query.requesterEmail)
+        .filter(
+            (r) =>
+                !query.labelId ||
+                r.items.some((i: Row) => i.labels.some((label: Row) => label.Id === query.labelId)),
         )
         .filter((r) =>
             matchesSearch(query.q, [
@@ -231,18 +257,7 @@ export async function getInventoryRequest(
         ),
     ]);
     const typesById = new Map(types.map((x) => [x.id, x]));
-    const labelsById = new Map(labels.map((label) => [label.id, label]));
-    const labelsByItemId = new Map<string, Row[]>();
-    assignments.forEach((assignment) => {
-        const label = labelsById.get(assignment.inventory_type_label_id);
-        if (!label) return;
-        const values = labelsByItemId.get(assignment.request_item_id) || [];
-        values.push(label);
-        labelsByItemId.set(assignment.request_item_id, values);
-    });
-    items.forEach((item) => {
-        item.labels = labelsByItemId.get(item.id) || [];
-    });
+    attachItemLabels(items, assignments, labels);
     const participants = result(participantsRes) as Row[];
     const comments = result(commentsRes) as Row[];
     const profilesById = await profilesFor(admin, [
@@ -259,81 +274,6 @@ export async function getInventoryRequest(
         participants,
         comments,
     );
-}
-
-// Shared by inventory and program request writes (ported from Utils.ts).
-// Trimmed/lowercased/deduped so membership checks are plain string equality.
-export function parseParticipants(raw: unknown): string[] {
-    const seen = new Set<string>();
-    String(raw || '')
-        .split(',')
-        .map((email) => email.trim().toLowerCase())
-        .filter((email) => email.length > 0)
-        .forEach((email) => {
-            if (!isValidEmail(email)) {
-                throw new Error(
-                    `"${email.slice(0, 80)}" is not a valid participant email address.`,
-                );
-            }
-            seen.add(email);
-        });
-    if (seen.size > MAX_PARTICIPANTS) {
-        throw new Error(`A request can have at most ${MAX_PARTICIPANTS} participants.`);
-    }
-    return Array.from(seen);
-}
-
-// Resolves each participant email to a profile row when one exists (citext,
-// case-insensitive), or keeps it as an external_email otherwise — mirrors
-// the child participant tables' `num_nonnulls(profile_id, external_email)
-// = 1` constraint.
-export async function resolveParticipants(admin: SupabaseClient, emails: string[]): Promise<Row[]> {
-    if (!emails.length) return [];
-    const profiles = result(
-        await admin.from('profiles').select('id, email').in('email', emails),
-    ) as Row[];
-    const profileIdByEmail = new Map(profiles.map((p) => [String(p.email).toLowerCase(), p.id]));
-    return emails.map((email) => {
-        const profileId = profileIdByEmail.get(email);
-        return profileId
-            ? { profile_id: profileId, external_email: null }
-            : { profile_id: null, external_email: email };
-    });
-}
-
-export async function insertActionComment(
-    admin: SupabaseClient,
-    targetType: 'inventory_request' | 'program_request',
-    targetId: string,
-    authorId: string,
-    message: string,
-): Promise<void> {
-    const { error } = await admin.from('comments').insert({
-        ...(targetType === 'inventory_request'
-            ? { inventory_request_id: targetId }
-            : { program_request_id: targetId }),
-        author_id: authorId,
-        message,
-    });
-    if (error) throw new Error(error.message);
-}
-
-export async function requireRequesterProfile(admin: SupabaseClient, email: string): Promise<Row> {
-    const { data, error } = await admin
-        .from('profiles')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error('Requester not found.');
-    return data;
-}
-
-export async function requireDepartment(admin: SupabaseClient, id: string): Promise<Row> {
-    const { data, error } = await admin.from('departments').select('*').eq('id', id).maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error('Department not found.');
-    return data;
 }
 
 const MAX_REQUEST_ITEM_LINES = 100;
@@ -460,22 +400,6 @@ export async function replaceInventoryRequestItems(
     }
 }
 
-export async function replaceParticipants(
-    admin: SupabaseClient,
-    table: 'inventory_request_participants' | 'program_request_participants',
-    requestId: string,
-    participantEmails: string[],
-): Promise<void> {
-    const { error: deleteError } = await admin.from(table).delete().eq('request_id', requestId);
-    if (deleteError) throw new Error(deleteError.message);
-    const participants = await resolveParticipants(admin, participantEmails);
-    if (!participants.length) return;
-    const { error } = await admin
-        .from(table)
-        .insert(participants.map((p) => ({ ...p, request_id: requestId })));
-    if (error) throw new Error(error.message);
-}
-
 export async function createInventoryRequest(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -487,15 +411,15 @@ export async function createInventoryRequest(
     const name = requireNonEmpty(input.name, 'Name is required.');
     const requesterEmail = String(input.userId || actor.email).toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
-    if (requestedBy.email !== actor.email && !isApprover) {
+    const approver = isApprover(actor);
+    if (requestedBy.email !== actor.email && !approver) {
         throw new Error('You cannot create a request on behalf of another user.');
     }
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
         throw new Error('End date must be on or after start date.');
     }
     const items = await validateInventoryItems(admin, input.items || [], {
-        allowNonRequestable: isApprover,
+        allowNonRequestable: approver,
     });
     const department = await requireDepartment(
         admin,
@@ -548,7 +472,7 @@ export async function updateInventoryRequest(
     requestId: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
+    const approver = isApprover(actor);
     const name = requireNonEmpty(input.name, 'Name is required.');
     const requesterEmail = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
@@ -566,7 +490,7 @@ export async function updateInventoryRequest(
         ).map((row) => row.inventory_type_id as string),
     );
     const items = await validateInventoryItems(admin, input.items || [], {
-        allowNonRequestable: isApprover,
+        allowNonRequestable: approver,
         existingTypeIds,
     });
     const department = await requireDepartment(
@@ -582,19 +506,10 @@ export async function updateInventoryRequest(
         requestId,
         userId,
         async () => {
-            const [existingRes, participantsRes] = await Promise.all([
-                admin.from('inventory_requests').select('*').eq('id', id).single(),
-                admin.from('inventory_request_participants').select('*').eq('request_id', id),
-            ]);
-            const existing = result(existingRes) as Row;
-            const existingParticipants = result(participantsRes) as Row[];
-            const isOwner =
-                existing.requester_id === actor.id ||
-                existingParticipants.some((p) => p.profile_id === actor.id);
-            if (!(isApprover || (isOwner && existing.status === 'draft'))) {
-                throw new Error('You are not allowed to edit this request.');
-            }
-            if (existing.requester_id !== requestedBy.id && !isApprover) {
+            const access = await loadRequestAccess(admin, inventoryRequestKind, id, actor);
+            assertCanEdit(actor, access);
+            const existing = access.request;
+            if (existing.requester_id !== requestedBy.id && !approver) {
                 throw new Error('You cannot reassign the requester.');
             }
             const updated = result(
@@ -619,7 +534,7 @@ export async function updateInventoryRequest(
             await replaceInventoryRequestItems(admin, id, items);
             await replaceParticipants(
                 admin,
-                'inventory_request_participants',
+                inventoryRequestKind.participantsTable,
                 id,
                 participantEmails,
             );
@@ -629,7 +544,16 @@ export async function updateInventoryRequest(
     return getInventoryRequest(client, admin, dto.id);
 }
 
-export async function updateInventoryRequestParticipants(
+const inventoryRequestKind: RequestKindConfig = {
+    kind: 'inventory',
+    scope: 'inventory_request',
+    table: 'inventory_requests',
+    participantsTable: 'inventory_request_participants',
+    actionRpc: 'perform_inventory_request_action_tx',
+    read: getInventoryRequest,
+};
+
+export function updateInventoryRequestParticipants(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
@@ -637,43 +561,21 @@ export async function updateInventoryRequestParticipants(
     input: Row,
     requestId: string,
 ): Promise<Row> {
-    const actor = await currentWriter(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
-    const participantEmails = parseParticipants(input.participants);
-    await withLockedDedupe(
+    return updateRequestParticipants(
+        inventoryRequestKind,
+        client,
         admin,
-        'inventory_request:participants:' + id,
-        requestId,
         userId,
-        async () => {
-            const [existingRes, participantsRes] = await Promise.all([
-                admin.from('inventory_requests').select('*').eq('id', id).single(),
-                admin.from('inventory_request_participants').select('*').eq('request_id', id),
-            ]);
-            const existing = result(existingRes) as Row;
-            const existingParticipants = result(participantsRes) as Row[];
-            const canEdit =
-                isApprover ||
-                existing.requester_id === actor.id ||
-                existingParticipants.some((p) => p.profile_id === actor.id);
-            if (!canEdit)
-                throw new Error('You are not allowed to edit participants on this request.');
-            await replaceParticipants(
-                admin,
-                'inventory_request_participants',
-                id,
-                participantEmails,
-            );
-            return null;
-        },
+        id,
+        input,
+        requestId,
     );
-    return getInventoryRequest(client, admin, id);
 }
 
 // The RPC owns the request row lock, inventory type locks, validation, status
 // update and activity comment so concurrent approvers cannot oversubscribe
 // stock or commit conflicting transitions.
-export async function performInventoryRequestAction(
+export function performInventoryRequestAction(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
@@ -682,50 +584,24 @@ export async function performInventoryRequestAction(
     note: string,
     dedupeRequestId: string,
 ): Promise<string> {
-    const actor = await currentWriter(client, userId);
-    const { result: nextStatus } = await withLockedDedupe(
+    return performRequestAction(
+        inventoryRequestKind,
+        client,
         admin,
-        'inventory_request:' + id + ':' + action,
-        dedupeRequestId,
         userId,
-        async () =>
-            result(
-                await admin.rpc('perform_inventory_request_action_tx', {
-                    p_request_id: id,
-                    p_action: action,
-                    p_actor_id: actor.id,
-                    p_note: note,
-                }),
-            ) as string,
+        id,
+        action,
+        note,
+        dedupeRequestId,
     );
-    return nextStatus;
 }
 
-export async function deleteInventoryRequest(
+export function deleteInventoryRequest(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
     id: string,
     requestId: string,
 ): Promise<void> {
-    const actor = await currentWriter(client, userId);
-    const isApprover = actor.role === 'admin' || actor.role === 'approver';
-    await withLockedDedupe(admin, 'inventory_request:delete:' + id, requestId, userId, async () => {
-        const [requestRes, participantsRes] = await Promise.all([
-            admin.from('inventory_requests').select('*').eq('id', id).single(),
-            admin.from('inventory_request_participants').select('*').eq('request_id', id),
-        ]);
-        const request = result(requestRes) as Row;
-        const participants = result(participantsRes) as Row[];
-        const owner =
-            request.requester_id === actor.id ||
-            participants.some((p) => p.profile_id === actor.id);
-        if (!isApprover && !owner) throw new Error('You are not allowed to delete this request.');
-        if (request.status !== 'draft' && request.status !== 'cancelled') {
-            throw new Error('This request can no longer be deleted.');
-        }
-        const { error } = await admin.from('inventory_requests').delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    return deleteRequest(inventoryRequestKind, client, admin, userId, id, requestId);
 }

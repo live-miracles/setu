@@ -1,10 +1,5 @@
-const ONGOING_INVENTORY_STATUSES: ReadonlySet<InventoryRequestStatus> = new Set([
-    'draft',
-    'submitted',
-    'approved',
-    'issued',
-]);
+import { ONGOING_INVENTORY_STATUSES } from '../../../supabase/functions/_shared/request-policy';
 
 export function isOngoingInventoryRequest(request: Pick<InventoryRequest, 'Status'>): boolean {
-    return ONGOING_INVENTORY_STATUSES.has(request.Status);
+    return ONGOING_INVENTORY_STATUSES.includes(request.Status);
 }

@@ -1,4 +1,5 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { canWriteRole, isAdminRole, isApproverRole } from '../_shared/request-policy.ts';
 import { boundedText, MAX_NAME_LENGTH, MAX_PHONE_LENGTH, requiredStringArg } from './validation.ts';
 
 export type Row = Record<string, any>;
@@ -77,19 +78,19 @@ export async function currentProfile(client: SupabaseClient, userId: string): Pr
 // never create, edit, transition, delete or comment on one.
 export async function currentWriter(client: SupabaseClient, userId: string): Promise<Row> {
     const profile = await currentProfile(client, userId);
-    if (profile.role === 'viewer') throw new Error('Viewer access is read-only.');
+    if (!canWriteRole(profile.role)) throw new Error('Viewer access is read-only.');
     return profile;
 }
 
 export async function requireAdmin(client: SupabaseClient, userId: string): Promise<Row> {
     const profile = await currentProfile(client, userId);
-    if (profile.role !== 'admin') throw new Error('Administrator access is required.');
+    if (!isAdminRole(profile.role)) throw new Error('Administrator access is required.');
     return profile;
 }
 
 export async function requireApprover(client: SupabaseClient, userId: string): Promise<Row> {
     const profile = await currentProfile(client, userId);
-    if (profile.role !== 'admin' && profile.role !== 'approver') {
+    if (!isApproverRole(profile.role)) {
         throw new Error('Approver access is required.');
     }
     return profile;

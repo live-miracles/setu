@@ -6,6 +6,7 @@ import { generateRequestId } from '../ids';
 import { useDashboard } from '../dashboard-context';
 import { formatDateTime } from '../ui/format';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { canWrite } from '../workflows';
 import { Empty, Modal, SaveFooter, TextField } from './refine-shared';
 
 const error = (value: unknown) => showErrorAlert(value);
@@ -19,7 +20,7 @@ export function Activity({
     initialComments: CommentDTO[];
 }) {
     const { dashboard, refreshDashboard } = useDashboard();
-    const canComment = dashboard.me.Role !== 'viewer';
+    const canComment = canWrite(dashboard.me);
     const [comment, setComment] = useState('');
     const [comments, setComments] = useState<CommentDTO[]>(initialComments);
     const commentsRef = useRef<HTMLDivElement>(null);

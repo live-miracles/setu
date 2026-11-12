@@ -1,5 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { currentWriter, requireNonEmpty, result, type Row } from './core.ts';
+import { canEditRequest, isAdminRole } from '../_shared/request-policy.ts';
 
 const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];
 const IMAGE_BUCKET = 'request-images';
@@ -19,7 +20,7 @@ export async function createImageUploadUrl(
     const target = requireNonEmpty(targetId, 'An image target is required.');
     const actor = await currentWriter(client, userId);
     if (targetType === 'inventory_type') {
-        if (actor.role !== 'admin') throw new Error('Administrator access is required.');
+        if (!isAdminRole(actor.role)) throw new Error('Administrator access is required.');
         result(await admin.from('inventory_types').select('id').eq('id', target).single());
     } else if (targetType === 'inventory_request') {
         const [requestRes, participantsRes] = await Promise.all([
@@ -35,11 +36,10 @@ export async function createImageUploadUrl(
         ]);
         const request = result(requestRes) as Row;
         const participants = result(participantsRes) as Row[];
-        const isApprover = actor.role === 'admin' || actor.role === 'approver';
-        const isOwner =
+        const isParty =
             request.requester_id === actor.id ||
             participants.some((participant) => participant.profile_id === actor.id);
-        if (!(isApprover || (isOwner && request.status === 'draft'))) {
+        if (!canEditRequest({ status: request.status, isParty, role: actor.role })) {
             throw new Error('You are not allowed to update this request image.');
         }
     } else {
