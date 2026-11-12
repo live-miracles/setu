@@ -537,11 +537,14 @@ export function InventoryDetail({
                                         className="inventory-item-block">
                                         <div className="inventory-item-block-heading">
                                             <div className="inventory-item-block-title">
+                                                {showItemCondition && item.Condition && (
+                                                    <Tag color={conditionColor}>
+                                                        {item.Condition}
+                                                    </Tag>
+                                                )}
                                                 <Typography.Text type="secondary">
-                                                    {item.Quantity}×
-                                                </Typography.Text>
-                                                <Typography.Text strong>
-                                                    {item.itemName || 'Unknown item'}
+                                                    Labels:{' '}
+                                                    {labels.length ? labels.join(', ') : '—'}
                                                 </Typography.Text>
                                             </div>
                                             <Space size="small">
@@ -602,11 +605,11 @@ export function InventoryDetail({
                                             </Space>
                                         </div>
                                         <div className="inventory-item-block-details">
-                                            {showItemCondition && item.Condition && (
-                                                <Tag color={conditionColor}>{item.Condition}</Tag>
-                                            )}
                                             <Typography.Text type="secondary">
-                                                Labels: {labels.length ? labels.join(', ') : '—'}
+                                                {item.Quantity}×
+                                            </Typography.Text>
+                                            <Typography.Text strong>
+                                                {item.itemName || 'Unknown item'}
                                             </Typography.Text>
                                             {shortageMessage && (
                                                 <Typography.Text
