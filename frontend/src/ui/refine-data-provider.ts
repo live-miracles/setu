@@ -185,7 +185,11 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 pageFromParams(params),
                 queryFromParams<InventoryRequestQuery>(params),
             );
-            return { data: result.items as unknown as Row[], total: result.totalCount };
+            return {
+                data: result.items as unknown as Row[],
+                total: result.totalCount,
+                statusCounts: result.statusCounts,
+            };
         },
         getOne: (id) => api.getInventoryRequest(id) as unknown as Promise<Row>,
         create: (v) =>

@@ -194,6 +194,11 @@ test('inventory list keeps every request, item, label and comment past the row c
     });
     const page = await api.listInventoryRequests(client, client, 1, { sortBy: 'name' });
     assert.equal(page.totalCount, 1100);
+    assert.deepEqual(page.statusCounts, { draft: 1100 });
+    // Status counts ignore the status filter so every option keeps its badge.
+    const closedOnly = await api.listInventoryRequests(client, client, 1, { statuses: ['closed'] });
+    assert.equal(closedOnly.totalCount, 0);
+    assert.deepEqual(closedOnly.statusCounts, { draft: 1100 });
     // Default ordering is newest activity first, which needs real comment timestamps.
     const recent = await api.listInventoryRequests(client, client, 1, {});
     assert.equal(recent.items[0].Id, requests.at(-1).id);

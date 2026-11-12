@@ -136,8 +136,7 @@ export async function listInventoryRequests(
     );
 
     const statuses: string[] = query.statuses || [];
-    const filtered = dtos
-        .filter((r) => statuses.length === 0 || statuses.indexOf(r.Status) !== -1)
+    const matching = dtos
         .filter(
             (r) =>
                 !query.inventoryTypeId ||
@@ -154,6 +153,14 @@ export async function listInventoryRequests(
                 r.items.map((i: Row) => i.itemName).join(' '),
             ]),
         );
+    // Counted before the status filter so every status option keeps its badge.
+    const statusCounts: Row = {};
+    matching.forEach((r) => {
+        statusCounts[r.Status] = (statusCounts[r.Status] || 0) + 1;
+    });
+    const filtered = matching.filter(
+        (r) => statuses.length === 0 || statuses.indexOf(r.Status) !== -1,
+    );
 
     if (query.sortBy) {
         filtered.sort((a, b) =>
@@ -170,7 +177,7 @@ export async function listInventoryRequests(
             ),
         );
     }
-    return paginate(filtered, page, 25);
+    return { ...paginate(filtered, page, 25), statusCounts };
 }
 
 export async function getInventoryRequest(

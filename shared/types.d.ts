@@ -268,6 +268,12 @@ interface Paginated<T> {
     totalCount: number;
 }
 
+// Inventory request list page; `statusCounts` counts the requests matching the
+// non-status filters (search, type), so each status option can show a badge.
+interface InventoryRequestPage extends Paginated<InventoryRequestDTO> {
+    statusCounts: Partial<Record<InventoryRequestStatus, number>>;
+}
+
 interface CalendarMonthPayload {
     places: Place[];
     programs: ProgramRequestDTO[];
@@ -552,10 +558,7 @@ interface Api {
     ): InventoryTypeDTO;
     deleteInventoryType(id: string, requestId: string): void;
 
-    listInventoryRequests(
-        page: number,
-        query?: InventoryRequestQuery,
-    ): Paginated<InventoryRequestDTO>;
+    listInventoryRequests(page: number, query?: InventoryRequestQuery): InventoryRequestPage;
     getInventoryRequest(id: string): InventoryRequestDTO;
     createInventoryRequest(
         input: CreateInventoryRequestInput,

@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
 import { useCreate, useList } from '@refinedev/core';
 import {
+    Badge,
     Button,
     Empty as AntEmpty,
+    Flex,
     Form as AntForm,
     Input,
     Pagination,
@@ -121,6 +123,10 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
     const statuses = isInventory
         ? ['draft', 'submitted', 'approved', 'issued', 'closed', 'rejected', 'cancelled']
         : ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
+    // Inventory hides finished requests until the user opts in via the status filter.
+    const defaultStatuses = isInventory
+        ? statuses.filter((status) => !['closed', 'rejected', 'cancelled'].includes(status))
+        : statuses;
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => {
         const value = searchParams.get(WORKBENCH_STATUS_QUERY_PARAM);
         if (value !== null) {
@@ -128,7 +134,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
         }
         const storedValue = readRequestFilter(statusStorageKey);
         return storedValue === null
-            ? statuses
+            ? defaultStatuses
             : storedValue.split(',').filter((status) => statuses.includes(status));
     });
     const [page, setPage] = useState(1);
@@ -155,6 +161,8 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
         ],
         sorters: [{ field: isProgram ? 'sessionStart' : 'startDate', order: 'asc' }],
     });
+    // Only the inventory list reports per-status counts.
+    const statusCounts: Record<string, number> | undefined = query.data?.statusCounts;
     const rows = result.data;
     const loading = query.isLoading;
     const open = (id: string) =>
@@ -213,6 +221,21 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                     updateQuery(WORKBENCH_STATUS_QUERY_PARAM, next.join(','));
                 }}
                 options={statuses.map((status) => ({ label: label(status), value: status }))}
+                optionRender={
+                    statusCounts
+                        ? (option) => (
+                              <Flex justify="space-between" align="center" gap="small">
+                                  {option.label}
+                                  <Badge
+                                      count={statusCounts[String(option.value)] || 0}
+                                      showZero
+                                      overflowCount={9999}
+                                      color="blue"
+                                  />
+                              </Flex>
+                          )
+                        : undefined
+                }
             />
         </Space>
     );
