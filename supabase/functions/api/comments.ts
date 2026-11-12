@@ -55,7 +55,7 @@ export async function findRequestOwner(
 }
 
 // The database trigger creates one email_outbox row per comment after insert.
-// The Apps Script worker delivers that row asynchronously.
+// The email-dispatcher Edge Function delivers that row asynchronously.
 export async function addComment(
     client: SupabaseClient,
     admin: SupabaseClient,

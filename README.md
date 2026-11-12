@@ -42,7 +42,7 @@ internal notifications.
 See the providers' current plan details before relying on these numbers:
 [Supabase pricing](https://supabase.com/pricing),
 [Vercel pricing](https://vercel.com/pricing), and
-[Resend pricing](https://resend.com/pricing/).
+[Gmail sending limits](https://support.google.com/a/answer/166852).
 
 ## Database backups
 

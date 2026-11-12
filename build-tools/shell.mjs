@@ -39,9 +39,9 @@ export function renderShell({ title, favicon, head, body }) {
 }
 
 function inlineScript(script) {
-    // Apps Script parses the HTML before the browser parses this inline
-    // JavaScript. Escape script/template delimiters and raw control characters
-    // that can be accepted by Node but rejected by the browser in HTML.
+    // The browser parses the HTML before this inline JavaScript. Escape
+    // script/template delimiters and raw control characters that can be
+    // accepted by Node but rejected by the browser in HTML.
     return script
         .replace(/<\/script/gi, '<\\/script')
         .replaceAll('<!--', '\\x3c!--')

@@ -2,6 +2,3 @@ frontend/dist
 site
 package-lock.json
 node_modules
-src/Index.html
-src/Stylesheet.html
-src/JavaScript.html
