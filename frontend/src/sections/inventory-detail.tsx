@@ -4,6 +4,7 @@ import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
 import {
     ArrowLeftOutlined,
     CameraOutlined,
+    CheckCircleOutlined,
     DeleteOutlined,
     EditOutlined,
     EyeOutlined,
@@ -555,6 +556,30 @@ export function InventoryDetail({
                                                         title="View item type"
                                                     />
                                                 )}
+                                                {canEditItemCondition &&
+                                                    request.Status === 'issued' &&
+                                                    item.Condition !== 'returned' && (
+                                                        <Button
+                                                            type="text"
+                                                            icon={<CheckCircleOutlined />}
+                                                            onClick={() =>
+                                                                void persistItems(
+                                                                    items.map(
+                                                                        (entry, entryIndex) =>
+                                                                            entryIndex === index
+                                                                                ? {
+                                                                                      ...entry,
+                                                                                      Condition:
+                                                                                          'returned',
+                                                                                  }
+                                                                                : entry,
+                                                                    ),
+                                                                )
+                                                            }
+                                                            aria-label="Mark item returned"
+                                                            title="Mark item returned"
+                                                        />
+                                                    )}
                                                 {editable && (
                                                     <>
                                                         <Button
