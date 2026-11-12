@@ -1,11 +1,11 @@
-import { z } from 'npm:zod@3';
+import { z } from 'npm:zod@4';
 
 const requestSchema = z
     .object({
         operation: z.string().trim().min(1).optional(),
         args: z.array(z.unknown()).optional(),
     })
-    .passthrough();
+    .loose();
 
 export type ApiRequest = z.infer<typeof requestSchema>;
 
