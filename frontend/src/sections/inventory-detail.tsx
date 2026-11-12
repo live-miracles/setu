@@ -6,6 +6,7 @@ import {
     CameraOutlined,
     DeleteOutlined,
     EditOutlined,
+    EyeOutlined,
     PlusOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
@@ -13,7 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { generateRequestId } from '../ids';
 import { api } from '../api';
 import { useDashboard } from '../dashboard-context';
-import { inventoryPath } from '../paths';
+import { inventoryPath, inventoryTypePath } from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { inventoryShortageMessage } from '../ui/inventory-stock';
 import {
@@ -542,25 +543,38 @@ export function InventoryDetail({
                                                     {item.itemName || 'Unknown item'}
                                                 </Typography.Text>
                                             </div>
-                                            {editable && (
-                                                <Space size="small">
+                                            <Space size="small">
+                                                {type && (
                                                     <Button
                                                         type="text"
-                                                        icon={<EditOutlined />}
-                                                        onClick={() => editItem(index)}
-                                                        aria-label="Edit item"
-                                                    />
-                                                    <Button
-                                                        type="text"
-                                                        danger
-                                                        icon={<DeleteOutlined />}
+                                                        icon={<EyeOutlined />}
                                                         onClick={() =>
-                                                            setPendingDeleteItemIndex(index)
+                                                            navigate(inventoryTypePath(type.Id))
                                                         }
-                                                        aria-label="Delete item"
+                                                        aria-label="View item type"
+                                                        title="View item type"
                                                     />
-                                                </Space>
-                                            )}
+                                                )}
+                                                {editable && (
+                                                    <>
+                                                        <Button
+                                                            type="text"
+                                                            icon={<EditOutlined />}
+                                                            onClick={() => editItem(index)}
+                                                            aria-label="Edit item"
+                                                        />
+                                                        <Button
+                                                            type="text"
+                                                            danger
+                                                            icon={<DeleteOutlined />}
+                                                            onClick={() =>
+                                                                setPendingDeleteItemIndex(index)
+                                                            }
+                                                            aria-label="Delete item"
+                                                        />
+                                                    </>
+                                                )}
+                                            </Space>
                                         </div>
                                         <div className="inventory-item-block-details">
                                             {showItemCondition && item.Condition && (
