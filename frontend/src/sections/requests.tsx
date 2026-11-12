@@ -123,10 +123,9 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
     const statuses = isInventory
         ? ['draft', 'submitted', 'approved', 'issued', 'closed', 'rejected', 'cancelled']
         : ['draft', 'submitted', 'approved', 'rejected', 'cancelled'];
-    // Inventory hides finished requests until the user opts in via the status filter.
-    const defaultStatuses = isInventory
-        ? statuses.filter((status) => !['closed', 'rejected', 'cancelled'].includes(status))
-        : statuses;
+    // Finished requests stay hidden until the user opts in via the status filter.
+    const hiddenByDefault = ['closed', 'rejected', 'cancelled'];
+    const defaultStatuses = statuses.filter((status) => !hiddenByDefault.includes(status));
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => {
         const value = searchParams.get(WORKBENCH_STATUS_QUERY_PARAM);
         if (value !== null) {
