@@ -607,7 +607,9 @@ export function ProgramDetail({
                                 <Select
                                     value={values.UserId}
                                     onChange={(value) => update('UserId', value)}
-                                    className="antd-full-width">
+                                    className="antd-full-width"
+                                    showSearch
+                                    optionFilterProp="children">
                                     {users.map((u) => (
                                         <Select.Option key={u.Email} value={u.Email}>
                                             {requesterOptionLabel(u)}

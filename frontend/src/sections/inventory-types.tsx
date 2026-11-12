@@ -76,7 +76,7 @@ const INVENTORY_TYPE_CONFIG: ResourceConfig = {
         { field: 'Name', label: 'Name' },
         { field: 'Brand', label: 'Brand', datalistId: 'inventory-brand-options' },
         { field: 'Model', label: 'Model' },
-        { field: 'Location', label: 'Location' },
+        { field: 'Location', label: 'Location', datalistId: 'inventory-type-location-options' },
         { field: 'Description', label: 'Description', hiddenInTable: true },
         {
             field: 'TotalQuantity',
@@ -173,6 +173,9 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const inventoryBrandOptions = Array.from(
         new Set(rows.map((row) => String(row.Brand || '').trim()).filter(Boolean)),
     ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    const inventoryTypeLocationOptions = Array.from(
+        new Set(rows.map((row) => String(row.Location || '').trim()).filter(Boolean)),
+    ).sort(compareGroupKeys);
     const { save, remove } = useResourceMutations('inventory-types', config);
     const { mutateAsync: updateRow } = useUpdate();
     const invalidate = useInvalidate();
@@ -920,7 +923,10 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             });
                         }
                     }}
-                    datalistOptions={{ 'inventory-brand-options': inventoryBrandOptions }}
+                    datalistOptions={{
+                        'inventory-brand-options': inventoryBrandOptions,
+                        'inventory-type-location-options': inventoryTypeLocationOptions,
+                    }}
                 />
             )}
         </section>

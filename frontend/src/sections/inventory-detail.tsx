@@ -660,7 +660,9 @@ export function InventoryDetail({
                                 <Select
                                     value={values.UserId}
                                     onChange={(value) => update('UserId', value)}
-                                    className="antd-full-width">
+                                    className="antd-full-width"
+                                    showSearch
+                                    optionFilterProp="children">
                                     {users.map((user) => (
                                         <Select.Option key={user.Email} value={user.Email}>
                                             {requesterOptionLabel(user)}

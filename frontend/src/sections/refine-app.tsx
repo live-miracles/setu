@@ -77,7 +77,11 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                             name="departmentId"
                             control={form.control}
                             render={({ field }) => (
-                                <Select {...field} className="antd-full-width">
+                                <Select
+                                    {...field}
+                                    className="antd-full-width"
+                                    showSearch
+                                    optionFilterProp="children">
                                     <Select.Option value="">No department</Select.Option>
                                     {dashboard.departments.map((d) => (
                                         <Select.Option key={d.Id} value={d.Id}>

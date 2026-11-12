@@ -496,7 +496,9 @@ export function CreateRecord({
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
-                                className="antd-full-width">
+                                className="antd-full-width"
+                                showSearch
+                                optionFilterProp="children">
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
                                         {requesterOptionLabel(user)}
@@ -578,7 +580,9 @@ export function CreateRecord({
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
-                                className="antd-full-width">
+                                className="antd-full-width"
+                                showSearch
+                                optionFilterProp="children">
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
                                         {requesterOptionLabel(user)}
