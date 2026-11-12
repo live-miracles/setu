@@ -20,4 +20,5 @@
 *.tsbuildinfo
 
 # Other
-/docs
+/docs/*
+!/docs/agents/

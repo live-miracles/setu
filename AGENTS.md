@@ -37,3 +37,17 @@
 - Before committing, always review the complete diff again to confirm the changes are correct, scoped to the request, and free of obvious bugs or regressions.
 - Always run the repository's formatting and format-check commands before committing, and fix any reported issues.
 - For substantial changes, also run the complete test suite before committing.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-label triage vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
