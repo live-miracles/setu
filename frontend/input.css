@@ -29,6 +29,8 @@
     --setu-error-text-hover: #a61e1e;
     --setu-positive: #a8e0b7;
     --setu-blocked: #e98b8b;
+    /* Faint purple dot grid shared by the page and loading backgrounds. */
+    --setu-dots: radial-gradient(circle, rgb(86 69 212 / 16%) 1px, transparent 1.5px);
 }
 
 html,
@@ -387,7 +389,7 @@ form,
 
 .roster-table .roster-empty-cell {
     height: 3.2rem;
-    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+    background: var(--setu-paper);
 }
 
 .roster-table .roster-spacer-header,
@@ -398,7 +400,7 @@ form,
 
 .roster-table .roster-spacer-cell {
     height: 3.2rem;
-    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+    background: var(--setu-paper);
 }
 
 .ant-input.inventory-qr-manual-input {
@@ -417,7 +419,7 @@ form,
     min-width: 8.5rem;
     height: 1px;
     padding: 0.3rem;
-    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+    background: var(--setu-paper);
 }
 
 .calendar-page {
@@ -496,7 +498,7 @@ form,
 .calendar-table .calendar-place-cell {
     min-width: 12rem;
     padding-inline: 0;
-    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+    background: var(--setu-paper);
 }
 
 .calendar-table .calendar-place-header {
@@ -512,7 +514,7 @@ form,
 
 .calendar-table .calendar-spacer-cell {
     height: 3.2rem;
-    background: color-mix(in srgb, var(--setu-paper) 45%, transparent);
+    background: var(--setu-paper);
 }
 
 .calendar-table .calendar-today-row > th,
@@ -635,6 +637,8 @@ form,
     min-height: 100vh;
     overflow: hidden;
     background-color: var(--setu-paper);
+    background-image: var(--setu-dots);
+    background-size: 22px 22px;
 }
 
 .app-header {
@@ -711,7 +715,17 @@ form,
     overflow: hidden;
     isolation: isolate;
     color: var(--setu-ink);
+    /* A faint dot grid over soft Notion card tints (lavender, sky, peach). */
     background-color: var(--setu-paper);
+    background-size:
+        22px 22px,
+        auto,
+        auto,
+        auto;
+    background-image:
+        var(--setu-dots), radial-gradient(ellipse at 15% 20%, #e6e0f5 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 30%, #dcecfa 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 100%, #ffe8d4 0%, transparent 60%);
 }
 
 .app-loading-inline {
