@@ -15,6 +15,7 @@ import { api } from '../api';
 import { useDashboard } from '../dashboard-context';
 import { inventoryPath } from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { inventoryShortageMessage } from '../ui/inventory-stock';
 import {
     addScannedInventoryItem,
     addScannedInventoryItemForIssue,
@@ -510,11 +511,15 @@ export function InventoryDetail({
                                             : label.Name,
                                     )
                                     .sort(compareLabelNames);
-                                const shortage = Boolean(
-                                    type &&
-                                    type.TotalQuantity != null &&
-                                    type.availableQuantity != null &&
-                                    type.availableQuantity < item.Quantity,
+                                const requestedOfType = items
+                                    .filter(
+                                        (entry) => entry.InventoryTypeId === item.InventoryTypeId,
+                                    )
+                                    .reduce((sum, entry) => sum + entry.Quantity, 0);
+                                const shortageMessage = inventoryShortageMessage(
+                                    request.Status,
+                                    requestedOfType,
+                                    type?.availableQuantity,
                                 );
                                 const conditionColor =
                                     item.Condition === 'returned'
@@ -527,7 +532,7 @@ export function InventoryDetail({
                                 return (
                                     <BlockCard
                                         key={`${item.InventoryTypeId}-${index}`}
-                                        className={`inventory-item-block${shortage ? ' inventory-item-shortage-block' : ''}`}>
+                                        className="inventory-item-block">
                                         <div className="inventory-item-block-heading">
                                             <div className="inventory-item-block-title">
                                                 <Typography.Text type="secondary">
@@ -558,17 +563,19 @@ export function InventoryDetail({
                                             )}
                                         </div>
                                         <div className="inventory-item-block-details">
-                                            {type && type.TotalQuantity != null && (
-                                                <Tag color={shortage ? 'red' : 'green'}>
-                                                    {type.availableQuantity}/{type.TotalQuantity}
-                                                </Tag>
-                                            )}
                                             {showItemCondition && item.Condition && (
                                                 <Tag color={conditionColor}>{item.Condition}</Tag>
                                             )}
                                             <Typography.Text type="secondary">
                                                 Labels: {labels.length ? labels.join(', ') : '—'}
                                             </Typography.Text>
+                                            {shortageMessage && (
+                                                <Typography.Text
+                                                    type="warning"
+                                                    className="basis-full">
+                                                    {shortageMessage}
+                                                </Typography.Text>
+                                            )}
                                         </div>
                                     </BlockCard>
                                 );

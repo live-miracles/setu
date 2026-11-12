@@ -1343,11 +1343,6 @@ a.record-block:focus-visible {
     padding: 0.85rem 1rem;
 }
 
-.inventory-item-shortage-block {
-    background: #fff1f0;
-    color: #cf1322;
-}
-
 .inventory-item-block-heading,
 .inventory-item-block-title {
     display: flex;
