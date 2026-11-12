@@ -304,12 +304,12 @@ form,
 
 .roster-table-scroll {
     width: 100%;
-    max-height: calc(100vh - 9rem);
+    max-height: calc(100dvh - 9rem);
     overflow: auto;
 }
 
 .roster-page {
-    height: calc(100vh - 4rem);
+    height: calc(100dvh - 4rem);
     min-height: 0;
     overflow: hidden;
 }
@@ -423,7 +423,7 @@ form,
 }
 
 .calendar-page {
-    height: calc(100vh - 4rem);
+    height: calc(100dvh - 4rem);
     min-height: 0;
     overflow: hidden;
 }
@@ -633,8 +633,8 @@ form,
 }
 
 .app-layout {
-    height: 100vh;
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 100dvh;
     overflow: hidden;
     background-color: var(--setu-paper);
     background-image: var(--setu-dots);
@@ -706,7 +706,7 @@ form,
     z-index: 900;
     display: flex;
     width: 100%;
-    height: calc(100vh - 4rem);
+    height: calc(100dvh - 4rem);
     align-items: center;
     justify-content: flex-start;
     padding-top: 12vh;
@@ -817,7 +817,7 @@ form,
 }
 
 .antd-page-board {
-    height: calc(100vh - 4rem);
+    height: calc(100dvh - 4rem);
     min-height: 0;
     box-sizing: border-box;
     overflow: hidden;
@@ -1029,7 +1029,7 @@ form,
 }
 
 .detail-page {
-    height: calc(100vh - 4rem);
+    height: calc(100dvh - 4rem);
     box-sizing: border-box;
     overflow: hidden;
 }
@@ -1255,19 +1255,14 @@ a.record-block:focus-visible {
 }
 
 .department-list {
-    display: block;
+    display: grid;
     width: 100%;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+    gap: 0.75rem;
 }
 
 .department-card {
-    display: inline-grid;
-    width: calc(100% - 8px);
-    max-width: 20rem;
-    margin: 0 0.5rem 0.5rem 0;
-    vertical-align: top;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: center;
-    gap: 1rem;
+    min-width: 0;
     padding: 0.8rem 1rem;
 }
 
@@ -1588,15 +1583,15 @@ a.record-block:focus-visible {
     }
 
     .antd-page-board {
-        height: calc(100vh - 8rem);
+        height: calc(100dvh - 8rem);
     }
 
     .calendar-page {
-        height: calc(100vh - 8rem);
+        height: calc(100dvh - 8rem);
     }
 
     .roster-page {
-        height: calc(100vh - 8rem);
+        height: calc(100dvh - 8rem);
     }
 
     .app-content:not(.app-content-edge) .ant-table-wrapper {
@@ -1611,6 +1606,38 @@ a.record-block:focus-visible {
     .antd-stat-grid,
     .antd-two-column {
         grid-template-columns: 1fr;
+    }
+
+    /* Controls that explicitly ask for antd's small size (e.g. card-header "+",
+       the comment box) are 24-32px, below a comfortable touch target. */
+    .ant-btn.ant-btn-sm {
+        min-width: 2.5rem;
+        min-height: 2.5rem;
+    }
+
+    .ant-input.ant-input-sm {
+        min-height: 2.5rem;
+    }
+
+    /* Forms put Form.Item outside an antd Form, so they default to the
+       horizontal layout. On narrow screens stack the label above a
+       full-width control, like antd's own vertical layout. */
+    .ant-form-item {
+        margin-bottom: 0.5rem;
+    }
+
+    .ant-form-item .ant-form-item-row {
+        flex-direction: column;
+    }
+
+    .ant-form-item .ant-form-item-label {
+        padding-bottom: 0.25rem;
+        text-align: start;
+    }
+
+    .ant-form-item .ant-form-item-control {
+        flex: 0 0 auto;
+        width: 100%;
     }
 }
 

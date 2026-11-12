@@ -4,6 +4,7 @@ import { useEffect, useMemo, type ReactNode } from 'react';
 import { queryClient } from '../query-client';
 import { REFINE_RESOURCE_NAMES, setuDataProvider } from './refine-data-provider';
 import { setErrorNotifier } from './feedback';
+import { useIsMobileViewport } from './viewport';
 
 // Refine is intentionally headless here. The app keeps its existing transport
 // and visual tokens while Refine owns the resource boundary for the React
@@ -70,8 +71,10 @@ function useAntNotificationProvider(): NotificationProvider {
 // `resources` array it registered on every page. Every resource
 // refine-data-provider.ts knows about is registered up front instead.
 export function AppProviders({ children }: { children: ReactNode }) {
+    // Large controls (40px, 16px text) are antd's touch-friendly size.
+    const isMobile = useIsMobileViewport();
     return (
-        <ConfigProvider theme={SETU_ANTD_THEME}>
+        <ConfigProvider theme={SETU_ANTD_THEME} componentSize={isMobile ? 'large' : undefined}>
             <AntApp>
                 <RefineProvider>{children}</RefineProvider>
             </AntApp>

@@ -37,6 +37,7 @@ import { canApprove } from '../workflows';
 import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
+import { useIsMobileViewport } from './viewport';
 
 const { Header, Content } = Layout;
 
@@ -146,9 +147,7 @@ export function Shell({
     const queryClient = useQueryClient();
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
-    const [isMobileViewport, setIsMobileViewport] = useState(
-        () => window.matchMedia('(max-width: 767px)').matches,
-    );
+    const isMobileViewport = useIsMobileViewport();
     const isRegistered = Boolean(dashboard?.me.Phone);
     // Authentication has already completed before Shell mounts. Keep the
     // primary navigation visible while the dashboard (and therefore role /
@@ -166,16 +165,12 @@ export function Shell({
         const syncAppLoading = (event: Event) =>
             setAppLoading((event as CustomEvent<boolean>).detail === true);
         window.addEventListener(APP_LOADING_EVENT, syncAppLoading);
-        const mediaQuery = window.matchMedia('(max-width: 767px)');
-        const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
-        mediaQuery.addEventListener('change', syncViewport);
         // Shell only ever mounts once boot() has confirmed a Supabase session
         // exists, so this reflects who is signed in even when the dashboard
         // call that fills in role/name fails (e.g. an access-restriction error).
         void currentUserEmail().then(setUserEmail);
         return () => {
             window.removeEventListener(APP_LOADING_EVENT, syncAppLoading);
-            mediaQuery.removeEventListener('change', syncViewport);
         };
     }, []);
 
