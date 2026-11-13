@@ -103,6 +103,7 @@ try {
     `);
     await db.exec(await migration('20261001130000_secure_uploads_and_request_actions.sql'));
     await db.exec(await migration('20261112010000_reopen_and_unapprove_requests.sql'));
+    await db.exec(await migration('20261112030000_approvers_submit_inventory_requests.sql'));
 
     await db.query('insert into profiles values ($1, $2), ($3, $4), ($5, $6), ($7, $8)', [
         REQUESTER,

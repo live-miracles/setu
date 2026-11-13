@@ -88,6 +88,15 @@ try {
             'utf8',
         ),
     );
+    await db.exec(
+        await readFile(
+            new URL(
+                '../supabase/migrations/20261112030000_approvers_submit_inventory_requests.sql',
+                import.meta.url,
+            ),
+            'utf8',
+        ),
+    );
 
     const bucket = (
         await db.query(

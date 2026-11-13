@@ -75,10 +75,15 @@ for (const kind of ['inventory', 'program']) {
     });
 }
 
-test('submit: inventory belongs to the requester side, a program may be submitted by any approver', () => {
-    const draft = { status: 'draft', isParty: false, role: 'approver' };
-    assert.equal(policy.availableActions('inventory', draft).includes('submit'), false);
-    assert.equal(policy.availableActions('program', draft).includes('submit'), true);
+test('submit: the requester side, or any approver for someone else', () => {
+    for (const kind of ['inventory', 'program']) {
+        for (const role of ['approver', 'admin']) {
+            const draft = { status: 'draft', isParty: false, role };
+            assert.equal(policy.availableActions(kind, draft).includes('submit'), true);
+        }
+        const stranger = { status: 'draft', isParty: false, role: 'user' };
+        assert.equal(policy.availableActions(kind, stranger).includes('submit'), false);
+    }
     const owner = { status: 'draft', isParty: true, role: 'user' };
     assert.deepEqual(policy.availableActions('inventory', owner), ['submit']);
     assert.deepEqual(policy.availableActions('program', owner), ['submit']);

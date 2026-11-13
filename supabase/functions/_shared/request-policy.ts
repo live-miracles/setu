@@ -105,21 +105,18 @@ export function canTransition(kind: RequestKind, status: string, action: string)
     return (TRANSITIONS[kind][status] || []).indexOf(action) !== -1;
 }
 
-function mayPerform(kind: RequestKind, action: string, input: RequestPolicyInput): boolean {
+function mayPerform(action: string, input: RequestPolicyInput): boolean {
     const approver = isApproverRole(input.role);
-    if (action === 'submit') {
-        // Inventory submission belongs to the requester side only; a program
-        // request may also be submitted by an approver on someone's behalf.
-        return kind === 'program' ? input.isParty || approver : input.isParty;
-    }
-    if (action === 'revise') return input.isParty || approver;
+    // Submit and revise belong to the requester side, and to any approver acting
+    // on someone's behalf (approvers may also create requests for other users).
+    if (action === 'submit' || action === 'revise') return input.isParty || approver;
     return approver;
 }
 
 export function availableActions(kind: RequestKind, input: RequestPolicyInput): string[] {
     if (!canWriteRole(input.role)) return [];
     return ACTIONS[kind].filter(
-        (action) => canTransition(kind, input.status, action) && mayPerform(kind, action, input),
+        (action) => canTransition(kind, input.status, action) && mayPerform(action, input),
     );
 }
 
