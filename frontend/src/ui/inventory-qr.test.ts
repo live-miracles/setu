@@ -13,6 +13,7 @@ import {
     inventoryTypeQrLabel,
     parseInventoryQrValue,
     sortInventoryLabels,
+    sortInventoryLabelsByLocation,
 } from './inventory-qr';
 
 function assert(condition: boolean, message: string): void {
@@ -167,6 +168,36 @@ export function runInventoryQrAssertions(): void {
             .map(inventoryLabelDisplayName)
             .join(',') === '#4,#20,Cable',
         'unnamed labels sort by item number',
+    );
+    const located = (Name: string, DisplayId: number, Location: string) => ({
+        ...unnamed(Name, DisplayId),
+        Location,
+    });
+    assert(
+        sortInventoryLabelsByLocation({
+            Location: 'Studio 5',
+            labels: [
+                located('B', 1, 'Studio 10'),
+                located('Z', 2, ''),
+                located('A', 3, 'Studio 2'),
+                located('C', 4, 'Studio 10'),
+                located('A', 5, 'Studio 10'),
+                located('X', 6, ''),
+                { ...located('Y', 7, ''), Location: '' },
+            ],
+        } as InventoryTypeDTO)
+            .map((label) => label.Name)
+            .join(',') === 'A,X,Y,Z,A,B,C',
+        'labels sort by location (their own, else the type’s), then by name',
+    );
+    assert(
+        sortInventoryLabelsByLocation({
+            Location: '',
+            labels: [located('B', 1, ''), located('A', 2, 'Studio 2'), located('A', 3, '')],
+        } as InventoryTypeDTO)
+            .map((label) => label.DisplayId)
+            .join(',') === '2,3,1',
+        'labels with no location at all come last',
     );
     assert(
         inventoryLabelQrFilename(types[0], unnamed('', 12)) === 'camera-body-12-12.png',

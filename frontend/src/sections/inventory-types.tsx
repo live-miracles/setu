@@ -43,6 +43,7 @@ import {
     inventoryTypeDisplayName,
     inventoryQrValue,
     sortInventoryLabels,
+    sortInventoryLabelsByLocation,
     inventoryTypeQrFilename,
     type InventoryGroupBy,
 } from '../ui/inventory-qr';
@@ -123,6 +124,28 @@ const INVENTORY_TYPE_CONFIG: ResourceConfig = {
         totalQuantity: v.TotalQuantity.trim() === '' ? null : Number(v.TotalQuantity),
     }),
 };
+
+const GROUP_BY_STORAGE_KEY = 'setu:inventory-types-group-by';
+const GROUP_BY_VALUES: InventoryGroupBy[] = ['brand', 'location', 'serial'];
+
+// The last chosen grouping is remembered in this browser; unavailable storage
+// (private browsing) just falls back to the default.
+function readStoredGroupBy(): InventoryGroupBy {
+    try {
+        const stored = window.localStorage.getItem(GROUP_BY_STORAGE_KEY);
+        return GROUP_BY_VALUES.find((value) => value === stored) ?? 'brand';
+    } catch {
+        return 'brand';
+    }
+}
+
+function storeGroupBy(value: InventoryGroupBy): void {
+    try {
+        window.localStorage.setItem(GROUP_BY_STORAGE_KEY, value);
+    } catch {
+        // Not being able to remember the choice must not block changing it.
+    }
+}
 
 async function createInventoryTypeQrDataUrl(row: Row, label?: InventoryLabel): Promise<string> {
     const QRCode = (await import('qrcode')).default;
@@ -208,7 +231,11 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const [qrPdfOpen, setQrPdfOpen] = useState(false);
     const [qrPdfLocations, setQrPdfLocations] = useState<string[]>([]);
     const [qrPdfPrintLocation, setQrPdfPrintLocation] = useState(false);
-    const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>('brand');
+    const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>(readStoredGroupBy);
+    const changeInventoryGroupBy = (value: InventoryGroupBy) => {
+        setInventoryGroupBy(value);
+        storeGroupBy(value);
+    };
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
     const filteredRows = rows.filter((row) => matchesSearch(appliedSearch, Object.values(row)));
@@ -398,16 +425,16 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                 onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                                 <div className="inventory-type-card-heading">
                                     <strong>
+                                        {row.Requestable === false && (
+                                            <EyeInvisibleOutlined
+                                                className="mr-1"
+                                                aria-label="Not requestable"
+                                                title="Not requestable"
+                                            />
+                                        )}
                                         {inventoryGroupBy === 'serial' &&
                                             `#${String(row.DisplayId)} `}
                                         {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
-                                        {row.Requestable === false && (
-                                            <Tag
-                                                icon={<EyeInvisibleOutlined />}
-                                                className="ml-2 align-middle">
-                                                Not requestable
-                                            </Tag>
-                                        )}
                                     </strong>
                                     {row.Location && inventoryGroupBy !== 'location' && (
                                         <span className="inventory-type-card-description">
@@ -448,7 +475,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             <Space className="antd-board-filters" wrap>
                 <Select
                     value={inventoryGroupBy}
-                    onChange={setInventoryGroupBy}
+                    onChange={changeInventoryGroupBy}
                     aria-label="Group inventory types by"
                     popupMatchSelectWidth={false}
                     options={[
@@ -755,7 +782,9 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             <Table
                                 rowKey="Id"
                                 pagination={false}
-                                dataSource={sortInventoryLabels(selectedInventoryType.labels)}
+                                dataSource={sortInventoryLabelsByLocation(
+                                    selectedInventoryType as InventoryTypeDTO,
+                                )}
                                 columns={[
                                     {
                                         title: 'Serial number',

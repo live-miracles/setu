@@ -148,6 +148,20 @@ export function sortInventoryLabels(labels: InventoryLabel[] = []): InventoryLab
     );
 }
 
+// A type's labels ordered by the location each sits in (its own, else the
+// type's; labels without any last), then by label name.
+export function sortInventoryLabelsByLocation(
+    type: Pick<InventoryTypeDTO, 'Location' | 'labels'>,
+): InventoryLabel[] {
+    return [...(type.labels || [])].sort(
+        (a, b) =>
+            compareGroupKeys(
+                inventoryLabelLocationKey(type, a),
+                inventoryLabelLocationKey(type, b),
+            ) || compareLabelNames(inventoryLabelDisplayName(a), inventoryLabelDisplayName(b)),
+    );
+}
+
 export type InventoryGroupBy = 'brand' | 'location' | 'serial';
 
 export type InventoryGroup<T> = { key: string; title: string; rows: T[] };
