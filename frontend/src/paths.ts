@@ -12,7 +12,6 @@ export const inventoryCreatePath = '/inventory/new';
 export const programsPath = '/programs';
 export const programCreatePath = '/programs/new';
 export const departmentsPath = '/departments';
-export const placesPath = '/places';
 export const inventoryTypesPath = '/inventory-types';
 export const blocksPath = '/blocks';
 export const homeContentPath = '/home-content';

@@ -116,6 +116,15 @@ const RESOURCES: Record<string, ResourceConfig> = {
             api.updatePlace(id, v as unknown as CreatePlaceInput, generateRequestId()),
         deleteOne: (id) => api.deletePlace(id, generateRequestId()),
     },
+    'inventory-places': {
+        idField: 'Id',
+        list: simpleList(() => api.listInventoryPlaces()),
+        create: (v) =>
+            api.createInventoryPlace(v as unknown as CreatePlaceInput, generateRequestId()),
+        update: (id, v) =>
+            api.updateInventoryPlace(id, v as unknown as CreatePlaceInput, generateRequestId()),
+        deleteOne: (id) => api.deleteInventoryPlace(id, generateRequestId()),
+    },
     'inventory-types': {
         idField: 'Id',
         list: simpleList(() => api.listInventoryTypes()),

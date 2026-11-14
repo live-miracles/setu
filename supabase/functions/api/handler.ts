@@ -7,6 +7,7 @@ import {
     createDepartment,
     createInventoryType,
     createInventoryLabel,
+    createInventoryPlace,
     createNamedOption,
     createPlace,
     createShiftType,
@@ -14,6 +15,7 @@ import {
     deleteDepartment,
     deleteInventoryType,
     deleteInventoryLabel,
+    deleteInventoryPlace,
     deleteNamedOption,
     deletePlace,
     deleteShiftType,
@@ -23,6 +25,7 @@ import {
     updateHomeContent,
     updateInventoryType,
     updateInventoryLabel,
+    updateInventoryPlace,
     updateNamedOption,
     updatePlace,
     updateShiftType,
@@ -59,6 +62,7 @@ import {
     listAllowedEmailDomains,
     listBlocks,
     listDepartments,
+    listInventoryPlaces,
     listInventoryTypes,
     listPlaces,
     listUsers,
@@ -178,6 +182,30 @@ const operationHandlers: Record<string, OperationHandler> = {
 
     deletePlace: async ({ client, admin, userId, args }) => {
         await deletePlace(client, admin, userId, String(args[0]), String(args[1]));
+        return respond(null);
+    },
+
+    createInventoryPlace: async ({ client, admin, userId, args }) => {
+        return respond(
+            await createInventoryPlace(client, admin, userId, args[0] as Row, String(args[1])),
+        );
+    },
+
+    updateInventoryPlace: async ({ client, admin, userId, args }) => {
+        return respond(
+            await updateInventoryPlace(
+                client,
+                admin,
+                userId,
+                String(args[0]),
+                args[1] as Row,
+                String(args[2]),
+            ),
+        );
+    },
+
+    deleteInventoryPlace: async ({ client, admin, userId, args }) => {
+        await deleteInventoryPlace(client, admin, userId, String(args[0]), String(args[1]));
         return respond(null);
     },
 
@@ -426,6 +454,10 @@ const operationHandlers: Record<string, OperationHandler> = {
 
     listPlaces: async ({ client, admin, userId, args }) => {
         return respond(await listPlaces(client));
+    },
+
+    listInventoryPlaces: async ({ client }) => {
+        return respond(await listInventoryPlaces(client));
     },
 
     listInventoryTypes: async ({ client, admin, userId, args }) => {

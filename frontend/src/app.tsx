@@ -14,7 +14,6 @@ import {
     inventoryCreatePath,
     inventoryPath,
     inventoryTypesPath,
-    placesPath,
     profilePath,
     programCreatePath,
     programsPath,
@@ -150,14 +149,6 @@ export function App() {
                         element={
                             <RequireRole me={me} allow={canApprove}>
                                 <DepartmentsPage dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
-                    <Route
-                        path={placesPath}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <SettingsResourcePage resourceName="places" dashboard={dashboard} />
                             </RequireRole>
                         }
                     />

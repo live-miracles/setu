@@ -3,9 +3,11 @@ import {
     fetchAll,
     fetchAllIn,
     inventoryLabelDto,
+    locationFields,
     profilesFor,
     result,
     userDto,
+    WITH_LOCATION,
     type Row,
 } from './core.ts';
 import { attachItemLabels, inventoryRequestDto } from './inventory.ts';
@@ -30,7 +32,12 @@ export async function dashboard(
         client.from('departments').select('*').order('name'),
         client.from('places').select('*').order('name'),
         fetchAll((from, to) =>
-            client.from('inventory_types').select('*').order('name').order('id').range(from, to),
+            client
+                .from('inventory_types')
+                .select(WITH_LOCATION)
+                .order('name')
+                .order('id')
+                .range(from, to),
         ).then((data) => ({ data, error: null })),
         client.rpc('inventory_availability'),
         fetchAll((from, to) =>
@@ -51,7 +58,7 @@ export async function dashboard(
         fetchAll((from, to) =>
             client
                 .from('inventory_type_labels')
-                .select('*')
+                .select(WITH_LOCATION)
                 .order('name')
                 .order('id')
                 .range(from, to),
@@ -201,7 +208,7 @@ export async function dashboard(
             Brand: x.brand,
             Name: x.name,
             Model: x.model,
-            Location: x.location,
+            ...locationFields(x),
             Description: x.description,
             Requestable: x.requestable,
             ImageId: x.image_path,

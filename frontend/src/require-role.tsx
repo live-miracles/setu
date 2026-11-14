@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { homePath } from './paths';
 
 // Replaces router.ts's old canOpenSection/resolveSection for the routes that
-// remain role-gated (users, blocks, departments, places, and home-content).
+// remain role-gated (users, blocks, departments, and home-content).
 // The backend re-checks every one of these independently (requireApprover in
 // supabase/functions/api/index.ts) — this only decides what the UI offers.
 export function RequireRole({

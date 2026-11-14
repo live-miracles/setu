@@ -4,7 +4,6 @@ import {
     ApartmentOutlined,
     BlockOutlined,
     CalendarOutlined,
-    EnvironmentOutlined,
     InboxOutlined,
     MoreOutlined,
     ReloadOutlined,
@@ -27,7 +26,6 @@ import {
     homePath,
     inventoryPath,
     inventoryTypesPath,
-    placesPath,
     profilePath,
     programsPath,
     rosterPath,
@@ -56,7 +54,6 @@ const configNavItems: NavItem[] = [
     { key: 'roster', to: rosterPath, label: 'Roster', icon: <ScheduleOutlined /> },
     { key: 'users', to: usersPath, label: 'Users', icon: <TeamOutlined /> },
     { key: 'departments', to: departmentsPath, label: 'Departments', icon: <ApartmentOutlined /> },
-    { key: 'places', to: placesPath, label: 'Places', icon: <EnvironmentOutlined /> },
     {
         key: 'inventory-types',
         to: inventoryTypesPath,
@@ -74,7 +71,7 @@ const configNavItems: NavItem[] = [
 
 // User and configuration management stays in the account menu; the remaining
 // config entries are desktop navigation items for admins/approvers.
-const accountConfigKeys = new Set(['users', 'departments', 'places', 'home-content']);
+const accountConfigKeys = new Set(['users', 'departments', 'home-content']);
 const publicConfigKeys = new Set(['roster', 'inventory-types']);
 const publicConfigNavItems = configNavItems.filter((item) => publicConfigKeys.has(item.key));
 const topConfigNavItems = configNavItems.filter(
@@ -98,12 +95,10 @@ function contentClassName(pathname: string): string {
         isPathSection(pathname, inventoryPath) || isPathSection(pathname, programsPath);
     const isUsers = isPathSection(pathname, usersPath);
     const isDepartments = isPathSection(pathname, departmentsPath);
-    const isPlaces = isPathSection(pathname, placesPath);
     const isInventoryTypes = isPathSection(pathname, inventoryTypesPath);
     const isSettings =
         isUsers ||
         isDepartments ||
-        isPlaces ||
         isInventoryTypes ||
         isPathSection(pathname, blocksPath) ||
         isPathSection(pathname, homeContentPath);
@@ -115,7 +110,6 @@ function contentClassName(pathname: string): string {
         isSettings && !isInventoryTypes && 'app-content-settings',
         isDepartments && 'app-content-departments',
         isUsers && 'app-content-users',
-        isPlaces && 'app-content-places',
         isInventoryTypes && 'app-content-inventory-types',
         !isHome && !isEdgeToEdge && 'mx-auto',
         !isHome && !isEdgeToEdge && !isSettings && 'max-w-[50rem]',

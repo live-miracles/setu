@@ -139,6 +139,7 @@ export function runInventoryQrAssertions(): void {
             InventoryTypeId: 'inventory-type-uuid-1',
             Name,
             Location: '',
+            LocationId: '',
         })),
     ).map((label) => label.Name);
     assert(

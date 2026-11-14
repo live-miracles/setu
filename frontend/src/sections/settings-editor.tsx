@@ -176,6 +176,8 @@ function SelectField({ field, row }: { field: Field; row?: Row }) {
                 value={selected}
                 onChange={setSelected}
                 className="antd-full-width"
+                showSearch
+                optionFilterProp="label"
                 options={options.map((option) => ({ value: option.value, label: option.label }))}
             />
         </>

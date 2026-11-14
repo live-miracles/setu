@@ -1,11 +1,14 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     inventoryLabelDto,
+    locationFields,
+    optionalInventoryPlaceId,
     requireAdmin,
     requireApprover,
     requireNonEmpty,
     result,
     userDto,
+    WITH_LOCATION,
     withLockedDedupe,
     type Row,
 } from './core.ts';
@@ -128,7 +131,13 @@ export async function deleteDepartment(
     });
 }
 
-export async function createPlace(
+// Program places (where sessions are held) and inventory places (where
+// equipment is kept) are separate lists with the same shape and the same rules.
+type PlaceTable = 'places' | 'inventory_places';
+
+async function createPlaceIn(
+    table: PlaceTable,
+    scope: string,
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
@@ -139,12 +148,12 @@ export async function createPlace(
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result: dto } = await withLockedDedupe(
         admin,
-        'place:create',
+        scope + ':create',
         requestId,
         userId,
         async () => {
             const row = result(
-                await admin.from('places').insert({ name }).select('*').single(),
+                await admin.from(table).insert({ name }).select('*').single(),
                 'A place with this name already exists.',
             ) as Row;
             return { Id: row.id, Name: row.name };
@@ -153,7 +162,9 @@ export async function createPlace(
     return dto;
 }
 
-export async function updatePlace(
+async function updatePlaceIn(
+    table: PlaceTable,
+    scope: string,
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
@@ -165,12 +176,12 @@ export async function updatePlace(
     const name = requireNonEmpty(input.name, 'Name is required.');
     const { result: dto } = await withLockedDedupe(
         admin,
-        'place:update:' + id,
+        scope + ':update:' + id,
         requestId,
         userId,
         async () => {
             const row = result(
-                await admin.from('places').update({ name }).eq('id', id).select('*').single(),
+                await admin.from(table).update({ name }).eq('id', id).select('*').single(),
                 'A place with this name already exists.',
             ) as Row;
             return { Id: row.id, Name: row.name };
@@ -179,7 +190,10 @@ export async function updatePlace(
     return dto;
 }
 
-export async function deletePlace(
+async function deletePlaceIn(
+    table: PlaceTable,
+    scope: string,
+    inUseMessage: string,
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
@@ -187,11 +201,108 @@ export async function deletePlace(
     requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'place:delete:' + id, requestId, userId, async () => {
-        const { error } = await admin.from('places').delete().eq('id', id);
-        if (error) throw new Error(error.message);
+    await withLockedDedupe(admin, scope + ':delete:' + id, requestId, userId, async () => {
+        const { error } = await admin.from(table).delete().eq('id', id);
+        if (error) throw new Error(error.code === '23503' ? inUseMessage : error.message);
         return null;
     });
+}
+
+export function createPlace(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    return createPlaceIn('places', 'place', client, admin, userId, input, requestId);
+}
+
+export function updatePlace(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    return updatePlaceIn('places', 'place', client, admin, userId, id, input, requestId);
+}
+
+export function deletePlace(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    requestId: string,
+): Promise<void> {
+    return deletePlaceIn(
+        'places',
+        'place',
+        'This place is used by programs or blocks and cannot be deleted.',
+        client,
+        admin,
+        userId,
+        id,
+        requestId,
+    );
+}
+
+export function createInventoryPlace(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    return createPlaceIn(
+        'inventory_places',
+        'inventory-place',
+        client,
+        admin,
+        userId,
+        input,
+        requestId,
+    );
+}
+
+export function updateInventoryPlace(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    return updatePlaceIn(
+        'inventory_places',
+        'inventory-place',
+        client,
+        admin,
+        userId,
+        id,
+        input,
+        requestId,
+    );
+}
+
+export function deleteInventoryPlace(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    requestId: string,
+): Promise<void> {
+    return deletePlaceIn(
+        'inventory_places',
+        'inventory-place',
+        'This place is used by inventory types or labels and cannot be deleted.',
+        client,
+        admin,
+        userId,
+        id,
+        requestId,
+    );
 }
 
 export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promise<Row> {
@@ -199,7 +310,7 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
         client.rpc('inventory_availability'),
         client
             .from('inventory_type_labels')
-            .select('*')
+            .select(WITH_LOCATION)
             .eq('inventory_type_id', row.id)
             .order('name'),
     ]);
@@ -212,7 +323,7 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
         Brand: row.brand,
         Name: row.name,
         Model: row.model,
-        Location: row.location,
+        ...locationFields(row),
         Description: row.description,
         Requestable: row.requestable,
         ImageId: row.image_path,
@@ -232,7 +343,6 @@ export async function createInventoryLabel(
     await requireAdmin(client, userId);
     const inventoryTypeId = requireNonEmpty(input.inventoryTypeId, 'Inventory type is required.');
     const name = requireNonEmpty(input.name, 'Label name is required.');
-    const location = boundedText(input.location, 'Location', MAX_NAME_LENGTH);
     const { result: label } = await withLockedDedupe(
         admin,
         'inventory-label:create:' + inventoryTypeId,
@@ -247,11 +357,12 @@ export async function createInventoryLabel(
                     .maybeSingle(),
             ) as Row | null;
             if (!type) throw new Error('Inventory type not found.');
+            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
             return result(
                 await admin
                     .from('inventory_type_labels')
-                    .insert({ inventory_type_id: inventoryTypeId, name, location })
-                    .select('*')
+                    .insert({ inventory_type_id: inventoryTypeId, name, location_id: locationId })
+                    .select(WITH_LOCATION)
                     .single(),
                 'A label with this name already exists for this inventory type.',
             ) as Row;
@@ -285,22 +396,23 @@ export async function updateInventoryLabel(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Label name is required.');
-    const location = boundedText(input.location, 'Location', MAX_NAME_LENGTH);
     const { result: label } = await withLockedDedupe(
         admin,
         'inventory-label:update:' + id,
         requestId,
         userId,
-        async () =>
-            result(
+        async () => {
+            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
+            return result(
                 await admin
                     .from('inventory_type_labels')
-                    .update({ name, location })
+                    .update({ name, location_id: locationId })
                     .eq('id', id)
-                    .select('*')
+                    .select(WITH_LOCATION)
                     .single(),
                 'A label with this name already exists for this inventory type.',
-            ) as Row,
+            ) as Row;
+        },
     );
     return inventoryLabelDto(label);
 }
@@ -323,6 +435,7 @@ export async function createInventoryType(
         requestId,
         userId,
         async () => {
+            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
             const row = result(
                 await admin
                     .from('inventory_types')
@@ -330,13 +443,13 @@ export async function createInventoryType(
                         brand,
                         name,
                         model,
-                        location: String(input.location || ''),
+                        location_id: locationId,
                         description: String(input.description || ''),
                         requestable: input.requestable !== false,
                         image_path: String(input.imageId || ''),
                         total_quantity: totalQuantity,
                     })
-                    .select('*')
+                    .select(WITH_LOCATION)
                     .single(),
                 'An inventory type with this brand, name, and model already exists.',
             ) as Row;
@@ -368,6 +481,7 @@ export async function updateInventoryType(
             const existing = result(
                 await admin.from('inventory_types').select('*').eq('id', id).single(),
             ) as Row;
+            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
             const row = result(
                 await admin
                     .from('inventory_types')
@@ -375,7 +489,7 @@ export async function updateInventoryType(
                         brand,
                         name,
                         model,
-                        location: String(input.location || ''),
+                        location_id: locationId,
                         description: String(input.description || ''),
                         requestable: input.requestable !== false,
                         image_path:
@@ -385,7 +499,7 @@ export async function updateInventoryType(
                         total_quantity: totalQuantity,
                     })
                     .eq('id', id)
-                    .select('*')
+                    .select(WITH_LOCATION)
                     .single(),
                 'An inventory type with this brand, name, and model already exists.',
             ) as Row;

@@ -2,10 +2,12 @@ import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
     fetchAll,
     inventoryLabelDto,
+    locationFields,
     requireAdmin,
     requireNonEmpty,
     result,
     userDto,
+    WITH_LOCATION,
     withLockedDedupe,
     type Row,
 } from './core.ts';
@@ -31,16 +33,26 @@ export async function listPlaces(client: SupabaseClient): Promise<Row[]> {
     return rows.map((x) => ({ Id: x.id, Name: x.name }));
 }
 
+export async function listInventoryPlaces(client: SupabaseClient): Promise<Row[]> {
+    const rows = result(await client.from('inventory_places').select('*').order('name')) as Row[];
+    return rows.map((x) => ({ Id: x.id, Name: x.name }));
+}
+
 export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]> {
     const [types, availabilityRes, labels] = await Promise.all([
         fetchAll((from, to) =>
-            client.from('inventory_types').select('*').order('name').order('id').range(from, to),
+            client
+                .from('inventory_types')
+                .select(WITH_LOCATION)
+                .order('name')
+                .order('id')
+                .range(from, to),
         ),
         client.rpc('inventory_availability'),
         fetchAll((from, to) =>
             client
                 .from('inventory_type_labels')
-                .select('*')
+                .select(WITH_LOCATION)
                 .order('name')
                 .order('id')
                 .range(from, to),
@@ -55,7 +67,7 @@ export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]>
         Brand: x.brand,
         Name: x.name,
         Model: x.model,
-        Location: x.location,
+        ...locationFields(x),
         Description: x.description,
         Requestable: x.requestable,
         ImageId: x.image_path,

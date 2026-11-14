@@ -80,7 +80,9 @@ interface InventoryType {
     Brand: string;
     Name: string;
     Model: string;
+    // The inventory place's name and id; both empty when no place is set.
     Location: string;
+    LocationId: string;
     Description: string;
     Requestable: boolean;
     ImageId: string;
@@ -92,8 +94,10 @@ interface InventoryLabel {
     DisplayId: number;
     InventoryTypeId: string;
     Name: string;
-    // Where this unit sits; empty means the inventory type's own Location.
+    // Where this unit sits (an inventory place); empty means the inventory
+    // type's own Location.
     Location: string;
+    LocationId: string;
 }
 
 // Status-change history (who/when) lives in Comments — every transition is
@@ -384,7 +388,8 @@ interface CreateInventoryTypeInput {
     brand: string;
     name: string;
     model: string;
-    location: string;
+    // An inventory place id; empty for none.
+    locationId: string;
     description: string;
     requestable: boolean;
     totalQuantity: number | null;
@@ -394,12 +399,13 @@ interface CreateInventoryTypeInput {
 interface CreateInventoryLabelInput {
     inventoryTypeId: string;
     name: string;
-    location: string;
+    // An inventory place id; empty to use the type's place.
+    locationId: string;
 }
 
 interface UpdateInventoryLabelInput {
     name: string;
-    location: string;
+    locationId: string;
 }
 
 interface CreateInventoryRequestInput {
@@ -515,6 +521,10 @@ interface Api {
     createPlace(input: CreatePlaceInput, requestId: string): Place;
     updatePlace(id: string, input: CreatePlaceInput, requestId: string): Place;
     deletePlace(id: string, requestId: string): void;
+    listInventoryPlaces(): Place[];
+    createInventoryPlace(input: CreatePlaceInput, requestId: string): Place;
+    updateInventoryPlace(id: string, input: CreatePlaceInput, requestId: string): Place;
+    deleteInventoryPlace(id: string, requestId: string): void;
 
     getHomeContent(): HomeContent;
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;

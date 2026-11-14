@@ -6,6 +6,7 @@ import {
     inventoryLabelDto,
     profilesFor,
     requireNonEmpty,
+    WITH_LOCATION,
     result,
     withLockedDedupe,
     type Row,
@@ -246,7 +247,7 @@ export async function getInventoryRequest(
             (chunk, from, to) =>
                 client
                     .from('inventory_type_labels')
-                    .select('*')
+                    .select(WITH_LOCATION)
                     .in('id', chunk)
                     .order('id')
                     .range(from, to),

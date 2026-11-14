@@ -13,6 +13,8 @@ Terms used in the code and in architecture discussions. Keep this short; add a t
 
 ## Scheduling
 
+- **Program place**: a room where program sessions are held (table `places`). Programs and blocks point at it.
+- **Inventory place**: where equipment is kept (table `inventory_places`), a separate list from program places. Inventory types and labels point at it as their `Location`; a label with no place sits where its type sits. Both place lists are edited on the Other settings page.
 - **Place availability**: two approved programs may not use the same place within an hour of each other. Owned by `supabase/functions/api/scheduling.ts`; SQL approval enforces the same rule under a lock.
 
 ## Dashboard

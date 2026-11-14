@@ -4,6 +4,7 @@ import {
     Button,
     Checkbox,
     Empty,
+    Form,
     Input,
     Modal,
     Popover,
@@ -76,7 +77,13 @@ const INVENTORY_TYPE_CONFIG: ResourceConfig = {
         { field: 'Name', label: 'Name' },
         { field: 'Brand', label: 'Brand', datalistId: 'inventory-brand-options' },
         { field: 'Model', label: 'Model' },
-        { field: 'Location', label: 'Location', datalistId: 'inventory-type-location-options' },
+        {
+            field: 'LocationId',
+            label: 'Location',
+            type: 'select',
+            optionsResource: 'inventory-places',
+            optionsLabel: 'No location',
+        },
         { field: 'Description', label: 'Description', hiddenInTable: true },
         {
             field: 'TotalQuantity',
@@ -108,7 +115,7 @@ const INVENTORY_TYPE_CONFIG: ResourceConfig = {
         brand: v.Brand,
         name: v.Name,
         model: v.Model,
-        location: v.Location,
+        locationId: v.LocationId,
         description: v.Description,
         requestable: v.Requestable === 'on',
         totalQuantity: v.TotalQuantity.trim() === '' ? null : Number(v.TotalQuantity),
@@ -173,9 +180,16 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const inventoryBrandOptions = Array.from(
         new Set(rows.map((row) => String(row.Brand || '').trim()).filter(Boolean)),
     ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-    const inventoryTypeLocationOptions = Array.from(
-        new Set(rows.map((row) => String(row.Location || '').trim()).filter(Boolean)),
-    ).sort(compareGroupKeys);
+    const { result: inventoryPlacesResult } = useList({
+        resource: 'inventory-places',
+        pagination: { mode: 'off' },
+    });
+    const inventoryPlaceOptions = [
+        { value: '', label: "Same as the type's location" },
+        ...(inventoryPlacesResult.data as Row[])
+            .map((place) => ({ value: String(place.Id), label: String(place.Name) }))
+            .sort((a, b) => compareGroupKeys(a.label, b.label)),
+    ];
     const { save, remove } = useResourceMutations('inventory-types', config);
     const { mutateAsync: updateRow } = useUpdate();
     const invalidate = useInvalidate();
@@ -244,7 +258,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     brand: String(row.Brand || ''),
                     name: String(row.Name || ''),
                     model: String(row.Model || ''),
-                    location: String(row.Location || ''),
+                    locationId: String(row.LocationId || ''),
                     description: String(row.Description || ''),
                     requestable: row.Requestable !== false,
                     totalQuantity: row.TotalQuantity == null ? null : Number(row.TotalQuantity),
@@ -260,17 +274,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             showSavingBadge(false);
         }
     }
-    // Suggested when typing a label location, so one place is not spelled two ways.
-    const inventoryLocationOptions = Array.from(
-        new Set(
-            (rows as InventoryTypeDTO[]).flatMap((row) => [
-                String(row.Location || '').trim(),
-                ...(row.labels || []).map((label) => String(label.Location || '').trim()),
-            ]),
-        ),
-    )
-        .filter(Boolean)
-        .sort(compareGroupKeys);
     const labelLocations = inventoryLabelLocations(rows as InventoryTypeDTO[]);
     function toggleQrPdfOpen(open: boolean) {
         // Every location starts ticked, so a plain click on Download still
@@ -329,7 +332,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     function openEditInventoryLabel(label: InventoryLabel) {
         setLabelEditor(label);
         setLabelEditorName(label.Name);
-        setLabelEditorLocation(label.Location || '');
+        setLabelEditorLocation(label.LocationId || '');
         setLabelEditorOpen(true);
     }
     function closeInventoryLabelEditor() {
@@ -346,7 +349,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             if (labelEditor) {
                 await api.updateInventoryLabel(
                     labelEditor.Id,
-                    { name: labelEditorName.trim(), location: labelEditorLocation.trim() },
+                    { name: labelEditorName.trim(), locationId: labelEditorLocation },
                     generateRequestId(),
                 );
             } else {
@@ -354,7 +357,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     {
                         inventoryTypeId: String(selectedInventoryType.Id),
                         name: labelEditorName.trim(),
-                        location: labelEditorLocation.trim(),
+                        locationId: labelEditorLocation,
                     },
                     generateRequestId(),
                 );
@@ -857,18 +860,16 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             required
                             onChange={(event) => setLabelEditorName(event.target.value)}
                         />
-                        <TextField
-                            name="labelLocation"
-                            label="Location (optional, defaults to the type's location)"
-                            value={labelEditorLocation}
-                            list="inventory-label-location-options"
-                            onChange={(event) => setLabelEditorLocation(event.target.value)}
-                        />
-                        <datalist id="inventory-label-location-options">
-                            {inventoryLocationOptions.map((location) => (
-                                <option key={location} value={location} />
-                            ))}
-                        </datalist>
+                        <Form.Item label="Location">
+                            <Select
+                                value={labelEditorLocation}
+                                onChange={setLabelEditorLocation}
+                                aria-label="Location"
+                                showSearch
+                                optionFilterProp="label"
+                                options={inventoryPlaceOptions}
+                            />
+                        </Form.Item>
                         <SaveFooter label="Save" busy={labelBusy} errorMessage="" />
                     </form>
                 </Modal>
@@ -923,10 +924,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             });
                         }
                     }}
-                    datalistOptions={{
-                        'inventory-brand-options': inventoryBrandOptions,
-                        'inventory-type-location-options': inventoryTypeLocationOptions,
-                    }}
+                    datalistOptions={{ 'inventory-brand-options': inventoryBrandOptions }}
                 />
             )}
         </section>

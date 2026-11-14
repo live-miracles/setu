@@ -175,14 +175,41 @@ export async function withLockedDedupe<T>(
     }
 }
 
+// Inventory types and labels point at an inventory place by id. Selecting with
+// this embeds the place's name as `location`, so the DTOs can show it without a
+// second lookup.
+export const WITH_LOCATION = '*, location:inventory_places(name)';
+
+export function locationFields(row: Row): Row {
+    return { Location: row.location?.name || '', LocationId: row.location_id || '' };
+}
+
 export function inventoryLabelDto(label: Row): Row {
     return {
         Id: label.id,
         DisplayId: label.display_id,
         InventoryTypeId: label.inventory_type_id,
         Name: label.name,
-        Location: label.location || '',
+        ...locationFields(label),
     };
+}
+
+// The place an inventory type or label is moved to must exist; an empty value
+// means "no place".
+export async function optionalInventoryPlaceId(
+    admin: SupabaseClient,
+    value: unknown,
+): Promise<string | null> {
+    const id = String(value ?? '').trim();
+    if (!id) return null;
+    const { data, error } = await admin
+        .from('inventory_places')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Location not found.');
+    return id;
 }
 
 export function userDto(profile: Row, departments: Map<string, Row>): Row {

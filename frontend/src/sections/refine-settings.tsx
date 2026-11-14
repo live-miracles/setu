@@ -26,21 +26,33 @@ const iso = (raw: string) => (raw ? new Date(raw).toISOString() : '');
 // this only translates the form's uppercase field names (matching
 // fields[].field) into the lowercase CreateXInput/UpdateXInput shape.
 // Departments and inventory types have their own pages (departments.tsx,
-// inventory-types.tsx); this shell serves only the simple resources below.
+// inventory-types.tsx); this shell serves only the simple resources below,
+// which the Other settings page lists together.
+const sortByName = (rows: Row[]) =>
+    [...rows].sort((a, b) =>
+        String(a.Name).localeCompare(String(b.Name), undefined, {
+            numeric: true,
+            sensitivity: 'base',
+        }),
+    );
+
 const RESOURCES: Record<string, ResourceConfig> = {
     places: {
-        kind: 'place',
-        title: 'Places',
-        addLabel: 'Add place',
-        emptyMessage: 'No places yet.',
+        kind: 'program place',
+        title: 'Program places',
+        addLabel: 'Add program place',
+        emptyMessage: 'No program places yet.',
         fields: [{ field: 'Name', label: 'Name' }],
-        sortRows: (rows) =>
-            [...rows].sort((a, b) =>
-                String(a.Name).localeCompare(String(b.Name), undefined, {
-                    numeric: true,
-                    sensitivity: 'base',
-                }),
-            ),
+        sortRows: sortByName,
+        toInput: (v) => ({ name: v.Name }),
+    },
+    'inventory-places': {
+        kind: 'inventory place',
+        title: 'Inventory places',
+        addLabel: 'Add inventory place',
+        emptyMessage: 'No inventory places yet.',
+        fields: [{ field: 'Name', label: 'Name' }],
+        sortRows: sortByName,
         toInput: (v) => ({ name: v.Name }),
     },
     blocks: {
@@ -338,16 +350,18 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
                 </form>
             </Card>
             <AllowedEmailDomainsPage dashboard={dashboard} />
-            {(['shift-types', 'program-types', 'program-languages', 'session-types'] as const).map(
-                (key) => (
-                    <SettingsResourcePage
-                        key={key}
-                        resourceName={key}
-                        dashboard={dashboard}
-                        compact
-                    />
-                ),
-            )}
+            {(
+                [
+                    'places',
+                    'inventory-places',
+                    'shift-types',
+                    'program-types',
+                    'program-languages',
+                    'session-types',
+                ] as const
+            ).map((key) => (
+                <SettingsResourcePage key={key} resourceName={key} dashboard={dashboard} compact />
+            ))}
         </section>
     );
 }
