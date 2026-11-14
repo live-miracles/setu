@@ -23,6 +23,7 @@ import {
     addScannedInventoryItemForIssue,
     compareLabelNames,
     inventoryItemHasLabel,
+    inventoryLabelDisplayName,
     sortInventoryLabels,
     parseInventoryQrValue,
 } from '../ui/inventory-qr';
@@ -458,9 +459,12 @@ export function InventoryDetail({
                                 const labels = (item.labels || [])
                                     .map((label) =>
                                         typeof label === 'string'
-                                            ? type?.labels?.find((entry) => entry.Id === label)
-                                                  ?.Name || label
-                                            : label.Name,
+                                            ? inventoryLabelDisplayName(
+                                                  type?.labels?.find(
+                                                      (entry) => entry.Id === label,
+                                                  ) ?? { Name: label, DisplayId: 0 },
+                                              )
+                                            : inventoryLabelDisplayName(label),
                                     )
                                     .sort(compareLabelNames);
                                 const requestedOfType = items
@@ -818,7 +822,7 @@ export function InventoryDetail({
                                     options={sortInventoryLabels(selectedInventoryType.labels).map(
                                         (label) => ({
                                             value: label.Id,
-                                            label: label.Name,
+                                            label: inventoryLabelDisplayName(label),
                                         }),
                                     )}
                                 />

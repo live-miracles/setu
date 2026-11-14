@@ -109,7 +109,7 @@ export function inventoryLabelQrFilename(type: InventoryTypeDTO, label: Inventor
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-');
-    const labelName = label.Name.trim()
+    const labelName = inventoryLabelDisplayName(label)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-');
     return `${typeName.replace(/^-|-$/g, '') || 'inventory-type'}-${
@@ -136,8 +136,16 @@ export function compareLabelNames(a: string, b: string): number {
     return a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
 }
 
+// A label's name is optional; an unnamed one is shown by its item number (the
+// second number of its QR code).
+export function inventoryLabelDisplayName(label: Pick<InventoryLabel, 'Name' | 'DisplayId'>) {
+    return label.Name.trim() || `#${label.DisplayId}`;
+}
+
 export function sortInventoryLabels(labels: InventoryLabel[] = []): InventoryLabel[] {
-    return [...labels].sort((a, b) => compareLabelNames(a.Name, b.Name));
+    return [...labels].sort((a, b) =>
+        compareLabelNames(inventoryLabelDisplayName(a), inventoryLabelDisplayName(b)),
+    );
 }
 
 export type InventoryGroupBy = 'brand' | 'location' | 'serial';

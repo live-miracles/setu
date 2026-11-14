@@ -342,7 +342,7 @@ export async function createInventoryLabel(
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const inventoryTypeId = requireNonEmpty(input.inventoryTypeId, 'Inventory type is required.');
-    const name = requireNonEmpty(input.name, 'Label name is required.');
+    const name = boundedText(input.name, 'Label name', MAX_NAME_LENGTH);
     const { result: label } = await withLockedDedupe(
         admin,
         'inventory-label:create:' + inventoryTypeId,
@@ -395,7 +395,7 @@ export async function updateInventoryLabel(
     requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
-    const name = requireNonEmpty(input.name, 'Label name is required.');
+    const name = boundedText(input.name, 'Label name', MAX_NAME_LENGTH);
     const { result: label } = await withLockedDedupe(
         admin,
         'inventory-label:update:' + id,

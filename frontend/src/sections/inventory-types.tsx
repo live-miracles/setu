@@ -19,6 +19,7 @@ import {
     DeleteOutlined,
     DownloadOutlined,
     EditOutlined,
+    EyeInvisibleOutlined,
     FilePdfOutlined,
     HistoryOutlined,
     PlusOutlined,
@@ -36,6 +37,7 @@ import { matchesSearch } from '../ui/search';
 import {
     compareGroupKeys,
     groupInventoryTypes,
+    inventoryLabelDisplayName,
     inventoryLabelLocationKey,
     inventoryLabelQrFilename,
     inventoryTypeDisplayName,
@@ -343,7 +345,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     }
     async function saveInventoryLabel(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!selectedInventoryType || !labelEditorName.trim()) return;
+        if (!selectedInventoryType) return;
         setLabelBusy(true);
         try {
             if (labelEditor) {
@@ -399,6 +401,13 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                         {inventoryGroupBy === 'serial' &&
                                             `#${String(row.DisplayId)} `}
                                         {inventoryTypeDisplayName(row) || 'Unnamed equipment'}
+                                        {row.Requestable === false && (
+                                            <Tag
+                                                icon={<EyeInvisibleOutlined />}
+                                                className="ml-2 align-middle">
+                                                Not requestable
+                                            </Tag>
+                                        )}
                                     </strong>
                                     {row.Location && inventoryGroupBy !== 'location' && (
                                         <span className="inventory-type-card-description">
@@ -693,7 +702,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                     ...sortInventoryLabels(selectedInventoryType.labels).map(
                                         (label) => ({
                                             value: label.Id,
-                                            label: label.Name,
+                                            label: inventoryLabelDisplayName(label),
                                         }),
                                     ),
                                 ]}
@@ -759,7 +768,8 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                         title: 'Label name',
                                         dataIndex: 'Name',
                                         key: 'Name',
-                                        render: (_: unknown, label: InventoryLabel) => label.Name,
+                                        render: (_: unknown, label: InventoryLabel) =>
+                                            label.Name || '—',
                                     },
                                     {
                                         title: 'Location',
@@ -784,14 +794,14 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                                         onClick={() =>
                                                             openEditInventoryLabel(label)
                                                         }
-                                                        aria-label={`Edit ${label.Name}`}
+                                                        aria-label={`Edit ${inventoryLabelDisplayName(label)}`}
                                                     />
                                                 )}
                                                 <Button
                                                     type="text"
                                                     icon={<HistoryOutlined />}
                                                     onClick={() => setHistoryLabel(label)}
-                                                    aria-label={`View requests for ${label.Name}`}
+                                                    aria-label={`View requests for ${inventoryLabelDisplayName(label)}`}
                                                     title="View requests"
                                                 />
                                                 {canEdit && (
@@ -803,7 +813,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                                         onClick={() =>
                                                             void removeInventoryLabel(label)
                                                         }
-                                                        aria-label={`Delete ${label.Name}`}
+                                                        aria-label={`Delete ${inventoryLabelDisplayName(label)}`}
                                                     />
                                                 )}
                                             </Space>
@@ -855,9 +865,8 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     <form className="grid gap-3" noValidate onSubmit={saveInventoryLabel}>
                         <TextField
                             name="labelName"
-                            label="Label name"
+                            label="Label name (optional)"
                             value={labelEditorName}
-                            required
                             onChange={(event) => setLabelEditorName(event.target.value)}
                         />
                         <Form.Item label="Location">
@@ -877,7 +886,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             {historyLabel && (
                 <Modal
                     open
-                    title={`Requests for ${historyLabel.Name}`}
+                    title={`Requests for ${inventoryLabelDisplayName(historyLabel)}`}
                     onCancel={() => setHistoryLabel(null)}
                     footer={null}
                     width={720}

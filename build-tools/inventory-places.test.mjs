@@ -135,6 +135,37 @@ test('a label or type can only be placed at an existing inventory place', async 
     assert.equal(writes.at(-1).payload.location_id, 'p1');
 });
 
+test('a label may have no name, but not an overlong one', async () => {
+    const { admin, writes } = recordingAdmin();
+    await api.createInventoryLabel(
+        adminClient,
+        admin,
+        'admin-1',
+        { inventoryTypeId: 't1', name: '  ', locationId: '' },
+        'request-8',
+    );
+    assert.equal(writes.at(-1).payload.name, '');
+    await api.updateInventoryLabel(
+        adminClient,
+        admin,
+        'admin-1',
+        'l1',
+        { name: '', locationId: '' },
+        'request-9',
+    );
+    assert.equal(writes.at(-1).payload.name, '');
+    await assert.rejects(
+        api.createInventoryLabel(
+            adminClient,
+            admin,
+            'admin-1',
+            { inventoryTypeId: 't1', name: 'x'.repeat(500), locationId: '' },
+            'request-10',
+        ),
+        /at most/,
+    );
+});
+
 test('an empty location clears the place so a label falls back to its type', async () => {
     const { admin, writes } = recordingAdmin();
     await api.updateInventoryLabel(

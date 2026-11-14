@@ -5,7 +5,9 @@ import {
     findInventoryTypeByQrValue,
     groupInventoryTypes,
     inventoryItemHasLabel,
+    inventoryLabelDisplayName,
     inventoryLabelLocationKey,
+    inventoryLabelQrFilename,
     inventoryQrValue,
     inventoryTypeQrFilename,
     inventoryTypeQrLabel,
@@ -145,6 +147,30 @@ export function runInventoryQrAssertions(): void {
     assert(
         sortedNames.join(',') === 'Adapter,Cable 2,cable 5,Cable 10',
         'labels should sort alphabetically with numbers compared numerically',
+    );
+
+    const unnamed = (Name: string, DisplayId: number) => ({
+        Id: String(DisplayId),
+        DisplayId,
+        InventoryTypeId: 'inventory-type-uuid-1',
+        Name,
+        Location: '',
+        LocationId: '',
+    });
+    assert(
+        inventoryLabelDisplayName(unnamed('  ', 12)) === '#12' &&
+            inventoryLabelDisplayName(unnamed('CAM-1', 12)) === 'CAM-1',
+        'an unnamed label is shown by its item number',
+    );
+    assert(
+        sortInventoryLabels([unnamed('Cable', 3), unnamed('', 20), unnamed('', 4)])
+            .map(inventoryLabelDisplayName)
+            .join(',') === '#4,#20,Cable',
+        'unnamed labels sort by item number',
+    );
+    assert(
+        inventoryLabelQrFilename(types[0], unnamed('', 12)) === 'camera-body-12-12.png',
+        'an unnamed label gets a QR filename from its item number',
     );
 
     const groupable = [
