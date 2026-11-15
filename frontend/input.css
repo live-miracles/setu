@@ -1,4 +1,3 @@
-@import 'antd/dist/reset.css';
 @import 'tailwindcss';
 
 @theme {
@@ -9,6 +8,20 @@
     --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
     --color-error: var(--setu-error);
     --color-error-content: var(--setu-surface);
+    --color-error-hover: var(--setu-error-hover);
+    --color-error-bg: var(--setu-error-bg);
+    --color-error-border: var(--setu-error-border);
+    --color-error-text: var(--setu-error-text);
+    --color-accent: var(--setu-accent);
+    --color-accent-hover: var(--setu-accent-hover);
+    --color-ink: var(--setu-ink);
+    --color-charcoal: var(--setu-charcoal);
+    --color-steel: var(--setu-steel);
+    --color-line: var(--setu-line);
+    --color-line-strong: var(--setu-line-strong);
+    --color-paper: var(--setu-paper);
+    --color-link: var(--setu-link);
+    --shadow-overlay: 0 16px 48px -8px rgb(15 15 15 / 16%);
 }
 
 :root {
@@ -18,6 +31,10 @@
     --setu-line: #e5e3df;
     --setu-accent: #5645d4;
     --setu-accent-hover: #4534b3;
+    --setu-charcoal: #37352f;
+    --setu-steel: #787671;
+    --setu-line-strong: #c8c4be;
+    --setu-link: #0075de;
     --setu-error: #e03131;
     --setu-error-hover: #c92a2a;
     --setu-error-active: #a61e1e;
@@ -145,7 +162,7 @@ body {
     margin-inline: auto;
 }
 
-.home-section > .ant-card {
+.home-section > .card {
     min-width: 0;
 }
 
@@ -159,11 +176,11 @@ body {
     flex-direction: column;
 }
 
-.home-scroll-card > .ant-card-head {
+.home-scroll-card > .card-head {
     flex: 0 0 auto;
 }
 
-.home-scroll-card > .ant-card-body {
+.home-scroll-card > .card-body {
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
@@ -176,11 +193,11 @@ body {
     flex-direction: column;
 }
 
-.table-view > .ant-card-head {
+.table-view > .card-head {
     flex: 0 0 auto;
 }
 
-.table-view > .ant-card-body {
+.table-view > .card-body {
     display: flex;
     min-height: 0;
     flex: 1 1 auto;
@@ -190,12 +207,6 @@ body {
 .table-view-body {
     min-height: 0;
     overflow: auto;
-}
-
-.table-view-body .ant-table-thead > tr > th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
 }
 
 .home-recent-comments .antd-list-button {
@@ -240,41 +251,9 @@ body {
     width: 100%;
 }
 
-form,
-.ant-form,
-.ant-form-item,
-.ant-form-item-control,
-.ant-form-item-control-input,
-.ant-form-item-control-input-content {
+form {
     min-width: 0;
     max-width: 100%;
-}
-
-.ant-select,
-.ant-select-selector,
-.ant-input,
-.ant-input-affix-wrapper,
-.ant-input-number,
-.ant-picker {
-    min-width: 0;
-    max-width: 100%;
-}
-
-.ant-select-selector {
-    overflow: hidden;
-}
-
-.ant-select-selection-item {
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ant-tag.ant-tag-red {
-    color: var(--setu-error-text);
-    background: var(--setu-error-bg);
-    border-color: var(--setu-error-border);
 }
 
 .home-list-row {
@@ -296,10 +275,6 @@ form,
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-}
-
-.home-list-row > .ant-tag {
-    flex: none;
 }
 
 .roster-table-scroll {
@@ -403,7 +378,7 @@ form,
     background: var(--setu-paper);
 }
 
-.ant-input.inventory-qr-manual-input {
+.inventory-qr-manual-input {
     width: 7rem;
     max-width: 100%;
     padding: 0.75rem 0.875rem;
@@ -412,6 +387,10 @@ form,
     font-size: 1.35rem;
     font-weight: 750;
     letter-spacing: 0.14em;
+    text-align: center;
+}
+
+.inventory-qr-manual-input input {
     text-align: center;
 }
 
@@ -830,21 +809,15 @@ form,
     gap: 1rem;
 }
 
-.antd-page-heading .ant-typography {
-    margin: 0;
-}
-
-.antd-page-heading .ant-typography + .ant-typography {
-    margin-top: 0.25rem;
-}
-
 .antd-board-filters {
     flex: 1 1 auto;
     justify-content: flex-end;
     align-items: center;
 }
 
-.antd-board-filters .ant-input-affix-wrapper {
+.antd-board-filters .ui-input {
+    flex: 1 1 14rem;
+    width: auto;
     max-width: 32rem;
 }
 
@@ -857,7 +830,7 @@ form,
     margin-bottom: 1rem;
 }
 
-.antd-table-search .ant-input-affix-wrapper {
+.antd-table-search .ui-input {
     max-width: 32rem;
 }
 
@@ -979,7 +952,7 @@ form,
 /* Titled sections keep their header fixed; only the card body scrolls when the
    content outgrows the section. Table sections (.table-view) do this
    themselves. */
-.detail-section > .ant-card:not(.table-view) {
+.detail-section > .card:not(.table-view) {
     display: flex;
     min-width: 0;
     min-height: 0;
@@ -987,11 +960,11 @@ form,
     flex-direction: column;
 }
 
-.detail-section > .ant-card:not(.table-view) > .ant-card-head {
+.detail-section > .card:not(.table-view) > .card-head {
     flex: 0 0 auto;
 }
 
-.detail-section > .ant-card:not(.table-view) > .ant-card-body {
+.detail-section > .card:not(.table-view) > .card-body {
     min-height: 0;
     flex: 1 1 auto;
     overflow: auto;
@@ -1034,13 +1007,13 @@ form,
     overflow: hidden;
 }
 
-.inventory-image-section > .ant-card {
+.inventory-image-section > .card {
     display: flex;
     min-height: 0;
     flex-direction: column;
 }
 
-.inventory-image-section > .ant-card > .ant-card-body {
+.inventory-image-section > .card > .card-body {
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
@@ -1068,17 +1041,17 @@ form,
 }
 
 .activity-card,
-.activity-card > .ant-card {
+.activity-card > .card {
     height: 100%;
     min-height: 0;
 }
 
-.activity-card > .ant-card {
+.activity-card > .card {
     display: flex;
     flex-direction: column;
 }
 
-.activity-card > .ant-card > .ant-card-body {
+.activity-card > .card > .card-body {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
@@ -1112,14 +1085,14 @@ form,
         max-height: none;
     }
 
-    .sessions-table .ant-table-cell,
-    .inventory-items-table .ant-table-cell,
-    .users-table .ant-table-cell {
+    .sessions-table :is(th, td),
+    .inventory-items-table :is(th, td),
+    .users-table :is(th, td) {
         padding-inline: 0.5rem;
     }
 
     .activity-card,
-    .activity-card > .ant-card {
+    .activity-card > .card {
         height: auto;
     }
 
@@ -1223,7 +1196,7 @@ a.record-block:focus-visible {
     flex-direction: column;
 }
 
-.user-card-identity .ant-typography {
+.user-card-identity :is(span, h3, p) {
     overflow-wrap: anywhere;
 }
 
@@ -1304,7 +1277,7 @@ a.record-block:focus-visible {
     gap: 1.5rem;
 }
 
-.department-related-sections h3.ant-typography {
+.department-related-sections h3 {
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -1319,7 +1292,7 @@ a.record-block:focus-visible {
     margin-bottom: 0.75rem;
 }
 
-.related-request-heading h3.ant-typography {
+.related-request-heading h3 {
     margin: 0;
 }
 
@@ -1528,7 +1501,7 @@ a.record-block:focus-visible {
         outline-offset: -2px;
     }
 
-    .app-mobile-nav-item .anticon {
+    .app-mobile-nav-item svg {
         flex: none;
         width: 1.15rem;
         height: 1.15rem;
@@ -1594,11 +1567,6 @@ a.record-block:focus-visible {
         height: calc(100dvh - 8rem);
     }
 
-    .app-content:not(.app-content-edge) .ant-table-wrapper {
-        max-width: 100%;
-        overflow-x: auto;
-    }
-
     .app-content {
         overflow-x: hidden;
     }
@@ -1606,38 +1574,6 @@ a.record-block:focus-visible {
     .antd-stat-grid,
     .antd-two-column {
         grid-template-columns: 1fr;
-    }
-
-    /* Controls that explicitly ask for antd's small size (e.g. card-header "+",
-       the comment box) are 24-32px, below a comfortable touch target. */
-    .ant-btn.ant-btn-sm {
-        min-width: 2.5rem;
-        min-height: 2.5rem;
-    }
-
-    .ant-input.ant-input-sm {
-        min-height: 2.5rem;
-    }
-
-    /* Forms put Form.Item outside an antd Form, so they default to the
-       horizontal layout. On narrow screens stack the label above a
-       full-width control, like antd's own vertical layout. */
-    .ant-form-item {
-        margin-bottom: 0.5rem;
-    }
-
-    .ant-form-item .ant-form-item-row {
-        flex-direction: column;
-    }
-
-    .ant-form-item .ant-form-item-label {
-        padding-bottom: 0.25rem;
-        text-align: start;
-    }
-
-    .ant-form-item .ant-form-item-control {
-        flex: 0 0 auto;
-        width: 100%;
     }
 }
 

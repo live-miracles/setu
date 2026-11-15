@@ -1,31 +1,9 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useInvalidate, useList, useUpdate } from '../ui/resources';
-import {
-    Button,
-    Checkbox,
-    Empty,
-    Form,
-    Input,
-    Modal,
-    Popover,
-    Select,
-    Space,
-    Table,
-    Tag,
-    Typography,
-} from 'antd';
-import {
-    ArrowLeftOutlined,
-    DeleteOutlined,
-    DownloadOutlined,
-    EditOutlined,
-    EyeInvisibleOutlined,
-    FilePdfOutlined,
-    HistoryOutlined,
-    PlusOutlined,
-    SearchOutlined,
-    UploadOutlined,
-} from '@ant-design/icons';
+import { Input, Select, Field } from '../ui/form-kit';
+import { Modal, Popover } from '../ui/overlay-kit';
+import { Table, Button, Checkbox, Empty, Space, Tag, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
@@ -422,7 +400,8 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                 <div className="inventory-type-card-heading">
                                     <strong>
                                         {row.Requestable === false && (
-                                            <EyeInvisibleOutlined
+                                            <Icon
+                                                name="eyeOff"
                                                 className="mr-1"
                                                 aria-label="Not requestable"
                                                 title="Not requestable"
@@ -473,7 +452,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     value={inventoryGroupBy}
                     onChange={changeInventoryGroupBy}
                     aria-label="Group inventory types by"
-                    popupMatchSelectWidth={false}
                     options={[
                         { value: '', label: 'Group by', disabled: true },
                         { value: 'brand', label: 'Brand' },
@@ -483,7 +461,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 />
                 <Input
                     allowClear
-                    prefix={<SearchOutlined />}
+                    prefix={<Icon name="search" />}
                     placeholder={`Search ${config.title.toLowerCase()}`}
                     aria-label={`Search ${config.title.toLowerCase()}`}
                     value={search}
@@ -496,15 +474,13 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 />
                 <Button
                     type="primary"
-                    icon={<SearchOutlined />}
+                    icon={<Icon name="search" />}
                     onClick={() => setAppliedSearch(search)}
                     aria-label={`Search ${config.title.toLowerCase()}`}
                     title={`Search ${config.title.toLowerCase()}`}
                 />
             </Space>
             <Popover
-                trigger="click"
-                placement="bottomRight"
                 open={qrPdfOpen}
                 onOpenChange={toggleQrPdfOpen}
                 title="Label QR codes PDF"
@@ -552,7 +528,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                         </Checkbox>
                         <Button
                             type="primary"
-                            icon={<FilePdfOutlined />}
+                            icon={<Icon name="filePdf" />}
                             loading={qrPdfBusy}
                             disabled={!qrPdfLocations.length}
                             onClick={() => void downloadLabelQrPdf()}>
@@ -562,7 +538,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 }>
                 <Button
                     type="primary"
-                    icon={<FilePdfOutlined />}
+                    icon={<Icon name="filePdf" />}
                     disabled={!labelLocations.length}
                     aria-label="Download label QR codes PDF"
                     title="Download label QR codes PDF"
@@ -571,7 +547,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             {canEdit && (
                 <Button
                     type="primary"
-                    icon={<PlusOutlined />}
+                    icon={<Icon name="plus" />}
                     onClick={() => setCreating(true)}
                     aria-label={`Add ${config.kind}`}
                     title={`Add ${config.kind}`}
@@ -590,7 +566,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 <Space wrap>
                     <Button
                         type="default"
-                        icon={<ArrowLeftOutlined />}
+                        icon={<Icon name="arrowLeft" />}
                         onClick={() => navigate(inventoryTypesPath, { replace: true })}
                         aria-label="Back to inventory types"
                         title="Back to inventory types"
@@ -600,14 +576,14 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             <>
                                 <Button
                                     type="primary"
-                                    icon={<EditOutlined />}
+                                    icon={<Icon name="edit" />}
                                     onClick={() => setEditing(selectedInventoryType)}
                                     aria-label="Edit"
                                 />
                                 <Button
                                     type="primary"
                                     danger
-                                    icon={<DeleteOutlined />}
+                                    icon={<Icon name="trash" />}
                                     onClick={() => setDeleting(selectedInventoryType)}
                                     aria-label="Delete"
                                 />
@@ -671,7 +647,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                 />
                                 <Button
                                     type="primary"
-                                    icon={<UploadOutlined />}
+                                    icon={<Icon name="upload" />}
                                     onClick={() =>
                                         document
                                             .getElementById(
@@ -718,7 +694,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                         .catch(showErrorAlert);
                                 }}
                                 aria-label="QR code to download"
-                                popupMatchSelectWidth={false}
                                 options={[
                                     { value: 'heading', label: 'QR code for', disabled: true },
                                     { value: '', label: 'Inventory type' },
@@ -732,7 +707,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             />
                             <Button
                                 type="primary"
-                                icon={<DownloadOutlined />}
+                                icon={<Icon name="download" />}
                                 onClick={() => {
                                     const labels = (selectedInventoryType.labels ||
                                         []) as InventoryLabel[];
@@ -767,7 +742,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             canEdit ? (
                                 <Button
                                     type="primary"
-                                    icon={<PlusOutlined />}
+                                    icon={<Icon name="plus" />}
                                     onClick={openAddInventoryLabel}
                                     aria-label="Add label"
                                     title="Add label"
@@ -814,7 +789,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                                 {canEdit && (
                                                     <Button
                                                         type="text"
-                                                        icon={<EditOutlined />}
+                                                        icon={<Icon name="edit" />}
                                                         disabled={labelBusy}
                                                         onClick={() =>
                                                             openEditInventoryLabel(label)
@@ -824,7 +799,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                                 )}
                                                 <Button
                                                     type="text"
-                                                    icon={<HistoryOutlined />}
+                                                    icon={<Icon name="history" />}
                                                     onClick={() => setHistoryLabel(label)}
                                                     aria-label={`View requests for ${inventoryLabelDisplayName(label)}`}
                                                     title="View requests"
@@ -833,7 +808,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                                     <Button
                                                         type="text"
                                                         danger
-                                                        icon={<DeleteOutlined />}
+                                                        icon={<Icon name="trash" />}
                                                         loading={labelBusy}
                                                         onClick={() =>
                                                             void removeInventoryLabel(label)
@@ -882,11 +857,8 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             )}
             {canEdit && labelEditorOpen && selectedInventoryType && (
                 <Modal
-                    open
                     title={labelEditor ? 'Edit label' : 'Add label'}
-                    onCancel={closeInventoryLabelEditor}
-                    footer={null}
-                    destroyOnHidden>
+                    close={closeInventoryLabelEditor}>
                     <form className="grid gap-3" noValidate onSubmit={saveInventoryLabel}>
                         <TextField
                             name="labelName"
@@ -894,28 +866,24 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             value={labelEditorName}
                             onChange={(event) => setLabelEditorName(event.target.value)}
                         />
-                        <Form.Item label="Location">
+                        <Field label="Location">
                             <Select
                                 value={labelEditorLocation}
                                 onChange={setLabelEditorLocation}
                                 aria-label="Location"
                                 showSearch
-                                optionFilterProp="label"
                                 options={inventoryPlaceOptions}
                             />
-                        </Form.Item>
+                        </Field>
                         <SaveFooter label="Save" busy={labelBusy} errorMessage="" />
                     </form>
                 </Modal>
             )}
             {historyLabel && (
                 <Modal
-                    open
                     title={`Requests for ${inventoryLabelDisplayName(historyLabel)}`}
-                    onCancel={() => setHistoryLabel(null)}
-                    footer={null}
-                    width={720}
-                    destroyOnHidden>
+                    close={() => setHistoryLabel(null)}
+                    className="w-[min(calc(100vw-2rem),45rem)]">
                     {historyLabelRequests.total > 0 ? (
                         <RelatedRequestBlocks
                             title="Inventory requests"

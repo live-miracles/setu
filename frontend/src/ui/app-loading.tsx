@@ -1,4 +1,4 @@
-import { Spin, Typography } from 'antd';
+import { Spinner, Typography } from './kit';
 import { useState } from 'react';
 import { getRandomQuote } from './quotes';
 
@@ -22,7 +22,7 @@ export function AppLoading({ inline = false }: { inline?: boolean } = {}) {
             className={`app-loading${inline ? ' app-loading-inline' : ''}`}
             role="status"
             aria-live="polite">
-            <Spin size="large" />
+            <Spinner className="size-8 text-accent" />
             <Typography.Text className="app-loading-quote">“{quote}”</Typography.Text>
         </div>
     );

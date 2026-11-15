@@ -1,13 +1,8 @@
 import { useState } from 'react';
 import { useList } from '../ui/resources';
-import { Button, Empty, Input, Space, Tag, Typography } from 'antd';
-import {
-    ArrowLeftOutlined,
-    DeleteOutlined,
-    EditOutlined,
-    PlusOutlined,
-    SearchOutlined,
-} from '@ant-design/icons';
+import { Input } from '../ui/form-kit';
+import { Button, Empty, Space, Tag, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     departmentPath,
@@ -113,7 +108,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
             <Space className="antd-board-filters" wrap>
                 <Input
                     allowClear
-                    prefix={<SearchOutlined />}
+                    prefix={<Icon name="search" />}
                     placeholder={`Search ${config.title.toLowerCase()}`}
                     aria-label={`Search ${config.title.toLowerCase()}`}
                     value={search}
@@ -126,7 +121,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                 />
                 <Button
                     type="primary"
-                    icon={<SearchOutlined />}
+                    icon={<Icon name="search" />}
                     onClick={() => setAppliedSearch(search)}
                     aria-label={`Search ${config.title.toLowerCase()}`}
                     title={`Search ${config.title.toLowerCase()}`}
@@ -135,7 +130,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
             {canEdit && (
                 <Button
                     type="primary"
-                    icon={<PlusOutlined />}
+                    icon={<Icon name="plus" />}
                     onClick={() => setCreating(true)}
                     aria-label={`Add ${config.kind}`}
                     title={`Add ${config.kind}`}
@@ -157,7 +152,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                 <Space>
                     <Button
                         type="default"
-                        icon={<ArrowLeftOutlined />}
+                        icon={<Icon name="arrowLeft" />}
                         onClick={() => navigate(departmentsPath, { replace: true })}
                         aria-label="Back to departments"
                         title="Back to departments"
@@ -166,7 +161,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                         <Button
                             type="primary"
                             danger
-                            icon={<DeleteOutlined />}
+                            icon={<Icon name="trash" />}
                             onClick={() => setDeleting(selectedDepartment)}
                             aria-label="Delete department"
                             title="Delete department"
@@ -181,7 +176,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                         canEdit ? (
                             <Button
                                 type="primary"
-                                icon={<EditOutlined />}
+                                icon={<Icon name="edit" />}
                                 onClick={() => setEditing(selectedDepartment)}
                                 aria-label="Edit department"
                                 title="Edit department"

@@ -1,18 +1,8 @@
 import { useRef, useState } from 'react';
 import { useCreate, useList } from '../ui/resources';
-import {
-    Badge,
-    Button,
-    Empty as AntEmpty,
-    Flex,
-    Form as AntForm,
-    Input,
-    Pagination,
-    Select,
-    Space,
-    Typography,
-} from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { Field, Input, MultiSelect, Select } from '../ui/form-kit';
+import { Pagination, CountBadge, Button, Empty as AntEmpty, Space, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
 import { inventoryRequestPath, programRequestPath } from '../paths';
@@ -204,16 +194,13 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                     <Select.Option value="past">Past</Select.Option>
                 </Select>
             )}
-            <Select
-                mode="multiple"
+            <MultiSelect
                 aria-label={`${title} statuses`}
-                maxTagCount={0}
-                maxTagPlaceholder={(selected) => `${selected.length} statuses`}
+                renderValue={(selected) => `${selected.length} statuses`}
                 placeholder="Filter by status"
-                style={{ minWidth: '7.25rem', maxWidth: '100%' }}
+                className="min-w-[7.25rem]"
                 value={selectedStatuses}
-                onChange={(values) => {
-                    const next = values.map(String);
+                onChange={(next) => {
                     setSelectedStatuses(next);
                     writeRequestFilter(statusStorageKey, next.join(','));
                     setPage(1);
@@ -223,15 +210,14 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                 optionRender={
                     statusCounts
                         ? (option) => (
-                              <Flex justify="space-between" align="center" gap="small">
+                              <div className="flex items-center justify-between gap-2">
                                   {option.label}
-                                  <Badge
+                                  <CountBadge
                                       count={statusCounts[String(option.value)] || 0}
                                       showZero
                                       overflowCount={9999}
-                                      color="blue"
                                   />
-                              </Flex>
+                              </div>
                           )
                         : undefined
                 }
@@ -249,7 +235,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             />
             <Button
                 type="primary"
-                icon={<SearchOutlined />}
+                icon={<Icon name="search" />}
                 aria-label={`Search ${title.toLowerCase()}`}
                 title={`Search ${title.toLowerCase()}`}
                 onClick={submitSearch}
@@ -273,7 +259,7 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                 canWrite(dashboard.me) && (
                     <Button
                         type="primary"
-                        icon={<PlusOutlined />}
+                        icon={<Icon name="plus" />}
                         onClick={() => setCreating(true)}
                         aria-label={`Add ${title.toLowerCase()}`}
                         title={`Add ${title.toLowerCase()}`}
@@ -488,27 +474,25 @@ export function CreateRecord({
                         required
                     />
                     {canApprove(dashboard.me) && (
-                        <AntForm.Item label="Requested by" required>
+                        <Field label="Requested by" required>
                             <input type="hidden" name="userId" value={requestedBy} required />
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
                                 className="antd-full-width"
-                                showSearch
-                                optionFilterProp="children">
+                                showSearch>
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
                                         {requesterOptionLabel(user)}
                                     </Select.Option>
                                 ))}
                             </Select>
-                        </AntForm.Item>
+                        </Field>
                     )}
-                    <AntForm.Item
+                    <Field
                         label="Department"
                         required
-                        validateStatus={departmentError ? 'error' : undefined}
-                        help={departmentError ? 'Department is required.' : undefined}>
+                        error={departmentError ? 'Department is required.' : undefined}>
                         <input type="hidden" name="departmentId" value={departmentId} required />
                         <Select
                             value={departmentId}
@@ -520,7 +504,7 @@ export function CreateRecord({
                                 </Select.Option>
                             ))}
                         </Select>
-                    </AntForm.Item>
+                    </Field>
                     <TextField
                         name="leadEmail"
                         label="Lead email"
@@ -533,7 +517,7 @@ export function CreateRecord({
             )}
             {kind === 'programs' && (
                 <>
-                    <AntForm.Item label="Language" required>
+                    <Field label="Language" required>
                         <input type="hidden" name="language" value={language} required />
                         <Select
                             value={language || undefined}
@@ -552,8 +536,8 @@ export function CreateRecord({
                         {languageError && (
                             <Typography.Text type="danger">Language is required.</Typography.Text>
                         )}
-                    </AntForm.Item>
-                    <AntForm.Item label="Type" required>
+                    </Field>
+                    <Field label="Type" required>
                         <input type="hidden" name="type" value={programType} />
                         <Select
                             value={programType}
@@ -565,34 +549,32 @@ export function CreateRecord({
                                 </Select.Option>
                             ))}
                         </Select>
-                    </AntForm.Item>
+                    </Field>
                     <TextField
                         name="name"
                         label="Program title"
                         required={programType === OTHER_PROGRAM_TYPE}
                     />
                     {canApprove(dashboard.me) && (
-                        <AntForm.Item label="Requested by" required>
+                        <Field label="Requested by" required>
                             <input type="hidden" name="userId" value={requestedBy} required />
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
                                 className="antd-full-width"
-                                showSearch
-                                optionFilterProp="children">
+                                showSearch>
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
                                         {requesterOptionLabel(user)}
                                     </Select.Option>
                                 ))}
                             </Select>
-                        </AntForm.Item>
+                        </Field>
                     )}
-                    <AntForm.Item
+                    <Field
                         label="Department"
                         required
-                        validateStatus={departmentError ? 'error' : undefined}
-                        help={departmentError ? 'Department is required.' : undefined}>
+                        error={departmentError ? 'Department is required.' : undefined}>
                         <input type="hidden" name="departmentId" value={departmentId} required />
                         <Select
                             value={departmentId}
@@ -604,7 +586,7 @@ export function CreateRecord({
                                 </Select.Option>
                             ))}
                         </Select>
-                    </AntForm.Item>
+                    </Field>
                     <TextField
                         name="leadEmail"
                         label="Lead email"

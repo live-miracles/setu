@@ -1,16 +1,8 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useDelete, useInvalidate, useList, useUpdate } from '../ui/resources';
-import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
-import {
-    ArrowLeftOutlined,
-    CameraOutlined,
-    CheckCircleOutlined,
-    DeleteOutlined,
-    EditOutlined,
-    EyeOutlined,
-    PlusOutlined,
-    UploadOutlined,
-} from '@ant-design/icons';
+import { MultiSelect, Select, Field } from '../ui/form-kit';
+import { Button, Space, Tag, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { useNavigate } from 'react-router-dom';
 import { generateRequestId } from '../ids';
 import { api } from '../api';
@@ -342,7 +334,7 @@ export function InventoryDetail({
                 <Space wrap>
                     <Button
                         type="default"
-                        icon={<ArrowLeftOutlined />}
+                        icon={<Icon name="arrowLeft" />}
                         onClick={() => navigate(inventoryPath)}
                         aria-label="Back to inventory requests"
                         title="Back to inventory requests"
@@ -366,7 +358,7 @@ export function InventoryDetail({
                         <Button
                             type="primary"
                             danger
-                            icon={<DeleteOutlined />}
+                            icon={<Icon name="trash" />}
                             onClick={() => setPendingDelete(true)}
                             aria-label="Delete request"
                             title="Delete request"
@@ -380,7 +372,7 @@ export function InventoryDetail({
                     editable && (
                         <Button
                             type="primary"
-                            icon={<EditOutlined />}
+                            icon={<Icon name="edit" />}
                             onClick={openEditor}
                             aria-label="Edit request"
                             title="Edit request"
@@ -424,7 +416,7 @@ export function InventoryDetail({
                             <Space>
                                 <Button
                                     type="primary"
-                                    icon={<CameraOutlined />}
+                                    icon={<Icon name="camera" />}
                                     onClick={() => {
                                         setItemError('');
                                         setScanOpen(true);
@@ -434,7 +426,7 @@ export function InventoryDetail({
                                 />
                                 <Button
                                     type="primary"
-                                    icon={<PlusOutlined />}
+                                    icon={<Icon name="plus" />}
                                     onClick={() => editItem(null)}
                                     aria-label="Add item"
                                     title="Add item"
@@ -497,7 +489,7 @@ export function InventoryDetail({
                                                 {type && (
                                                     <Button
                                                         type="text"
-                                                        icon={<EyeOutlined />}
+                                                        icon={<Icon name="eye" />}
                                                         onClick={() =>
                                                             navigate(inventoryTypePath(type.Id))
                                                         }
@@ -510,7 +502,7 @@ export function InventoryDetail({
                                                     item.Condition !== 'returned' && (
                                                         <Button
                                                             type="text"
-                                                            icon={<CheckCircleOutlined />}
+                                                            icon={<Icon name="checkCircle" />}
                                                             onClick={() =>
                                                                 void persistItems(
                                                                     items.map(
@@ -533,14 +525,14 @@ export function InventoryDetail({
                                                     <>
                                                         <Button
                                                             type="text"
-                                                            icon={<EditOutlined />}
+                                                            icon={<Icon name="edit" />}
                                                             onClick={() => editItem(index)}
                                                             aria-label="Edit item"
                                                         />
                                                         <Button
                                                             type="text"
                                                             danger
-                                                            icon={<DeleteOutlined />}
+                                                            icon={<Icon name="trash" />}
                                                             onClick={() =>
                                                                 setPendingDeleteItemIndex(index)
                                                             }
@@ -590,7 +582,7 @@ export function InventoryDetail({
                             <Space>
                                 <Button
                                     type="primary"
-                                    icon={<CameraOutlined />}
+                                    icon={<Icon name="camera" />}
                                     loading={imageUploading}
                                     onClick={() => setCameraOpen(true)}
                                     aria-label={
@@ -600,7 +592,7 @@ export function InventoryDetail({
                                 />
                                 <Button
                                     type="primary"
-                                    icon={<UploadOutlined />}
+                                    icon={<Icon name="upload" />}
                                     loading={imageUploading}
                                     onClick={() => imageInputRef.current?.click()}
                                     aria-label={imageId ? 'Replace image' : 'Add image'}
@@ -651,23 +643,22 @@ export function InventoryDetail({
                             onChange={(e) => update('EndDate', e.target.value)}
                         />
                         {canApprove(dashboard.me) && (
-                            <AntForm.Item label="Requested by" required>
+                            <Field label="Requested by" required>
                                 <input type="hidden" name="userId" value={values.UserId} required />
                                 <Select
                                     value={values.UserId}
                                     onChange={(value) => update('UserId', value)}
                                     className="antd-full-width"
-                                    showSearch
-                                    optionFilterProp="children">
+                                    showSearch>
                                     {users.map((user) => (
                                         <Select.Option key={user.Email} value={user.Email}>
                                             {requesterOptionLabel(user)}
                                         </Select.Option>
                                     ))}
                                 </Select>
-                            </AntForm.Item>
+                            </Field>
                         )}
-                        <AntForm.Item label="Department" required>
+                        <Field label="Department" required>
                             <input
                                 type="hidden"
                                 name="departmentId"
@@ -684,7 +675,7 @@ export function InventoryDetail({
                                     </Select.Option>
                                 ))}
                             </Select>
-                        </AntForm.Item>
+                        </Field>
                         <TextField
                             name="leadEmail"
                             label="Lead email"
@@ -758,7 +749,7 @@ export function InventoryDetail({
                         setItemIndex(null);
                     }}>
                     <form className="inventory-item-form grid gap-3" noValidate onSubmit={saveItem}>
-                        <AntForm.Item label="Inventory type" required>
+                        <Field label="Inventory type" required>
                             <Select
                                 value={itemDraft.InventoryTypeId || undefined}
                                 onChange={(value) =>
@@ -771,7 +762,6 @@ export function InventoryDetail({
                                 className="antd-full-width"
                                 placeholder="Select inventory type"
                                 showSearch
-                                optionFilterProp="label"
                                 options={selectableInventoryTypes}
                             />
                             {selectedInventoryType && (
@@ -783,7 +773,7 @@ export function InventoryDetail({
                                     />
                                 </div>
                             )}
-                        </AntForm.Item>
+                        </Field>
                         <TextField
                             name="quantity"
                             label="Quantity"
@@ -798,14 +788,13 @@ export function InventoryDetail({
                             }
                         />
                         {approver && selectedInventoryType?.labels?.length ? (
-                            <AntForm.Item label="Individual labels">
-                                <Select
-                                    mode="multiple"
+                            <Field label="Individual labels">
+                                <MultiSelect
                                     value={itemDraft.LabelIds}
                                     onChange={(value) =>
                                         setItemDraft((current) => ({
                                             ...current,
-                                            LabelIds: value as string[],
+                                            LabelIds: value,
                                             Quantity: Math.max(current.Quantity, value.length),
                                         }))
                                     }
@@ -818,10 +807,10 @@ export function InventoryDetail({
                                         }),
                                     )}
                                 />
-                            </AntForm.Item>
+                            </Field>
                         ) : null}
                         {canEditItemCondition && (
-                            <AntForm.Item label="Condition">
+                            <Field label="Condition">
                                 <Select
                                     value={itemDraft.Condition}
                                     onChange={(value) =>
@@ -836,7 +825,7 @@ export function InventoryDetail({
                                     <Select.Option value="damaged">Damaged</Select.Option>
                                     <Select.Option value="missing">Missing</Select.Option>
                                 </Select>
-                            </AntForm.Item>
+                            </Field>
                         )}
                         <div>
                             <SaveFooter label="Save" errorMessage={itemError} />

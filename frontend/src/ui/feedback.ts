@@ -1,18 +1,12 @@
-import { message, notification } from 'antd';
+import { dismissToast, pushToast } from './overlay-kit';
 
 // The two pieces of chrome that live in the page shell rather than in any
 // one section, so every section reports progress and failure the same way.
-type ErrorNotifier = (config: { message: string; description: string }) => void;
-let errorNotifier: ErrorNotifier | null = null;
-
-export function setErrorNotifier(notifier: ErrorNotifier | null): void {
-    errorNotifier = notifier;
-}
+const SAVING_TOAST_ID = 'setu-saving';
 
 export function showSavingBadge(saving: boolean): void {
-    if (saving)
-        message.open({ key: 'setu-saving', type: 'loading', content: 'Saving…', duration: 0 });
-    else message.destroy('setu-saving');
+    if (saving) pushToast({ id: SAVING_TOAST_ID, kind: 'loading', title: 'Saving…' });
+    else dismissToast(SAVING_TOAST_ID);
 }
 
 export function showErrorAlert(error: unknown): void {
@@ -20,11 +14,5 @@ export function showErrorAlert(error: unknown): void {
         error instanceof Error
             ? error.message
             : String((error as any)?.message || error || 'Something went wrong.');
-    const config = {
-        message: 'Something went wrong',
-        description: message,
-        style: { whiteSpace: 'pre-line' as const },
-    };
-    if (errorNotifier) errorNotifier(config);
-    else notification.error(config);
+    pushToast({ kind: 'error', title: 'Something went wrong', description: message }, 10000);
 }

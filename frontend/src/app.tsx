@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { Result } from 'antd';
+import { Result } from './ui/kit';
 import { api } from './api';
 import { DashboardProvider } from './dashboard-context';
 import { AppProviders } from './ui/providers';

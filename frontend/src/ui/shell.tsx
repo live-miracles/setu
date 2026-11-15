@@ -1,18 +1,6 @@
-import { App as AntApp, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd';
-import {
-    AppstoreOutlined,
-    ApartmentOutlined,
-    BlockOutlined,
-    CalendarOutlined,
-    InboxOutlined,
-    MoreOutlined,
-    ReloadOutlined,
-    ScheduleOutlined,
-    SettingOutlined,
-    TagsOutlined,
-    TeamOutlined,
-    UserOutlined,
-} from '@ant-design/icons';
+import { Button, cx } from '../ui/kit';
+import { DropdownMenu } from '../ui/overlay-kit';
+import { Icon } from '../ui/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
@@ -37,35 +25,38 @@ import { showErrorAlert } from './feedback';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 import { useIsMobileViewport } from './viewport';
 
-const { Header, Content } = Layout;
-
 type NavItem = { key: string; to: string; label: string; icon?: ReactNode };
 
 const primaryNavItems: NavItem[] = [
-    { key: 'programs', to: programsPath, label: 'Programs', icon: <AppstoreOutlined /> },
-    { key: 'calendar', to: calendarPath, label: 'Calendar', icon: <CalendarOutlined /> },
-    { key: 'inventory', to: inventoryPath, label: 'Inventory', icon: <InboxOutlined /> },
+    { key: 'programs', to: programsPath, label: 'Programs', icon: <Icon name="appstore" /> },
+    { key: 'calendar', to: calendarPath, label: 'Calendar', icon: <Icon name="calendar" /> },
+    { key: 'inventory', to: inventoryPath, label: 'Inventory', icon: <Icon name="inbox" /> },
 ];
 
 // Roster and inventory types are readable by every signed-in user. The
 // remaining configuration entries are admin/approver-only, with user and
 // configuration management kept in the account dropdown.
 const configNavItems: NavItem[] = [
-    { key: 'roster', to: rosterPath, label: 'Roster', icon: <ScheduleOutlined /> },
-    { key: 'users', to: usersPath, label: 'Users', icon: <TeamOutlined /> },
-    { key: 'departments', to: departmentsPath, label: 'Departments', icon: <ApartmentOutlined /> },
+    { key: 'roster', to: rosterPath, label: 'Roster', icon: <Icon name="schedule" /> },
+    { key: 'users', to: usersPath, label: 'Users', icon: <Icon name="team" /> },
+    {
+        key: 'departments',
+        to: departmentsPath,
+        label: 'Departments',
+        icon: <Icon name="apartment" />,
+    },
     {
         key: 'inventory-types',
         to: inventoryTypesPath,
         label: 'Inventory types',
-        icon: <TagsOutlined />,
+        icon: <Icon name="tags" />,
     },
-    { key: 'blocks', to: blocksPath, label: 'Blocks', icon: <BlockOutlined /> },
+    { key: 'blocks', to: blocksPath, label: 'Blocks', icon: <Icon name="block" /> },
     {
         key: 'home-content',
         to: homeContentPath,
         label: 'Other settings',
-        icon: <SettingOutlined />,
+        icon: <Icon name="settings" />,
     },
 ];
 
@@ -186,7 +177,7 @@ export function Shell({
         ? configNavItems.filter((item) => !publicConfigKeys.has(item.key))
         : accountConfigNavItems;
     const profileMenuItems = [
-        { key: profilePath, label: 'Profile', icon: <UserOutlined /> },
+        { key: profilePath, label: 'Profile', icon: <Icon name="user" /> },
         ...publicConfigNavItems.map((item) => ({
             key: item.to,
             label: item.label,
@@ -205,7 +196,7 @@ export function Shell({
         if (refreshing) return;
         setRefreshing(true);
         try {
-            // Refine-backed pages read from the query cache, not the dashboard
+            // Resource-hook pages read from the query cache, not the dashboard
             // blob, so both must be refetched to pick up other users' changes.
             await Promise.all([refreshDashboard?.(), queryClient.invalidateQueries()]);
         } catch (err) {
@@ -216,99 +207,97 @@ export function Shell({
     };
 
     return (
-        <AntApp>
-            <Layout className="app-layout">
-                <Header className="app-header">
-                    <Button
-                        type="text"
-                        className="app-brand"
-                        onClick={() => navigate(homePath)}
-                        aria-label="Home">
-                        <img className="app-brand-logo" src={appLogo} alt="" />
-                        <Typography.Text strong>Setu</Typography.Text>
-                    </Button>
-                    {showPrimaryNav && (
-                        <Menu
-                            id="desktop-nav"
-                            mode="horizontal"
-                            className="app-main-menu"
-                            overflowedIndicator={<MoreOutlined />}
-                            selectedKeys={selectedKey ? [selectedKey] : []}
-                            items={navigationItems.map((item) => ({
-                                key: item.key,
-                                icon: item.icon,
-                                label: item.label,
-                            }))}
-                            onClick={({ key }) => {
-                                const item = navigationItems.find((i) => i.key === key);
-                                if (item) navigate(item.to);
-                            }}
-                        />
-                    )}
-                    <Space className="app-actions">
-                        {userEmail && (
-                            <Dropdown
-                                menu={{
-                                    items: [
-                                        ...(isRegistered ? profileMenuItems : []),
-                                        { type: 'divider' },
-                                        { key: 'logout', label: 'Log out' },
-                                    ],
-                                    onClick: ({ key }) =>
-                                        key === 'logout' ? void signOutAndReload() : navigate(key),
-                                }}
-                                trigger={['click']}>
-                                <span>
-                                    <Button
-                                        type="text"
-                                        className="app-profile-button"
-                                        icon={<UserOutlined />}
-                                        aria-label="Account menu"
-                                        title={userEmail}>
-                                        <span>{dashboard?.me.Name || userEmail}</span>
-                                    </Button>
-                                </span>
-                            </Dropdown>
-                        )}
-                        {isRegistered && (
-                            <Button
-                                type="text"
-                                icon={<ReloadOutlined spin={refreshing} />}
-                                onClick={() => void refresh()}
-                                aria-label="Refresh app"
-                                title="Refresh app"
-                            />
-                        )}
-                    </Space>
-                </Header>
-                <Content
-                    ref={contentRef}
-                    className={contentClassName(location.pathname)}
-                    onScroll={(event) =>
-                        scrollPositions.current.set(
-                            currentPathname.current,
-                            event.currentTarget.scrollTop,
-                        )
-                    }>
-                    {children ?? <Outlet />}
-                </Content>
-                {appLoading && <AppLoading />}
+        <div className="app-layout flex flex-col">
+            <header className="app-header">
+                <Button
+                    type="text"
+                    className="app-brand"
+                    onClick={() => navigate(homePath)}
+                    aria-label="Home">
+                    <img className="app-brand-logo" src={appLogo} alt="" />
+                    <span className="font-semibold">Setu</span>
+                </Button>
                 {showPrimaryNav && (
-                    <nav id="mobile-dock" className="app-mobile-menu" aria-label="Main navigation">
-                        {primaryNavItems.map((item) => (
+                    <nav
+                        id="desktop-nav"
+                        aria-label="Primary"
+                        className="app-main-menu flex items-stretch gap-1 self-stretch overflow-x-auto">
+                        {navigationItems.map((item) => (
                             <Link
                                 key={item.key}
                                 to={item.to}
-                                className={`app-mobile-nav-item${
-                                    selectedKey === item.key ? ' is-selected' : ''
-                                }`}>
+                                aria-current={selectedKey === item.key ? 'page' : undefined}
+                                className={cx(
+                                    'inline-flex items-center gap-2 border-b-2 px-3 text-sm font-medium whitespace-nowrap transition-colors',
+                                    selectedKey === item.key
+                                        ? 'border-accent text-accent'
+                                        : 'border-transparent text-ink hover:text-accent',
+                                )}>
                                 {item.icon}
-                                <span>{item.label}</span>
+                                {item.label}
                             </Link>
                         ))}
                     </nav>
                 )}
-            </Layout>
-        </AntApp>
+                <div className="app-actions inline-flex items-center gap-2">
+                    {userEmail && (
+                        <DropdownMenu
+                            items={[
+                                ...(isRegistered ? profileMenuItems : []),
+                                { type: 'divider' },
+                                { key: 'logout', label: 'Log out' },
+                            ]}
+                            onSelect={(key) =>
+                                key === 'logout' ? void signOutAndReload() : navigate(key)
+                            }>
+                            <Button
+                                type="text"
+                                className="app-profile-button"
+                                icon={<Icon name="user" />}
+                                aria-label="Account menu"
+                                title={userEmail}>
+                                <span>{dashboard?.me.Name || userEmail}</span>
+                            </Button>
+                        </DropdownMenu>
+                    )}
+                    {isRegistered && (
+                        <Button
+                            type="text"
+                            icon={<Icon name="reload" spin={refreshing} />}
+                            onClick={() => void refresh()}
+                            aria-label="Refresh app"
+                            title="Refresh app"
+                        />
+                    )}
+                </div>
+            </header>
+            <main
+                ref={contentRef}
+                className={contentClassName(location.pathname)}
+                onScroll={(event) =>
+                    scrollPositions.current.set(
+                        currentPathname.current,
+                        event.currentTarget.scrollTop,
+                    )
+                }>
+                {children ?? <Outlet />}
+            </main>
+            {appLoading && <AppLoading />}
+            {showPrimaryNav && (
+                <nav id="mobile-dock" className="app-mobile-menu" aria-label="Main navigation">
+                    {primaryNavItems.map((item) => (
+                        <Link
+                            key={item.key}
+                            to={item.to}
+                            className={`app-mobile-nav-item${
+                                selectedKey === item.key ? ' is-selected' : ''
+                            }`}>
+                            {item.icon}
+                            <span>{item.label}</span>
+                        </Link>
+                    ))}
+                </nav>
+            )}
+        </div>
     );
 }

@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useList } from '../ui/resources';
-import { Button, Card, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { Input, TextArea, Field } from '../ui/form-kit';
+import { Modal } from '../ui/overlay-kit';
+import { Table, Button, Card, Empty, Space, Tag, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { showErrorAlert } from '../ui/feedback';
@@ -22,7 +24,7 @@ import { canManageConfig } from '../workflows';
 
 const iso = (raw: string) => (raw ? new Date(raw).toISOString() : '');
 // Every settings resource's create/update payload has the same shape (see
-// refine-data-provider.ts, which does the actual api.ts call + dedupe id) —
+// ui/resources.ts, which does the actual api.ts call + dedupe id) —
 // this only translates the form's uppercase field names (matching
 // fields[].field) into the lowercase CreateXInput/UpdateXInput shape.
 // Departments and inventory types have their own pages (departments.tsx,
@@ -196,14 +198,14 @@ export function SettingsResourcePage({
                 <>
                     <Button
                         type="text"
-                        icon={<EditOutlined />}
+                        icon={<Icon name="edit" />}
                         onClick={() => beginEdit(row)}
                         aria-label="Edit"
                     />
                     <Button
                         type="text"
                         danger
-                        icon={<DeleteOutlined />}
+                        icon={<Icon name="trash" />}
                         onClick={() => setDeleting(row)}
                         aria-label="Delete"
                     />
@@ -265,7 +267,7 @@ export function SettingsResourcePage({
                             <Button
                                 type="primary"
                                 size="small"
-                                icon={<PlusOutlined />}
+                                icon={<Icon name="plus" />}
                                 onClick={beginCreate}
                                 aria-label={`Add ${config.kind}`}
                                 title={`Add ${config.kind}`}
@@ -334,14 +336,14 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
         <section className="antd-page">
             <Card title="Guidelines" className="settings-form-card">
                 <form onSubmit={saveGuidelines}>
-                    <Form.Item>
-                        <Input.TextArea
+                    <Field>
+                        <TextArea
                             name="guidelines"
                             aria-label="Guidelines"
                             rows={6}
                             defaultValue={dashboard.homeContent.Guidelines}
                         />
-                    </Form.Item>
+                    </Field>
                     {canEdit && (
                         <Button type="primary" htmlType="submit" loading={savingGuidelines}>
                             Save
@@ -458,7 +460,7 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
                 <Button
                     type="primary"
                     size="small"
-                    icon={<PlusOutlined />}
+                    icon={<Icon name="plus" />}
                     disabled={saving}
                     aria-label="Add allowed email domain"
                     title="Add allowed email domain"
@@ -475,15 +477,12 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
             </div>
             {domainEditorOpen && (
                 <Modal
-                    open
                     title="Add allowed email domain"
-                    footer={null}
-                    destroyOnHidden
-                    onCancel={() => {
+                    close={() => {
                         if (!saving) setDomainEditorOpen(false);
                     }}>
                     <form className="grid gap-3" onSubmit={addDomain}>
-                        <Form.Item label="Domain" required>
+                        <Field label="Domain" required>
                             <Input
                                 type="text"
                                 value={domain}
@@ -491,7 +490,7 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
                                 placeholder="myorg.com"
                                 onChange={(event) => setDomain(event.target.value)}
                             />
-                        </Form.Item>
+                        </Field>
                         <div className="flex items-center gap-2">
                             <Button type="primary" htmlType="submit" loading={saving}>
                                 Add

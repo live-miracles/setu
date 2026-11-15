@@ -1,6 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
-import { Button, Checkbox, Form, Modal, Select, Space } from 'antd';
+import { Modal } from '../ui/overlay-kit';
+import { Select, Field } from '../ui/form-kit';
+import { Button, Checkbox, Space } from '../ui/kit';
 import { useDashboard } from '../dashboard-context';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTimeLocal } from '../ui/date';
@@ -12,7 +14,7 @@ export type Field = {
     type?: string;
     datalistId?: string;
     hiddenInTable?: boolean;
-    // Names another RESOURCES entry (and refine-data-provider.ts resource)
+    // Names another RESOURCES entry (and ui/resources.ts resource)
     // whose rows populate this select — resolved via its own useList rather
     // than the shared dashboard blob. optionsLabel adds a blank/"All ..."
     // entry ahead of the fetched rows when set.
@@ -63,10 +65,10 @@ export function SettingsDetailFields({
 }
 
 // Create/update/delete for one settings resource, with the saving badge and the
-// shared dashboard blob kept in sync. Refine's own query cache already
+// shared dashboard blob kept in sync. The react-query cache already
 // refetches the list on success; refreshDashboard also keeps the dashboard in
 // sync for pages that still cross-reference this resource from there (e.g. a
-// department/place picker) and haven't been migrated to Refine's hooks yet.
+// department/place picker) and haven't been migrated to the resource hooks yet.
 export function useResourceMutations(resourceName: string, config: ResourceConfig) {
     const { refreshDashboard } = useDashboard();
     const { mutateAsync: createRow } = useCreate();
@@ -172,7 +174,6 @@ function SelectField({ field, row }: { field: Field; row?: Row }) {
                 onChange={setSelected}
                 className="antd-full-width"
                 showSearch
-                optionFilterProp="label"
                 options={options.map((option) => ({ value: option.value, label: option.label }))}
             />
         </>
@@ -238,7 +239,7 @@ function FieldSet({
                     );
                 }
                 return (
-                    <Form.Item label={field.label} required={index === 0} key={field.field}>
+                    <Field label={field.label} required={index === 0} key={field.field}>
                         {field.type === 'checkbox' ? (
                             <Checkbox
                                 name={field.field}
@@ -249,7 +250,7 @@ function FieldSet({
                         ) : (
                             <SelectField field={field} row={row} />
                         )}
-                    </Form.Item>
+                    </Field>
                 );
             })}
             <Button type="primary" htmlType="submit" loading={busy}>
@@ -274,12 +275,7 @@ export function Editor({
 }) {
     const resourceLabel = config.addLabel.replace(/^Add /, '');
     return (
-        <Modal
-            open
-            title={row ? `Edit ${resourceLabel}` : config.addLabel}
-            onCancel={onClose}
-            footer={null}
-            destroyOnHidden>
+        <Modal title={row ? `Edit ${resourceLabel}` : config.addLabel} close={onClose}>
             <FieldSet
                 config={config}
                 row={row}

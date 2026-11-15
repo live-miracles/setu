@@ -6,7 +6,7 @@
 - Support an installable mobile experience, such as a Progressive Web App (PWA), where appropriate.
 - Chrome is the only required browser target; do not add cross-browser compatibility work unless explicitly requested.
 - Use only free tiers for third-party services and infrastructure, including services such as Vercel and Supabase. Design and implement with their free-tier limits, quotas, storage, execution time, and usage constraints in mind.
-- Keep the implementation simple and appropriate for a small internal app. Reuse standard blocks, forms, tables, and components provided by the selected UI libraries instead of introducing custom CSS or bespoke styling rules unless there is a clear, documented need.
+- Keep the implementation simple and appropriate for a small internal app. Build screens from the shared kit in `frontend/src/ui/` (`kit.tsx`, `form-kit.tsx`, `overlay-kit.tsx`, `icons.tsx`) and Tailwind utilities against the theme tokens in `frontend/input.css`, instead of introducing bespoke CSS or new UI dependencies unless there is a clear, documented need (see `docs/adr/0001-own-ui-kit.md`).
 - Design for up to 500 total users, up to 5 concurrent users, and up to 100,000 records in major tabular data sets such as sessions, comments, and requests.
 
 ## Engineering principles

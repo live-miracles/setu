@@ -1,6 +1,6 @@
 import { useApiQuery } from '../ui/resources';
-import { Button, Empty, Space, Typography } from 'antd';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { Button, Empty, Space, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { programRequestPath } from '../paths';
@@ -51,7 +51,7 @@ export function Calendar({ dashboard }: Props) {
                 <Space>
                     <Button
                         type="text"
-                        icon={<LeftOutlined />}
+                        icon={<Icon name="chevronLeft" />}
                         onClick={() => setMonth(new Date(year, month.getMonth() - 1, 1))}
                         aria-label="Previous month"
                         title="Previous month"
@@ -61,7 +61,7 @@ export function Calendar({ dashboard }: Props) {
                     </Typography.Text>
                     <Button
                         type="text"
-                        icon={<RightOutlined />}
+                        icon={<Icon name="chevronRight" />}
                         onClick={() => setMonth(new Date(year, month.getMonth() + 1, 1))}
                         aria-label="Next month"
                         title="Next month"

@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useCreate, useDelete, useInvalidate, useList, useUpdate } from '../ui/resources';
-import { Button, Form as AntForm, Input, Select, Space, Tag, Typography } from 'antd';
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { Input, Select, Field } from '../ui/form-kit';
+import { Button, Space, Tag, Typography, Table } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
 import { programRequestPath, programsPath } from '../paths';
@@ -19,7 +20,6 @@ import { canApprove, getRequestPermissions } from '../workflows';
 import { DetailSection } from '../ui/detail-layout';
 import { TableView } from '../ui/table-view';
 import { AppLoading } from '../ui/app-loading';
-import { Table } from 'antd';
 import { requestStatusTagColor } from '../ui/request-status';
 import {
     programFormValues,
@@ -327,14 +327,14 @@ export function ProgramDetail({
                     <Space>
                         <Button
                             type="text"
-                            icon={<EditOutlined />}
+                            icon={<Icon name="edit" />}
                             onClick={() => editSession(index)}
                             aria-label="Edit session"
                         />
                         <Button
                             type="text"
                             danger
-                            icon={<DeleteOutlined />}
+                            icon={<Icon name="trash" />}
                             onClick={() => setPendingDeleteSessionIndex(index)}
                             aria-label="Delete session"
                         />
@@ -358,7 +358,7 @@ export function ProgramDetail({
                 <Space wrap>
                     <Button
                         type="default"
-                        icon={<ArrowLeftOutlined />}
+                        icon={<Icon name="arrowLeft" />}
                         onClick={() => navigate(programsPath)}
                         aria-label="Back to programs"
                         title="Back to programs"
@@ -392,7 +392,7 @@ export function ProgramDetail({
                         <Button
                             type="primary"
                             danger
-                            icon={<DeleteOutlined />}
+                            icon={<Icon name="trash" />}
                             onClick={() => setPendingDelete(true)}
                             aria-label="Delete program"
                             title="Delete program"
@@ -406,7 +406,7 @@ export function ProgramDetail({
                     editable && (
                         <Button
                             type="primary"
-                            icon={<EditOutlined />}
+                            icon={<Icon name="edit" />}
                             disabled={canApprove(dashboard.me) && availablePlacesLoading}
                             onClick={openEditor}
                             aria-label="Edit program"
@@ -449,7 +449,7 @@ export function ProgramDetail({
                         editable && (
                             <Button
                                 type="primary"
-                                icon={<PlusOutlined />}
+                                icon={<Icon name="plus" />}
                                 onClick={() => editSession(null)}
                                 aria-label="Add session"
                                 title="Add session"
@@ -523,7 +523,7 @@ export function ProgramDetail({
             {editing && (
                 <Modal title="Edit program" close={() => setEditing(false)}>
                     <form className="grid gap-3" noValidate onSubmit={save.run}>
-                        <AntForm.Item label="Language" required>
+                        <Field label="Language" required>
                             <input type="hidden" name="language" value={values.Language} required />
                             <Select
                                 value={values.Language || undefined}
@@ -536,7 +536,7 @@ export function ProgramDetail({
                                     </Select.Option>
                                 ))}
                             </Select>
-                        </AntForm.Item>
+                        </Field>
                         <TextField
                             name="name"
                             label="Program title"
@@ -544,7 +544,7 @@ export function ProgramDetail({
                             required={values.Type === OTHER_PROGRAM_TYPE}
                             onChange={(e) => update('Name', e.target.value)}
                         />
-                        <AntForm.Item label="Type" required>
+                        <Field label="Type" required>
                             <input type="hidden" name="type" value={values.Type} />
                             <Select
                                 value={values.Type}
@@ -558,8 +558,8 @@ export function ProgramDetail({
                                     ),
                                 )}
                             </Select>
-                        </AntForm.Item>
-                        <AntForm.Item label="Status" required>
+                        </Field>
+                        <Field label="Status" required>
                             <Select
                                 value={values.Status}
                                 onChange={(value) => update('Status', value)}
@@ -573,8 +573,8 @@ export function ProgramDetail({
                                     </Select.Option>
                                 ))}
                             </Select>
-                        </AntForm.Item>
-                        <AntForm.Item label="Place">
+                        </Field>
+                        <Field label="Place">
                             <Select
                                 value={values.PlaceId}
                                 onChange={(value) => update('PlaceId', value)}
@@ -588,25 +588,24 @@ export function ProgramDetail({
                                     </Select.Option>
                                 ))}
                             </Select>
-                        </AntForm.Item>
+                        </Field>
                         {canApprove(dashboard.me) && (
-                            <AntForm.Item label="Requested by" required>
+                            <Field label="Requested by" required>
                                 <input type="hidden" name="userId" value={values.UserId} required />
                                 <Select
                                     value={values.UserId}
                                     onChange={(value) => update('UserId', value)}
                                     className="antd-full-width"
-                                    showSearch
-                                    optionFilterProp="children">
+                                    showSearch>
                                     {users.map((u) => (
                                         <Select.Option key={u.Email} value={u.Email}>
                                             {requesterOptionLabel(u)}
                                         </Select.Option>
                                     ))}
                                 </Select>
-                            </AntForm.Item>
+                            </Field>
                         )}
-                        <AntForm.Item label="Department" required>
+                        <Field label="Department" required>
                             <input
                                 type="hidden"
                                 name="departmentId"
@@ -623,7 +622,7 @@ export function ProgramDetail({
                                     </Select.Option>
                                 ))}
                             </Select>
-                        </AntForm.Item>
+                        </Field>
                         <TextField
                             name="leadEmail"
                             label="Lead email"
@@ -736,7 +735,7 @@ function SessionForm({
         setDraft({ ...draft, [key]: value });
     return (
         <form className="grid gap-3" noValidate onSubmit={onSubmit}>
-            <AntForm.Item label="Session type" required>
+            <Field label="Session type" required>
                 <Select
                     value={draft.Type}
                     onChange={(value) => {
@@ -754,10 +753,10 @@ function SessionForm({
                         </Select.Option>
                     ))}
                 </Select>
-            </AntForm.Item>
-            <AntForm.Item label="Session title">
+            </Field>
+            <Field label="Session title">
                 <Input value={draft.Name} onChange={(e) => update('Name', e.target.value)} />
-            </AntForm.Item>
+            </Field>
             <TextField
                 name="startDateTime"
                 label="Start"

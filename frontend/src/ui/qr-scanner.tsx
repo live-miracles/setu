@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Button, Input, Select, Typography } from 'antd';
+import { Input, Select } from '../ui/form-kit';
+import { Button, Typography } from '../ui/kit';
 import QrScannerLib from 'qr-scanner';
 
 /**

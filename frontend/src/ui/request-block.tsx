@@ -1,4 +1,4 @@
-import { Space, Tag, Typography } from 'antd';
+import { Space, Tag, Typography } from '../ui/kit';
 import { formatProgramDateRangeFromBounds } from './format';
 import { BlockCard } from './block-card';
 import { requestStatusTagColor } from './request-status';

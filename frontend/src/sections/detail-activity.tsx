@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Button, Card, Input, Tag, Typography } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { TextArea } from '../ui/form-kit';
+import { Button, Card, Tag, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { useDashboard } from '../dashboard-context';
@@ -75,7 +76,7 @@ export function Activity({
                 </div>
                 {canComment ? (
                     <form className="flex items-end gap-2" onSubmit={submit}>
-                        <Input.TextArea
+                        <TextArea
                             size="small"
                             autoSize={{ minRows: 1, maxRows: 6 }}
                             value={comment}
@@ -168,7 +169,7 @@ export function ParticipantsEditor({
                 <Button
                     type="primary"
                     size="small"
-                    icon={<PlusOutlined />}
+                    icon={<Icon name="plus" />}
                     disabled={busy}
                     aria-label="Add participant"
                     title="Add participant"

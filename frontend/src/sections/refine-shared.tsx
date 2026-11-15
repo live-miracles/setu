@@ -1,14 +1,10 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import type { FieldValues, UseFormRegisterReturn, UseFormReturn } from 'react-hook-form';
-import {
-    Button,
-    Card as AntCard,
-    Empty as AntEmpty,
-    Form as AntForm,
-    Input,
-    Modal as AntModal,
-    Typography,
-} from 'antd';
+import { Input, Field } from '../ui/form-kit';
+import { Button, Card as KitCard, Empty as KitEmpty, Typography } from '../ui/kit';
+import { Modal } from '../ui/overlay-kit';
+
+export { Modal };
 import { useDashboard } from '../dashboard-context';
 import { showErrorAlert } from '../ui/feedback';
 
@@ -54,13 +50,13 @@ export function Card({
     children: ReactNode;
 }) {
     return (
-        <AntCard title={title} extra={action} className={className}>
+        <KitCard title={title} extra={action} className={className}>
             {children}
-        </AntCard>
+        </KitCard>
     );
 }
 export function Empty({ children = 'Nothing here yet.' }: { children?: ReactNode }) {
-    return <AntEmpty description={children} />;
+    return <KitEmpty description={children} />;
 }
 export function Submit({ label = 'Save', busy }: { label?: string; busy?: boolean }) {
     return (
@@ -88,21 +84,6 @@ export function SaveFooter({
                 </Typography.Text>
             )}
         </div>
-    );
-}
-export function Modal({
-    title,
-    children,
-    close,
-}: {
-    title: string;
-    children: ReactNode;
-    close: () => void;
-}) {
-    return (
-        <AntModal open title={title} onCancel={close} footer={null} destroyOnHidden>
-            {children}
-        </AntModal>
     );
 }
 const ACTION_DESCRIPTIONS: Record<string, string> = {
@@ -250,18 +231,10 @@ export function TextField({
         ...registrationProps
     } = registration || {};
     return (
-        <AntForm.Item
-            label={label}
-            required={required}
-            className="antd-form-item"
-            validateStatus={displayedError ? 'error' : undefined}
-            help={displayedError}>
+        <Field label={label} required={required} error={displayedError}>
             <Input
                 {...registrationProps}
-                // RHF must read the native input value, not Ant Design's InputRef handle.
-                ref={
-                    registeredRef ? (instance) => registeredRef(instance?.input ?? null) : undefined
-                }
+                ref={registeredRef}
                 name={name}
                 type={type}
                 list={list}
@@ -292,6 +265,6 @@ export function TextField({
                     void registeredOnChange?.(event);
                 }}
             />
-        </AntForm.Item>
+        </Field>
     );
 }

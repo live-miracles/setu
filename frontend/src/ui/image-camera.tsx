@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Typography } from 'antd';
-import { CameraOutlined } from '@ant-design/icons';
+import { Button, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 
 export function ImageCamera({ onCapture }: { onCapture: (file: File) => Promise<void> }) {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -92,7 +92,7 @@ export function ImageCamera({ onCapture }: { onCapture: (file: File) => Promise<
             {errorMessage && <Typography.Text type="danger">{errorMessage}</Typography.Text>}
             <Button
                 type="primary"
-                icon={<CameraOutlined />}
+                icon={<Icon name="camera" />}
                 loading={starting || capturing}
                 disabled={Boolean(errorMessage) || starting}
                 onClick={() => void capture()}>

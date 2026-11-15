@@ -1,4 +1,4 @@
-import { Pagination, Tag, Typography } from 'antd';
+import { Pagination, Tag, Typography } from '../ui/kit';
 import { useEffect, useState } from 'react';
 import { RequestBlock } from './request-block';
 

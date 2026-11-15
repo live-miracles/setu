@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, Space } from 'antd';
+import { Button, Space } from '../ui/kit';
 import { DetailSections } from '../ui/detail-layout';
 import { Page } from './refine-shared';
 

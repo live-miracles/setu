@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useDelete, useList, useUpdate } from '../ui/resources';
-import { Button, Form as AntForm, Input, Select, Space, Typography } from 'antd';
+import { Input, Select, Field } from '../ui/form-kit';
+import { Button, Space, Typography } from '../ui/kit';
 import { Controller, useForm } from 'react-hook-form';
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
+import { Icon } from '../ui/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
 import { inventoryRequestPath, programRequestPath, userPath, usersPath } from '../paths';
@@ -90,7 +91,7 @@ export function UserForm({
                     registration={form.register('name', { required: 'Name is required' })}
                     error={form.formState.errors.name?.message}
                 />
-                <AntForm.Item label="Role" required>
+                <Field label="Role" required>
                     <Controller
                         name="role"
                         control={form.control}
@@ -107,8 +108,8 @@ export function UserForm({
                             </Select>
                         )}
                     />
-                </AntForm.Item>
-                <AntForm.Item label="Department" required>
+                </Field>
+                <Field label="Department" required>
                     <Controller
                         name="departmentId"
                         control={form.control}
@@ -126,7 +127,7 @@ export function UserForm({
                             </Select>
                         )}
                     />
-                </AntForm.Item>
+                </Field>
                 <TextField
                     name="phone"
                     label="Phone"
@@ -199,7 +200,7 @@ export function Users({ dashboard }: Props) {
             <Space className="antd-board-filters" wrap>
                 <Input
                     allowClear
-                    prefix={<SearchOutlined />}
+                    prefix={<Icon name="search" />}
                     placeholder="Search users"
                     aria-label="Search users"
                     value={search}
@@ -208,7 +209,7 @@ export function Users({ dashboard }: Props) {
                 />
                 <Button
                     type="primary"
-                    icon={<SearchOutlined />}
+                    icon={<Icon name="search" />}
                     onClick={() => setAppliedSearch(search)}
                     aria-label="Search users"
                     title="Search users"
@@ -223,7 +224,7 @@ export function Users({ dashboard }: Props) {
                 <Space>
                     <Button
                         type="default"
-                        icon={<ArrowLeftOutlined />}
+                        icon={<Icon name="arrowLeft" />}
                         onClick={() => navigate(usersPath, { replace: true })}
                         aria-label="Back to users"
                         title="Back to users"
@@ -232,7 +233,7 @@ export function Users({ dashboard }: Props) {
                         <Button
                             type="primary"
                             danger
-                            icon={<DeleteOutlined />}
+                            icon={<Icon name="trash" />}
                             onClick={() => setDeleting(selectedUser)}
                             aria-label="Delete user"
                             title="Delete user"
@@ -246,7 +247,7 @@ export function Users({ dashboard }: Props) {
                     canManageConfig(dashboard.me) ? (
                         <Button
                             type="primary"
-                            icon={<EditOutlined />}
+                            icon={<Icon name="edit" />}
                             onClick={() => setEditing(selectedUser)}
                             aria-label="Edit user"
                             title="Edit user"

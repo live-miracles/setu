@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
-import { Button, Form as AntForm, Input, Select } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Input, Select, Field } from '../ui/form-kit';
+import { Button } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { useDashboard } from '../dashboard-context';
 import { formatLocalDateOnly } from '../ui/date';
 import {
@@ -116,7 +117,7 @@ export function Roster({ dashboard }: Props) {
                     setEditing(undefined);
                 }}>
                 <form id="refine-roster-form" className="grid gap-3" noValidate onSubmit={save.run}>
-                    <AntForm.Item label="Shift" required>
+                    <Field label="Shift" required>
                         <input type="hidden" name="shiftTypeId" value={shiftTypeId} required />
                         <Select
                             value={shiftTypeId}
@@ -131,16 +132,16 @@ export function Roster({ dashboard }: Props) {
                                 </Select.Option>
                             ))}
                         </Select>
-                    </AntForm.Item>
-                    <AntForm.Item label="Shift name (optional)" className="antd-form-item">
+                    </Field>
+                    <Field label="Shift name (optional)">
                         <Input
                             name="shiftName"
                             value={shiftName}
                             onChange={(event) => setShiftName(event.target.value)}
                             placeholder={initialShiftType?.Name || 'Uses shift preset name'}
                         />
-                    </AntForm.Item>
-                    <AntForm.Item label="Assignee" required>
+                    </Field>
+                    <Field label="Assignee" required>
                         <input type="hidden" name="userId" value={userId} required />
                         <Select value={userId} onChange={setUserId} className="antd-full-width">
                             <Select.Option value="" disabled>
@@ -152,7 +153,7 @@ export function Roster({ dashboard }: Props) {
                                 </Select.Option>
                             ))}
                         </Select>
-                    </AntForm.Item>
+                    </Field>
                     <TextField
                         name="startDate"
                         label="Start date"
@@ -167,22 +168,22 @@ export function Roster({ dashboard }: Props) {
                         value={row?.EndDate || todayIso}
                         required
                     />
-                    <AntForm.Item label="Start time" className="antd-form-item">
+                    <Field label="Start time">
                         <Input
                             name="startTime"
                             type="time"
                             value={startTime}
                             onChange={(event) => setStartTime(event.target.value)}
                         />
-                    </AntForm.Item>
-                    <AntForm.Item label="End time" className="antd-form-item">
+                    </Field>
+                    <Field label="End time">
                         <Input
                             name="endTime"
                             type="time"
                             value={endTime}
                             onChange={(event) => setEndTime(event.target.value)}
                         />
-                    </AntForm.Item>
+                    </Field>
                     <div className="flex items-center justify-between gap-3">
                         <SaveFooter
                             label={row ? 'Save' : 'Add'}
@@ -194,7 +195,7 @@ export function Roster({ dashboard }: Props) {
                                 type="primary"
                                 danger
                                 htmlType="button"
-                                icon={<DeleteOutlined />}
+                                icon={<Icon name="trash" />}
                                 onClick={() => {
                                     setEditing(undefined);
                                     setDeleting(row);
@@ -216,7 +217,7 @@ export function Roster({ dashboard }: Props) {
                 canEdit && (
                     <Button
                         type="primary"
-                        icon={<PlusOutlined />}
+                        icon={<Icon name="plus" />}
                         onClick={() => setCreating(true)}
                         aria-label="Add shift"
                         title="Add shift"

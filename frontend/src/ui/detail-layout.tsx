@@ -1,4 +1,4 @@
-import { Card } from 'antd';
+import { Card } from '../ui/kit';
 import type { CSSProperties, ReactNode } from 'react';
 
 export type DetailSectionProps = {

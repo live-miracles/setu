@@ -1,5 +1,6 @@
 import { useOne } from '../ui/resources';
-import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
+import { Select, Field } from '../ui/form-kit';
+import { Button, Space, Tag, Typography } from '../ui/kit';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
@@ -72,16 +73,12 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                         registration={form.register('name', { required: 'Name is required' })}
                         error={form.formState.errors.name?.message}
                     />
-                    <AntForm.Item label="Department">
+                    <Field label="Department">
                         <Controller
                             name="departmentId"
                             control={form.control}
                             render={({ field }) => (
-                                <Select
-                                    {...field}
-                                    className="antd-full-width"
-                                    showSearch
-                                    optionFilterProp="children">
+                                <Select {...field} className="antd-full-width" showSearch>
                                     <Select.Option value="">No department</Select.Option>
                                     {dashboard.departments.map((d) => (
                                         <Select.Option key={d.Id} value={d.Id}>
@@ -91,7 +88,7 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                                 </Select>
                             )}
                         />
-                    </AntForm.Item>
+                    </Field>
                     <Controller
                         name="phone"
                         control={form.control}

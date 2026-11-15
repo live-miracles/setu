@@ -20,26 +20,34 @@ const bundle = await build({
         contents: `
             export { TextField } from './frontend/src/sections/refine-shared';
             export { internationalPhoneRules } from './frontend/src/sections/form-utils';
-            export { captured } from 'antd';
+            export { captured } from './frontend/src/ui/form-kit';
         `,
     },
     plugins: [
         {
             name: 'input-shell',
             setup(build) {
-                build.onResolve({ filter: /^antd$/ }, () => ({ path: 'antd', namespace: 'test' }));
-                build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-                    contents: `
-                    export const captured = new Map();
-                    export function Input(props) { captured.set(props.name, props); return null; }
-                    export const Form = { Item: ({ children }) => children };
-                    export const Button = () => null;
-                    export const Card = () => null;
-                    export const Empty = () => null;
-                    export const Modal = () => null;
-                    export const Typography = {};
-                `,
-                }));
+                const stubs = {
+                    'form-kit': `
+                        export const captured = new Map();
+                        export function Input(props) { captured.set(props.name, props); return null; }
+                        export function Field({ children }) { return children; }
+                    `,
+                    kit: `
+                        export const Button = () => null;
+                        export const Card = () => null;
+                        export const Empty = () => null;
+                        export const Typography = {};
+                    `,
+                    'overlay-kit': 'export const Modal = () => null;',
+                };
+                for (const [name, contents] of Object.entries(stubs)) {
+                    build.onResolve({ filter: new RegExp(`/ui/${name}$`) }, () => ({
+                        path: name,
+                        namespace: `stub-${name}`,
+                    }));
+                    build.onLoad({ filter: /.*/, namespace: `stub-${name}` }, () => ({ contents }));
+                }
                 build.onResolve({ filter: /\/ui\/feedback$/ }, () => ({
                     path: 'feedback',
                     namespace: 'feedback',
@@ -79,8 +87,8 @@ for (const initial of ['', '+12025550100']) {
             );
             const props = captured.get(name);
             const input = { name, type: 'tel', value: initial, focus() {} };
-            // Ant Design exposes a handle containing .input, not the input itself.
-            props.ref({ input, focus: () => input.focus() });
+            // The kit Input hands react-hook-form the native input element.
+            props.ref(input);
             inputs[name] = { props, input };
             input.value = '+12025550101';
             await props.onChange({ target: input, type: 'change' });

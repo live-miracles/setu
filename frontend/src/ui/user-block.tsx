@@ -1,5 +1,5 @@
-import { Tag, Typography } from 'antd';
-import { PhoneOutlined, WhatsAppOutlined } from '@ant-design/icons';
+import { Tag, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import { roleLabel } from './styles';
 import { BlockCard } from './block-card';
 
@@ -30,10 +30,10 @@ export function UserBlock({
             </div>
             <div className="user-card-contact">
                 <span>
-                    <PhoneOutlined /> {user.Phone || '—'}
+                    <Icon name="phone" /> {user.Phone || '—'}
                 </span>
                 <span>
-                    <WhatsAppOutlined /> {user.Whatsapp || '—'}
+                    <Icon name="whatsapp" /> {user.Whatsapp || '—'}
                 </span>
             </div>
         </BlockCard>

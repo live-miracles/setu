@@ -1,5 +1,5 @@
-import { Button, Card, Divider, Empty, Space, Tag, Typography } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Divider, Empty, Space, Tag, Typography } from '../ui/kit';
+import { Icon } from '../ui/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
@@ -39,7 +39,7 @@ function sectionAction(title: string, onClick: () => void) {
         <Button
             type="primary"
             size="small"
-            icon={<PlusOutlined />}
+            icon={<Icon name="plus" />}
             onClick={onClick}
             aria-label={`Open ${title}`}
             title={`Open ${title}`}

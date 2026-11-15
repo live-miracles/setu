@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { Card, Input, Space, Tag } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { Input } from '../ui/form-kit';
+import { Card, Space, Tag } from '../ui/kit';
+import { Icon } from '../ui/icons';
 
 interface TableViewProps {
     title: string;
@@ -37,7 +38,7 @@ export function TableView({
                 <div className="antd-table-search">
                     <Input
                         allowClear
-                        prefix={<SearchOutlined />}
+                        prefix={<Icon name="search" />}
                         placeholder={searchPlaceholder}
                         aria-label={searchPlaceholder}
                         value={searchValue}
