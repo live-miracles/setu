@@ -115,8 +115,8 @@ export function runProgramActionAssertions(): void {
 
     assert(
         getProgramRequestActions({ ...source, Status: 'draft' }, user('admin')).join(',') ===
-            'submit,cancel',
-        'admins should see submit and cancel for draft programs',
+            'submit',
+        'admins should only see submit for draft programs; a draft is deleted, not cancelled',
     );
     assert(
         getProgramRequestActions({ ...source, Status: 'submitted' }, user('approver')).join(',') ===

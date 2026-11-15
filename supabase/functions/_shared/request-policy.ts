@@ -39,7 +39,7 @@ const ACTIONS: Record<RequestKind, readonly string[]> = {
 
 const TRANSITIONS: Record<RequestKind, Record<string, readonly string[]>> = {
     inventory: {
-        draft: ['submit', 'cancel'],
+        draft: ['submit'],
         submitted: ['approve', 'reject', 'cancel'],
         approved: ['issue', 'cancel', 'unapprove'],
         rejected: ['revise', 'close'],
@@ -48,7 +48,7 @@ const TRANSITIONS: Record<RequestKind, Record<string, readonly string[]>> = {
         closed: [],
     },
     program: {
-        draft: ['submit', 'cancel'],
+        draft: ['submit'],
         submitted: ['approve', 'reject', 'cancel'],
         approved: ['cancel', 'unapprove'],
         rejected: ['revise'],

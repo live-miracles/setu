@@ -89,6 +89,16 @@ test('submit: the requester side, or any approver for someone else', () => {
     assert.deepEqual(policy.availableActions('program', owner), ['submit']);
 });
 
+test('cancel: not offered on a draft, which is deleted instead', () => {
+    for (const kind of ['inventory', 'program']) {
+        assert.equal(policy.canTransition(kind, 'draft', 'cancel'), false);
+        for (const role of ROLES) {
+            const offered = policy.availableActions(kind, { status: 'draft', isParty: true, role });
+            assert.equal(offered.includes('cancel'), false, `${kind} ${role}`);
+        }
+    }
+});
+
 test('revise: requester side or approver, rejected requests only', () => {
     for (const kind of ['inventory', 'program']) {
         assert.equal(
