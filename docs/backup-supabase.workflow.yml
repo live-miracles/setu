@@ -21,34 +21,30 @@ jobs:
             - name: Check out repository
               uses: actions/checkout@v4
 
-            - name: Set up Node.js
-              uses: actions/setup-node@v4
+            - name: Set up Supabase CLI
+              uses: supabase/setup-cli@v3
               with:
-                  node-version: 22
-                  cache: npm
+                  version: 2.116.0
 
-            - name: Install dependencies
-              run: npm ci
-
-            # Same IPv4 pooler workaround as deploy-supabase.yml.
+            # GitHub-hosted runners have no IPv6 route and Supabase's direct
+            # database host is IPv6-only. Linking first makes the CLI connect
+            # through Supabase's IPv4-compatible connection pooler instead.
             - name: Link Supabase project
               env:
                   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-                  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
                   PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF_PROD }}
-              run: npx supabase link --project-ref "$PROJECT_REF"
+              run: supabase link --project-ref "$PROJECT_REF"
 
-            # Data only: the schema is already in supabase/migrations/. `auth`
-            # is included because public.profiles references auth.users; the
-            # session and token tables are excluded because they are large,
+            # Data only: the schema is already in Setu's supabase/migrations/.
+            # `auth` is included because public.profiles references auth.users;
+            # the session and token tables are excluded because they are large,
             # sensitive, and useless after a restore. Storage (images) is not
             # backed up.
             - name: Dump database
               env:
                   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-                  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
               run: |
-                  npx supabase db dump --linked --data-only --use-copy \
+                  supabase db dump --linked --data-only --use-copy \
                     --schema public,auth \
                     --exclude auth.audit_log_entries,auth.refresh_tokens,auth.sessions,auth.flow_state,auth.one_time_tokens,auth.mfa_amr_claims \
                     --file data.sql
@@ -61,8 +57,8 @@ jobs:
                   grep -q '^COPY "public"."profiles"' data.sql
                   grep -q '^COPY "auth"."users"' data.sql
 
-            # Artifacts of a public repository can be downloaded by any GitHub
-            # user, so the dump is encrypted to a public key. The matching
+            # Anyone with read access to this repository can download its
+            # artifacts, so the dump is encrypted to a public key. The matching
             # private key is kept offline and is never stored on GitHub.
             - name: Compress and encrypt
               env:
