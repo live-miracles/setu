@@ -240,8 +240,8 @@ plain-text body is included as a fallback.
 Supabase migrations and the `api` and `email-dispatcher` Edge Functions are
 deployed automatically to the Setu project by
 `.github/workflows/deploy-supabase.yml` when Supabase migrations, functions,
-or configuration files change on `master`. Add `SUPABASE_ACCESS_TOKEN`,
-`SUPABASE_PROJECT_REF_PROD`, and `SUPABASE_DB_PASSWORD_PROD` as repository
+or configuration files change on `master`. Add `SUPABASE_ACCESS_TOKEN` and
+`SUPABASE_PROJECT_REF_PROD` as repository
 secrets, then use the workflow's manual dispatch when needed. The workflow
 applies migrations and deploys both functions independently; manual dispatch
 runs both deployment areas.
