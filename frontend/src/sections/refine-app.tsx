@@ -1,4 +1,4 @@
-import { useOne } from '@refinedev/core';
+import { useOne } from '../ui/resources';
 import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -155,9 +155,8 @@ export function RequestDetail({ kind, dashboard }: Props & { kind: 'inventory' |
     const { result: row, query } = useOne<InventoryRequestDTO | ProgramRequestDTO>({
         resource,
         id,
-        // A missing/deleted record is a normal "not found" navigation state
-        // here, not something to alert the user about with a toast.
-        errorNotification: false,
+        // A missing/deleted record is a normal "not found" navigation state,
+        // shown inline below rather than as an error toast.
     });
     const back = () => navigate(kind === 'inventory' ? inventoryPath : programsPath);
     if (query.isLoading) {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useInvalidate, useList, useUpdate } from '@refinedev/core';
+import { useInvalidate, useList, useUpdate } from '../ui/resources';
 import {
     Button,
     Checkbox,
@@ -293,8 +293,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     totalQuantity: row.TotalQuantity == null ? null : Number(row.TotalQuantity),
                     imageId,
                 },
-                successNotification: false,
-                errorNotification: false,
             });
             await refreshDashboard();
         } catch (error) {
@@ -343,7 +341,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             await api.deleteInventoryLabel(label.Id, generateRequestId());
             await invalidate({
                 resource: 'inventory-types',
-                invalidates: ['list', 'many', 'detail'],
             });
             await refreshDashboard();
         } catch (error) {
@@ -394,7 +391,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             closeInventoryLabelEditor();
             await invalidate({
                 resource: 'inventory-types',
-                invalidates: ['list', 'many', 'detail'],
             });
             await refreshDashboard();
         } catch (error) {

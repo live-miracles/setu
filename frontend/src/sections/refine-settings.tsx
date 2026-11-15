@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useList } from '@refinedev/core';
+import { useList } from '../ui/resources';
 import { Button, Card, Empty, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { api } from '../api';

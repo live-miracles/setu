@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { Result } from 'antd';
 import { api } from './api';
 import { DashboardProvider } from './dashboard-context';
-import { AppProviders } from './ui/refine';
+import { AppProviders } from './ui/providers';
 import {
     blocksPath,
     calendarPath,

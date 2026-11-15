@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 
-// The one shared cache every Refine-mounted page uses (see ui/refine.tsx).
+// The one shared cache every page reads through (see ui/resources.ts).
 // No background polling or focus refetching — a page only refetches when it
 // explicitly asks (mutation settle, a manual refresh), matching the app's
 // previous behaviour before this cache existed.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useList } from '@refinedev/core';
+import { useList } from '../ui/resources';
 import { Button, Empty, Input, Space, Tag, Typography } from 'antd';
 import {
     ArrowLeftOutlined,

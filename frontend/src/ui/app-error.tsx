@@ -1,6 +1,6 @@
 import { App as AntApp, ConfigProvider, Result } from 'antd';
 import { createRoot } from 'react-dom/client';
-import { SETU_ANTD_THEME } from './refine';
+import { SETU_ANTD_THEME } from './providers';
 
 export function renderAppError(container: HTMLElement, message: string): void {
     createRoot(container).render(

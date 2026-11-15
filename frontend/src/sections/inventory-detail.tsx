@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
+import { useDelete, useInvalidate, useList, useUpdate } from '../ui/resources';
 import { Button, Form as AntForm, Select, Space, Tag, Typography } from 'antd';
 import {
     ArrowLeftOutlined,
@@ -66,8 +66,6 @@ export function InventoryDetail({
     const invalidateThisRequest = () =>
         invalidate({
             resource: 'inventory-requests',
-            id: request.Id,
-            invalidates: ['list', 'many', 'detail'],
         });
     const permissions = getRequestPermissions<InventoryRequestAction>(
         'inventory',
@@ -129,8 +127,6 @@ export function InventoryDetail({
                     ...inventoryRequestFields(request),
                     items: toInventoryItemInputs(nextItems),
                 },
-                successNotification: false,
-                errorNotification: false,
             });
             await refreshDashboard();
             return true;
@@ -200,8 +196,6 @@ export function InventoryDetail({
                     participants: values.Participants,
                     items: toInventoryItemInputs(items),
                 },
-                successNotification: false,
-                errorNotification: false,
             }).catch((e) => {
                 setValues(inventoryFormValues(request));
                 setItems(request.items);
@@ -313,8 +307,6 @@ export function InventoryDetail({
                     imageId: nextImageId,
                     items: toInventoryItemInputs(items),
                 },
-                successNotification: false,
-                errorNotification: false,
             });
             await refreshDashboard();
         } catch (e) {
@@ -887,8 +879,6 @@ export function InventoryDetail({
                             await deleteInventoryRequest({
                                 resource: 'inventory-requests',
                                 id: request.Id,
-                                successNotification: false,
-                                errorNotification: false,
                             });
                             setPendingDelete(false);
                             await refreshDashboard();

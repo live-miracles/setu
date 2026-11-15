@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useCreate, useList } from '@refinedev/core';
+import { useCreate, useList } from '../ui/resources';
 import {
     Badge,
     Button,
@@ -391,7 +391,6 @@ export function CreateRecord({
                 formData.current ||
                 new FormData(document.getElementById('refine-request-form') as HTMLFormElement);
             const name = String(d.get('name') || '');
-            const mutateOptions = { successNotification: false, errorNotification: false } as const;
             if (kind === 'inventory') {
                 const created = await createRecord({
                     resource: 'inventory-requests',
@@ -406,7 +405,6 @@ export function CreateRecord({
                         leadEmail: String(d.get('leadEmail') || leadEmail),
                         participants: '',
                     },
-                    ...mutateOptions,
                 });
                 return created.data as unknown as { Id: string };
             }
@@ -423,7 +421,6 @@ export function CreateRecord({
                     leadEmail: String(d.get('leadEmail') || ''),
                     participants: '',
                 },
-                ...mutateOptions,
             });
             return created.data as unknown as { Id: string };
         },

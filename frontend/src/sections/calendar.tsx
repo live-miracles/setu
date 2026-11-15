@@ -1,5 +1,4 @@
-import { useCustom } from '@refinedev/core';
-import { operationMeta } from '../ui/refine-data-provider';
+import { useApiQuery } from '../ui/resources';
 import { Button, Empty, Space, Typography } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { useState } from 'react';
@@ -27,15 +26,11 @@ export function Calendar({ dashboard }: Props) {
     const todayIso = formatLocalDateOnly(new Date());
     const monthStartIso = formatLocalDateOnly(month);
     const monthEndIso = formatLocalDateOnly(new Date(year, monthNumber, 0));
-    // Refine keys this query by (operation, args), so each month gets its own
+    // The query is keyed by (operation, args), so each month gets its own
     // cache entry automatically — paging back to a month already visited this
     // session renders instantly, with no hand-rolled cache/version bookkeeping.
-    const { result, query } = useCustom<CalendarMonthPayload>({
-        url: 'getCalendarMonth',
-        method: 'get',
-        meta: operationMeta('getCalendarMonth', year, monthNumber),
-    });
-    const monthData = query.isSuccess ? result.data : null;
+    const query = useApiQuery('getCalendarMonth', year, monthNumber);
+    const monthData = query.isSuccess ? query.data : null;
     const loading = query.isLoading;
     const calendarPrograms = monthData?.programs || [];
     const calendarPlaces = monthData?.places || dashboard.places;

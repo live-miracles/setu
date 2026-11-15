@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { useCreate, useDelete, useList, useUpdate } from '@refinedev/core';
+import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
 import { Button, Checkbox, Form, Modal, Select, Space } from 'antd';
 import { useDashboard } from '../dashboard-context';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
@@ -77,14 +77,12 @@ export function useResourceMutations(resourceName: string, config: ResourceConfi
     async function save(values: Record<string, string>, editing: Row | null): Promise<Row | null> {
         showSavingBadge(true);
         try {
-            const mutateOptions = { successNotification: false, errorNotification: false } as const;
             const payload = config.toInput(values);
             let created: Row | null = null;
             if (!editing) {
                 const response = await createRow({
                     resource: resourceName,
                     values: payload,
-                    ...mutateOptions,
                 });
                 created = response.data as Row;
             } else {
@@ -92,7 +90,6 @@ export function useResourceMutations(resourceName: string, config: ResourceConfi
                     resource: resourceName,
                     id: rowKeyOf(config, editing),
                     values: payload,
-                    ...mutateOptions,
                 });
             }
             await refreshDashboard();
@@ -108,8 +105,6 @@ export function useResourceMutations(resourceName: string, config: ResourceConfi
             await deleteRow({
                 resource: resourceName,
                 id: rowKeyOf(config, row),
-                successNotification: false,
-                errorNotification: false,
             });
             await refreshDashboard();
             return true;

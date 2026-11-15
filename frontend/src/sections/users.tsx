@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDelete, useList, useUpdate } from '@refinedev/core';
+import { useDelete, useList, useUpdate } from '../ui/resources';
 import { Button, Form as AntForm, Input, Select, Space, Typography } from 'antd';
 import { Controller, useForm } from 'react-hook-form';
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
@@ -76,8 +76,6 @@ export function UserForm({
             resource: 'users',
             id: user.Email,
             values,
-            successNotification: false,
-            errorNotification: false,
         });
         close();
     });
@@ -326,8 +324,6 @@ export function Users({ dashboard }: Props) {
                         await deleteUser({
                             resource: 'users',
                             id: deleting.Email,
-                            successNotification: false,
-                            errorNotification: false,
                         });
                         setDeleting(null);
                         await refreshDashboard();

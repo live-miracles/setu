@@ -1,4 +1,4 @@
-import { useList } from '@refinedev/core';
+import { useList } from './resources';
 
 // History views (a user's, department's, inventory type's or label's requests)
 // ask the request list endpoints, which see every request. The dashboard only

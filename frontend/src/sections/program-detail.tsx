@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useCreate, useDelete, useInvalidate, useList, useUpdate } from '@refinedev/core';
+import { useCreate, useDelete, useInvalidate, useList, useUpdate } from '../ui/resources';
 import { Button, Form as AntForm, Input, Select, Space, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -70,8 +70,6 @@ export function ProgramDetail({
     const invalidateThisRequest = () =>
         invalidate({
             resource: 'program-requests',
-            id: request.Id,
-            invalidates: ['list', 'many', 'detail'],
         });
     const permissions = getRequestPermissions<ProgramRequestAction>(
         'program',
@@ -135,8 +133,6 @@ export function ProgramDetail({
                     ...programRequestFields(request),
                     sessions: toProgramSessionInputs(nextSessions),
                 },
-                successNotification: false,
-                errorNotification: false,
             });
             setSessions(nextSessions);
             await refreshDashboard();
@@ -168,8 +164,6 @@ export function ProgramDetail({
                     status: values.Status,
                     sessions: toProgramSessionInputs(sessions),
                 },
-                successNotification: false,
-                errorNotification: false,
             }).catch((e) => {
                 setValues(programFormValues(request));
                 setSessions(request.sessions);
@@ -221,8 +215,6 @@ export function ProgramDetail({
             const created = await createProgramRequest({
                 resource: 'program-requests',
                 values: buildDuplicateProgramInput(request, dashboard.me.Email, nextSessions),
-                successNotification: false,
-                errorNotification: false,
             });
             await refreshDashboard();
             navigate(programRequestPath((created.data as unknown as { Id: string }).Id));
@@ -246,8 +238,6 @@ export function ProgramDetail({
                     ...programRequestFields(request),
                     sessions: toProgramSessionInputs(nextSessions),
                 },
-                successNotification: false,
-                errorNotification: false,
             });
             setSessions(nextSessions);
         },
@@ -504,8 +494,6 @@ export function ProgramDetail({
                             await deleteProgramRequest({
                                 resource: 'program-requests',
                                 id: request.Id,
-                                successNotification: false,
-                                errorNotification: false,
                             });
                             setPendingDelete(false);
                             await refreshDashboard();

@@ -1,26 +1,21 @@
-import type {
-    CreateParams,
-    DataProvider,
-    DeleteOneParams,
-    GetListParams,
-    GetOneParams,
-    UpdateParams,
-} from '@refinedev/core';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 
-// One typed adapter between Refine's resource-shaped hooks (useList/useOne/
-// useCreate/useUpdate/useDelete/useCustom) and Setu's operation-shaped API
-// (api.ts, one function per Api interface member). Every resource gets one
-// entry below instead of being scattered across five parallel per-method
-// maps, and the cross-cutting bits (id field, list/getOne fallback) are
-// handled once here rather than duplicated per resource.
+// One typed adapter between resource-shaped hooks (useList/useOne/useCreate/
+// useUpdate/useDelete, built on react-query below) and Setu's operation-shaped
+// API (api.ts, one function per Api interface member). Every resource gets one
+// entry below instead of being scattered across parallel per-method maps, and
+// the cross-cutting bits (id field, list/getOne fallback) are handled once
+// here rather than duplicated per resource.
 
 type Row = object;
 
-interface ListParams {
-    pagination?: { currentPage?: number; pageSize?: number };
-    filters?: Array<{ field?: string; value?: unknown }>;
+export interface ListParams {
+    // `mode: 'off'` (the default) fetches the whole resource; pages are only
+    // requested for the paginated request lists.
+    pagination?: { currentPage?: number; pageSize?: number; mode?: 'off' };
+    filters?: Array<{ field?: string; value?: unknown; operator?: 'eq' }>;
     sorters?: Array<{ field?: string; order?: 'asc' | 'desc' }>;
 }
 
@@ -38,18 +33,10 @@ interface ResourceConfig {
     deleteOne?: (id: string) => Promise<void>;
 }
 
-// Refine's useCustom/useCustomMutation take `meta.operation` + `meta.args`
-// untyped. Build that meta through here so the arguments are checked against
-// the Api interface instead of being a bare array.
-export function operationMeta<K extends keyof Api>(operation: K, ...args: Parameters<Api[K]>) {
-    return { operation, args };
-}
-
-// Turns Refine's generic filters/sorters into the resource-specific query
+// Turns generic filters/sorters into the resource-specific query
 // object each paginated list operation expects (InventoryRequestQuery,
 // ProgramRequestQuery). Filters are passed through by field name verbatim
-// (Refine's `operator` beyond plain equality isn't interpreted — Setu's
-// backend queries don't support that today).
+// (only plain equality is supported — Setu's backend queries don't need more).
 function queryFromParams<TQuery extends object>(params: ListParams): TQuery | undefined {
     const query: Record<string, unknown> = {};
     for (const filter of params.filters || []) {
@@ -246,13 +233,9 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
 };
 
-// Refine needs its whole resource set up front (registered once — see
-// app.tsx), rather than the single-resource array each page used to hand it.
-export const REFINE_RESOURCE_NAMES = Object.keys(RESOURCES);
-
 function requireResource(resource: string): ResourceConfig {
     const config = RESOURCES[resource];
-    if (!config) throw new Error(`Unsupported Refine resource: ${resource}`);
+    if (!config) throw new Error(`Unsupported resource: ${resource}`);
     return config;
 }
 
@@ -264,64 +247,124 @@ function withId(config: ResourceConfig, row: Row): Row {
     return { ...row, id: rowValue(row, config.idField) };
 }
 
-// The provider keeps Refine resources on the same Supabase API boundary as
-// the rest of the application. Authentication and authorization stay
-// entirely server-side (see supabase/functions/api/index.ts) — this file
-// only translates Refine's resource-shaped calls into api.ts operations.
-export const setuDataProvider = {
-    getApiUrl: () => 'supabase/functions/v1/api',
+async function listResource(resource: string, params: ListParams) {
+    const config = requireResource(resource);
+    const { data, total, ...extra } = (await config.list(params)) as {
+        data: Row[];
+        total: number;
+        statusCounts?: Record<string, number>;
+    };
+    return { data: data.map((row) => withId(config, row)), total, ...extra };
+}
 
-    getList: async ({ resource, pagination, filters, sorters }: GetListParams) => {
-        const config = requireResource(resource);
-        const { data, total } = await config.list({
-            pagination,
-            filters: filters as ListParams['filters'],
-            sorters: sorters as ListParams['sorters'],
-        });
-        return { data: data.map((row) => withId(config, row)), total };
-    },
+async function getOneResource(resource: string, id: string) {
+    const config = requireResource(resource);
+    if (config.getOne) return withId(config, await config.getOne(id));
+    const { data } = await config.list({});
+    const found = data.find((row) => String(rowValue(row, config.idField)) === id);
+    if (!found) throw new Error(`Resource ${resource} with id ${id} was not found.`);
+    return withId(config, found);
+}
 
-    getOne: async ({ resource, id }: GetOneParams) => {
-        const config = requireResource(resource);
-        if (config.getOne) return { data: withId(config, await config.getOne(String(id))) };
-        const { data } = await config.list({});
-        const found = data.find((row) => String(rowValue(row, config.idField)) === String(id));
-        if (!found) throw new Error(`Resource ${resource} with id ${id} was not found.`);
-        return { data: withId(config, found) };
-    },
+// Hooks. Query keys start with the resource name so one prefix invalidation
+// (see useInvalidate) refreshes every list/detail view of that resource.
+// There are no notification toasts: callers report failures themselves.
 
-    create: async ({ resource, variables }: CreateParams<Row>) => {
-        const config = requireResource(resource);
-        if (!config.create) throw new Error(`Resource ${resource} does not support create.`);
-        return { data: withId(config, await config.create(variables as Row)) };
-    },
+type ListResult<T> = { data: T[]; total: number; statusCounts?: Record<string, number> };
 
-    update: async ({ resource, id, variables }: UpdateParams<Row>) => {
-        const config = requireResource(resource);
-        if (!config.update) throw new Error(`Resource ${resource} does not support update.`);
-        return { data: withId(config, await config.update(String(id), variables as Row)) };
-    },
+export function useList<T = Row>({
+    resource,
+    pagination,
+    filters,
+    sorters,
+    queryOptions,
+}: {
+    resource: string;
+    pagination?: ListParams['pagination'];
+    filters?: ListParams['filters'];
+    sorters?: ListParams['sorters'];
+    queryOptions?: { enabled?: boolean };
+}) {
+    const params: ListParams = { pagination, filters, sorters };
+    const query = useQuery({
+        queryKey: [resource, 'list', params],
+        queryFn: () => listResource(resource, params) as Promise<ListResult<T>>,
+        enabled: queryOptions?.enabled ?? Boolean(resource),
+    });
+    const empty: ListResult<T> = { data: [], total: 0 };
+    return { query, result: query.data ?? empty };
+}
 
-    deleteOne: async ({ resource, id }: DeleteOneParams) => {
-        const config = requireResource(resource);
-        if (!config.deleteOne) throw new Error(`Resource ${resource} does not support delete.`);
-        await config.deleteOne(String(id));
-        return { data: { id } };
-    },
+export function useOne<T = Row>({ resource, id }: { resource: string; id: string }) {
+    const query = useQuery({
+        queryKey: [resource, 'one', id],
+        queryFn: () => getOneResource(resource, id) as Promise<T>,
+    });
+    return { query, result: query.data };
+}
 
-    // Escape hatch for everything that isn't plain CRUD (performInventoryRequestAction,
-    // performProgramRequestAction, getCalendarMonth, uploadImage, ...):
-    // useCustom/useCustomMutation call this with the operation named in
-    // `meta.operation`, so those calls ride the same QueryClient cache as
-    // everything else instead of bypassing it via a raw api.* call.
-    custom: async ({ meta }: { meta?: { operation?: keyof Api; args?: unknown[] } }) => {
-        const operation = meta?.operation;
-        if (!operation) throw new Error('A custom Refine call requires meta.operation.');
-        const fn = (api as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[
-            operation
-        ];
-        if (!fn) throw new Error(`Unknown API operation: ${String(operation)}`);
-        const data = await fn(...(meta?.args ?? []));
-        return { data };
-    },
-} as unknown as DataProvider;
+// For operations that aren't plain CRUD (getCalendarMonth, ...): runs the named
+// api.ts operation, cached per (operation, args) so revisiting a month is instant.
+export function useApiQuery<K extends keyof Api>(operation: K, ...args: Parameters<Api[K]>) {
+    return useQuery({
+        queryKey: ['api', operation, args],
+        queryFn: () =>
+            (api[operation] as (...a: unknown[]) => Promise<unknown>)(...args) as Promise<
+                Awaited<ReturnType<Api[K]>>
+            >,
+    });
+}
+
+function invalidateResource(client: QueryClient, resource: string) {
+    return client.invalidateQueries({ queryKey: [resource] });
+}
+
+export function useInvalidate() {
+    const client = useQueryClient();
+    return ({ resource }: { resource: string }) => invalidateResource(client, resource);
+}
+
+export function useCreate() {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ resource, values }: { resource: string; values: Row }) => {
+            const config = requireResource(resource);
+            if (!config.create) throw new Error(`Resource ${resource} does not support create.`);
+            return { data: withId(config, await config.create(values)) };
+        },
+        onSuccess: (_result, { resource }) => invalidateResource(client, resource),
+    });
+}
+
+export function useUpdate() {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: async ({
+            resource,
+            id,
+            values,
+        }: {
+            resource: string;
+            id: string;
+            values: Row;
+        }) => {
+            const config = requireResource(resource);
+            if (!config.update) throw new Error(`Resource ${resource} does not support update.`);
+            return { data: withId(config, await config.update(String(id), values)) };
+        },
+        onSuccess: (_result, { resource }) => invalidateResource(client, resource),
+    });
+}
+
+export function useDelete() {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ resource, id }: { resource: string; id: string }) => {
+            const config = requireResource(resource);
+            if (!config.deleteOne) throw new Error(`Resource ${resource} does not support delete.`);
+            await config.deleteOne(String(id));
+            return { data: { id } };
+        },
+        onSuccess: (_result, { resource }) => invalidateResource(client, resource),
+    });
+}
