@@ -1,6 +1,7 @@
 // Dev server: esbuild + Tailwind in watch mode behind a static file server
-// on http://localhost:3000. It runs the same Supabase-backed frontend as
-// Vercel; configure local or development-project credentials in .env.local.
+// on http://localhost:47193. It runs the same Supabase-backed frontend as
+// Vercel; configure the Supabase project credentials in .env.local. Note that
+// the project is shared with production, so local work touches live data.
 //
 // Builds are automatic; the page is not. Reload the tab yourself once the
 // rebuild logs — that trade buys a server with no watcher of its own, no
@@ -23,12 +24,12 @@ const supabaseUrl = process.env.SETU_SUPABASE_URL || '';
 const supabasePublishableKey = process.env.SETU_SUPABASE_PUBLISHABLE_KEY || '';
 if (!supabaseUrl || !supabasePublishableKey) {
     throw new Error(
-        'Missing SETU_SUPABASE_URL or SETU_SUPABASE_PUBLISHABLE_KEY. Copy .env.example to .env.local and configure a Supabase development project.',
+        'Missing SETU_SUPABASE_URL or SETU_SUPABASE_PUBLISHABLE_KEY. Copy .env.example to .env.local and configure the Supabase project.',
     );
 }
 
 // `PORT=3001 npm run dev` when something else already holds the default.
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 47193;
 
 mkdirSync(distDir, { recursive: true });
 

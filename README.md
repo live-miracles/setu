@@ -13,27 +13,23 @@ inventory, programs, home content, and user settings.
 
 ## Free-tier deployment
 
-This architecture can run on the free tiers of Supabase and Vercel for both
-the Setu and Setu Dev environments, within each provider's current quotas and
-terms. Supabase hosts the database, Storage, and Edge Functions, including the
+This architecture can run on the free tiers of Supabase and Vercel, within each
+provider's current quotas and terms. Setu uses a single Supabase project for
+both production and local development: the free plan allows only two active
+projects, and this is a small internal app. Supabase hosts the database, Storage, and Edge Functions, including the
 10-minute comment-email worker that sends through the Gmail API, and Vercel
 only serves the static frontend. Supabase's current Free
 plan includes two active projects, 500,000 Edge Function invocations, 1 GB of
 file storage, and 500 MB of database storage per project. Free projects pause
-after 7 days with no API activity — each project's pause timer is independent,
-so pinging one does not keep the other awake.
+after 7 days with no API activity.
 
 [`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml) pings
-both the Setu and Setu Dev projects every 3 days to prevent this. It needs
-four repository secrets (**Settings → Secrets and variables → Actions** in
-GitHub), using the same URL/publishable key pair from each project's
-**Project Settings → API Keys** page (see step 1 below for where to find
-these):
+the project every 3 days to prevent this. It needs two repository secrets
+(**Settings → Secrets and variables → Actions** in GitHub), using the URL and
+publishable key from the project's **Project Settings → API Keys** page (see
+step 1 below for where to find these):
 
-- `SETU_SUPABASE_URL_PROD` / `SETU_SUPABASE_PUBLISHABLE_KEY_PROD` — the Setu
-  (production) project
-- `SETU_SUPABASE_URL_DEV` / `SETU_SUPABASE_PUBLISHABLE_KEY_DEV` — the Setu Dev
-  project
+- `SETU_SUPABASE_URL_PROD` / `SETU_SUPABASE_PUBLISHABLE_KEY_PROD`
 
 Trigger a manual run from the **Actions** tab (**Keep Supabase projects
 alive → Run workflow**) to verify it after setup.
@@ -77,7 +73,7 @@ Browser → Vercel static app → Supabase Auth
 ## Requirements
 
 - Node.js 22 or newer
-- A Supabase account and a development project
+- Access to the Setu Supabase project (shared by production and development)
 - A Google OAuth client configured for that Supabase project
 - Git
 
@@ -95,12 +91,12 @@ npm install
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with the URL and publishable/anon key for the Supabase
-development project. In the Supabase dashboard, open the project (if your
-organization has more than one, confirm which is the shared _development_
-project before continuing — do not point `.env.local` at a production
-project), then go to **Project Settings → API Keys**, "Publishable and secret
-API keys" tab:
+Edit `.env.local` with the URL and publishable/anon key for the Setu Supabase
+project. Production and local development share this one project, so local
+work reads and writes live data: sign in with a test account, don't run bulk or
+destructive changes, and remember that comments queue real emails to the
+request's participants. In the Supabase dashboard, open the project, then go to
+**Project Settings → API Keys**, "Publishable and secret API keys" tab:
 
 ```env
 SETU_SUPABASE_URL=https://<project-ref>.supabase.co
@@ -125,7 +121,8 @@ signing in.
    you explicitly add as test users can sign in.
 2. **Create Credentials → OAuth client ID** → Application type **Web
    application**.
-3. Under **Authorized JavaScript origins**, add `http://localhost:3000`.
+3. Under **Authorized JavaScript origins**, add `http://localhost:47193` (plus
+   the Vercel domain, see [Deploy to Vercel](#deploy-to-vercel)).
 4. Under **Authorized redirect URIs**, add the callback URL shown in the
    Supabase panel from the next step, typically
    `https://<project-ref>.supabase.co/auth/v1/callback`.
@@ -149,17 +146,31 @@ Without this provider setup, the browser will show
 
 ### 3. Apply the schema and deploy the API
 
-Authenticate the Supabase CLI and connect it to the development project.
-`supabase login` opens a browser tab to authorize the CLI — run it from an
-interactive terminal, not a non-interactive/CI shell:
+Authenticate the Supabase CLI and connect it to the project. `supabase login`
+opens a browser tab to authorize the CLI — run it from an interactive
+terminal, not a non-interactive/CI shell. This is the same project that serves
+production, so the commands below are only needed for the first setup; after
+that, merging to `master` deploys migrations and functions automatically.
 
 ```bash
 npx supabase login
 npx supabase link --project-ref <project-ref>
 npx supabase db push
-npx supabase secrets set SETU_APP_ORIGIN=http://localhost:3000
+npx supabase secrets set SETU_APP_ORIGIN=https://<vercel-domain> SETU_EXTRA_ORIGINS=http://localhost:47193
 npx supabase functions deploy api
 ```
+
+`SETU_APP_ORIGIN` is the public app origin (used for CORS and the “View
+request” email links). `SETU_EXTRA_ORIGINS` is an optional comma-separated list
+of additional browser origins the API accepts; it lets `npm run dev` call the
+production API. Without it, the browser blocks local requests with a CORS
+error. If you use another port (`PORT=3001 npm run dev`), add that origin too.
+
+Because `db push` and `functions deploy` here change production, avoid running
+them from an unmerged branch: a migration that fails halfway or drops data
+cannot be undone without a restore (see
+[Database backups](#database-backups)). `npm test` runs every migration
+against an isolated PostgreSQL (PGlite), so run it before merging.
 
 Comment email delivery
 
@@ -227,16 +238,13 @@ and ends with a clickable “View request” link to the request in Setu. A
 plain-text body is included as a fallback.
 
 Supabase migrations and the `api` and `email-dispatcher` Edge Functions are
-deployed automatically to
-both Setu production and Setu Dev by
+deployed automatically to the Setu project by
 `.github/workflows/deploy-supabase.yml` when Supabase migrations, functions,
-configuration, or dependency files change on `master`. Add the
-`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF_PROD`, and
-`SUPABASE_PROJECT_REF_DEV` as repository secrets, then use the workflow's
-manual dispatch when needed. The token must have permission for both projects.
-The workflow selects each project using its secret project ref, applies
-migrations, and deploys both functions independently to each project; manual
-dispatch runs both deployment areas.
+or configuration files change on `master`. Add `SUPABASE_ACCESS_TOKEN`,
+`SUPABASE_PROJECT_REF_PROD`, and `SUPABASE_DB_PASSWORD_PROD` as repository
+secrets, then use the workflow's manual dispatch when needed. The workflow
+applies migrations and deploys both functions independently; manual dispatch
+runs both deployment areas.
 
 Email-domain access control
 
@@ -264,7 +272,7 @@ signed in earlier (e.g. while testing the OAuth setup in step 2, before
 npm run dev
 ```
 
-Open <http://localhost:3000> and sign in with Google. The dev server uses the
+Open <http://localhost:47193> and sign in with Google. The dev server uses the
 same Supabase API transport as the Vercel build.
 
 ## Useful commands
@@ -329,10 +337,9 @@ local dev default. See [Deploy to Vercel](#deploy-to-vercel) step 2.
 ## Deploy to Vercel
 
 Not required for local development — `npm run dev` (step 4 above) runs the
-full app against your Supabase dev project without Vercel. This section only
-applies when you're ready to deploy a preview or production build, and it
-typically uses its own Supabase project rather than the shared development
-project from step 1.
+full app against the Setu Supabase project without Vercel. This section only
+applies when you're ready to deploy a preview or production build. It uses the
+same Supabase project as local development.
 
 ### 1. Connect the repository to Vercel
 
@@ -366,12 +373,13 @@ redirects to the Supabase callback URL, not the app directly.
 ### 3. Deploy the database and API to this project
 
 Vercel only builds and serves `web/`; the database schema and Edge Function
-are deployed separately. Run these against the same project used in step 1
-(pass `--project-ref <project-ref>` if it isn't the CLI's currently linked
-project):
+are deployed separately (automatically from `master`, see step 3 of the
+developer setup). To do it by hand, run these against the same project used in
+step 1 (pass `--project-ref <project-ref>` if it isn't the CLI's currently
+linked project):
 
 ```bash
-npx supabase secrets set SETU_APP_ORIGIN=https://<vercel-domain> --project-ref <project-ref>
+npx supabase secrets set SETU_APP_ORIGIN=https://<vercel-domain> SETU_EXTRA_ORIGINS=http://localhost:47193 --project-ref <project-ref>
 npx supabase functions deploy api --project-ref <project-ref>
 npx supabase db push --project-ref <project-ref>
 ```

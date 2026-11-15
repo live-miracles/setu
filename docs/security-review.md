@@ -10,15 +10,15 @@ Setu is a small internal operations application used across teams for inventory 
 
 ## 1 Application Overview
 
-| Area            | Implementation                                                 |
-| --------------- | -------------------------------------------------------------- |
-| Frontend        | React application hosted on Vercel                             |
-| Authentication  | Google OAuth through Supabase Auth                             |
-| Application API | Authenticated Supabase Edge Functions                          |
-| Database        | Supabase PostgreSQL with Row Level Security                    |
-| File storage    | Supabase Storage with server-authorized uploads                |
-| Deployment      | GitHub Actions to separate development and production projects |
-| Expected scale  | Up to 500 internal users and approximately 5 concurrent users  |
+| Area            | Implementation                                                |
+| --------------- | ------------------------------------------------------------- |
+| Frontend        | React application hosted on Vercel                            |
+| Authentication  | Google OAuth through Supabase Auth                            |
+| Application API | Authenticated Supabase Edge Functions                         |
+| Database        | Supabase PostgreSQL with Row Level Security                   |
+| File storage    | Supabase Storage with server-authorized uploads               |
+| Deployment      | GitHub Actions to the single Supabase project                 |
+| Expected scale  | Up to 500 internal users and approximately 5 concurrent users |
 
 ## 2 Authentication and Authorization
 
@@ -79,7 +79,7 @@ Allowlist changes take effect at the application API boundary. Existing Supabase
 
 - The browser receives only the Supabase publishable key, which does not bypass authentication or Row Level Security.
 - Service-role credentials, database passwords, OAuth secrets, and deployment credentials are stored in provider or CI/CD secret storage.
-- Development and production use separate Supabase projects.
+- Development and production share one Supabase project (the free plan allows two, and this is a small internal app), so local development reads and writes live data. The API's CORS policy accepts `SETU_APP_ORIGIN` plus the optional `SETU_EXTRA_ORIGINS` (for example `http://localhost:47193`); CORS is not an authorization boundary, so every request still needs a valid token and passes the same checks. Migrations are tested against an isolated PostgreSQL (PGlite) in `npm test` before merging, and a weekly encrypted backup is described in `docs/database-backups.md`.
 - Each production change has a recorded Git commit, CI run, migration run, and deployment result.
 - The Progressive Web App caches only same-origin static assets; API responses and operational images remain network-first.
 - Production is served through HTTPS with HSTS enabled.
@@ -98,7 +98,7 @@ The reviewed release passed the following checks before production rollout:
 | Direct browser-role transaction-function denial           | Passed |
 | Inventory capacity, schedule conflict, and rollback tests | Passed |
 | Post-merge GitHub CI                                      | Passed |
-| Development and production Supabase deployment            | Passed |
+| Supabase deployment                                       | Passed |
 | Vercel production deployment and HTTPS availability       | Passed |
 
 ## 7 Rollout Recommendation
