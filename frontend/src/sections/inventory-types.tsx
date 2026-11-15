@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useInvalidate, useList, useUpdate } from '../ui/resources';
 import { Input, Select, Field } from '../ui/form-kit';
 import { Modal, Popover } from '../ui/overlay-kit';
@@ -17,12 +17,8 @@ import {
     groupInventoryTypes,
     inventoryLabelDisplayName,
     inventoryLabelLocationKey,
-    inventoryLabelQrFilename,
     inventoryTypeDisplayName,
-    inventoryQrValue,
-    sortInventoryLabels,
     sortInventoryLabelsByLocation,
-    inventoryTypeQrFilename,
     type InventoryGroupBy,
 } from '../ui/inventory-qr';
 import {
@@ -125,49 +121,6 @@ function storeGroupBy(value: InventoryGroupBy): void {
     }
 }
 
-async function createInventoryTypeQrDataUrl(row: Row, label?: InventoryLabel): Promise<string> {
-    const QRCode = (await import('qrcode')).default;
-    const code = inventoryQrValue(row as InventoryTypeDTO, label);
-    const qrDataUrl = await QRCode.toDataURL(code, { margin: 2, width: 256 });
-    const image = new Image();
-    image.src = qrDataUrl;
-    await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve();
-        image.onerror = () => reject(new Error('Unable to prepare QR code image.'));
-    });
-    const captionHeight = 48;
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256 + captionHeight;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Unable to prepare QR code image.');
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, 256, 256);
-    context.fillStyle = '#000000';
-    context.font = 'bold 40px sans-serif';
-    context.textAlign = 'center';
-    context.textBaseline = 'top';
-    context.fillText(code, canvas.width / 2, 256 + 2, canvas.width - 16);
-    return canvas.toDataURL('image/png');
-}
-
-async function downloadInventoryTypeQr(row: Row, label?: InventoryLabel) {
-    try {
-        const qrDataUrl = await createInventoryTypeQrDataUrl(row, label);
-        const link = document.createElement('a');
-        link.href = qrDataUrl;
-        link.download = label
-            ? inventoryLabelQrFilename(row as InventoryTypeDTO, label)
-            : inventoryTypeQrFilename(row as InventoryTypeDTO);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-    } catch (error) {
-        showErrorAlert(error);
-    }
-}
-
 export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload }) {
     const config = INVENTORY_TYPE_CONFIG;
     const navigate = useNavigate();
@@ -197,8 +150,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const { mutateAsync: updateRow } = useUpdate();
     const invalidate = useInvalidate();
     const selectedInventoryType = rows.find((row) => row.Id === detailId) || null;
-    const [qrCodeUrl, setQrCodeUrl] = useState('');
-    const [selectedQrLabelId, setSelectedQrLabelId] = useState('');
     const [labelEditorOpen, setLabelEditorOpen] = useState(false);
     const [labelEditor, setLabelEditor] = useState<InventoryLabel | null>(null);
     const [labelEditorName, setLabelEditorName] = useState('');
@@ -208,7 +159,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const [qrPdfBusy, setQrPdfBusy] = useState(false);
     const [qrPdfOpen, setQrPdfOpen] = useState(false);
     const [qrPdfLocations, setQrPdfLocations] = useState<string[]>([]);
-    const [qrPdfPrintLocation, setQrPdfPrintLocation] = useState(false);
     const [inventoryGroupBy, setInventoryGroupBy] = useState<InventoryGroupBy>(readStoredGroupBy);
     const changeInventoryGroupBy = (value: InventoryGroupBy) => {
         setInventoryGroupBy(value);
@@ -231,25 +181,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
         'inventory-requests',
         historyLabel ? { labelId: historyLabel.Id } : null,
     );
-    useEffect(() => {
-        if (!selectedInventoryType) {
-            setQrCodeUrl('');
-            setSelectedQrLabelId('');
-            return;
-        }
-        setSelectedQrLabelId('');
-        let active = true;
-        void createInventoryTypeQrDataUrl(selectedInventoryType)
-            .then((dataUrl) => {
-                if (active) setQrCodeUrl(dataUrl);
-            })
-            .catch((error) => {
-                if (active) showErrorAlert(error);
-            });
-        return () => {
-            active = false;
-        };
-    }, [selectedInventoryType?.Id]);
     async function uploadInventoryTypeImage(row: Row, file: File) {
         showSavingBadge(true);
         try {
@@ -294,7 +225,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 rows as InventoryTypeDTO[],
                 (text) => QRCode.create(text, { errorCorrectionLevel: 'Q' }).modules,
                 qrPdfLocations,
-                { printLocation: qrPdfPrintLocation },
             );
             const url = URL.createObjectURL(
                 new Blob([buildQrStickerPdf(entries)], { type: 'application/pdf' }),
@@ -501,31 +431,24 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             }>
                             All locations
                         </Checkbox>
-                        <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-                            <Space direction="vertical">
-                                {labelLocations.map((location) => (
-                                    <Checkbox
-                                        key={location.key}
-                                        checked={qrPdfLocations.includes(location.key)}
-                                        onChange={(event) =>
-                                            setQrPdfLocations(
-                                                event.target.checked
-                                                    ? [...qrPdfLocations, location.key]
-                                                    : qrPdfLocations.filter(
-                                                          (key) => key !== location.key,
-                                                      ),
-                                            )
-                                        }>
-                                        {location.title} ({location.labelCount})
-                                    </Checkbox>
-                                ))}
-                            </Space>
+                        <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+                            {labelLocations.map((location) => (
+                                <Checkbox
+                                    key={location.key}
+                                    checked={qrPdfLocations.includes(location.key)}
+                                    onChange={(event) =>
+                                        setQrPdfLocations(
+                                            event.target.checked
+                                                ? [...qrPdfLocations, location.key]
+                                                : qrPdfLocations.filter(
+                                                      (key) => key !== location.key,
+                                                  ),
+                                        )
+                                    }>
+                                    {location.title} ({location.labelCount})
+                                </Checkbox>
+                            ))}
                         </div>
-                        <Checkbox
-                            checked={qrPdfPrintLocation}
-                            onChange={(event) => setQrPdfPrintLocation(event.target.checked)}>
-                            Print location on stickers
-                        </Checkbox>
                         <Button
                             type="primary"
                             icon={<Icon name="filePdf" />}
@@ -676,62 +599,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             className="inventory-request-image"
                             fallback={<span>No photo</span>}
                         />
-                    </div>
-                </DetailSection>
-                <DetailSection
-                    title="QR code"
-                    action={
-                        <Space>
-                            <Select
-                                value={selectedQrLabelId}
-                                onChange={(value) => {
-                                    setSelectedQrLabelId(value);
-                                    const labels = (selectedInventoryType.labels ||
-                                        []) as InventoryLabel[];
-                                    const label = labels.find((entry) => entry.Id === value);
-                                    void createInventoryTypeQrDataUrl(selectedInventoryType, label)
-                                        .then(setQrCodeUrl)
-                                        .catch(showErrorAlert);
-                                }}
-                                aria-label="QR code to download"
-                                options={[
-                                    { value: 'heading', label: 'QR code for', disabled: true },
-                                    { value: '', label: 'Inventory type' },
-                                    ...sortInventoryLabels(selectedInventoryType.labels).map(
-                                        (label) => ({
-                                            value: label.Id,
-                                            label: inventoryLabelDisplayName(label),
-                                        }),
-                                    ),
-                                ]}
-                            />
-                            <Button
-                                type="primary"
-                                icon={<Icon name="download" />}
-                                onClick={() => {
-                                    const labels = (selectedInventoryType.labels ||
-                                        []) as InventoryLabel[];
-                                    const label = labels.find(
-                                        (entry) => entry.Id === selectedQrLabelId,
-                                    );
-                                    void downloadInventoryTypeQr(selectedInventoryType, label);
-                                }}
-                                aria-label="Download QR code"
-                                title="Download QR code"
-                            />
-                        </Space>
-                    }>
-                    <div className="flex justify-center">
-                        {qrCodeUrl ? (
-                            <img
-                                src={qrCodeUrl}
-                                alt={`QR code for ${String(selectedInventoryType.Name || 'inventory type')}`}
-                                width={256}
-                                height="auto"
-                            />
-                        ) : (
-                            <Typography.Text type="secondary">Preparing QR code…</Typography.Text>
-                        )}
                     </div>
                 </DetailSection>
                 <DetailSection className="table-detail-section">

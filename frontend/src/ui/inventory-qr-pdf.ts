@@ -298,13 +298,12 @@ export function inventoryLabelLocations(types: InventoryTypeDTO[]): LabelLocatio
 // number) inside each. A label belongs to its own Location, else to its type's
 // Location, so each label prints once. When no label has a location there is
 // nothing to head, so no groups are made. When locationKeys is given, only
-// those locations are included. With printLocation, each sticker also prints
-// its location.
+// those locations are included. Each sticker also prints its location (none
+// for items without one).
 export function inventoryLabelStickerEntries(
     types: InventoryTypeDTO[],
     createModules: (text: string) => QrModules,
     locationKeys?: string[],
-    { printLocation = false }: { printLocation?: boolean } = {},
 ): QrStickerEntry[] {
     const wanted = locationKeys && new Set(locationKeys);
     const groups = labelsByLocation(types).filter(([key]) => !wanted || wanted.has(key));
@@ -321,7 +320,7 @@ export function inventoryLabelStickerEntries(
                     modules: createModules(code),
                     code,
                     name: type.Name,
-                    ...(printLocation && key ? { location: key } : {}),
+                    ...(key ? { location: key } : {}),
                     ...(showGroups ? { group: locationTitle(key) } : {}),
                 };
             }),

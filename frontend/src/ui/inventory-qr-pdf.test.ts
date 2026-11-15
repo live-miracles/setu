@@ -108,16 +108,10 @@ export function runInventoryQrPdfAssertions(): void {
     assert(codesFor(['']) === '4-1', 'an empty key should select types without a location');
     assert(codesFor([]) === '', 'an empty selection should include nothing');
     assert(
-        locatedEntries().every((entry) => entry.location === undefined),
-        'stickers should not print a location unless asked to',
-    );
-    const printed = inventoryLabelStickerEntries(located, () => checkerboard, undefined, {
-        printLocation: true,
-    });
-    assert(
-        printed.map((entry) => entry.location ?? '').join(',') ===
-            'Store room,Store room,Studio,Studio,',
-        'stickers should carry their location when asked to, and none when they have no location',
+        locatedEntries()
+            .map((entry) => entry.location ?? '')
+            .join(',') === 'Store room,Store room,Studio,Studio,',
+        'stickers should carry their location, and none when they have no location',
     );
     const withLocation = new TextDecoder().decode(
         buildQrStickerPdf([{ modules: checkerboard, code: '1-1', location: 'Studio 2' }]),

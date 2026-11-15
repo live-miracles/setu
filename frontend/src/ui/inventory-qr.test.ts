@@ -7,9 +7,7 @@ import {
     inventoryItemHasLabel,
     inventoryLabelDisplayName,
     inventoryLabelLocationKey,
-    inventoryLabelQrFilename,
     inventoryQrValue,
-    inventoryTypeQrFilename,
     inventoryTypeQrLabel,
     parseInventoryQrValue,
     sortInventoryLabels,
@@ -126,10 +124,6 @@ export function runInventoryQrAssertions(): void {
         'issue scanning should attach a label without incrementing an existing quantity',
     );
     assert(
-        inventoryTypeQrFilename(types[1]) === 'tripod-stand-inventory-type-uuid-2.png',
-        'QR filename should be readable and include the UUID',
-    );
-    assert(
         inventoryTypeQrLabel('A very long inventory type name that will not fit') ===
             'A very long inventory type name…',
         'QR label should use an ellipsis when the name is too long',
@@ -198,10 +192,6 @@ export function runInventoryQrAssertions(): void {
             .map((label) => label.DisplayId)
             .join(',') === '2,3,1',
         'labels with no location at all come last',
-    );
-    assert(
-        inventoryLabelQrFilename(types[0], unnamed('', 12)) === 'camera-body-12-12.png',
-        'an unnamed label gets a QR filename from its item number',
     );
 
     const groupable = [

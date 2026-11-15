@@ -96,27 +96,6 @@ export function inventoryQrValue(
         : String(inventoryType.DisplayId);
 }
 
-export function inventoryTypeQrFilename(type: InventoryTypeDTO): string {
-    const name = inventoryTypeDisplayName(type)
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-');
-    return `${name.replace(/^-|-$/g, '') || 'inventory-type'}-${type.Id}.png`;
-}
-
-export function inventoryLabelQrFilename(type: InventoryTypeDTO, label: InventoryLabel): string {
-    const typeName = inventoryTypeDisplayName(type)
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-');
-    const labelName = inventoryLabelDisplayName(label)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-');
-    return `${typeName.replace(/^-|-$/g, '') || 'inventory-type'}-${
-        labelName.replace(/^-|-$/g, '') || 'label'
-    }-${label.Id}.png`;
-}
-
 export function inventoryTypeDisplayName(type: { Brand?: unknown; Name?: unknown }): string {
     return [type.Brand, type.Name]
         .map((value) => String(value || '').trim())
