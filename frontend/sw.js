@@ -1,7 +1,7 @@
 /* The PWA shell deliberately caches only same-origin static assets. API and
  * image requests stay network-first so request data and access changes cannot
  * become stale or leak through a shared cache. */
-const CACHE = 'setu-shell-v1';
+const CACHE = 'setu-shell-v2';
 const SHELL = [
     '/',
     '/manifest.webmanifest',

@@ -17,7 +17,7 @@ const TITLE = 'Setu';
  * so a <link rel="icon"> here is what the browser tab actually reads, and
  * inlining keeps the dev server free of a second asset route. 64px is the
  * largest source that stays cheap once base64'd while still covering retina
- * tabs; frontend/assets/logo.png is the master image for regenerating the icon set.
+ * tabs; design/logo/setu-logo.svg is the source of the logo and icon set (frontend/assets/logo.png and frontend/icons/*).
  *
  * Production sets its own favicon via the `favicon` slot passed to
  * renderShell instead (see vercel.mjs) — this tag is dev-only.

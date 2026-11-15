@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="design/logo/setu-logo.svg" alt="Setu logo" width="96" height="96" />
+</p>
+
 # Setu
 
 Setu is an internal operations app built on Supabase and Vercel. The frontend
