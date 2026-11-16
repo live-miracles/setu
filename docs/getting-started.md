@@ -4,6 +4,25 @@ How to set up a developer environment for Setu and run the app locally. To put t
 app in front of users, continue with [Deployment](deployment.md). If something
 fails, see [Troubleshooting](troubleshooting.md).
 
+## Try it without Supabase
+
+To look around the app first, run the demo. It serves the real frontend, signed in as
+a fictional administrator, with invented people, programs, inventory and rosters
+instead of a Supabase project. It needs no credentials and touches no real data.
+Approving, rejecting and commenting on requests work and are kept in memory until
+you stop the server; every other change fails.
+
+```bash
+npm install
+npm run demo   # http://localhost:47195
+```
+
+The data lives in `build-tools/demo-data.mjs`, with dates relative to today. The
+README screenshots come from the same demo: `npm run screenshots` regenerates the
+stills in `docs/images/`, and `npm run demo:gif` re-records the walkthrough GIF. Both
+need Chrome (set `CHROME_PATH` if it isn't in a standard location); the GIF also
+needs ffmpeg.
+
 ## Requirements
 
 - Node.js 22 or newer
@@ -151,6 +170,9 @@ The database roles are `admin`, `approver`, `viewer`, and `user`:
 
 ```bash
 npm run dev             # Start the local frontend
+npm run demo            # Run the app on fictional data, no Supabase needed
+npm run screenshots     # Regenerate the README stills from the demo (needs Chrome)
+npm run demo:gif        # Re-record the README walkthrough GIF (needs Chrome, ffmpeg)
 npm test                # Run the tests (migrations run against an in-memory Postgres)
 npm run typecheck       # Type-check backend and frontend
 npm run format:check    # Check formatting

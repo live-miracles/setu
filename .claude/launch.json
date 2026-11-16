@@ -7,6 +7,13 @@
             "runtimeArgs": ["run", "dev"],
             "port": 47193,
             "autoPort": false
+        },
+        {
+            "name": "setu-demo",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "demo"],
+            "port": 47195,
+            "autoPort": false
         }
     ]
 }

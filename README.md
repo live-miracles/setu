@@ -1,38 +1,34 @@
+<img src="design/logo/setu-logo.svg" alt="Setu logo" width="96" align="right" />
+
+# Setu
+
+_Setu (सेतु, "bridge"): the people who request, approve and run a studio, in one app._
+
+[![CI](https://github.com/live-miracles/setu/actions/workflows/ci.yml/badge.svg)](https://github.com/live-miracles/setu/actions/workflows/ci.yml)
+[![Installable PWA](https://img.shields.io/badge/PWA-installable-5a0fc8?logo=pwa&logoColor=white)](https://developer.mozilla.org/docs/Web/Progressive_web_apps)
+[![Runs on free tiers](https://img.shields.io/badge/Supabase%20%2B%20Vercel-free%20tiers-3fcf8e?logo=supabase&logoColor=white)](docs/deployment.md#free-tier-deployment)
+[![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933?logo=nodedotjs&logoColor=white)](docs/getting-started.md)
+
+**Program scheduling, equipment inventory, approvals and staff rosters for a studio team, in one installable web app that runs on free tiers.** Teams request equipment and sessions, approvers decide on them, and the crew sees who is on shift. It is a small internal app, built for up to 500 users and 100,000 records, that works in Chrome on desktop and mobile and installs to the home screen as a PWA.
+
+It is also a compact, working reference for a **React + Supabase + Vercel** app with Google sign-in, role-based access, Postgres Row Level Security, Edge Functions, and an in-repo UI kit instead of a component library.
+
+## Screenshots
+
 <p align="center">
-  <img src="design/logo/setu-logo.svg" alt="Setu logo" width="96" height="96" />
+  <img src="docs/images/demo.gif" alt="Walkthrough: open a submitted program request, approve it, see it appear on the calendar, then browse the roster and an inventory request" width="760" />
 </p>
 
-<h1 align="center">Setu</h1>
-
 <p align="center">
-  <strong>Studio program scheduling, equipment inventory, approvals and staff rosters<br />in one installable web app that runs entirely on free tiers.</strong>
+  <img src="docs/images/program-detail.png" alt="A program request with details, sessions, approval actions and activity comments" width="760" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/live-miracles/setu/actions/workflows/ci.yml"><img src="https://github.com/live-miracles/setu/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
-  <a href="https://github.com/live-miracles/setu/commits/master"><img src="https://img.shields.io/github/last-commit/live-miracles/setu?logo=github" alt="Last commit" /></a>
-  <a href="https://github.com/live-miracles/setu/stargazers"><img src="https://img.shields.io/github/stars/live-miracles/setu?style=flat&logo=github" alt="GitHub stars" /></a>
-  <img src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white" alt="Node.js 22 or newer" />
-  <br />
-  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS 4" />
-  <img src="https://img.shields.io/badge/Supabase-Postgres%20%2B%20Edge%20Functions-3FCF8E?logo=supabase&logoColor=white" alt="Supabase" />
-  <img src="https://img.shields.io/badge/Vercel-static%20frontend-000000?logo=vercel&logoColor=white" alt="Vercel" />
-  <br />
-  <img src="https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white" alt="Installable PWA" />
-  <img src="https://img.shields.io/badge/hosting-free%20tiers-brightgreen" alt="Runs on free tiers" />
-  <img src="https://img.shields.io/badge/code%20style-prettier-ff69b4?logo=prettier&logoColor=white" alt="Prettier" />
+  <img src="docs/images/roster.png" alt="The roster: shifts per person per day in soft colours" width="760" />
 </p>
 
-Setu (Sanskrit for “bridge”) connects the people who run a studio: the teams that
-request equipment and sessions, the approvers who decide on them, and the crew who
-turn up. It is a small internal app, built for up to 500 users and 100,000 records,
-that works in Chrome on desktop and mobile and installs to the home screen as a PWA.
-
-It is also a compact, working reference for a **React + Supabase + Vercel** app with
-Google sign-in, role-based access, Postgres Row Level Security, Edge Functions, and
-an in-repo UI kit instead of a component library.
+The GIF and screenshots use made-up data from the built-in demo, not a real organisation.
+Run it yourself with `npm run demo`; see [Try it without Supabase](docs/getting-started.md#try-it-without-supabase).
 
 ## Features
 

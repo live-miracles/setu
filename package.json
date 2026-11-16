@@ -6,6 +6,9 @@
     "type": "module",
     "scripts": {
         "dev": "node --env-file-if-exists=.env.local build-tools/dev.mjs",
+        "demo": "node build-tools/demo.mjs",
+        "screenshots": "node build-tools/screenshots.mjs",
+        "demo:gif": "node build-tools/demo-gif.mjs",
         "test": "node --test build-tools/*.test.mjs",
         "build:vercel": "node build-tools/vercel.mjs",
         "typecheck": "tsc --noEmit -p frontend/tsconfig.json",
