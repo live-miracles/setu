@@ -1,8 +1,9 @@
 import { useOne } from '../ui/resources';
 import { Select, Field } from '../ui/form-kit';
-import { Button, Space, Tag, Typography } from '../ui/kit';
+import { Space, Tag, Typography } from '../ui/kit';
 import { Controller, useForm } from 'react-hook-form';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { DetailBackButton, DetailHeading } from '../ui/master-detail';
 import { api } from '../api';
 import { inventoryPath, programsPath } from '../paths';
 import { roleLabel } from '../ui/styles';
@@ -141,8 +142,13 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
 // Edit-only: users self-register on first sign-in (see the
 // on_auth_user_created trigger) rather than being pre-provisioned by an
 // admin, so there is no "Add user" flow.
-export function RequestDetail({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
-    const { id = '' } = useParams<{ id: string }>();
+// Rendered inside the request board's MasterDetail, so it returns the record's
+// heading and sections only, not a page.
+export function RequestDetail({
+    kind,
+    id,
+    dashboard,
+}: Props & { kind: 'inventory' | 'programs'; id: string }) {
     const navigate = useNavigate();
     const resource = kind === 'inventory' ? 'inventory-requests' : 'program-requests';
     // Fetches this one record through the resource's own getOne operation
@@ -155,21 +161,21 @@ export function RequestDetail({ kind, dashboard }: Props & { kind: 'inventory' |
         // A missing/deleted record is a normal "not found" navigation state,
         // shown inline below rather than as an error toast.
     });
-    const back = () => navigate(kind === 'inventory' ? inventoryPath : programsPath);
+    const back = () =>
+        navigate(kind === 'inventory' ? inventoryPath : programsPath, { replace: true });
+    const listLabel = kind === 'inventory' ? 'Inventory requests' : 'Programs';
     if (query.isLoading) {
-        return (
-            <Page title="Loading request…">
-                <Typography.Text>Loading request…</Typography.Text>
-            </Page>
-        );
+        return <Typography.Text type="secondary">Loading request…</Typography.Text>;
     }
     if (!row) {
         return (
-            <Page title="Not found">
-                <Card title="Record not found">
-                    <Button onClick={back}>Back</Button>
-                </Card>
-            </Page>
+            <>
+                <DetailHeading
+                    title="Not found"
+                    actions={<DetailBackButton label={listLabel} onClick={back} />}
+                />
+                <Typography.Text type="secondary">Record not found.</Typography.Text>
+            </>
         );
     }
     if (kind === 'inventory')

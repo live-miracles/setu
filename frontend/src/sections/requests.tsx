@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useCreate, useList } from '../ui/resources';
 import { Field, Input, MultiSelect, Select } from '../ui/form-kit';
 import { Pagination, CountBadge, Button, Empty as AntEmpty, Space, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
 import { inventoryRequestPath, programRequestPath } from '../paths';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../config';
 import { createRecordDestination } from '../ui/create-record';
 import { RequestBlock } from '../ui/request-block';
+import { MasterDetail } from '../ui/master-detail';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
 import { addDays, formatDateTimeLocal, toIsoDate } from '../ui/date';
 import { canApprove, canWrite } from '../workflows';
@@ -92,10 +93,19 @@ export function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession 
     };
 }
 
-export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
+export function RequestBoard({
+    kind,
+    dashboard,
+    renderDetail,
+}: Props & {
+    kind: 'inventory' | 'programs';
+    // The open request (from the URL) shows beside the list on wide screens.
+    renderDetail: (id: string) => ReactNode;
+}) {
     const isInventory = kind === 'inventory';
     const isProgram = kind === 'programs';
     const navigate = useNavigate();
+    const { id: detailId = null } = useParams<{ id: string }>();
     const [searchParams, setSearchParams] = useSearchParams();
     const [search, setSearch] = useState(searchParams.get(WORKBENCH_SEARCH_QUERY_PARAM) || '');
     const [appliedSearch, setAppliedSearch] = useState(
@@ -250,59 +260,71 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
             </Page>
         );
     }
-    return (
-        <Page
-            className="antd-page-board"
-            title={title}
-            headingContent={boardFilters}
-            action={
-                canWrite(dashboard.me) && (
-                    <Button
-                        type="primary"
-                        icon={<Icon name="plus" />}
-                        onClick={() => setCreating(true)}
-                        aria-label={`Add ${title.toLowerCase()}`}
-                        title={`Add ${title.toLowerCase()}`}
-                    />
-                )
-            }>
-            <div className="antd-request-list">
-                {loading && <Typography.Text type="secondary">Loading requests…</Typography.Text>}
-                {/* Rows stay put while a refresh is in flight: the dashboard is
-                    refreshed after every mutation, and blanking the board on each
-                    one flashed an empty list between the two renders. */}
-                {rows.map((row) =>
-                    isProgram ? (
-                        <RequestBlock
-                            key={row.Id}
-                            kind="program"
-                            row={row as ProgramRequestDTO}
-                            dashboard={dashboard}
-                            href={hrefFor(row.Id)}
-                            onClick={() => open(row.Id)}
-                        />
-                    ) : (
-                        <RequestBlock
-                            key={row.Id}
-                            kind="inventory"
-                            row={row as InventoryRequestDTO}
-                            dashboard={dashboard}
-                            href={hrefFor(row.Id)}
-                            onClick={() => open(row.Id)}
-                        />
-                    ),
-                )}
-                {!loading && !rows.length && <AntEmpty description="No requests" />}
-                {(result.total ?? 0) > pageSize && (
-                    <Pagination
-                        current={page}
-                        pageSize={pageSize}
-                        total={result.total ?? 0}
-                        showSizeChanger={false}
-                        onChange={setPage}
-                    />
-                )}
+    const heading = (
+        <div className="antd-page-heading resource-page-heading">
+            <div>
+                <Typography.Title level={2}>{title}</Typography.Title>
             </div>
+            {boardFilters}
+            {canWrite(dashboard.me) && (
+                <Button
+                    type="primary"
+                    icon={<Icon name="plus" />}
+                    onClick={() => setCreating(true)}
+                    aria-label={`Add ${title.toLowerCase()}`}
+                    title={`Add ${title.toLowerCase()}`}
+                />
+            )}
+        </div>
+    );
+    const list = (
+        <div className="antd-request-list">
+            {loading && <Typography.Text type="secondary">Loading requests…</Typography.Text>}
+            {/* Rows stay put while a refresh is in flight: the dashboard is
+                refreshed after every mutation, and blanking the board on each
+                one flashed an empty list between the two renders. */}
+            {rows.map((row) =>
+                isProgram ? (
+                    <RequestBlock
+                        key={row.Id}
+                        kind="program"
+                        row={row as ProgramRequestDTO}
+                        dashboard={dashboard}
+                        href={hrefFor(row.Id)}
+                        selected={row.Id === detailId}
+                        onClick={() => open(row.Id)}
+                    />
+                ) : (
+                    <RequestBlock
+                        key={row.Id}
+                        kind="inventory"
+                        row={row as InventoryRequestDTO}
+                        dashboard={dashboard}
+                        href={hrefFor(row.Id)}
+                        selected={row.Id === detailId}
+                        onClick={() => open(row.Id)}
+                    />
+                ),
+            )}
+            {!loading && !rows.length && <AntEmpty description="No requests" />}
+            {(result.total ?? 0) > pageSize && (
+                <Pagination
+                    current={page}
+                    pageSize={pageSize}
+                    total={result.total ?? 0}
+                    showSizeChanger={false}
+                    onChange={setPage}
+                />
+            )}
+        </div>
+    );
+    return (
+        <MasterDetail
+            heading={heading}
+            list={list}
+            detail={detailId ? renderDetail(detailId) : null}
+            detailKey={detailId ?? ''}
+            narrowListClassName="antd-page-board">
             {creating && (
                 <Modal
                     title={`New ${isInventory ? 'inventory request' : 'program request'}`}
@@ -319,12 +341,17 @@ export function RequestBoard({ kind, dashboard }: Props & { kind: 'inventory' | 
                     />
                 </Modal>
             )}
-        </Page>
+        </MasterDetail>
     );
 }
 
-export function RequestTable({ kind, dashboard }: Props & { kind: 'inventory' | 'programs' }) {
-    return <RequestBoard kind={kind} dashboard={dashboard} />;
+export function RequestTable(
+    props: Props & {
+        kind: 'inventory' | 'programs';
+        renderDetail: (id: string) => ReactNode;
+    },
+) {
+    return <RequestBoard {...props} />;
 }
 
 export function CreateRecord({

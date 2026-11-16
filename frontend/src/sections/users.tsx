@@ -6,7 +6,13 @@ import { Controller, useForm } from 'react-hook-form';
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
-import { inventoryRequestPath, programRequestPath, userPath, usersPath } from '../paths';
+import {
+    departmentPath,
+    inventoryRequestPath,
+    programRequestPath,
+    userPath,
+    usersPath,
+} from '../paths';
 import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
@@ -14,7 +20,7 @@ import { useRelatedRequests } from '../ui/related-requests';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { DetailBackButton, DetailHeading, MasterDetail } from '../ui/master-detail';
 import { UserBlock } from '../ui/user-block';
-import { DetailFields } from './detail-shared';
+import { DetailFields, DetailLink } from './detail-shared';
 import { canManageConfig } from '../workflows';
 import {
     ActionConfirmation,
@@ -257,7 +263,16 @@ export function Users({ dashboard }: Props) {
                     <DetailFields
                         fields={[
                             ['Email', selectedUser.Email],
-                            ['Department', selectedUser.departmentName || 'No department'],
+                            [
+                                'Department',
+                                selectedUser.DepartmentId ? (
+                                    <DetailLink to={departmentPath(selectedUser.DepartmentId)}>
+                                        {selectedUser.departmentName}
+                                    </DetailLink>
+                                ) : (
+                                    'No department'
+                                ),
+                            ],
                             ['Role', roleLabel(selectedUser.Role)],
                             ['Phone', selectedUser.Phone || '—'],
                             ['WhatsApp', selectedUser.Whatsapp || '—'],

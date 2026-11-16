@@ -11,6 +11,7 @@ export function MasterDetail({
     list,
     detail,
     detailKey,
+    narrowListClassName,
     children,
 }: {
     // The list's title and filters; hidden on narrow screens while a record is open.
@@ -20,6 +21,8 @@ export function MasterDetail({
     detail: ReactNode | null;
     // Changes with the selected record so the pane starts at the top again.
     detailKey?: string;
+    // Extra class for the narrow list page (e.g. a board that scrolls its own list).
+    narrowListClassName?: string;
     // Overlays (modals, confirmations) that belong to the page, in either layout.
     children?: ReactNode;
 }) {
@@ -27,7 +30,8 @@ export function MasterDetail({
     const hasDetail = detail != null && detail !== false;
     if (!wide) {
         return (
-            <section className={`antd-page${hasDetail ? ' detail-page' : ''}`}>
+            <section
+                className={`antd-page${hasDetail ? ' detail-page' : narrowListClassName ? ` ${narrowListClassName}` : ''}`}>
                 {hasDetail ? (
                     detail
                 ) : (

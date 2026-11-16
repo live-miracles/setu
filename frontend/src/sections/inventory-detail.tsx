@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { generateRequestId } from '../ids';
 import { api } from '../api';
 import { useDashboard } from '../dashboard-context';
-import { inventoryPath, inventoryTypePath } from '../paths';
+import { departmentPath, inventoryPath, inventoryTypePath, userPath } from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { inventoryShortageMessage } from '../ui/inventory-stock';
 import {
@@ -27,6 +27,7 @@ import { ImageCamera } from '../ui/image-camera';
 import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
+import { DetailBackButton } from '../ui/master-detail';
 import { requestStatusTagColor } from '../ui/request-status';
 import {
     inventoryFormValues,
@@ -35,7 +36,7 @@ import {
 } from '../ui/request-fields';
 import { canApprove, getRequestPermissions, isRequestOverdue } from '../workflows';
 import { Activity, ParticipantsEditor } from './detail-activity';
-import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
+import { DetailFields, DetailLayout, DetailLink, WorkflowActions } from './detail-shared';
 import { ActionConfirmation, Empty, Modal, SaveFooter, TextField, useSave } from './refine-shared';
 import { requesterOptionLabel } from './requests';
 
@@ -332,12 +333,9 @@ export function InventoryDetail({
             title={request.Name || 'Unnamed request'}
             action={
                 <Space wrap>
-                    <Button
-                        type="default"
-                        icon={<Icon name="arrowLeft" />}
-                        onClick={() => navigate(inventoryPath)}
-                        aria-label="Back to inventory requests"
-                        title="Back to inventory requests"
+                    <DetailBackButton
+                        label="Inventory requests"
+                        onClick={() => navigate(inventoryPath, { replace: true })}
                     />
                     <WorkflowActions
                         actions={actions}
@@ -393,9 +391,29 @@ export function InventoryDetail({
                         ['Request name', request.Name],
                         ['Start date', request.StartDate],
                         ['End date', request.EndDate],
-                        ['Department', request.departmentName || 'None'],
+                        [
+                            'Department',
+                            request.DepartmentId ? (
+                                <DetailLink
+                                    to={departmentPath(request.DepartmentId)}
+                                    enabled={approver}>
+                                    {request.departmentName}
+                                </DetailLink>
+                            ) : (
+                                'None'
+                            ),
+                        ],
                         ['Lead email', request.LeadEmail],
-                        ['Requested by', request.userName || 'Unknown'],
+                        [
+                            'Requested by',
+                            request.UserId ? (
+                                <DetailLink to={userPath(request.UserId)} enabled={approver}>
+                                    {request.userName || 'Unknown'}
+                                </DetailLink>
+                            ) : (
+                                'Unknown'
+                            ),
+                        ],
                         [
                             'Participants',
                             <ParticipantsEditor

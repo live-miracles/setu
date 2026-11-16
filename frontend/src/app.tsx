@@ -76,6 +76,22 @@ export function App() {
     }
 
     const me = dashboard.me;
+    // The list and an open request share one element, so opening a request
+    // keeps the list's filters, search and page.
+    const inventoryBoard = (
+        <RequestTable
+            kind="inventory"
+            dashboard={dashboard}
+            renderDetail={(id) => <RequestDetail kind="inventory" id={id} dashboard={dashboard} />}
+        />
+    );
+    const programBoard = (
+        <RequestTable
+            kind="programs"
+            dashboard={dashboard}
+            renderDetail={(id) => <RequestDetail kind="programs" id={id} dashboard={dashboard} />}
+        />
+    );
     return (
         <DashboardProvider dashboard={dashboard} refreshDashboard={refreshDashboard}>
             <Routes>
@@ -100,10 +116,7 @@ export function App() {
                         }
                     />
                     <Route path={calendarPath} element={<Calendar dashboard={dashboard} />} />
-                    <Route
-                        path={inventoryPath}
-                        element={<RequestTable kind="inventory" dashboard={dashboard} />}
-                    />
+                    <Route path={inventoryPath} element={inventoryBoard} />
                     <Route
                         path={inventoryCreatePath}
                         element={
@@ -114,14 +127,8 @@ export function App() {
                             />
                         }
                     />
-                    <Route
-                        path={`${inventoryPath}/:id`}
-                        element={<RequestDetail kind="inventory" dashboard={dashboard} />}
-                    />
-                    <Route
-                        path={programsPath}
-                        element={<RequestTable kind="programs" dashboard={dashboard} />}
-                    />
+                    <Route path={`${inventoryPath}/:id`} element={inventoryBoard} />
+                    <Route path={programsPath} element={programBoard} />
                     <Route
                         path={programCreatePath}
                         element={
@@ -132,10 +139,7 @@ export function App() {
                             />
                         }
                     />
-                    <Route
-                        path={`${programsPath}/:id`}
-                        element={<RequestDetail kind="programs" dashboard={dashboard} />}
-                    />
+                    <Route path={`${programsPath}/:id`} element={programBoard} />
                     <Route
                         path={departmentsPath}
                         element={

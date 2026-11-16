@@ -9,6 +9,8 @@ type RequestBlockProps = {
     row: ProgramRequestDTO | InventoryRequestDTO;
     dashboard: DashboardPayload;
     href?: string;
+    // The request currently open beside the list.
+    selected?: boolean;
     onClick?: () => void;
 };
 
@@ -16,24 +18,24 @@ function statusLabel(status: string): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-function departmentShortName(
+// The department's short name, or its full name when it has no short name.
+export function departmentLabel(
     row: ProgramRequestDTO | InventoryRequestDTO,
     dashboard: DashboardPayload,
 ): string {
-    return (
-        dashboard.departments.find(
-            (department) =>
-                department.Id ===
-                dashboard.users.find((user) => user.Email === row.UserId)?.DepartmentId,
-        )?.ShortName || '—'
+    const department = dashboard.departments.find(
+        (candidate) =>
+            candidate.Id ===
+            dashboard.users.find((user) => user.Email === row.UserId)?.DepartmentId,
     );
+    return department?.ShortName || department?.Name || '—';
 }
 
-export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlockProps) {
+export function RequestBlock({ kind, row, dashboard, href, selected, onClick }: RequestBlockProps) {
     const program = kind === 'program';
     const overdue = !program && isRequestOverdue(row as InventoryRequestDTO);
     return (
-        <BlockCard className="request-block" href={href} onClick={onClick}>
+        <BlockCard className="request-block" href={href} selected={selected} onClick={onClick}>
             <Space direction="vertical" size={2} className="request-block-content">
                 <div className="request-block-heading">
                     <Space size="small" wrap>
@@ -69,7 +71,7 @@ export function RequestBlock({ kind, row, dashboard, href, onClick }: RequestBlo
                 <Typography.Text type="secondary">
                     {[
                         row.userName || 'Unknown requester',
-                        departmentShortName(row, dashboard),
+                        departmentLabel(row, dashboard),
                         ...(program && (row as ProgramRequestDTO).placeName
                             ? [(row as ProgramRequestDTO).placeName]
                             : []),

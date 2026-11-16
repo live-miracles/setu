@@ -5,7 +5,7 @@ import { Button, Space, Tag, Typography, Table } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
-import { programRequestPath, programsPath } from '../paths';
+import { departmentPath, programRequestPath, programsPath, userPath } from '../paths';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { instantToLocalInput, localInputToInstant } from '../ui/date';
@@ -18,6 +18,7 @@ import {
 } from '../ui/program-actions';
 import { canApprove, getRequestPermissions } from '../workflows';
 import { DetailSection } from '../ui/detail-layout';
+import { DetailBackButton } from '../ui/master-detail';
 import { TableView } from '../ui/table-view';
 import { AppLoading } from '../ui/app-loading';
 import { requestStatusTagColor } from '../ui/request-status';
@@ -27,7 +28,7 @@ import {
     toProgramSessionInputs,
 } from '../ui/request-fields';
 import { Activity, ParticipantsEditor } from './detail-activity';
-import { DetailFields, DetailLayout, WorkflowActions } from './detail-shared';
+import { DetailFields, DetailLayout, DetailLink, WorkflowActions } from './detail-shared';
 import {
     defaultSessionDraft,
     OTHER_PROGRAM_TYPE,
@@ -356,12 +357,9 @@ export function ProgramDetail({
             title={programTitle}
             action={
                 <Space wrap>
-                    <Button
-                        type="default"
-                        icon={<Icon name="arrowLeft" />}
-                        onClick={() => navigate(programsPath)}
-                        aria-label="Back to programs"
-                        title="Back to programs"
+                    <DetailBackButton
+                        label="Programs"
+                        onClick={() => navigate(programsPath, { replace: true })}
                     />
                     {request.Status !== 'draft' && (
                         <Button
@@ -427,9 +425,31 @@ export function ProgramDetail({
                         ['Language', request.Language],
                         ['Type', request.Type],
                         ['Place', request.placeName || 'None'],
-                        ['Department', request.departmentName || 'None'],
+                        [
+                            'Department',
+                            request.DepartmentId ? (
+                                <DetailLink
+                                    to={departmentPath(request.DepartmentId)}
+                                    enabled={canApprove(dashboard.me)}>
+                                    {request.departmentName}
+                                </DetailLink>
+                            ) : (
+                                'None'
+                            ),
+                        ],
                         ['Lead email', request.LeadEmail],
-                        ['Requested by', request.userName],
+                        [
+                            'Requested by',
+                            request.UserId ? (
+                                <DetailLink
+                                    to={userPath(request.UserId)}
+                                    enabled={canApprove(dashboard.me)}>
+                                    {request.userName}
+                                </DetailLink>
+                            ) : (
+                                request.userName
+                            ),
+                        ],
                         [
                             'Participants',
                             <ParticipantsEditor

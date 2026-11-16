@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Space } from '../ui/kit';
 import { DetailSections } from '../ui/detail-layout';
+import { DetailHeading } from '../ui/master-detail';
 import { requestActionTone } from '../ui/request-status';
-import { Page } from './refine-shared';
 
 export function DetailFields({ fields }: { fields: Array<[label: string, value: ReactNode]> }) {
     return (
@@ -17,6 +18,27 @@ export function DetailFields({ fields }: { fields: Array<[label: string, value: 
     );
 }
 
+// A foreign-key value (a request's department or requester) that opens that
+// record. Plain text when the viewer cannot open the target page.
+export function DetailLink({
+    to,
+    enabled = true,
+    children,
+}: {
+    to: string;
+    enabled?: boolean;
+    children: ReactNode;
+}) {
+    if (!enabled) return <>{children}</>;
+    return (
+        <Link to={to} className="detail-link">
+            {children}
+        </Link>
+    );
+}
+
+// A record's heading and sections. The page around it comes from the list's
+// MasterDetail: a pane beside the list on wide screens, the full page on narrow.
 export function DetailLayout({
     title,
     action,
@@ -27,9 +49,10 @@ export function DetailLayout({
     children: ReactNode;
 }) {
     return (
-        <Page title={title} action={action} className="detail-page">
+        <>
+            <DetailHeading title={title} actions={action} />
             <DetailSections>{children}</DetailSections>
-        </Page>
+        </>
     );
 }
 
