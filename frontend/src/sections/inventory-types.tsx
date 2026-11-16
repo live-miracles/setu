@@ -16,7 +16,6 @@ import {
     compareGroupKeys,
     groupInventoryTypes,
     inventoryLabelDisplayName,
-    inventoryLabelLocationKey,
     inventoryTypeDisplayName,
     sortInventoryLabelsByLocation,
     type InventoryGroupBy,
@@ -386,7 +385,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                         { value: '', label: 'Group by', disabled: true },
                         { value: 'brand', label: 'Brand' },
                         { value: 'location', label: 'Location' },
-                        { value: 'serial', label: 'Serial (QR number)' },
+                        { value: 'serial', label: 'Setu number' },
                     ]}
                 />
                 <Input
@@ -519,7 +518,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 <DetailSection title="Details">
                     <SettingsDetailFields
                         fields={[
-                            ['Serial number', String(selectedInventoryType.DisplayId ?? '—')],
+                            ['Setu number', String(selectedInventoryType.DisplayId ?? '—')],
                             ['Name', String(selectedInventoryType.Name || 'Unnamed equipment')],
                             ['Brand', String(selectedInventoryType.Brand || '—')],
                             ['Model', String(selectedInventoryType.Model || '—')],
@@ -625,7 +624,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                 )}
                                 columns={[
                                     {
-                                        title: 'Serial number',
+                                        title: 'Setu number',
                                         dataIndex: 'DisplayId',
                                         key: 'DisplayId',
                                         render: (_: unknown, label: InventoryLabel) =>
@@ -641,11 +640,10 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                     {
                                         title: 'Location',
                                         key: 'Location',
+                                        // Only the label's own location; "same as the
+                                        // type's location" shows a dash.
                                         render: (_: unknown, label: InventoryLabel) =>
-                                            inventoryLabelLocationKey(
-                                                selectedInventoryType as InventoryTypeDTO,
-                                                label,
-                                            ) || '—',
+                                            label.Location || '—',
                                     },
                                     {
                                         title: 'Actions',
