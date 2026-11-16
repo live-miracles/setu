@@ -50,10 +50,17 @@ const BUTTON_TYPES: Record<ButtonType, { normal: string; danger: string }> = {
     },
 };
 
-// Desktop controls are 36px; touch controls are 44px (see the Notion tokens).
+// Icon-only primary buttons (search, add, delete) are tinted instead of solid so
+// a row of them stays light; buttons with a text label keep the solid fill.
+const SOFT_PRIMARY = {
+    normal: 'border-accent/30 bg-accent/10 text-accent hover:border-accent hover:bg-accent/20',
+    danger: 'border-error/30 bg-error/10 text-error hover:border-error hover:bg-error/20',
+};
+
+// Desktop controls are 32px; touch controls are 44px (see the Notion tokens).
 // `small` stays compact on every viewport.
 const BUTTON_SIZES = {
-    middle: 'h-9 px-4 text-sm max-md:h-11 max-md:text-base',
+    middle: 'h-8 px-3.5 text-sm max-md:h-11 max-md:px-4 max-md:text-base',
     // Small stays compact but never below a comfortable touch target on mobile.
     small: 'h-7 px-2.5 text-[13px] max-md:min-h-10 max-md:min-w-10',
 } as const;
@@ -90,7 +97,9 @@ export function Button({
     const classes = cx(
         BUTTON_BASE,
         BUTTON_SIZES[size],
-        BUTTON_TYPES[type][danger ? 'danger' : 'normal'],
+        type === 'primary' && iconOnly
+            ? SOFT_PRIMARY[danger ? 'danger' : 'normal']
+            : BUTTON_TYPES[type][danger ? 'danger' : 'normal'],
         iconOnly && 'aspect-square px-0',
         block && 'w-full',
         className,

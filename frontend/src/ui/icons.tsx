@@ -126,7 +126,7 @@ export function Icon({
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth={1.6}
+            strokeWidth={2.25}
             strokeLinecap="round"
             strokeLinejoin="round"
             className={`inline-block size-[1em] shrink-0 align-[-0.125em]${spin ? ' animate-spin' : ''}${className ? ` ${className}` : ''}`}

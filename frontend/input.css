@@ -29,25 +29,25 @@
     --setu-surface: #ffffff;
     --setu-ink: #1a1a1a;
     --setu-line: #e5e3df;
-    --setu-accent: #5645d4;
-    --setu-accent-hover: #4534b3;
+    --setu-accent: #d9480f;
+    --setu-accent-hover: #b83c0a;
     --setu-charcoal: #37352f;
     --setu-steel: #787671;
     --setu-line-strong: #c8c4be;
     --setu-link: #0075de;
-    --setu-error: #e03131;
-    --setu-error-hover: #c92a2a;
-    --setu-error-active: #a61e1e;
-    --setu-error-bg: #fdecec;
-    --setu-error-bg-hover: #fbdede;
-    --setu-error-border: #f2b3b3;
-    --setu-error-border-hover: #e88a8a;
-    --setu-error-text: #c92a2a;
-    --setu-error-text-hover: #a61e1e;
+    --setu-error: #9b1c31;
+    --setu-error-hover: #7f1527;
+    --setu-error-active: #66101f;
+    --setu-error-bg: #fbeef0;
+    --setu-error-bg-hover: #f6dde1;
+    --setu-error-border: #e3aab3;
+    --setu-error-border-hover: #d08794;
+    --setu-error-text: #9b1c31;
+    --setu-error-text-hover: #7f1527;
     --setu-positive: #a8e0b7;
     --setu-blocked: #e98b8b;
-    /* Faint purple dot grid shared by the page and loading backgrounds. */
-    --setu-dots: radial-gradient(circle, rgb(86 69 212 / 16%) 1px, transparent 1.5px);
+    /* Faint saffron dot grid shared by the page and loading backgrounds. */
+    --setu-dots: radial-gradient(circle, rgb(217 72 15 / 15%) 1px, transparent 1.5px);
 }
 
 html,
@@ -694,7 +694,7 @@ form {
     overflow: hidden;
     isolation: isolate;
     color: var(--setu-ink);
-    /* A faint dot grid over soft Notion card tints (lavender, sky, peach). */
+    /* A faint dot grid over soft Notion card tints (saffron, sand, peach). */
     background-color: var(--setu-paper);
     background-size:
         22px 22px,
@@ -702,8 +702,8 @@ form {
         auto,
         auto;
     background-image:
-        var(--setu-dots), radial-gradient(ellipse at 15% 20%, #e6e0f5 0%, transparent 55%),
-        radial-gradient(ellipse at 85% 30%, #dcecfa 0%, transparent 50%),
+        var(--setu-dots), radial-gradient(ellipse at 15% 20%, #ffe2cf 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 30%, #fdf1d6 0%, transparent 50%),
         radial-gradient(ellipse at 50% 100%, #ffe8d4 0%, transparent 60%);
 }
 
@@ -1025,9 +1025,10 @@ form {
 }
 
 .master-detail.has-detail {
-    /* The detail pane is a single column, so it stays narrow and the list
-       gets the rest of the width. */
-    grid-template-columns: minmax(0, 1fr) minmax(28rem, 36rem);
+    /* The detail pane is a single column: wide enough for its tables (labels
+       and their actions) to fit without scrolling, capped so it does not keep
+       growing. The list gets the rest of the width. */
+    grid-template-columns: minmax(0, 1fr) minmax(36rem, 44rem);
 }
 
 .master-detail-list {

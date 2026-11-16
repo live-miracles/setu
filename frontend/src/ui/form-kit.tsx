@@ -17,7 +17,7 @@ import { Icon } from './icons';
 
 // Form controls in the app's kit: Field (label + error), Input, TextArea,
 // Select (native, or a searchable combobox) and MultiSelect. Controls follow
-// the Notion tokens: 8px radius, hairline-strong border, purple focus ring,
+// the Notion tokens: 8px radius, hairline-strong border, saffron focus ring,
 // and 44px height on touch viewports.
 
 // ----------------------------------------------------------------- Field
