@@ -1007,6 +1007,79 @@ form {
     overflow: hidden;
 }
 
+/* Master-detail (wide screens only; see ui/master-detail.tsx): the selected
+   record opens in a pane beside the list. The page fills the viewport and the
+   list and pane scroll independently. */
+.master-detail-page {
+    height: calc(100dvh - 4rem);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.master-detail {
+    display: grid;
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+}
+
+.master-detail.has-detail {
+    grid-template-columns: minmax(22rem, 32rem) minmax(0, 1fr);
+}
+
+.master-detail-list {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.master-detail-pane {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    gap: 1.25rem;
+    overflow: hidden;
+    container-type: inline-size;
+}
+
+/* The pane is narrower than a page, so its sections stack (two across once it
+   is wide enough) and fill its width. It scrolls under its fixed heading. */
+.master-detail-pane .detail-sections {
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+    padding-bottom: 0.5rem;
+}
+
+.master-detail-pane .detail-section {
+    max-width: none;
+    max-height: none;
+    justify-self: stretch;
+}
+
+@container (min-width: 56rem) {
+    .master-detail-pane .detail-sections {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.master-detail.has-detail .inventory-type-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+}
+
+.master-detail.has-detail .record-block.user-card {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    margin: 0 0 0.5rem;
+}
+
+.record-block.is-selected {
+    border-color: var(--setu-accent);
+    box-shadow: 0 0 0 1px var(--setu-accent);
+}
+
 .inventory-image-section > .card {
     display: flex;
     min-height: 0;

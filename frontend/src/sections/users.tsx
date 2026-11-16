@@ -11,15 +11,15 @@ import { matchesSearch } from '../ui/search';
 import { roleLabel } from '../ui/styles';
 import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { useRelatedRequests } from '../ui/related-requests';
-import { DetailSection } from '../ui/detail-layout';
+import { DetailSection, DetailSections } from '../ui/detail-layout';
+import { DetailBackButton, DetailHeading, MasterDetail } from '../ui/master-detail';
 import { UserBlock } from '../ui/user-block';
-import { DetailFields, DetailLayout } from './detail-shared';
+import { DetailFields } from './detail-shared';
 import { canManageConfig } from '../workflows';
 import {
     ActionConfirmation,
     Empty,
     Modal,
-    Page,
     SaveFooter,
     TextField,
     useRHFSave,
@@ -218,104 +218,105 @@ export function Users({ dashboard }: Props) {
         </div>
     );
     const userDetail = selectedUser && (
-        <DetailLayout
-            title={selectedUser.Name}
-            action={
-                <Space>
-                    <Button
-                        type="default"
-                        icon={<Icon name="arrowLeft" />}
-                        onClick={() => navigate(usersPath, { replace: true })}
-                        aria-label="Back to users"
-                        title="Back to users"
+        <>
+            <DetailHeading
+                title={selectedUser.Name}
+                actions={
+                    <Space>
+                        <DetailBackButton
+                            label="Users"
+                            onClick={() => navigate(usersPath, { replace: true })}
+                        />
+                        {canManageConfig(dashboard.me) && (
+                            <Button
+                                type="primary"
+                                danger
+                                icon={<Icon name="trash" />}
+                                onClick={() => setDeleting(selectedUser)}
+                                aria-label="Delete user"
+                                title="Delete user"
+                            />
+                        )}
+                    </Space>
+                }
+            />
+            <DetailSections>
+                <DetailSection
+                    title="Details"
+                    action={
+                        canManageConfig(dashboard.me) ? (
+                            <Button
+                                type="primary"
+                                icon={<Icon name="edit" />}
+                                onClick={() => setEditing(selectedUser)}
+                                aria-label="Edit user"
+                                title="Edit user"
+                            />
+                        ) : null
+                    }>
+                    <DetailFields
+                        fields={[
+                            ['Email', selectedUser.Email],
+                            ['Department', selectedUser.departmentName || 'No department'],
+                            ['Role', roleLabel(selectedUser.Role)],
+                            ['Phone', selectedUser.Phone || '—'],
+                            ['WhatsApp', selectedUser.Whatsapp || '—'],
+                        ]}
                     />
-                    {canManageConfig(dashboard.me) && (
-                        <Button
-                            type="primary"
-                            danger
-                            icon={<Icon name="trash" />}
-                            onClick={() => setDeleting(selectedUser)}
-                            aria-label="Delete user"
-                            title="Delete user"
+                </DetailSection>
+                {userPrograms.total > 0 && (
+                    <DetailSection span="full">
+                        <RelatedRequestBlocks
+                            title="Programs"
+                            kind="program"
+                            items={userPrograms.items}
+                            total={userPrograms.total}
+                            dashboard={dashboard}
+                            hrefFor={programRequestPath}
+                            onOpen={(id) => navigate(programRequestPath(id))}
                         />
-                    )}
-                </Space>
-            }>
-            <DetailSection
-                title="Details"
-                action={
-                    canManageConfig(dashboard.me) ? (
-                        <Button
-                            type="primary"
-                            icon={<Icon name="edit" />}
-                            onClick={() => setEditing(selectedUser)}
-                            aria-label="Edit user"
-                            title="Edit user"
+                    </DetailSection>
+                )}
+                {userInventoryRequests.total > 0 && (
+                    <DetailSection span="full">
+                        <RelatedRequestBlocks
+                            title="Inventory requests"
+                            kind="inventory"
+                            items={userInventoryRequests.items}
+                            total={userInventoryRequests.total}
+                            dashboard={dashboard}
+                            hrefFor={inventoryRequestPath}
+                            onOpen={(id) => navigate(inventoryRequestPath(id))}
                         />
-                    ) : null
-                }>
-                <DetailFields
-                    fields={[
-                        ['Email', selectedUser.Email],
-                        ['Department', selectedUser.departmentName || 'No department'],
-                        ['Role', roleLabel(selectedUser.Role)],
-                        ['Phone', selectedUser.Phone || '—'],
-                        ['WhatsApp', selectedUser.Whatsapp || '—'],
-                    ]}
+                    </DetailSection>
+                )}
+            </DetailSections>
+        </>
+    );
+    const userList = filteredUsers.length ? (
+        <div className="user-card-list">
+            {filteredUsers.map((user) => (
+                <UserBlock
+                    key={user.Email}
+                    user={user}
+                    dashboard={dashboard}
+                    href={userPath(user.Email)}
+                    selected={user.Email === selectedUserId}
+                    onClick={() => navigate(userPath(user.Email))}
                 />
-            </DetailSection>
-            {userPrograms.total > 0 && (
-                <DetailSection span="full">
-                    <RelatedRequestBlocks
-                        title="Programs"
-                        kind="program"
-                        items={userPrograms.items}
-                        total={userPrograms.total}
-                        dashboard={dashboard}
-                        hrefFor={programRequestPath}
-                        onOpen={(id) => navigate(programRequestPath(id))}
-                    />
-                </DetailSection>
-            )}
-            {userInventoryRequests.total > 0 && (
-                <DetailSection span="full">
-                    <RelatedRequestBlocks
-                        title="Inventory requests"
-                        kind="inventory"
-                        items={userInventoryRequests.items}
-                        total={userInventoryRequests.total}
-                        dashboard={dashboard}
-                        hrefFor={inventoryRequestPath}
-                        onOpen={(id) => navigate(inventoryRequestPath(id))}
-                    />
-                </DetailSection>
-            )}
-        </DetailLayout>
+            ))}
+        </div>
+    ) : (
+        <Empty>No users yet.</Empty>
     );
     return (
         <>
-            {selectedUser ? (
-                userDetail
-            ) : (
-                <Page title="Users" hideHeading className="users-list-page">
-                    {userHeader}
-                    {filteredUsers.length ? (
-                        <div className="user-card-list">
-                            {filteredUsers.map((user) => (
-                                <UserBlock
-                                    key={user.Email}
-                                    user={user}
-                                    dashboard={dashboard}
-                                    href={userPath(user.Email)}
-                                    onClick={() => navigate(userPath(user.Email))}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <Empty>No users yet.</Empty>
-                    )}
-                </Page>
-            )}
+            <MasterDetail
+                heading={userHeader}
+                list={userList}
+                detail={userDetail}
+                detailKey={selectedUser?.Email}
+            />
             {deleting && (
                 <ActionConfirmation
                     action="delete"

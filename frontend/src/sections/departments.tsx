@@ -17,6 +17,7 @@ import { useRelatedRequests } from '../ui/related-requests';
 import { UserBlock } from '../ui/user-block';
 import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
+import { DetailBackButton, DetailHeading, MasterDetail } from '../ui/master-detail';
 import { ActionConfirmation } from './refine-shared';
 import {
     Editor,
@@ -86,6 +87,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                     key={row.Id}
                     className="department-card"
                     href={departmentPath(String(row.Id))}
+                    selected={row.Id === detailId}
                     onClick={() => navigate(departmentPath(String(row.Id)))}>
                     <div className="department-card-content">
                         <strong>
@@ -140,35 +142,29 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
     );
     const departmentDetail = selectedDepartment && (
         <>
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>
-                        {String(selectedDepartment.Name || 'Unnamed department')}
-                        {selectedDepartment.ShortName
-                            ? ` (${String(selectedDepartment.ShortName)})`
-                            : ''}
-                    </Typography.Title>
-                </div>
-                <Space>
-                    <Button
-                        type="default"
-                        icon={<Icon name="arrowLeft" />}
-                        onClick={() => navigate(departmentsPath, { replace: true })}
-                        aria-label="Back to departments"
-                        title="Back to departments"
-                    />
-                    {canEdit && (
-                        <Button
-                            type="primary"
-                            danger
-                            icon={<Icon name="trash" />}
-                            onClick={() => setDeleting(selectedDepartment)}
-                            aria-label="Delete department"
-                            title="Delete department"
+            <DetailHeading
+                title={`${String(selectedDepartment.Name || 'Unnamed department')}${
+                    selectedDepartment.ShortName ? ` (${String(selectedDepartment.ShortName)})` : ''
+                }`}
+                actions={
+                    <Space>
+                        <DetailBackButton
+                            label={config.title}
+                            onClick={() => navigate(departmentsPath, { replace: true })}
                         />
-                    )}
-                </Space>
-            </div>
+                        {canEdit && (
+                            <Button
+                                type="primary"
+                                danger
+                                icon={<Icon name="trash" />}
+                                onClick={() => setDeleting(selectedDepartment)}
+                                aria-label="Delete department"
+                                title="Delete department"
+                            />
+                        )}
+                    </Space>
+                }
+            />
             <DetailSections>
                 <DetailSection
                     title="Details"
@@ -243,15 +239,11 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
         </>
     );
     return (
-        <section className={`antd-page${selectedDepartment ? ' detail-page' : ''}`}>
-            {selectedDepartment ? (
-                departmentDetail
-            ) : (
-                <>
-                    {departmentHeader}
-                    {departmentCards}
-                </>
-            )}
+        <MasterDetail
+            heading={departmentHeader}
+            list={departmentCards}
+            detail={departmentDetail}
+            detailKey={String(selectedDepartment?.Id ?? '')}>
             {deleting && (
                 <ActionConfirmation
                     action="delete"
@@ -276,6 +268,6 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                     }}
                 />
             )}
-        </section>
+        </MasterDetail>
     );
 }

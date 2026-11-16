@@ -6,13 +6,17 @@ export function BlockCard({
     className = '',
     href,
     onClick,
+    selected = false,
 }: {
     children: ReactNode;
     className?: string;
     href?: string;
     onClick?: () => void;
+    // The record currently open beside the list.
+    selected?: boolean;
 }) {
     const interactive = Boolean(onClick);
+    const blockClassName = `record-block ${className}${selected ? ' is-selected' : ''}`.trim();
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (interactive && (event.key === 'Enter' || event.key === ' ')) {
             event.preventDefault();
@@ -27,8 +31,9 @@ export function BlockCard({
         };
         return (
             <a
-                className={`record-block ${className}`.trim()}
+                className={blockClassName}
                 href={href}
+                aria-current={selected ? 'true' : undefined}
                 onClick={handleClick}
                 onKeyDown={handleKeyDown}>
                 {children}
@@ -37,7 +42,8 @@ export function BlockCard({
     }
     return (
         <article
-            className={`record-block ${className}`.trim()}
+            className={blockClassName}
+            aria-current={selected ? 'true' : undefined}
             role={interactive ? 'button' : undefined}
             tabIndex={interactive ? 0 : undefined}
             onClick={onClick}

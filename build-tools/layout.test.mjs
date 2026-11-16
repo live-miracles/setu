@@ -32,6 +32,15 @@ try {
         'inventory image frame must center content',
     );
     assert.match(imageRule, /height:100%/, 'inventory image must fill the frame');
+
+    // Wide screens open the selected record in a pane beside the list; both
+    // scroll on their own under the page heading.
+    const hasDetailRule = css.match(/\.master-detail\.has-detail\{([^}]*)\}/)?.[1] || '';
+    const listRule = css.match(/\.master-detail-list\{([^}]*)\}/)?.[1] || '';
+    const paneRule = css.match(/\.master-detail-pane\{([^}]*)\}/)?.[1] || '';
+    assert.match(hasDetailRule, /grid-template-columns:/, 'list and pane must share two columns');
+    assert.match(listRule, /overflow-y:auto/, 'the list must scroll independently');
+    assert.match(paneRule, /container-type:inline-size/, 'the pane sizes its sections itself');
 } finally {
     rmSync(outputDir, { recursive: true, force: true });
 }

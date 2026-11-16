@@ -8,16 +8,18 @@ export function UserBlock({
     dashboard,
     href,
     onClick,
+    selected,
 }: {
     user: UserDTO;
     dashboard: DashboardPayload;
     href?: string;
     onClick?: () => void;
+    selected?: boolean;
 }) {
     const department = dashboard.departments.find((item) => item.Id === user.DepartmentId);
     const departmentName = department?.ShortName || user.departmentName;
     return (
-        <BlockCard className="user-card" href={href} onClick={onClick}>
+        <BlockCard className="user-card" href={href} onClick={onClick} selected={selected}>
             <div className="user-card-heading">
                 <div className="user-card-identity">
                     <Typography.Text strong>{user.Name}</Typography.Text>

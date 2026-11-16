@@ -33,6 +33,7 @@ import { RelatedRequestBlocks } from '../ui/related-request-blocks';
 import { useRelatedRequests } from '../ui/related-requests';
 import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
+import { DetailBackButton, DetailHeading, MasterDetail } from '../ui/master-detail';
 import { ActionConfirmation, SaveFooter, TextField } from './refine-shared';
 import {
     Editor,
@@ -330,6 +331,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                                 key={row.Id}
                                 className="inventory-type-card"
                                 href={inventoryTypePath(String(row.Id))}
+                                selected={row.Id === detailId}
                                 onClick={() => navigate(inventoryTypePath(String(row.Id)))}>
                                 <div className="inventory-type-card-heading">
                                     <strong>
@@ -484,41 +486,36 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     );
     const inventoryTypeDetail = selectedInventoryType && (
         <>
-            <div className="antd-page-heading">
-                <div>
-                    <Typography.Title level={2}>
-                        {inventoryTypeDisplayName(selectedInventoryType) || 'Unnamed equipment'}
-                    </Typography.Title>
-                </div>
-                <Space wrap>
-                    <Button
-                        type="default"
-                        icon={<Icon name="arrowLeft" />}
-                        onClick={() => navigate(inventoryTypesPath, { replace: true })}
-                        aria-label="Back to inventory types"
-                        title="Back to inventory types"
-                    />
-                    <Space size="middle">
-                        {canEdit && (
-                            <>
-                                <Button
-                                    type="primary"
-                                    icon={<Icon name="edit" />}
-                                    onClick={() => setEditing(selectedInventoryType)}
-                                    aria-label="Edit"
-                                />
-                                <Button
-                                    type="primary"
-                                    danger
-                                    icon={<Icon name="trash" />}
-                                    onClick={() => setDeleting(selectedInventoryType)}
-                                    aria-label="Delete"
-                                />
-                            </>
-                        )}
+            <DetailHeading
+                title={inventoryTypeDisplayName(selectedInventoryType) || 'Unnamed equipment'}
+                actions={
+                    <Space wrap>
+                        <DetailBackButton
+                            label={config.title}
+                            onClick={() => navigate(inventoryTypesPath, { replace: true })}
+                        />
+                        <Space size="middle">
+                            {canEdit && (
+                                <>
+                                    <Button
+                                        type="primary"
+                                        icon={<Icon name="edit" />}
+                                        onClick={() => setEditing(selectedInventoryType)}
+                                        aria-label="Edit"
+                                    />
+                                    <Button
+                                        type="primary"
+                                        danger
+                                        icon={<Icon name="trash" />}
+                                        onClick={() => setDeleting(selectedInventoryType)}
+                                        aria-label="Delete"
+                                    />
+                                </>
+                            )}
+                        </Space>
                     </Space>
-                </Space>
-            </div>
+                }
+            />
             <DetailSections>
                 <DetailSection title="Details">
                     <SettingsDetailFields
@@ -716,15 +713,11 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
         </>
     );
     return (
-        <section className={`antd-page${selectedInventoryType ? ' detail-page' : ''}`}>
-            {selectedInventoryType ? (
-                inventoryTypeDetail
-            ) : (
-                <>
-                    {inventoryTypeHeader}
-                    {inventoryTypeCards}
-                </>
-            )}
+        <MasterDetail
+            heading={inventoryTypeHeader}
+            list={inventoryTypeCards}
+            detail={inventoryTypeDetail}
+            detailKey={String(selectedInventoryType?.Id ?? '')}>
             {canEdit && labelEditorOpen && selectedInventoryType && (
                 <Modal
                     title={labelEditor ? 'Edit label' : 'Add label'}
@@ -798,6 +791,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     }}
                 />
             )}
-        </section>
+        </MasterDetail>
     );
 }
