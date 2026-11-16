@@ -73,7 +73,8 @@ export function DetailBackButton({ label, onClick }: { label: string; onClick: (
     const wide = useIsWideViewport();
     return (
         <Button
-            type="default"
+            // Closing the side pane is a quiet action; going back stays a bordered button.
+            type={wide ? 'text' : 'default'}
             icon={<Icon name={wide ? 'close' : 'arrowLeft'} />}
             onClick={onClick}
             aria-label={wide ? `Close ${label.toLowerCase()}` : `Back to ${label.toLowerCase()}`}

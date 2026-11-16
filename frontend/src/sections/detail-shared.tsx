@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Button, Space } from '../ui/kit';
 import { DetailSections } from '../ui/detail-layout';
+import { requestActionTone } from '../ui/request-status';
 import { Page } from './refine-shared';
 
 export function DetailFields({ fields }: { fields: Array<[label: string, value: ReactNode]> }) {
@@ -42,7 +43,11 @@ export function WorkflowActions({
     return (
         <Space wrap>
             {actions.map((action) => (
-                <Button type="primary" key={action} onClick={() => onAction(action)}>
+                <Button
+                    type="primary"
+                    key={action}
+                    tone={requestActionTone(action)}
+                    onClick={() => onAction(action)}>
                     {action}
                 </Button>
             ))}

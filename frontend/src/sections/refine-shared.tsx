@@ -3,6 +3,7 @@ import type { FieldValues, UseFormRegisterReturn, UseFormReturn } from 'react-ho
 import { Input, Field } from '../ui/form-kit';
 import { Button, Card as KitCard, Empty as KitEmpty, Typography } from '../ui/kit';
 import { Modal } from '../ui/overlay-kit';
+import { requestActionTone } from '../ui/request-status';
 
 export { Modal };
 import { useDashboard } from '../dashboard-context';
@@ -120,7 +121,7 @@ export function ActionConfirmation({
                 </p>
                 <div className="flex justify-end gap-2">
                     <Button onClick={onCancel}>No</Button>
-                    <Button type="primary" htmlType="submit">
+                    <Button type="primary" tone={requestActionTone(action)} htmlType="submit">
                         Yes
                     </Button>
                 </div>

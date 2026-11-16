@@ -50,6 +50,17 @@ const BUTTON_TYPES: Record<ButtonType, { normal: string; danger: string }> = {
     },
 };
 
+// Tinted buttons in the status badges' colours, so an action (approve, reject,
+// cancel...) reads like the status it leads to.
+export type ButtonTone = 'green' | 'red' | 'blue' | 'default';
+const BUTTON_TONES: Record<ButtonTone, string> = {
+    green: 'border-[#14782b]/30 bg-[#d9f3e1] text-[#14782b] hover:border-[#14782b] hover:bg-[#c5ecd2]',
+    red: 'border-error/30 bg-error-bg text-error-text hover:border-error hover:bg-[#f6dde1]',
+    blue: 'border-[#005bab]/30 bg-[#dcecfa] text-[#005bab] hover:border-[#005bab] hover:bg-[#c9e0f6]',
+    default:
+        'border-charcoal/20 bg-[#f0eeec] text-charcoal hover:border-charcoal hover:bg-[#e6e3e0]',
+};
+
 // Icon-only primary buttons (search, add, delete) are tinted instead of solid so
 // a row of them stays light; buttons with a text label keep the solid fill.
 const SOFT_PRIMARY = {
@@ -69,6 +80,8 @@ export type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> 
     type?: ButtonType;
     htmlType?: 'button' | 'submit' | 'reset';
     danger?: boolean;
+    // Overrides the type's colours with a status-badge tint.
+    tone?: ButtonTone;
     size?: keyof typeof BUTTON_SIZES;
     loading?: boolean;
     icon?: ReactNode;
@@ -81,6 +94,7 @@ export function Button({
     type = 'default',
     htmlType = 'button',
     danger = false,
+    tone,
     size = 'middle',
     loading = false,
     icon,
@@ -97,9 +111,11 @@ export function Button({
     const classes = cx(
         BUTTON_BASE,
         BUTTON_SIZES[size],
-        type === 'primary' && iconOnly
-            ? SOFT_PRIMARY[danger ? 'danger' : 'normal']
-            : BUTTON_TYPES[type][danger ? 'danger' : 'normal'],
+        tone
+            ? BUTTON_TONES[tone]
+            : type === 'primary' && iconOnly
+              ? SOFT_PRIMARY[danger ? 'danger' : 'normal']
+              : BUTTON_TYPES[type][danger ? 'danger' : 'normal'],
         iconOnly && 'aspect-square px-0',
         block && 'w-full',
         className,
