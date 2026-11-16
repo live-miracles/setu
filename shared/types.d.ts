@@ -521,6 +521,10 @@ interface Api {
     createPlace(input: CreatePlaceInput, requestId: string): Place;
     updatePlace(id: string, input: CreatePlaceInput, requestId: string): Place;
     deletePlace(id: string, requestId: string): void;
+    listInventoryBrands(): Place[];
+    createInventoryBrand(input: CreatePlaceInput, requestId: string): Place;
+    updateInventoryBrand(id: string, input: CreatePlaceInput, requestId: string): Place;
+    deleteInventoryBrand(id: string, requestId: string): void;
     listInventoryPlaces(): Place[];
     createInventoryPlace(input: CreatePlaceInput, requestId: string): Place;
     updateInventoryPlace(id: string, input: CreatePlaceInput, requestId: string): Place;

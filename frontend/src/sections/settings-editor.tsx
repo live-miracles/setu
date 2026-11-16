@@ -19,6 +19,8 @@ export type Field = {
     // than the shared dashboard blob. optionsLabel adds a blank/"All ..."
     // entry ahead of the fetched rows when set.
     optionsResource?: string;
+    // Which property of an option is stored as the field's value (default Id).
+    optionsValueKey?: 'Id' | 'Name';
     optionsLabel?: string;
     // Only used when adding a new row (never overrides an existing row's value).
     defaultValue?: () => string;
@@ -161,7 +163,7 @@ function SelectField({ field, row }: { field: Field; row?: Row }) {
     const options = [
         ...(field.optionsLabel ? [{ value: '', label: field.optionsLabel }] : []),
         ...(result.data as Row[]).map((option) => ({
-            value: String(option.Id ?? option.Name ?? ''),
+            value: String(option[field.optionsValueKey ?? 'Id'] ?? option.Name ?? ''),
             label: String(option.Name ?? option.Id ?? ''),
         })),
     ];

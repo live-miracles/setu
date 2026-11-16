@@ -15,6 +15,7 @@ Terms used in the code and in architecture discussions. Keep this short; add a t
 
 - **Program place**: a room where program sessions are held (table `places`). Programs and blocks point at it.
 - **Inventory place**: where equipment is kept (table `inventory_places`), a separate list from program places. Inventory types and labels point at it as their `Location`; a label with no place sits where its type sits. Both place lists are edited on the Other settings page.
+- **Inventory brand**: the maker of an inventory type, chosen from a managed list (table `inventory_brands`) edited on the Other settings page. The type stores the brand's name, so renaming a brand renames it on every type, and a brand in use cannot be deleted.
 - **Place availability**: two approved programs may not use the same place within an hour of each other. Owned by `supabase/functions/api/scheduling.ts`; SQL approval enforces the same rule under a lock.
 
 ## Dashboard

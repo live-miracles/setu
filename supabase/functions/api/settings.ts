@@ -3,6 +3,7 @@ import {
     inventoryLabelDto,
     locationFields,
     optionalInventoryPlaceId,
+    requireInventoryBrand,
     requireAdmin,
     requireApprover,
     requireNonEmpty,
@@ -131,9 +132,16 @@ export async function deleteDepartment(
     });
 }
 
-// Program places (where sessions are held) and inventory places (where
-// equipment is kept) are separate lists with the same shape and the same rules.
-type PlaceTable = 'places' | 'inventory_places';
+// Program places (where sessions are held), inventory places (where equipment
+// is kept) and inventory brands are separate lists with the same shape (a
+// unique name) and the same rules.
+type PlaceTable = 'places' | 'inventory_places' | 'inventory_brands';
+
+const DUPLICATE_NAME_MESSAGE: Record<PlaceTable, string> = {
+    places: 'A place with this name already exists.',
+    inventory_places: 'A place with this name already exists.',
+    inventory_brands: 'A brand with this name already exists.',
+};
 
 async function createPlaceIn(
     table: PlaceTable,
@@ -154,7 +162,7 @@ async function createPlaceIn(
         async () => {
             const row = result(
                 await admin.from(table).insert({ name }).select('*').single(),
-                'A place with this name already exists.',
+                DUPLICATE_NAME_MESSAGE[table],
             ) as Row;
             return { Id: row.id, Name: row.name };
         },
@@ -182,7 +190,7 @@ async function updatePlaceIn(
         async () => {
             const row = result(
                 await admin.from(table).update({ name }).eq('id', id).select('*').single(),
-                'A place with this name already exists.',
+                DUPLICATE_NAME_MESSAGE[table],
             ) as Row;
             return { Id: row.id, Name: row.name };
         },
@@ -297,6 +305,63 @@ export function deleteInventoryPlace(
         'inventory_places',
         'inventory-place',
         'This place is used by inventory types or labels and cannot be deleted.',
+        client,
+        admin,
+        userId,
+        id,
+        requestId,
+    );
+}
+
+export function createInventoryBrand(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    return createPlaceIn(
+        'inventory_brands',
+        'inventory-brand',
+        client,
+        admin,
+        userId,
+        input,
+        requestId,
+    );
+}
+
+export function updateInventoryBrand(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    return updatePlaceIn(
+        'inventory_brands',
+        'inventory-brand',
+        client,
+        admin,
+        userId,
+        id,
+        input,
+        requestId,
+    );
+}
+
+export function deleteInventoryBrand(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    id: string,
+    requestId: string,
+): Promise<void> {
+    return deletePlaceIn(
+        'inventory_brands',
+        'inventory-brand',
+        'This brand is used by inventory types and cannot be deleted.',
         client,
         admin,
         userId,
@@ -435,6 +500,7 @@ export async function createInventoryType(
         requestId,
         userId,
         async () => {
+            await requireInventoryBrand(admin, brand);
             const locationId = await optionalInventoryPlaceId(admin, input.locationId);
             const row = result(
                 await admin
@@ -481,6 +547,7 @@ export async function updateInventoryType(
             const existing = result(
                 await admin.from('inventory_types').select('*').eq('id', id).single(),
             ) as Row;
+            await requireInventoryBrand(admin, brand);
             const locationId = await optionalInventoryPlaceId(admin, input.locationId);
             const row = result(
                 await admin

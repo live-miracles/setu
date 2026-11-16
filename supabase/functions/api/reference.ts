@@ -38,6 +38,11 @@ export async function listInventoryPlaces(client: SupabaseClient): Promise<Row[]
     return rows.map((x) => ({ Id: x.id, Name: x.name }));
 }
 
+export async function listInventoryBrands(client: SupabaseClient): Promise<Row[]> {
+    const rows = result(await client.from('inventory_brands').select('*').order('name')) as Row[];
+    return rows.map((x) => ({ Id: x.id, Name: x.name }));
+}
+
 export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]> {
     const [types, availabilityRes, labels] = await Promise.all([
         fetchAll((from, to) =>

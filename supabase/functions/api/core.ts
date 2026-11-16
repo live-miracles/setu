@@ -212,6 +212,19 @@ export async function optionalInventoryPlaceId(
     return id;
 }
 
+// The brand an inventory type is given must be on the inventory brands list; an
+// empty brand means "no brand".
+export async function requireInventoryBrand(admin: SupabaseClient, name: string): Promise<void> {
+    if (!name) return;
+    const { data, error } = await admin
+        .from('inventory_brands')
+        .select('id')
+        .eq('name', name)
+        .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Brand not found.');
+}
+
 export function userDto(profile: Row, departments: Map<string, Row>): Row {
     return {
         Email: profile.email,

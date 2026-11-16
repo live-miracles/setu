@@ -48,6 +48,15 @@ const RESOURCES: Record<string, ResourceConfig> = {
         sortRows: sortByName,
         toInput: (v) => ({ name: v.Name }),
     },
+    'inventory-brands': {
+        kind: 'inventory brand',
+        title: 'Inventory brands',
+        addLabel: 'Add inventory brand',
+        emptyMessage: 'No inventory brands yet.',
+        fields: [{ field: 'Name', label: 'Name' }],
+        sortRows: sortByName,
+        toInput: (v) => ({ name: v.Name }),
+    },
     'inventory-places': {
         kind: 'inventory place',
         title: 'Inventory places',
@@ -356,6 +365,7 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
                 [
                     'places',
                     'inventory-places',
+                    'inventory-brands',
                     'shift-types',
                     'program-types',
                     'program-languages',

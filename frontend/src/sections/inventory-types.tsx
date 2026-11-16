@@ -51,7 +51,15 @@ const INVENTORY_TYPE_CONFIG: ResourceConfig = {
     emptyMessage: 'No equipment catalogued yet.',
     fields: [
         { field: 'Name', label: 'Name' },
-        { field: 'Brand', label: 'Brand', datalistId: 'inventory-brand-options' },
+        {
+            field: 'Brand',
+            label: 'Brand',
+            type: 'select',
+            optionsResource: 'inventory-brands',
+            // The type keeps the brand's name (empty for none), not its id.
+            optionsValueKey: 'Name',
+            optionsLabel: 'No brand',
+        },
         { field: 'Model', label: 'Model' },
         {
             field: 'LocationId',
@@ -132,9 +140,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const { result, query } = useList({ resource: 'inventory-types', pagination: { mode: 'off' } });
     const resourceLoading = query.isLoading;
     const rows = config.sortRows!(result.data as Row[]);
-    const inventoryBrandOptions = Array.from(
-        new Set(rows.map((row) => String(row.Brand || '').trim()).filter(Boolean)),
-    ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     const { result: inventoryPlacesResult } = useList({
         resource: 'inventory-places',
         pagination: { mode: 'off' },
@@ -791,7 +796,6 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                             });
                         }
                     }}
-                    datalistOptions={{ 'inventory-brand-options': inventoryBrandOptions }}
                 />
             )}
         </section>
