@@ -12,6 +12,7 @@ import {
 } from './core.ts';
 import { attachItemLabels, inventoryRequestDto } from './inventory.ts';
 import { programRequestDto } from './programs.ts';
+import { rosterTimeFields } from './roster.ts';
 import { groupByKey } from './query.ts';
 import { departmentDto } from './settings.ts';
 import { isApproverRole, ONGOING_INVENTORY_STATUSES } from '../_shared/request-policy.ts';
@@ -226,10 +227,7 @@ export async function dashboard(
                 String(x.shift_name || '').trim() ||
                 shiftTypesById.get(x.shift_type_id)?.name ||
                 '',
-            StartDate: x.start_at.slice(0, 10),
-            EndDate: x.end_at.slice(0, 10),
-            StartTime: x.start_at.slice(11, 16),
-            EndTime: x.end_at.slice(11, 16),
+            ...rosterTimeFields(x),
             UserId: profilesById.get(x.user_id)?.email || '',
             userName: profilesById.get(x.user_id)?.name || '',
         })),

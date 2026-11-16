@@ -6,7 +6,7 @@ const api = await loadBundle(`
             export { fetchAll } from './supabase/functions/api/core';
             export { listProgramRequests } from './supabase/functions/api/programs';
             export { getInventoryRequest, listInventoryRequests } from './supabase/functions/api/inventory';
-            export { listRosters } from './supabase/functions/api/roster';
+            export { listRosters, combineDateTime, rosterTimeFields } from './supabase/functions/api/roster';
             export { dashboard } from './supabase/functions/api/dashboard';
             export { profilesFor } from './supabase/functions/api/core';
             export { getAvailablePlaces, getCalendarMonth } from './supabase/functions/api/programs';
@@ -487,4 +487,31 @@ test('request lists can be narrowed by department, requester and label', async (
     assert.deepEqual(await ids(api.listInventoryRequests, { labelId: 'l2' }), ['ir2']);
     assert.deepEqual(await ids(api.listProgramRequests, { departmentId: 'd1' }), ['pr1']);
     assert.deepEqual(await ids(api.listProgramRequests, { requesterEmail: 'u2@x.org' }), ['pr2']);
+});
+
+test('blank roster times are stored as day bounds and read back as empty', () => {
+    // Blank start -> start of day; blank end -> end of day, so a same-day shift
+    // with no times is still a valid (end > start) range.
+    assert.equal(api.combineDateTime('2031-01-05', ''), '2031-01-05T00:00:00');
+    assert.equal(api.combineDateTime('2031-01-05', '', '23:59:59'), '2031-01-05T23:59:59');
+    assert.equal(api.combineDateTime('2031-01-05', '09:30'), '2031-01-05T09:30:00');
+
+    const blank = api.rosterTimeFields({
+        start_at: '2031-01-05T00:00:00+00:00',
+        end_at: '2031-01-05T23:59:59+00:00',
+        start_time_set: false,
+        end_time_set: false,
+    });
+    assert.equal(blank.StartTime, '');
+    assert.equal(blank.EndTime, '');
+    assert.equal(blank.StartDate, '2031-01-05');
+
+    // A genuine midnight time (flag true / absent on legacy rows) is kept.
+    const midnight = api.rosterTimeFields({
+        start_at: '2031-01-05T00:00:00+00:00',
+        end_at: '2031-01-05T10:00:00+00:00',
+        start_time_set: true,
+    });
+    assert.equal(midnight.StartTime, '00:00');
+    assert.equal(midnight.EndTime, '10:00');
 });

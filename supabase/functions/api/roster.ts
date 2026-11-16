@@ -34,14 +34,23 @@ export async function listRosters(
         ShiftTypeId: x.shift_type_id,
         ShiftName: String(x.shift_name || ''),
         Name: String(x.shift_name || '').trim() || shiftTypesById.get(x.shift_type_id)?.name || '',
-        StartDate: String(x.start_at).slice(0, 10),
-        EndDate: String(x.end_at).slice(0, 10),
-        StartTime: String(x.start_at).slice(11, 16),
-        EndTime: String(x.end_at).slice(11, 16),
+        ...rosterTimeFields(x),
         UserId: profilesById.get(x.user_id)?.email || '',
         userName: profilesById.get(x.user_id)?.name || '',
     }));
     return paginate(dtos, page, 20);
+}
+
+// Date/time fields of a roster DTO. A time left blank is stored as the start
+// or end of its day (see combineDateTime) with its *_time_set flag false, and
+// is read back as ''.
+export function rosterTimeFields(row: Row): Row {
+    return {
+        StartDate: String(row.start_at).slice(0, 10),
+        EndDate: String(row.end_at).slice(0, 10),
+        StartTime: row.start_time_set === false ? '' : String(row.start_at).slice(11, 16),
+        EndTime: row.end_time_set === false ? '' : String(row.end_at).slice(11, 16),
+    };
 }
 
 export function rosterDto(row: Row, user: Row, shiftType: Row): Row {
@@ -50,17 +59,32 @@ export function rosterDto(row: Row, user: Row, shiftType: Row): Row {
         ShiftTypeId: row.shift_type_id,
         ShiftName: String(row.shift_name || ''),
         Name: String(row.shift_name || '').trim() || shiftType.name,
-        StartDate: String(row.start_at).slice(0, 10),
-        EndDate: String(row.end_at).slice(0, 10),
-        StartTime: String(row.start_at).slice(11, 16),
-        EndTime: String(row.end_at).slice(11, 16),
+        ...rosterTimeFields(row),
         UserId: user.email,
         userName: user.name,
     };
 }
 
-export function combineDateTime(date: unknown, time: unknown): string {
-    return `${date}T${time || '00:00'}:00`;
+// A blank start is the start of the day, a blank end is the end of the day.
+export function combineDateTime(date: unknown, time: unknown, blank = '00:00:00'): string {
+    return `${date}T${time ? `${time}:00` : blank}`;
+}
+
+function rosterTimestamps(input: Row): { startAt: string; endAt: string } {
+    return {
+        startAt: combineDateTime(input.startDate, input.startTime),
+        endAt: combineDateTime(input.endDate, input.endTime, '23:59:59'),
+    };
+}
+
+function rosterTimeColumns(input: Row): Row {
+    const { startAt, endAt } = rosterTimestamps(input);
+    return {
+        start_at: startAt,
+        end_at: endAt,
+        start_time_set: Boolean(input.startTime),
+        end_time_set: Boolean(input.endTime),
+    };
 }
 
 // `input.userId` is (despite the name, inherited from the source app) the
@@ -72,12 +96,8 @@ export function combineDateTime(date: unknown, time: unknown): string {
 export async function requireValidRosterInput(admin: SupabaseClient, input: Row): Promise<Row> {
     if (!input.startDate || !input.endDate) throw new Error('Start and end dates are required.');
     if (input.endDate < input.startDate) throw new Error('End date must not be before start date.');
-    if (
-        combineDateTime(input.endDate, input.endTime) <=
-        combineDateTime(input.startDate, input.startTime)
-    ) {
-        throw new Error('End time is before start time.');
-    }
+    const { startAt, endAt } = rosterTimestamps(input);
+    if (endAt <= startAt) throw new Error('End time is before start time.');
     const shiftTypeId = requireNonEmpty(input.shiftTypeId, 'Shift is required.');
     const shiftType = result(
         await admin.from('shift_types').select('*').eq('id', shiftTypeId).maybeSingle(),
@@ -120,8 +140,7 @@ export async function createRoster(
                     .insert({
                         shift_type_id: shiftType.id,
                         shift_name: String(input.shiftName || '').trim() || null,
-                        start_at: combineDateTime(input.startDate, input.startTime),
-                        end_at: combineDateTime(input.endDate, input.endTime),
+                        ...rosterTimeColumns(input),
                         user_id: user.id,
                     })
                     .select('*')
@@ -155,8 +174,7 @@ export async function updateRoster(
                     .update({
                         shift_type_id: shiftType.id,
                         shift_name: String(input.shiftName || '').trim() || null,
-                        start_at: combineDateTime(input.startDate, input.startTime),
-                        end_at: combineDateTime(input.endDate, input.endTime),
+                        ...rosterTimeColumns(input),
                         user_id: user.id,
                     })
                     .eq('id', id)

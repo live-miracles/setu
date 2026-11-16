@@ -91,8 +91,10 @@ export function Roster({ dashboard }: Props) {
                     endTime: String(d.get('endTime') || ''),
                     userId: String(d.get('userId') || ''),
                 };
+                // A blank time means the start / end of its day (the server
+                // stores it that way and reads it back as blank).
                 const startAt = `${v.startDate}T${v.startTime || '00:00'}`;
-                const endAt = `${v.endDate}T${v.endTime || '00:00'}`;
+                const endAt = `${v.endDate}T${v.endTime || '23:59'}`;
                 if (endAt <= startAt) throw new Error('End time is before start time.');
                 if (row) {
                     await updateRoster({
