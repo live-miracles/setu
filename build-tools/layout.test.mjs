@@ -40,7 +40,15 @@ try {
     const paneRule = css.match(/\.master-detail-pane\{([^}]*)\}/)?.[1] || '';
     assert.match(hasDetailRule, /grid-template-columns:/, 'list and pane must share two columns');
     assert.match(listRule, /overflow-y:auto/, 'the list must scroll independently');
-    assert.match(paneRule, /container-type:inline-size/, 'the pane sizes its sections itself');
+    const paneSectionsRule =
+        css.match(/\.master-detail-pane \.detail-sections\{([^}]*)\}/)?.[1] || '';
+    assert.match(paneRule, /overflow:hidden/, 'the pane scrolls under its heading');
+    assert.doesNotMatch(css, /@container/, 'pane sections must stay in one column');
+    assert.match(
+        paneSectionsRule,
+        /grid-template-columns:minmax\(0,1fr\)/,
+        'pane sections must stack in one column',
+    );
 } finally {
     rmSync(outputDir, { recursive: true, force: true });
 }
