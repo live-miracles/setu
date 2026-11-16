@@ -83,5 +83,5 @@ psql "<connection-string>" -v ON_ERROR_STOP=1 -f data.sql
 ```
 
 After restoring, redeploy the Edge Function and point Supabase Auth and the
-frontend at the new project (see [Deploy to Vercel](../README.md#deploy-to-vercel)).
+frontend at the new project (see [Deploy to Vercel](deployment.md#deploy-to-vercel)).
 Restore a backup into a scratch project occasionally to confirm it works.
