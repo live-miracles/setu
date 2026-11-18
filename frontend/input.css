@@ -624,6 +624,7 @@ form {
     display: flex;
     align-items: center;
     gap: 1rem;
+    flex: none;
     height: 4rem;
     padding: 0 1.5rem;
     background: var(--setu-surface) !important;
@@ -1530,10 +1531,6 @@ a.record-block:focus-visible {
         display: none;
     }
 
-    #nav-user-name {
-        display: none;
-    }
-
     .app-mobile-menu {
         display: flex;
         justify-content: space-around;
@@ -1569,6 +1566,7 @@ a.record-block:focus-visible {
         padding: 0.35rem 0;
         line-height: 1.2;
         font: inherit;
+        font-size: 0.75rem;
         cursor: pointer;
     }
 

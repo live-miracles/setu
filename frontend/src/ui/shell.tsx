@@ -1,5 +1,5 @@
 import { Button, cx } from '../ui/kit';
-import { DropdownMenu } from '../ui/overlay-kit';
+import { DropdownMenu, type MenuItem } from '../ui/overlay-kit';
 import { Icon } from '../ui/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
@@ -23,7 +23,6 @@ import { canApprove } from '../workflows';
 import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
-import { useIsMobileViewport } from './viewport';
 
 type NavItem = { key: string; to: string; label: string; icon?: ReactNode };
 
@@ -34,8 +33,7 @@ const primaryNavItems: NavItem[] = [
 ];
 
 // Roster and inventory types are readable by every signed-in user. The
-// remaining configuration entries are admin/approver-only, with user and
-// configuration management kept in the account dropdown.
+// remaining configuration entries are admin/approver-only.
 const configNavItems: NavItem[] = [
     { key: 'roster', to: rosterPath, label: 'Roster', icon: <Icon name="schedule" /> },
     { key: 'users', to: usersPath, label: 'Users', icon: <Icon name="team" /> },
@@ -60,15 +58,78 @@ const configNavItems: NavItem[] = [
     },
 ];
 
-// User and configuration management stays in the account menu; the remaining
-// config entries are desktop navigation items for admins/approvers.
-const accountConfigKeys = new Set(['users', 'departments', 'home-content']);
-const publicConfigKeys = new Set(['roster', 'inventory-types']);
-const publicConfigNavItems = configNavItems.filter((item) => publicConfigKeys.has(item.key));
-const topConfigNavItems = configNavItems.filter(
-    (item) => !accountConfigKeys.has(item.key) && !publicConfigKeys.has(item.key),
+// Navigation. Mobile (bottom dock) always shows the four everyday destinations
+// and puts everything else behind "More". Desktop shows every destination as a
+// top tab while they fit, and only the ones that no longer fit move into "More"
+// as the window narrows (see useFittingCount). The account menu is only about
+// the person.
+const tabKeys = new Set(['programs', 'calendar', 'inventory', 'roster']);
+const tabNavItems = [...primaryNavItems, ...configNavItems].filter((item) => tabKeys.has(item.key));
+const moreNavItems = configNavItems.filter(
+    (item) => !tabKeys.has(item.key) && item.key === 'inventory-types',
 );
-const accountConfigNavItems = configNavItems.filter((item) => accountConfigKeys.has(item.key));
+const moreConfigNavItems = configNavItems.filter(
+    (item) => !tabKeys.has(item.key) && item.key !== 'inventory-types',
+);
+
+const NAV_TAB =
+    'inline-flex cursor-pointer items-center gap-2 border-b-2 px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent';
+const navTabClass = (selected: boolean) =>
+    cx(
+        NAV_TAB,
+        selected
+            ? 'border-accent text-accent'
+            : 'border-transparent bg-transparent text-ink hover:text-accent',
+    );
+
+const NAV_GAP_PX = 4; // Tailwind gap-1, which the nav and the measurer share.
+
+// How many of the `count` desktop tabs fit in the nav. It measures a hidden copy
+// of every tab followed by the More button (so widths don't depend on what is
+// currently shown) and re-measures whenever the nav is resized. When everything
+// fits there is no More button; otherwise room is kept for it.
+function useFittingCount(count: number, enabled: boolean) {
+    const navRef = useRef<HTMLElement>(null);
+    const measureRef = useRef<HTMLDivElement>(null);
+    const [fit, setFit] = useState(count);
+    useLayoutEffect(() => {
+        const nav = navRef.current;
+        const measure = measureRef.current;
+        if (!enabled || !nav || !measure) return;
+        const update = () => {
+            const widths = Array.from(measure.children, (el) => (el as HTMLElement).offsetWidth);
+            const moreWidth = widths.pop() ?? 0;
+            const available = nav.clientWidth;
+            const total = widths.reduce((sum, width) => sum + width + NAV_GAP_PX, -NAV_GAP_PX);
+            if (total <= available) return setFit(widths.length);
+            let used = moreWidth;
+            let shown = 0;
+            while (shown < widths.length && used + NAV_GAP_PX + widths[shown] <= available) {
+                used += NAV_GAP_PX + widths[shown];
+                shown++;
+            }
+            setFit(shown);
+        };
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(nav);
+        void document.fonts?.ready.then(update);
+        return () => observer.disconnect();
+    }, [count, enabled]);
+    return { navRef, measureRef, fit };
+}
+
+// Up to two initials from the display name, else the first letter of the email.
+function initialsOf(name: string | undefined, email: string | null): string {
+    const words = (name ?? '').trim().split(/\s+/).filter(Boolean);
+    if (words.length)
+        return words
+            .slice(0, 2)
+            .map((word) => word[0])
+            .join('')
+            .toUpperCase();
+    return (email?.[0] ?? '?').toUpperCase();
+}
 
 // A plain pathname.startsWith(base) would also match e.g. /inventory-types
 // for base '/inventory' — this requires the match to land on a segment
@@ -132,7 +193,6 @@ export function Shell({
     const queryClient = useQueryClient();
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
-    const isMobileViewport = useIsMobileViewport();
     const isRegistered = Boolean(dashboard?.me.Phone);
     // Authentication has already completed before Shell mounts. Keep the
     // primary navigation visible while the dashboard (and therefore role /
@@ -140,11 +200,11 @@ export function Shell({
     // to wait for dashboard data.
     const showPrimaryNav = Boolean(userEmail) || isRegistered;
     const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
-    const navigationItems = [
-        ...primaryNavItems,
-        ...publicConfigNavItems,
-        ...(canOpenConfig ? topConfigNavItems : []),
-    ];
+    const moreItems = [...moreNavItems, ...(canOpenConfig ? moreConfigNavItems : [])];
+    const desktopItems = [...tabNavItems, ...moreItems];
+    const { navRef, measureRef, fit } = useFittingCount(desktopItems.length, showPrimaryNav);
+    const visibleItems = desktopItems.slice(0, fit);
+    const overflowItems = desktopItems.slice(fit);
 
     useEffect(() => {
         const syncAppLoading = (event: Event) =>
@@ -170,26 +230,37 @@ export function Shell({
             navigationType === 'PUSH' ? 0 : (scrollPositions.current.get(location.pathname) ?? 0);
     }, [location.key, location.pathname, navigationType]);
 
-    const selectedKey = navigationItems.find((item) =>
-        isPathSection(location.pathname, item.to),
-    )?.key;
-    const accountNavItems = isMobileViewport
-        ? configNavItems.filter((item) => !publicConfigKeys.has(item.key))
-        : accountConfigNavItems;
-    const profileMenuItems = [
-        { key: profilePath, label: 'Profile', icon: <Icon name="user" /> },
-        ...publicConfigNavItems.map((item) => ({
-            key: item.to,
-            label: item.label,
-            icon: item.icon,
-        })),
-        ...(canOpenConfig
-            ? accountNavItems.map((item) => ({
-                  key: item.to,
-                  label: item.label,
-                  icon: item.icon,
-              }))
+    const isCurrent = (item: NavItem) => isPathSection(location.pathname, item.to);
+    const dockSelectedKey = tabNavItems.find(isCurrent)?.key;
+    const dockMoreSelected = moreItems.some(isCurrent);
+    // Menu rows for the given destinations; the admin-only ones sit under a
+    // "Configuration" heading.
+    const configKeys = new Set(moreConfigNavItems.map((item) => item.key));
+    const buildMoreMenu = (items: NavItem[]): MenuItem[] => {
+        const menu: MenuItem[] = [];
+        let headed = false;
+        for (const item of items) {
+            if (configKeys.has(item.key) && !headed) {
+                headed = true;
+                if (menu.length) menu.push({ type: 'divider' });
+                menu.push({ type: 'label', label: 'Configuration' });
+            }
+            menu.push({
+                key: item.to,
+                label: item.label,
+                icon: item.icon,
+                selected: isCurrent(item),
+            });
+        }
+        return menu;
+    };
+    const profileMenuItems: MenuItem[] = [
+        { type: 'label', label: dashboard?.me.Name || userEmail, description: userEmail },
+        { type: 'divider' },
+        ...(isRegistered
+            ? [{ key: profilePath, label: 'Profile', icon: <Icon name="user" /> }]
             : []),
+        { key: 'logout', label: 'Log out', icon: <Icon name="logout" /> },
     ];
 
     const refresh = async () => {
@@ -221,45 +292,56 @@ export function Shell({
                     <nav
                         id="desktop-nav"
                         aria-label="Primary"
-                        className="app-main-menu flex items-stretch gap-1 self-stretch overflow-x-auto">
-                        {navigationItems.map((item) => (
+                        ref={navRef}
+                        className="app-main-menu relative flex items-stretch gap-1 self-stretch">
+                        {visibleItems.map((item) => (
                             <Link
                                 key={item.key}
                                 to={item.to}
-                                aria-current={selectedKey === item.key ? 'page' : undefined}
-                                className={cx(
-                                    'inline-flex items-center gap-2 border-b-2 px-3 text-sm font-medium whitespace-nowrap transition-colors',
-                                    selectedKey === item.key
-                                        ? 'border-accent text-accent'
-                                        : 'border-transparent text-ink hover:text-accent',
-                                )}>
+                                aria-current={isCurrent(item) ? 'page' : undefined}
+                                className={navTabClass(isCurrent(item))}>
                                 {item.icon}
                                 {item.label}
                             </Link>
                         ))}
+                        {overflowItems.length > 0 && (
+                            <DropdownMenu
+                                className="flex items-stretch"
+                                align="start"
+                                items={buildMoreMenu(overflowItems)}
+                                onSelect={navigate}>
+                                <button
+                                    type="button"
+                                    aria-haspopup="menu"
+                                    className={navTabClass(overflowItems.some(isCurrent))}>
+                                    <Icon name="more" />
+                                    More
+                                    <Icon name="chevronDown" className="size-3.5" />
+                                </button>
+                            </DropdownMenu>
+                        )}
+                        {/* Hidden copy of every tab and the More button, measured to
+                            decide how many tabs fit. */}
+                        <div
+                            ref={measureRef}
+                            aria-hidden="true"
+                            className="pointer-events-none invisible absolute flex h-0 w-max gap-1 overflow-hidden">
+                            {[
+                                ...desktopItems,
+                                { key: 'more', label: 'More', icon: <Icon name="more" /> },
+                            ].map((item) => (
+                                <span key={item.key} className={cx(navTabClass(false), 'shrink-0')}>
+                                    {item.icon}
+                                    {item.label}
+                                    {item.key === 'more' && (
+                                        <Icon name="chevronDown" className="size-3.5" />
+                                    )}
+                                </span>
+                            ))}
+                        </div>
                     </nav>
                 )}
                 <div className="app-actions inline-flex items-center gap-2">
-                    {userEmail && (
-                        <DropdownMenu
-                            items={[
-                                ...(isRegistered ? profileMenuItems : []),
-                                { type: 'divider' },
-                                { key: 'logout', label: 'Log out' },
-                            ]}
-                            onSelect={(key) =>
-                                key === 'logout' ? void signOutAndReload() : navigate(key)
-                            }>
-                            <Button
-                                type="text"
-                                className="app-profile-button"
-                                icon={<Icon name="user" />}
-                                aria-label="Account menu"
-                                title={userEmail}>
-                                <span>{dashboard?.me.Name || userEmail}</span>
-                            </Button>
-                        </DropdownMenu>
-                    )}
                     {isRegistered && (
                         <Button
                             type="text"
@@ -268,6 +350,22 @@ export function Shell({
                             aria-label="Refresh app"
                             title="Refresh app"
                         />
+                    )}
+                    {userEmail && (
+                        <DropdownMenu
+                            items={profileMenuItems}
+                            onSelect={(key) =>
+                                key === 'logout' ? void signOutAndReload() : navigate(key)
+                            }>
+                            <button
+                                type="button"
+                                aria-haspopup="menu"
+                                aria-label="Profile menu"
+                                title={dashboard?.me.Name || userEmail}
+                                className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-sm font-semibold text-accent transition-colors select-none hover:border-accent hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-md:size-11">
+                                {initialsOf(dashboard?.me.Name, userEmail)}
+                            </button>
+                        </DropdownMenu>
                     )}
                 </div>
             </header>
@@ -285,17 +383,33 @@ export function Shell({
             {appLoading && <AppLoading />}
             {showPrimaryNav && (
                 <nav id="mobile-dock" className="app-mobile-menu" aria-label="Main navigation">
-                    {primaryNavItems.map((item) => (
+                    {tabNavItems.map((item) => (
                         <Link
                             key={item.key}
                             to={item.to}
+                            aria-current={dockSelectedKey === item.key ? 'page' : undefined}
                             className={`app-mobile-nav-item${
-                                selectedKey === item.key ? ' is-selected' : ''
+                                dockSelectedKey === item.key ? ' is-selected' : ''
                             }`}>
                             {item.icon}
                             <span>{item.label}</span>
                         </Link>
                     ))}
+                    <DropdownMenu
+                        className="flex min-w-0 flex-1"
+                        placement="top"
+                        items={buildMoreMenu(moreItems)}
+                        onSelect={navigate}>
+                        <button
+                            type="button"
+                            aria-haspopup="menu"
+                            className={`app-mobile-nav-item w-full${
+                                dockMoreSelected ? ' is-selected' : ''
+                            }`}>
+                            <Icon name="more" />
+                            <span>More</span>
+                        </button>
+                    </DropdownMenu>
                 </nav>
             )}
         </div>

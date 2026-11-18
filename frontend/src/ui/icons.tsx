@@ -45,6 +45,7 @@ export type IconName =
     | 'appstore'
     | 'apartment'
     | 'close'
+    | 'logout'
     | 'check';
 
 const ICON_PATHS: Record<IconName, string> = {
@@ -103,6 +104,7 @@ const ICON_PATHS: Record<IconName, string> = {
     apartment:
         '<rect x="9" y="3.5" width="6" height="5" rx="1" /><rect x="3" y="15.5" width="6" height="5" rx="1" /><rect x="15" y="15.5" width="6" height="5" rx="1" /><path d="M12 8.5v3.5M6 15.5V12h12v3.5" />',
     close: '<line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />',
+    logout: '<path d="M10 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4" /><polyline points="15 8 19 12 15 16" /><line x1="19" y1="12" x2="9" y2="12" />',
     check: '<polyline points="5 12.5 10 17.5 19 7" />',
 };
 

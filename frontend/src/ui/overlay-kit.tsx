@@ -92,48 +92,94 @@ export function Popover({
 
 // ---------------------------------------------------------- DropdownMenu
 
-export type MenuItem = { key: string; label: ReactNode; icon?: ReactNode } | { type: 'divider' };
+// A `label` is a non-interactive row: a small group heading, or (with a
+// description) an identity header such as "name / email".
+export type MenuItem =
+    | { key: string; label: ReactNode; icon?: ReactNode; selected?: boolean }
+    | { type: 'divider' }
+    | { type: 'label'; label: ReactNode; description?: ReactNode };
 
 export function DropdownMenu({
     items,
     onSelect,
     children,
+    className,
+    align = 'end',
+    placement = 'bottom',
 }: {
     items: MenuItem[];
     onSelect: (key: string) => void;
     children: ReactNode;
+    // Classes for the wrapper, so a trigger can stretch inside a flex row.
+    className?: string;
+    // Which edge of the trigger the menu lines up with.
+    align?: 'start' | 'end';
+    // Open below the trigger, or above it (for triggers at the screen bottom).
+    placement?: 'bottom' | 'top';
 }) {
     const ref = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState(false);
     useDismiss(ref, open, () => setOpen(false));
     return (
-        <div ref={ref} className="relative inline-block">
-            <span onClick={() => setOpen(!open)}>{children}</span>
+        <div ref={ref} className={cx('relative', className ?? 'inline-block')}>
+            <span className="contents" onClick={() => setOpen(!open)}>
+                {children}
+            </span>
             {open && (
                 <div
                     role="menu"
-                    className="absolute right-0 z-50 mt-1 min-w-48 rounded-lg border border-line bg-white py-1 shadow-overlay">
-                    {items.map((item, index) =>
-                        'type' in item ? (
-                            <hr
-                                key={`divider-${index}`}
-                                className="my-1 border-0 border-t border-line"
-                            />
-                        ) : (
+                    className={cx(
+                        'absolute z-50 min-w-48 rounded-lg border border-line bg-white py-1 shadow-overlay max-md:min-w-56',
+                        align === 'end' ? 'right-0' : 'left-0',
+                        placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-1',
+                    )}>
+                    {items.map((item, index) => {
+                        if ('type' in item) {
+                            if (item.type === 'divider') {
+                                return (
+                                    <hr
+                                        key={`divider-${index}`}
+                                        className="my-1 border-0 border-t border-line"
+                                    />
+                                );
+                            }
+                            return (
+                                <div key={`label-${index}`} className="px-3 py-2">
+                                    <div
+                                        className={
+                                            item.description
+                                                ? 'truncate text-sm font-semibold text-ink'
+                                                : 'text-xs font-semibold tracking-wide text-steel uppercase'
+                                        }>
+                                        {item.label}
+                                    </div>
+                                    {item.description && (
+                                        <div className="truncate text-xs text-steel">
+                                            {item.description}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
+                        return (
                             <button
                                 key={item.key}
                                 type="button"
                                 role="menuitem"
+                                aria-current={item.selected ? 'page' : undefined}
                                 onClick={() => {
                                     setOpen(false);
                                     onSelect(item.key);
                                 }}
-                                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm hover:bg-paper max-md:py-3">
+                                className={cx(
+                                    'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm hover:bg-paper max-md:py-3',
+                                    item.selected && 'bg-accent/10 font-medium text-accent',
+                                )}>
                                 {item.icon}
                                 {item.label}
                             </button>
-                        ),
-                    )}
+                        );
+                    })}
                 </div>
             )}
         </div>
