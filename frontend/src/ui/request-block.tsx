@@ -14,7 +14,7 @@ type RequestBlockProps = {
     onClick?: () => void;
 };
 
-function statusLabel(status: string): string {
+export function statusLabel(status: string): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 

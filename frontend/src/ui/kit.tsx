@@ -172,12 +172,15 @@ export type TagColor = keyof typeof TAG_COLORS;
 export function Tag({
     color = 'default',
     className,
+    style,
     closable = false,
     onClose,
     children,
 }: {
     color?: string;
     className?: string;
+    // For colours that come from data (e.g. a shift type's configured colour).
+    style?: React.CSSProperties;
     closable?: boolean;
     onClose?: (event: React.MouseEvent<HTMLButtonElement>) => void;
     children: ReactNode;
@@ -188,7 +191,8 @@ export function Tag({
                 'inline-flex shrink-0 items-center rounded-md px-2 text-[13px] leading-5 font-semibold whitespace-nowrap',
                 TAG_COLORS[color as TagColor] ?? TAG_COLORS.default,
                 className,
-            )}>
+            )}
+            style={style}>
             {children}
             {closable && (
                 <button

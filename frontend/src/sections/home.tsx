@@ -11,9 +11,12 @@ import {
     rosterPath,
 } from '../paths';
 import { isPlainLeftClick } from '../ui/link-click';
-import { formatDateTime, formatTimeOfDay } from '../ui/format';
+import { formatDateTime, formatProgramDateRangeFromBounds, formatTimeOfDay } from '../ui/format';
 import { formatLocalDateOnly } from '../ui/date';
 import { isOngoingInventoryRequest } from '../ui/inventory-status';
+import { statusLabel } from '../ui/request-block';
+import { requestStatusTagColor } from '../ui/request-status';
+import { isRequestOverdue } from '../workflows';
 
 type Props = { dashboard: DashboardPayload };
 
@@ -52,12 +55,33 @@ type RequestKind = 'programs' | 'inventory';
 // Program requests are PRG-n everywhere else (detail page, request blocks).
 const requestSerial = (kind: RequestKind, displayId: number) =>
     `${kind === 'programs' ? 'PRG' : 'REQ'}-${displayId}`;
-type HomeRequest = {
-    Id: string;
-    DisplayId: number;
-    Name: string;
-    Status: string;
-};
+type HomeRequest = ProgramRequestDTO | InventoryRequestDTO;
+
+// Home rows share one hierarchy so neighbouring text doesn't blur together: the
+// request's name is the one emphasised piece, its serial and details are gray.
+// (Buttons are medium weight, hence the explicit font-normal on the quiet parts.)
+function RequestTitle({ kind, request }: { kind: RequestKind; request: HomeRequest }) {
+    return (
+        <span className="home-list-title">
+            <span className="mr-1.5 font-normal text-steel">
+                {requestSerial(kind, request.DisplayId)}
+            </span>
+            <span className="font-semibold">{request.Name}</span>
+        </span>
+    );
+}
+
+function requestDates(kind: RequestKind, request: HomeRequest): string {
+    return kind === 'programs'
+        ? formatProgramDateRangeFromBounds(
+              (request as ProgramRequestDTO).sessionStart,
+              (request as ProgramRequestDTO).sessionEnd,
+          )
+        : formatProgramDateRangeFromBounds(
+              (request as InventoryRequestDTO).StartDate,
+              (request as InventoryRequestDTO).EndDate,
+          );
+}
 
 function HomeLinkList<T>({
     items,
@@ -74,20 +98,82 @@ function HomeLinkList<T>({
 }) {
     if (!items.length) return <EmptyState />;
     return items.map((item) => (
-        <Button
-            key={getKey(item)}
-            type="text"
-            block
-            className="antd-list-button"
-            href={getHref(item)}
-            onClick={(event) => {
-                if (!isPlainLeftClick(event)) return;
-                event.preventDefault();
-                onOpen(item);
-            }}>
-            {render(item)}
-        </Button>
+        <div key={getKey(item)} className="border-b border-line last:border-b-0">
+            <Button
+                type="text"
+                block
+                className="antd-list-button"
+                href={getHref(item)}
+                onClick={(event) => {
+                    if (!isPlainLeftClick(event)) return;
+                    event.preventDefault();
+                    onOpen(item);
+                }}>
+                {render(item)}
+            </Button>
+        </div>
     ));
+}
+
+type Shift = DashboardPayload['upcomingRosters'][number];
+
+// Heading for a day's shifts: the label stays strong, the date recedes.
+function ShiftsHeading({ label, date }: { label: string; date: string }) {
+    return (
+        <div className="flex items-baseline justify-between gap-2">
+            <Typography.Title level={5}>{label}</Typography.Title>
+            <span className="text-sm text-steel">{date}</span>
+        </div>
+    );
+}
+
+// One line per shift: a badge in the shift type's own colour (as on the roster),
+// the volunteer, and the hours in gray.
+function ShiftList({
+    shifts,
+    shiftColors,
+    onOpen,
+}: {
+    shifts: Shift[];
+    shiftColors: Map<string, string>;
+    onOpen: () => void;
+}) {
+    if (!shifts.length) return <EmptyState>No shifts.</EmptyState>;
+    return (
+        <div>
+            {shifts.map((shift) => {
+                const color = shiftColors.get(shift.ShiftTypeId);
+                const hours = [formatTimeOfDay(shift.StartTime), formatTimeOfDay(shift.EndTime)]
+                    .filter(Boolean)
+                    .join(' – ');
+                return (
+                    <div key={shift.Id} className="border-b border-line last:border-b-0">
+                        <Button type="text" block className="antd-list-button" onClick={onOpen}>
+                            <div className="home-list-row">
+                                <Tag
+                                    className="justify-center md:min-w-28"
+                                    style={color ? { backgroundColor: color } : undefined}>
+                                    {shift.Name || shift.ShiftName}
+                                </Tag>
+                                <span className="home-list-title text-left font-medium">
+                                    {shift.userName || (
+                                        <span className="font-normal text-steel italic">
+                                            Unassigned
+                                        </span>
+                                    )}
+                                </span>
+                                {hours && (
+                                    <span className="shrink-0 text-sm font-normal text-steel tabular-nums">
+                                        {hours}
+                                    </span>
+                                )}
+                            </div>
+                        </Button>
+                    </div>
+                );
+            })}
+        </div>
+    );
 }
 
 function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: RequestKind }) {
@@ -103,11 +189,24 @@ function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: Re
             getHref={hrefFor}
             onOpen={openRequest}
             render={(request) => (
-                <div className="home-list-row">
-                    <Typography.Text strong className="home-list-title">
-                        {requestSerial(kind, request.DisplayId)} · {request.Name}
-                    </Typography.Text>
-                    <Tag>{request.Status}</Tag>
+                <div className="flex w-full min-w-0 flex-col gap-0.5 text-left">
+                    <div className="home-list-row">
+                        <RequestTitle kind={kind} request={request} />
+                        <Tag
+                            color={requestStatusTagColor(
+                                request.Status,
+                                kind === 'inventory' &&
+                                    isRequestOverdue(request as InventoryRequestDTO),
+                            )}>
+                            {statusLabel(request.Status)}
+                        </Tag>
+                    </div>
+                    <span className="truncate text-sm font-normal text-steel">
+                        {[
+                            request.userName || 'Unknown requester',
+                            requestDates(kind, request),
+                        ].join(' · ')}
+                    </span>
                 </div>
             )}
         />
@@ -137,6 +236,7 @@ export function Home({ dashboard }: Props) {
                     `${b.StartTime}|${b.Name}|${b.userName}`,
                 ),
             );
+    const shiftColors = new Map(dashboard.shiftTypes.map((type) => [type.Id, type.Color]));
     const todayShifts = shiftsForDate(todayIso);
     const tomorrowShifts = shiftsForDate(tomorrowIso);
     const recentComments = [
@@ -168,59 +268,19 @@ export function Home({ dashboard }: Props) {
                     )}
                 </Card>
                 <Card title={null}>
-                    <Typography.Title level={5}>
-                        Today&apos;s shifts ({shortDate(todayIso)})
-                    </Typography.Title>
-                    {todayShifts.map((shift) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={shift.Id}
-                            onClick={() => navigate(rosterPath)}>
-                            <div className="home-list-row">
-                                <Typography.Text strong className="home-list-title">
-                                    {shift.Name} · {shift.userName || 'Unassigned'}
-                                </Typography.Text>
-                                <Typography.Text>
-                                    {[
-                                        formatTimeOfDay(shift.StartTime),
-                                        formatTimeOfDay(shift.EndTime),
-                                    ]
-                                        .filter(Boolean)
-                                        .join(' – ')}
-                                </Typography.Text>
-                            </div>
-                        </Button>
-                    ))}
-                    {!todayShifts.length && <EmptyState />}
+                    <ShiftsHeading label="Today's shifts" date={shortDate(todayIso)} />
+                    <ShiftList
+                        shifts={todayShifts}
+                        shiftColors={shiftColors}
+                        onOpen={() => navigate(rosterPath)}
+                    />
                     <Divider className="home-shifts-divider" />
-                    <Typography.Title level={5}>
-                        Tomorrow&apos;s shifts ({shortDate(tomorrowIso)})
-                    </Typography.Title>
-                    {tomorrowShifts.map((shift) => (
-                        <Button
-                            type="text"
-                            block
-                            className="antd-list-button"
-                            key={shift.Id}
-                            onClick={() => navigate(rosterPath)}>
-                            <div className="home-list-row">
-                                <Typography.Text strong className="home-list-title">
-                                    {shift.Name} · {shift.userName || 'Unassigned'}
-                                </Typography.Text>
-                                <Typography.Text>
-                                    {[
-                                        formatTimeOfDay(shift.StartTime),
-                                        formatTimeOfDay(shift.EndTime),
-                                    ]
-                                        .filter(Boolean)
-                                        .join(' – ')}
-                                </Typography.Text>
-                            </div>
-                        </Button>
-                    ))}
-                    {!tomorrowShifts.length && <EmptyState />}
+                    <ShiftsHeading label="Tomorrow's shifts" date={shortDate(tomorrowIso)} />
+                    <ShiftList
+                        shifts={tomorrowShifts}
+                        shiftColors={shiftColors}
+                        onOpen={() => navigate(rosterPath)}
+                    />
                 </Card>
             </div>
             <div className="home-section antd-two-column">
@@ -262,15 +322,17 @@ export function Home({ dashboard }: Props) {
                         render={({ comment, request, kind }) => (
                             <div className="home-comment-row">
                                 <div className="home-list-row">
-                                    <Typography.Text strong className="home-list-title">
-                                        {requestSerial(kind, request.DisplayId)} · {request.Name}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary" className="home-comment-meta">
-                                        {comment.userName || comment.UserId} ·{' '}
-                                        {formatDateTime(comment.Timestamp)}
-                                    </Typography.Text>
+                                    <RequestTitle kind={kind} request={request} />
+                                    <span className="home-comment-meta text-xs font-normal text-steel">
+                                        <span className="font-medium text-charcoal">
+                                            {comment.userName || comment.UserId}
+                                        </span>{' '}
+                                        · {formatDateTime(comment.Timestamp)}
+                                    </span>
                                 </div>
-                                <div className="home-comment-message">{comment.Message}</div>
+                                <div className="home-comment-message border-l-2 border-line-strong pl-2.5 text-sm font-normal text-charcoal">
+                                    {comment.Message}
+                                </div>
                             </div>
                         )}
                     />
