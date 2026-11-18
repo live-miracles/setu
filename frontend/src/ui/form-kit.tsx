@@ -79,7 +79,7 @@ const CONTROL_SIZES: Record<ControlSize, string> = {
 };
 
 const CONTROL_BASE =
-    'w-full rounded-lg border bg-white px-3 text-ink transition-colors outline-none placeholder:text-[#a4a097] disabled:cursor-not-allowed disabled:bg-paper disabled:opacity-70';
+    'w-full rounded-lg border bg-surface px-3 text-ink transition-colors outline-none placeholder:text-placeholder disabled:cursor-not-allowed disabled:bg-paper disabled:opacity-70';
 
 function controlBorder(invalid: boolean) {
     return invalid
@@ -153,7 +153,7 @@ export function Input({
                     type="button"
                     aria-label="Clear"
                     onClick={clear}
-                    className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-steel hover:bg-black/5">
+                    className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-steel hover:bg-ink/5">
                     <Icon name="close" className="size-3" />
                 </button>
             )}
@@ -316,7 +316,7 @@ function NativeSelect({
                     invalid
                         ? 'border-error focus:ring-1 focus:ring-error'
                         : 'border-line-strong focus:border-accent focus:ring-1 focus:ring-accent',
-                    current === '' && placeholder && 'text-[#a4a097]',
+                    current === '' && placeholder && 'text-placeholder',
                 )}>
                 {needsPlaceholder && (
                     <option value="" disabled hidden>
@@ -361,7 +361,7 @@ export function useDismiss(
 }
 
 const POPUP =
-    'absolute left-0 z-50 mt-1 max-h-64 min-w-full overflow-auto rounded-lg border border-line bg-white py-1 shadow-overlay';
+    'absolute left-0 z-50 mt-1 max-h-64 min-w-full overflow-auto rounded-lg border border-line bg-surface py-1 shadow-overlay';
 
 // Searchable single select (WAI-ARIA combobox with a listbox popup).
 function Combobox({
@@ -472,7 +472,7 @@ function Combobox({
                             onMouseEnter={() => setActive(index)}
                             className={cx(
                                 'cursor-pointer px-3 py-2 text-sm',
-                                index === active && 'bg-paper',
+                                index === active && 'bg-ink/5',
                                 option.value === value && 'font-semibold',
                                 option.disabled && 'cursor-not-allowed opacity-50',
                             )}>
@@ -523,7 +523,7 @@ export function MultiSelect({
                     CONTROL_SIZES.middle,
                     'flex cursor-pointer items-center gap-2 border-line-strong pr-9 text-left focus:border-accent focus:ring-1 focus:ring-accent',
                 )}>
-                <span className={cx('truncate', selected.length === 0 && 'text-[#a4a097]')}>
+                <span className={cx('truncate', selected.length === 0 && 'text-placeholder')}>
                     {selected.length === 0
                         ? placeholder
                         : renderValue
@@ -540,7 +540,7 @@ export function MultiSelect({
                     {options.map((option) => (
                         <label
                             key={option.value}
-                            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-paper">
+                            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-ink/5">
                             <input
                                 type="checkbox"
                                 checked={value.includes(option.value)}

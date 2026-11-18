@@ -33,15 +33,15 @@ const BUTTON_BASE =
 
 const BUTTON_TYPES: Record<ButtonType, { normal: string; danger: string }> = {
     primary: {
-        normal: 'border-accent bg-accent text-white hover:border-accent-hover hover:bg-accent-hover',
+        normal: 'border-accent bg-accent text-accent-content hover:border-accent-hover hover:bg-accent-hover',
         danger: 'border-error bg-error text-white hover:border-error-hover hover:bg-error-hover',
     },
     default: {
-        normal: 'border-line-strong bg-white text-ink hover:border-accent hover:text-accent',
-        danger: 'border-error-border bg-white text-error-text hover:border-error hover:bg-error-bg',
+        normal: 'border-line-strong bg-surface text-ink hover:border-accent hover:text-accent',
+        danger: 'border-error-border bg-surface text-error-text hover:border-error hover:bg-error-bg',
     },
     text: {
-        normal: 'border-transparent bg-transparent text-ink hover:bg-black/5',
+        normal: 'border-transparent bg-transparent text-ink hover:bg-ink/5',
         danger: 'border-transparent bg-transparent text-error-text hover:bg-error-bg',
     },
     link: {
@@ -54,11 +54,11 @@ const BUTTON_TYPES: Record<ButtonType, { normal: string; danger: string }> = {
 // cancel...) reads like the status it leads to.
 export type ButtonTone = 'green' | 'red' | 'blue' | 'default';
 const BUTTON_TONES: Record<ButtonTone, string> = {
-    green: 'border-[#14782b]/30 bg-[#d9f3e1] text-[#14782b] hover:border-[#14782b] hover:bg-[#c5ecd2]',
-    red: 'border-error/30 bg-error-bg text-error-text hover:border-error hover:bg-[#f6dde1]',
-    blue: 'border-[#005bab]/30 bg-[#dcecfa] text-[#005bab] hover:border-[#005bab] hover:bg-[#c9e0f6]',
+    green: 'border-tag-green-text/30 bg-tag-green text-tag-green-text hover:border-tag-green-text hover:bg-tag-green-hover',
+    red: 'border-error/30 bg-error-bg text-error-text hover:border-error hover:bg-error-bg-hover',
+    blue: 'border-tag-blue-text/30 bg-tag-blue text-tag-blue-text hover:border-tag-blue-text hover:bg-tag-blue-hover',
     default:
-        'border-charcoal/20 bg-[#f0eeec] text-charcoal hover:border-charcoal hover:bg-[#e6e3e0]',
+        'border-charcoal/20 bg-tag-neutral text-charcoal hover:border-charcoal hover:bg-tag-neutral-hover',
 };
 
 // Icon-only primary buttons (search, add, delete) are tinted instead of solid so
@@ -158,13 +158,13 @@ export function Button({
 // Soft tinted chips (Notion's badge-tag-*), keyed by the semantic names the
 // status helpers already return.
 const TAG_COLORS = {
-    default: 'bg-[#f0eeec] text-charcoal',
-    blue: 'bg-[#dcecfa] text-[#005bab]',
-    green: 'bg-[#d9f3e1] text-[#14782b]',
+    default: 'bg-tag-neutral text-charcoal',
+    blue: 'bg-tag-blue text-tag-blue-text',
+    green: 'bg-tag-green text-tag-green-text',
     red: 'bg-error-bg text-error-text',
-    orange: 'bg-[#ffe8d4] text-[#793400]',
-    gold: 'bg-[#fef7d6] text-[#7a5b00]',
-    purple: 'bg-[#e6e0f5] text-[#391c57]',
+    orange: 'bg-tag-orange text-tag-orange-text',
+    gold: 'bg-tag-gold text-tag-gold-text',
+    purple: 'bg-tag-purple text-tag-purple-text',
 } as const;
 
 export type TagColor = keyof typeof TAG_COLORS;
@@ -199,7 +199,7 @@ export function Tag({
                     type="button"
                     aria-label="Remove"
                     onClick={onClose}
-                    className="ml-1 -mr-1 inline-flex size-4 cursor-pointer items-center justify-center rounded-sm hover:bg-black/10">
+                    className="ml-1 -mr-1 inline-flex size-4 cursor-pointer items-center justify-center rounded-sm hover:bg-ink/10">
                     <Icon name="close" className="size-3" />
                 </button>
             )}
@@ -219,7 +219,7 @@ export function CountBadge({
 }) {
     if (count === 0 && !showZero) return null;
     return (
-        <span className="inline-block min-w-5 rounded-full bg-accent px-1.5 text-center text-xs leading-5 font-semibold text-white">
+        <span className="inline-block min-w-5 rounded-full bg-accent px-1.5 text-center text-xs leading-5 font-semibold text-accent-content">
             {count > overflowCount ? `${overflowCount}+` : count}
         </span>
     );
@@ -230,8 +230,8 @@ export function CountBadge({
 const TEXT_TYPES = {
     secondary: 'text-steel',
     danger: 'text-error',
-    success: 'text-[#14782b]',
-    warning: 'text-[#dd5b00]',
+    success: 'text-success',
+    warning: 'text-warning',
 } as const;
 
 function TextSpan({
@@ -342,7 +342,7 @@ export function Card({
     children?: ReactNode;
 }) {
     return (
-        <div className={cx('card rounded-xl border border-line bg-white', className)}>
+        <div className={cx('card rounded-xl border border-line bg-surface', className)}>
             {(title || extra) && (
                 <div className="card-head flex min-h-14 items-center justify-between gap-3 border-b border-line px-6 text-base font-semibold">
                     <div className="min-w-0 flex-1 truncate">{title}</div>
@@ -503,7 +503,7 @@ export function Table<T extends object>({
                         </tr>
                     )}
                     {dataSource.map((row, rowIndex) => (
-                        <tr key={keyOf(row)} className="hover:bg-paper/60">
+                        <tr key={keyOf(row)} className="hover:bg-ink/5">
                             {columns.map((column, index) => {
                                 const value = column.dataIndex
                                     ? (row as Record<string, unknown>)[column.dataIndex]

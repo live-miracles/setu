@@ -28,3 +28,9 @@ and the React 19 patch package was a standing workaround.
 - The team owns the kit's accessibility and edge cases, so new controls should
   be added to the kit rather than styled ad hoc on a screen.
 - Forms use a vertical label-above-control layout everywhere.
+- Light and dark themes are two blocks of the same tokens in `frontend/input.css`
+  (`:root` and `:root[data-theme='dark']`). Screens use the token-backed Tailwind
+  colours (`bg-surface`, `text-ink`, `bg-tag-green`...) and never a literal colour,
+  so both themes stay correct. Dark is the default; the choice is saved in
+  `localStorage` (`setu-theme`) by `frontend/src/ui/theme.ts`, and an inline script
+  in `frontend/shell.html` applies it before first paint.

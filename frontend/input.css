@@ -21,10 +21,36 @@
     --color-line-strong: var(--setu-line-strong);
     --color-paper: var(--setu-paper);
     --color-link: var(--setu-link);
-    --shadow-overlay: 0 16px 48px -8px rgb(15 15 15 / 16%);
+    --color-surface: var(--setu-surface);
+    --color-placeholder: var(--setu-placeholder);
+    --color-accent-content: var(--setu-accent-content);
+    --color-error-bg-hover: var(--setu-error-bg-hover);
+    --color-success: var(--setu-success);
+    --color-warning: var(--setu-warning);
+    --color-tag-neutral: var(--setu-tag-neutral);
+    --color-tag-neutral-hover: var(--setu-tag-neutral-hover);
+    --color-tag-blue: var(--setu-tag-blue);
+    --color-tag-blue-hover: var(--setu-tag-blue-hover);
+    --color-tag-blue-text: var(--setu-tag-blue-text);
+    --color-tag-green: var(--setu-tag-green);
+    --color-tag-green-hover: var(--setu-tag-green-hover);
+    --color-tag-green-text: var(--setu-tag-green-text);
+    --color-tag-orange: var(--setu-tag-orange);
+    --color-tag-orange-text: var(--setu-tag-orange-text);
+    --color-tag-gold: var(--setu-tag-gold);
+    --color-tag-gold-text: var(--setu-tag-gold-text);
+    --color-tag-purple: var(--setu-tag-purple);
+    --color-tag-purple-text: var(--setu-tag-purple-text);
+    --shadow-overlay: var(--setu-shadow-overlay);
 }
 
+/* Theme tokens. :root is the light theme; the dark theme overrides the same
+   tokens under [data-theme='dark'] on <html>, which the inline script in
+   shell.html sets before first paint and ui/theme.ts keeps in sync. Screens
+   use the tokens (via the Tailwind colours above) and never a literal colour,
+   so a new theme is only ever a new block of values here. */
 :root {
+    color-scheme: light;
     --setu-paper: #f6f5f4;
     --setu-surface: #ffffff;
     --setu-ink: #1a1a1a;
@@ -46,8 +72,84 @@
     --setu-error-text-hover: #7f1527;
     --setu-positive: #a8e0b7;
     --setu-blocked: #e98b8b;
+    --setu-accent-content: #ffffff;
+    --setu-placeholder: #a4a097;
+    --setu-success: #14782b;
+    --setu-warning: #dd5b00;
+    --setu-tag-neutral: #f0eeec;
+    --setu-tag-neutral-hover: #e6e3e0;
+    --setu-tag-blue: #dcecfa;
+    --setu-tag-blue-hover: #c9e0f6;
+    --setu-tag-blue-text: #005bab;
+    --setu-tag-green: #d9f3e1;
+    --setu-tag-green-hover: #c5ecd2;
+    --setu-tag-green-text: #14782b;
+    --setu-tag-orange: #ffe8d4;
+    --setu-tag-orange-text: #793400;
+    --setu-tag-gold: #fef7d6;
+    --setu-tag-gold-text: #7a5b00;
+    --setu-tag-purple: #e6e0f5;
+    --setu-tag-purple-text: #391c57;
+    --setu-shadow-overlay: 0 16px 48px -8px rgb(15 15 15 / 16%);
+    --setu-shadow-hover: 0 0.25rem 0.75rem rgb(26 26 26 / 8%);
     /* Faint saffron dot grid shared by the page and loading backgrounds. */
     --setu-dots: radial-gradient(circle, rgb(217 72 15 / 15%) 1px, transparent 1.5px);
+    /* Soft saffron / sand / peach washes behind the loading screen. */
+    --setu-wash-1: #ffe2cf;
+    --setu-wash-2: #fdf1d6;
+    --setu-wash-3: #ffe8d4;
+}
+
+/* Dark: a warm near-black canvas with slightly lifted cards and hairline
+   borders (the Linear / Raycast approach), and the saffron accent brightened
+   so it reads as text, with dark type on the filled accent. */
+:root[data-theme='dark'] {
+    color-scheme: dark;
+    --setu-paper: #121110;
+    --setu-surface: #1b1a18;
+    --setu-ink: #ecebe8;
+    --setu-line: #2c2a27;
+    --setu-accent: #ff7a3d;
+    --setu-accent-hover: #ff9561;
+    --setu-charcoal: #d6d3cc;
+    --setu-steel: #a09c95;
+    --setu-line-strong: #46433e;
+    --setu-link: #5aa9f5;
+    --setu-error: #d9414a;
+    --setu-error-hover: #e5565e;
+    --setu-error-active: #f06a71;
+    --setu-error-bg: #3a1a1f;
+    --setu-error-bg-hover: #4a2026;
+    --setu-error-border: #6b2a33;
+    --setu-error-border-hover: #8a3640;
+    --setu-error-text: #ff8d95;
+    --setu-error-text-hover: #ffa8ae;
+    --setu-positive: #276243;
+    --setu-blocked: #b04a4a;
+    --setu-accent-content: #1a1a1a;
+    --setu-placeholder: #6f6b64;
+    --setu-success: #62d084;
+    --setu-warning: #ff9a4d;
+    --setu-tag-neutral: #2a2825;
+    --setu-tag-neutral-hover: #36332f;
+    --setu-tag-blue: #12304d;
+    --setu-tag-blue-hover: #18406a;
+    --setu-tag-blue-text: #7cc0ff;
+    --setu-tag-green: #123a22;
+    --setu-tag-green-hover: #194d2e;
+    --setu-tag-green-text: #6fd890;
+    --setu-tag-orange: #4a2a10;
+    --setu-tag-orange-text: #ffb070;
+    --setu-tag-gold: #43380f;
+    --setu-tag-gold-text: #f0cf5a;
+    --setu-tag-purple: #2f2350;
+    --setu-tag-purple-text: #c3adf5;
+    --setu-shadow-overlay: 0 16px 48px -8px rgb(0 0 0 / 60%);
+    --setu-shadow-hover: 0 0.25rem 0.75rem rgb(0 0 0 / 40%);
+    --setu-dots: radial-gradient(circle, rgb(255 122 61 / 7%) 1px, transparent 1.5px);
+    --setu-wash-1: rgb(255 122 61 / 12%);
+    --setu-wash-2: rgb(240 207 90 / 7%);
+    --setu-wash-3: rgb(255 122 61 / 8%);
 }
 
 html,
@@ -606,7 +708,7 @@ form {
 }
 
 .roster-shift-time {
-    color: color-mix(in srgb, var(--setu-ink) 72%, transparent);
+    color: color-mix(in srgb, currentColor 72%, transparent);
     font-size: 0.75rem;
     line-height: 1.2;
 }
@@ -703,9 +805,10 @@ form {
         auto,
         auto;
     background-image:
-        var(--setu-dots), radial-gradient(ellipse at 15% 20%, #ffe2cf 0%, transparent 55%),
-        radial-gradient(ellipse at 85% 30%, #fdf1d6 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 100%, #ffe8d4 0%, transparent 60%);
+        var(--setu-dots),
+        radial-gradient(ellipse at 15% 20%, var(--setu-wash-1) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 30%, var(--setu-wash-2) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 100%, var(--setu-wash-3) 0%, transparent 60%);
 }
 
 .app-loading-inline {
@@ -1246,7 +1349,7 @@ a.record-block {
 a.record-block:hover,
 a.record-block:focus-visible {
     border-color: color-mix(in srgb, var(--setu-accent) 55%, var(--setu-line));
-    box-shadow: 0 0.25rem 0.75rem rgb(26 26 26 / 8%);
+    box-shadow: var(--setu-shadow-hover);
 }
 
 .record-block[role='button']:focus-visible,
@@ -1514,7 +1617,7 @@ a.record-block:focus-visible {
     right: 0.35rem;
     padding: 0.15rem;
     border-radius: 0.35rem;
-    background: rgb(255 255 255 / 88%);
+    background: color-mix(in srgb, var(--setu-surface) 88%, transparent);
     backdrop-filter: blur(0.25rem);
 }
 

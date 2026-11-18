@@ -39,7 +39,7 @@ export function Modal({
                 if (event.target === event.currentTarget) close();
             }}
             className={cx(
-                'm-auto max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),34rem)] rounded-xl border-0 bg-white p-0 text-ink shadow-overlay backdrop:bg-black/40',
+                'm-auto max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),34rem)] rounded-xl border-0 bg-surface p-0 text-ink shadow-overlay backdrop:bg-black/40',
                 className,
             )}>
             <div className="p-5">
@@ -81,7 +81,7 @@ export function Popover({
         <div ref={ref} className="relative inline-block">
             <span onClick={() => onOpenChange(!open)}>{children}</span>
             {open && (
-                <div className="absolute right-0 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-4 shadow-overlay">
+                <div className="absolute right-0 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-surface p-4 shadow-overlay">
                     {title && <div className="mb-2 font-semibold">{title}</div>}
                     {content}
                 </div>
@@ -129,7 +129,7 @@ export function DropdownMenu({
                 <div
                     role="menu"
                     className={cx(
-                        'absolute z-50 min-w-48 rounded-lg border border-line bg-white py-1 shadow-overlay max-md:min-w-56',
+                        'absolute z-50 min-w-48 rounded-lg border border-line bg-surface py-1 shadow-overlay max-md:min-w-56',
                         align === 'end' ? 'right-0' : 'left-0',
                         placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-1',
                     )}>
@@ -172,7 +172,7 @@ export function DropdownMenu({
                                     onSelect(item.key);
                                 }}
                                 className={cx(
-                                    'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm hover:bg-paper max-md:py-3',
+                                    'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm hover:bg-ink/5 max-md:py-3',
                                     item.selected && 'bg-accent/10 font-medium text-accent',
                                 )}>
                                 {item.icon}
@@ -230,7 +230,7 @@ export function ToastViewport() {
                 <div
                     key={toast.id}
                     role={toast.kind === 'error' ? 'alert' : 'status'}
-                    className="flex items-start gap-3 rounded-lg border border-line bg-white p-3 shadow-overlay">
+                    className="flex items-start gap-3 rounded-lg border border-line bg-surface p-3 shadow-overlay">
                     {toast.kind === 'loading' ? (
                         <Spinner className="mt-0.5 text-accent" />
                     ) : (

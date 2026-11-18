@@ -12,7 +12,7 @@ import {
 } from '../paths';
 import { isPlainLeftClick } from '../ui/link-click';
 import { formatDateTime, formatProgramDateRangeFromBounds, formatTimeOfDay } from '../ui/format';
-import { formatLocalDateOnly } from '../ui/date';
+import { formatLocalDateOnly, isValidHexColor, readableTextColor } from '../ui/date';
 import { isOngoingInventoryRequest } from '../ui/inventory-status';
 import { statusLabel } from '../ui/request-block';
 import { requestStatusTagColor } from '../ui/request-status';
@@ -155,7 +155,14 @@ function ShiftList({
                             <div className="home-list-row">
                                 <Tag
                                     className="justify-center md:min-w-28"
-                                    style={color ? { backgroundColor: color } : undefined}>
+                                    style={
+                                        color && isValidHexColor(color)
+                                            ? {
+                                                  backgroundColor: color,
+                                                  color: readableTextColor(color),
+                                              }
+                                            : undefined
+                                    }>
                                     {shift.Name || shift.ShiftName}
                                 </Tag>
                                 <span className="home-list-title text-left font-medium">

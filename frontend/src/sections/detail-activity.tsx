@@ -59,7 +59,7 @@ export function Activity({
                     {comments.length ? (
                         comments.map((c) => (
                             <div
-                                className="border-b border-gray-200 pb-2 text-sm last:border-0"
+                                className="border-b border-line pb-2 text-sm last:border-0"
                                 key={c.Id}>
                                 <div className="font-medium">
                                     {c.userName}{' '}

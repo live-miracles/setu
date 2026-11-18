@@ -240,7 +240,7 @@ export function SettingsResourcePage({
                                     style={{ backgroundColor: color }}
                                     aria-hidden="true"
                                 />
-                                <span style={{ color }}>{color}</span>
+                                <span>{color}</span>
                             </Space>
                         ) : (
                             <span className="text-xs opacity-60">No color</span>

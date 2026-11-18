@@ -4,7 +4,7 @@ import { Input, Select, Field } from '../ui/form-kit';
 import { Button } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useDashboard } from '../dashboard-context';
-import { formatLocalDateOnly } from '../ui/date';
+import { formatLocalDateOnly, readableTextColor } from '../ui/date';
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
@@ -303,10 +303,17 @@ export function Roster({ dashboard }: Props) {
                                                         <button
                                                             type="button"
                                                             className="roster-shift-block"
-                                                            style={{
-                                                                backgroundColor:
-                                                                    shift.color || undefined,
-                                                            }}
+                                                            style={
+                                                                shift.color
+                                                                    ? {
+                                                                          backgroundColor:
+                                                                              shift.color,
+                                                                          color: readableTextColor(
+                                                                              shift.color,
+                                                                          ),
+                                                                      }
+                                                                    : undefined
+                                                            }
                                                             onClick={() => setEditing(shift.roster)}
                                                             aria-label={`Edit ${shift.roster.Name} for ${volunteer.name}, ${dateRange}${timing ? `, ${timing}` : ''}`}>
                                                             <span className="roster-shift-name">

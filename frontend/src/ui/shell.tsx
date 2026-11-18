@@ -22,6 +22,7 @@ import {
 import { canApprove } from '../workflows';
 import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
+import { toggleTheme, useTheme } from './theme';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 
 type NavItem = { key: string; to: string; label: string; icon?: ReactNode };
@@ -190,6 +191,8 @@ export function Shell({
     const currentPathname = useRef(location.pathname);
     currentPathname.current = location.pathname;
     const [refreshing, setRefreshing] = useState(false);
+    const theme = useTheme();
+    const themeLabel = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
     const queryClient = useQueryClient();
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -342,15 +345,24 @@ export function Shell({
                     </nav>
                 )}
                 <div className="app-actions inline-flex items-center gap-2">
-                    {isRegistered && (
+                    <div className="inline-flex items-center gap-0.5">
+                        {isRegistered && (
+                            <Button
+                                type="text"
+                                icon={<Icon name="reload" spin={refreshing} />}
+                                onClick={() => void refresh()}
+                                aria-label="Refresh app"
+                                title="Refresh app"
+                            />
+                        )}
                         <Button
                             type="text"
-                            icon={<Icon name="reload" spin={refreshing} />}
-                            onClick={() => void refresh()}
-                            aria-label="Refresh app"
-                            title="Refresh app"
+                            icon={<Icon name={theme === 'dark' ? 'sun' : 'moon'} />}
+                            onClick={toggleTheme}
+                            aria-label={themeLabel}
+                            title={themeLabel}
                         />
-                    )}
+                    </div>
                     {userEmail && (
                         <DropdownMenu
                             items={profileMenuItems}

@@ -24,7 +24,10 @@ test('frontend utility and table assertions', async () => {
                 import { runInventoryStockAssertions } from './frontend/src/ui/inventory-stock.test.ts';
                 import { runProgramActionAssertions } from './frontend/src/ui/program-actions.test.ts';
                 import { runRequestFieldsAssertions } from './frontend/src/ui/request-fields.test.ts';
-                import { runRosterTableAssertions } from './frontend/src/ui/roster-table.test.ts';
+                import {
+                    runReadableTextColorAssertions,
+                    runRosterTableAssertions,
+                } from './frontend/src/ui/roster-table.test.ts';
 
                 runCalendarTableAssertions();
                 runCreateRecordAssertions();
@@ -36,6 +39,7 @@ test('frontend utility and table assertions', async () => {
                 runProgramActionAssertions();
                 runRequestFieldsAssertions();
                 runRosterTableAssertions();
+                runReadableTextColorAssertions();
             `,
         },
     });

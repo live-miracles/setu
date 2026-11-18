@@ -46,7 +46,9 @@ export type IconName =
     | 'apartment'
     | 'close'
     | 'logout'
-    | 'check';
+    | 'check'
+    | 'sun'
+    | 'moon';
 
 const ICON_PATHS: Record<IconName, string> = {
     home: '<path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />',
@@ -87,7 +89,7 @@ const ICON_PATHS: Record<IconName, string> = {
     team: '<circle cx="9" cy="8.5" r="3" /><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" /><circle cx="17" cy="9.5" r="2.3" /><path d="M17 14c2.5.2 4.5 1.8 4.5 4.5" />',
     tags: '<path d="M3.5 12V5a1.5 1.5 0 0 1 1.5-1.5h7l8 8a1.5 1.5 0 0 1 0 2.1l-5.4 5.4a1.5 1.5 0 0 1-2.1 0l-9-9Z" /><circle cx="8" cy="8" r="1.2" />',
     settings:
-        '<circle cx="12" cy="12" r="3" /><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />',
+        '<path d="M10.1 5.9 L10.3 3.2 L13.7 3.2 L13.9 5.9 L16.4 7.3 L18.8 6.1 L20.5 9.1 L18.2 10.6 L18.2 13.4 L20.5 14.9 L18.8 17.9 L16.4 16.7 L13.9 18.1 L13.7 20.8 L10.3 20.8 L10.1 18.1 L7.6 16.7 L5.2 17.9 L3.5 14.9 L5.8 13.4 L5.8 10.6 L3.5 9.1 L5.2 6.1 L7.6 7.3Z" /><circle cx="12" cy="12" r="2.5" />',
     schedule: '<circle cx="12" cy="12" r="8.5" /><polyline points="12 7 12 12 15.5 14" />',
     history:
         '<path d="M4 12a8 8 0 1 0 2.5-5.8" /><polyline points="4 4 4 8.5 8.5 8.5" /><polyline points="12 8 12 12 15 13.5" />',
@@ -106,6 +108,8 @@ const ICON_PATHS: Record<IconName, string> = {
     close: '<line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />',
     logout: '<path d="M10 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4" /><polyline points="15 8 19 12 15 16" /><line x1="19" y1="12" x2="9" y2="12" />',
     check: '<polyline points="5 12.5 10 17.5 19 7" />',
+    sun: '<circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" />',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />',
 };
 
 // Sized to the surrounding text (1em) like an icon font; override with className.

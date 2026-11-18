@@ -21,9 +21,9 @@ export function roleLabel(role: UserRole): string {
 }
 
 export function stockLevelTextClass(available: number, total: number): string {
-    if (total <= 0) return 'text-gray-500';
+    if (total <= 0) return 'text-steel';
     const ratio = available / total;
-    if (ratio <= 0.3) return 'text-red-600';
-    if (ratio <= 0.6) return 'text-amber-600';
-    return 'text-emerald-600';
+    if (ratio <= 0.3) return 'text-error-text';
+    if (ratio <= 0.6) return 'text-warning';
+    return 'text-success';
 }
