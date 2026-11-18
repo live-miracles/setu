@@ -118,10 +118,13 @@ function HomeLinkList<T>({
 type Shift = DashboardPayload['upcomingRosters'][number];
 
 // Heading for a day's shifts: the label stays strong, the date recedes.
-function ShiftsHeading({ label, date }: { label: string; date: string }) {
+function ShiftsHeading({ label, count, date }: { label: string; count: number; date: string }) {
     return (
-        <div className="flex items-baseline justify-between gap-2">
-            <Typography.Title level={5}>{label}</Typography.Title>
+        <div className="flex items-center justify-between gap-2">
+            <Space size="small">
+                <Typography.Title level={5}>{label}</Typography.Title>
+                <Tag>{count}</Tag>
+            </Space>
             <span className="text-sm text-steel">{date}</span>
         </div>
     );
@@ -268,14 +271,22 @@ export function Home({ dashboard }: Props) {
                     )}
                 </Card>
                 <Card title={null}>
-                    <ShiftsHeading label="Today's shifts" date={shortDate(todayIso)} />
+                    <ShiftsHeading
+                        label="Today's shifts"
+                        count={todayShifts.length}
+                        date={shortDate(todayIso)}
+                    />
                     <ShiftList
                         shifts={todayShifts}
                         shiftColors={shiftColors}
                         onOpen={() => navigate(rosterPath)}
                     />
                     <Divider className="home-shifts-divider" />
-                    <ShiftsHeading label="Tomorrow's shifts" date={shortDate(tomorrowIso)} />
+                    <ShiftsHeading
+                        label="Tomorrow's shifts"
+                        count={tomorrowShifts.length}
+                        date={shortDate(tomorrowIso)}
+                    />
                     <ShiftList
                         shifts={tomorrowShifts}
                         shiftColors={shiftColors}
@@ -303,7 +314,9 @@ export function Home({ dashboard }: Props) {
                 </Card>
             </div>
             <div className="home-section">
-                <Card title="Recent comments" className="home-recent-comments">
+                <Card
+                    title={sectionTitle('Recent comments', recentComments.length)}
+                    className="home-recent-comments">
                     <HomeLinkList
                         items={recentComments}
                         getKey={({ comment }) => comment.Id}
