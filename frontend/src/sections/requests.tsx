@@ -524,7 +524,8 @@ export function CreateRecord({
                         <Select
                             value={departmentId}
                             onChange={selectDepartment}
-                            className="antd-full-width">
+                            className="antd-full-width"
+                            showSearch>
                             {dashboard.departments.map((department) => (
                                 <Select.Option key={department.Id} value={department.Id}>
                                     {department.Name}
@@ -606,7 +607,8 @@ export function CreateRecord({
                         <Select
                             value={departmentId}
                             onChange={selectDepartment}
-                            className="antd-full-width">
+                            className="antd-full-width"
+                            showSearch>
                             {dashboard.departments.map((department) => (
                                 <Select.Option key={department.Id} value={department.Id}>
                                     {department.Name}

@@ -635,7 +635,8 @@ export function ProgramDetail({
                             <Select
                                 value={values.DepartmentId}
                                 onChange={(value) => update('DepartmentId', value)}
-                                className="antd-full-width">
+                                className="antd-full-width"
+                                showSearch>
                                 {dashboard.departments.map((d) => (
                                     <Select.Option key={d.Id} value={d.Id}>
                                         {d.Name}

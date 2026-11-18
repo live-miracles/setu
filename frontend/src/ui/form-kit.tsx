@@ -255,9 +255,22 @@ interface SelectProps {
     ref?: Ref<HTMLSelectElement>;
 }
 
+// A disabled empty option ("Select a department") is a placeholder, not a choice.
+const isPlaceholderOption = (option: SelectOption) => option.value === '' && option.disabled;
+
+// Lists longer than this are searchable by default; shorter ones are a native
+// select, which is quicker to use (and nicer on phones) when everything fits.
+export const SEARCHABLE_SELECT_MIN_OPTIONS = 7;
+
+// Type-to-filter is the default for long lists, so nobody has to scroll a big
+// dropdown. Pass showSearch={false} to force a native select anyway.
 export function Select(props: SelectProps) {
     const options = props.options ?? optionsFromChildren(props.children);
-    return props.showSearch ? (
+    const searchable =
+        props.showSearch ??
+        options.filter((option) => !isPlaceholderOption(option)).length >=
+            SEARCHABLE_SELECT_MIN_OPTIONS;
+    return searchable ? (
         <Combobox {...props} options={options} />
     ) : (
         <NativeSelect {...props} options={options} />
@@ -370,11 +383,14 @@ function Combobox({
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
     const listId = useId();
-    const selected = options.find((option) => option.value === value);
+    const choices = options.filter((option) => !isPlaceholderOption(option));
+    const selected = choices.find((option) => option.value === value);
+    // With nothing chosen, a placeholder option's label is the placeholder text.
+    const hint = placeholder ?? textOf(options.find(isPlaceholderOption)?.label);
     const needle = query.trim().toLowerCase();
     const visible = needle
-        ? options.filter((option) => textOf(option.label).toLowerCase().includes(needle))
-        : options;
+        ? choices.filter((option) => textOf(option.label).toLowerCase().includes(needle))
+        : choices;
     const close = () => {
         setOpen(false);
         setQuery('');
@@ -399,7 +415,7 @@ function Combobox({
                 aria-invalid={invalid || undefined}
                 autoComplete="off"
                 disabled={disabled}
-                placeholder={selected ? textOf(selected.label) : placeholder}
+                placeholder={selected ? textOf(selected.label) : hint}
                 value={open ? query : selected ? textOf(selected.label) : ''}
                 onFocus={() => setOpen(true)}
                 onClick={() => setOpen(true)}

@@ -686,7 +686,8 @@ export function InventoryDetail({
                             <Select
                                 value={values.DepartmentId}
                                 onChange={(value) => update('DepartmentId', value)}
-                                className="antd-full-width">
+                                className="antd-full-width"
+                                showSearch>
                                 {dashboard.departments.map((department) => (
                                     <Select.Option key={department.Id} value={department.Id}>
                                         {department.Name}

@@ -17,6 +17,7 @@
 - Prefer simple, maintainable architecture that fits a small internal app. Introduce additional layers, infrastructure, or abstractions only when they solve a demonstrated need.
 - Before making UI changes, inspect similar screens, flows, and components already used in the app and follow their established patterns so the UI remains uniform.
 - When a UI or logic pattern is meaningfully repeated, consider extracting it into a reusable component or shared helper; avoid abstractions for one-off or merely similar code.
+- Dropdowns with many options must let people type to filter them. Use the kit's `Select` (`frontend/src/ui/form-kit.tsx`): lists of 7 or more options are searchable automatically, and `showSearch` forces it for shorter ones. Never build a separate long dropdown with a plain `<select>`.
 
 ## Effort and verification
 

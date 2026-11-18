@@ -121,7 +121,7 @@ export function UserForm({
                         control={form.control}
                         rules={{ required: 'Department is required' }}
                         render={({ field }) => (
-                            <Select {...field} className="antd-full-width">
+                            <Select {...field} className="antd-full-width" showSearch>
                                 <Select.Option value="" disabled>
                                     Select a department
                                 </Select.Option>
