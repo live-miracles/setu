@@ -1,5 +1,5 @@
 -- Give borrowers one extra day to return equipment before the daily reminder
--- emails start, and write the due date in the reminder as "16 November 2026"
+-- emails start, and write the due date in the reminder as "16 Nov 2026"
 -- instead of the ambiguous "11/16/2026".
 --
 -- Timeline for a request whose end_date is 16 November:
@@ -22,7 +22,7 @@ begin
          'Setu Bot',
          format(
            'This is a reminder that the equipment you borrowed was due to be returned on %s. Please return the equipment, or let us know if there''s any issue from your end.',
-           to_char(r.end_date, 'FMDD FMMonth YYYY')
+           to_char(r.end_date, 'FMDD Mon YYYY')
          )
     from public.inventory_requests r
    where r.status = 'issued'

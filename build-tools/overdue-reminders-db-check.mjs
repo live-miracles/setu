@@ -90,8 +90,8 @@ try {
     ).rows[0].message;
     assert.match(
         message,
-        /^This is a reminder that the equipment you borrowed was due to be returned on 5 November 2025\. /,
-        'the due date is written as day, English month name and year',
+        /^This is a reminder that the equipment you borrowed was due to be returned on 5 Nov 2025\. /,
+        'the due date is written as day, short English month name and year',
     );
 
     console.log('overdue reminder SQL checks passed');
