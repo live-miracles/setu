@@ -31,6 +31,7 @@
 
 - Do not commit personal information or private project identifiers to the codebase, including real names, email addresses, phone numbers, usernames, customer information, account IDs, project IDs, organization IDs, or similar identifiers.
 - Use clearly fictional placeholders or environment variables instead, and check changed files for accidental personal data or project-specific identifiers before committing.
+- Never add the production URL of this app (our own Vercel deployment) anywhere on GitHub: not in the README, docs, issues, pull requests, commit messages or the repository's "Website" (homepage) setting. It is the team's private link; anyone who clones this repository deploys their own and must not be pointed at ours. Use placeholders such as `https://your-app.vercel.app`. Do not add a production link to the live-miracles.github.io project directory either.
 - Treat credentials such as `SUPABASE_ACCESS_TOKEN` as secrets: provide them through environment variables, CI/CD secret storage, or the relevant provider's secret manager. Never commit, print, copy, or include their values in source files, documentation, logs, or issue reports.
 
 ## Security review

@@ -105,3 +105,7 @@ Run `npm test`, `npm run typecheck`, and `npm run format:check` before opening a
 request; the same checks run in CI. Repository conventions are in
 [AGENTS.md](AGENTS.md). To report a vulnerability, follow [SECURITY.md](SECURITY.md)
 and contact the repository owner privately instead of opening a public issue.
+
+## License
+
+[MIT](LICENSE) © Live Stream Miracles
