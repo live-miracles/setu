@@ -63,11 +63,11 @@ export function Activity({
                                 key={c.Id}>
                                 <div className="font-medium">
                                     {c.userName}{' '}
-                                    <span className="ml-2 text-xs font-normal text-black/50">
+                                    <span className="ml-2 text-xs font-normal text-steel">
                                         {formatDateTime(c.Timestamp)}
                                     </span>
                                 </div>
-                                <p className="whitespace-pre-wrap text-black/70">{c.Message}</p>
+                                <p className="whitespace-pre-wrap text-ink/70">{c.Message}</p>
                             </div>
                         ))
                     ) : (

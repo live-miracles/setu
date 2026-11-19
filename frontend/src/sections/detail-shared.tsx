@@ -10,7 +10,7 @@ export function DetailFields({ fields }: { fields: Array<[label: string, value: 
         <div className="grid gap-4 sm:grid-cols-2">
             {fields.map(([label, value]) => (
                 <div key={label} className="flex min-w-0 items-baseline gap-2">
-                    <dt className="shrink-0 text-xs font-semibold text-black/50">{label}</dt>
+                    <dt className="shrink-0 text-xs font-semibold text-steel">{label}</dt>
                     <dd className="min-w-0 break-words text-sm">{value}</dd>
                 </div>
             ))}

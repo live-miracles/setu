@@ -268,7 +268,7 @@ export function Home({ dashboard }: Props) {
             <div className="home-section antd-two-column">
                 <Card title={null}>
                     {dashboard.homeContent.Guidelines ? (
-                        <div className="guidelines-markdown text-sm text-black/75">
+                        <div className="guidelines-markdown text-sm text-ink/75">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {dashboard.homeContent.Guidelines}
                             </ReactMarkdown>

@@ -58,7 +58,7 @@ export function SettingsDetailFields({
         <div className="grid gap-4 sm:grid-cols-2">
             {fields.map(([label, fieldValue]) => (
                 <div key={label} className="flex min-w-0 items-baseline gap-2">
-                    <dt className="shrink-0 text-xs font-semibold text-black/50">{label}</dt>
+                    <dt className="shrink-0 text-xs font-semibold text-steel">{label}</dt>
                     <dd className="min-w-0 break-words text-sm">{fieldValue}</dd>
                 </div>
             ))}
