@@ -33,6 +33,9 @@ export interface ResourceConfig {
     addLabel: string;
     emptyMessage: string;
     fields: Field[];
+    // Name-only lists (places, brands) show as a grid of blocks, the way
+    // departments and inventory types do, instead of a table of rows.
+    layout?: 'table' | 'blocks';
     // Most resources are keyed by a generated Id. Program languages have no
     // Id column — the name itself is the identifier — so this lets the
     // shared table below key/match/save rows without every resource needing

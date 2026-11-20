@@ -10,6 +10,7 @@ import { showErrorAlert } from '../ui/feedback';
 import { formatDateTime } from '../ui/format';
 import { formatDateTimeLocal } from '../ui/date';
 import { matchesSearch } from '../ui/search';
+import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { useDashboard } from '../dashboard-context';
 import { ActionConfirmation } from './refine-shared';
@@ -41,6 +42,7 @@ const sortByName = (rows: Row[]) =>
 const RESOURCES: Record<string, ResourceConfig> = {
     places: {
         kind: 'program place',
+        layout: 'blocks',
         title: 'Program places',
         addLabel: 'Add program place',
         emptyMessage: 'No program places yet.',
@@ -50,6 +52,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
     'inventory-brands': {
         kind: 'inventory brand',
+        layout: 'blocks',
         title: 'Inventory brands',
         addLabel: 'Add inventory brand',
         emptyMessage: 'No inventory brands yet.',
@@ -59,6 +62,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
     'inventory-places': {
         kind: 'inventory place',
+        layout: 'blocks',
         title: 'Inventory places',
         addLabel: 'Add inventory place',
         emptyMessage: 'No inventory places yet.',
@@ -133,6 +137,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
     'program-languages': {
         kind: 'program-language',
+        layout: 'blocks',
         title: 'Program languages',
         addLabel: 'Add language',
         emptyMessage: 'No languages configured yet.',
@@ -142,6 +147,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
     'session-types': {
         kind: 'session-type',
+        layout: 'blocks',
         title: 'Session types',
         addLabel: 'Add session type',
         emptyMessage: 'No session types configured yet.',
@@ -286,13 +292,32 @@ export function SettingsResourcePage({
                     searchValue={hasSearch ? search : undefined}
                     onSearch={hasSearch ? setSearch : undefined}
                     searchPlaceholder={`Search ${config.title.toLowerCase()}`}>
-                    <Table
-                        rowKey={(row) => rowKeyOf(config, row)}
-                        columns={columns}
-                        dataSource={filteredRows}
-                        locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
-                        pagination={false}
-                    />
+                    {config.layout === 'blocks' ? (
+                        filteredRows.length > 0 ? (
+                            <div className="settings-block-grid">
+                                {filteredRows.map((row) => (
+                                    <BlockCard
+                                        key={rowKeyOf(config, row)}
+                                        className="settings-block">
+                                        <strong className="settings-block-name">
+                                            {String(row.Name ?? '')}
+                                        </strong>
+                                        {renderActions(row)}
+                                    </BlockCard>
+                                ))}
+                            </div>
+                        ) : (
+                            <Empty description={config.emptyMessage} />
+                        )
+                    ) : (
+                        <Table
+                            rowKey={(row) => rowKeyOf(config, row)}
+                            columns={columns}
+                            dataSource={filteredRows}
+                            locale={{ emptyText: <Empty description={config.emptyMessage} /> }}
+                            pagination={false}
+                        />
+                    )}
                 </TableView>
             </div>
             {deleting && (

@@ -1309,6 +1309,28 @@ form {
     border-bottom: 1px solid var(--setu-line);
 }
 
+/* Name-only settings lists (places, brands, languages, session types): a grid
+   of small blocks, each with the name and its edit/delete actions. */
+.settings-block-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+    gap: 0.5rem;
+}
+
+.settings-block {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.85rem;
+}
+
+.settings-block-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .settings-color-swatch {
     display: inline-block;
     width: 0.9rem;
