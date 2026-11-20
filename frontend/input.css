@@ -523,6 +523,15 @@ form {
     overflow: auto;
 }
 
+/* The page pads its content; let the scrollbar sit at the screen edge instead
+   of against the table, keeping the gap between them. */
+.calendar-page > .calendar-table-scroll,
+.roster-page > .roster-table-scroll {
+    width: auto;
+    margin-right: -1.5rem;
+    padding-right: 1.5rem;
+}
+
 .calendar-table {
     width: max-content;
     min-width: 100%;
@@ -1154,6 +1163,15 @@ form {
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
+    /* Keep a gap between the blocks and their scrollbar. */
+    padding-right: 0.75rem;
+}
+
+/* Without a side pane the list is the whole page: let its scrollbar sit at the
+   screen edge (inside the page's own padding) rather than against the blocks. */
+.master-detail:not(.has-detail) > .master-detail-list {
+    margin-right: -1.5rem;
+    padding-right: 1.5rem;
 }
 
 .master-detail-pane {
@@ -1802,6 +1820,12 @@ a.record-block:focus-visible {
 
     .calendar-page {
         height: calc(100dvh - 8rem);
+    }
+
+    .calendar-page > .calendar-table-scroll,
+    .roster-page > .roster-table-scroll {
+        margin-right: -1rem;
+        padding-right: 1rem;
     }
 
     .roster-page {
