@@ -38,22 +38,19 @@ export function RequestBlock({ kind, row, dashboard, href, selected, onClick }: 
         <BlockCard className="request-block" href={href} selected={selected} onClick={onClick}>
             <Space direction="vertical" size={2} className="request-block-content">
                 <div className="request-block-heading">
-                    <Space size="small" wrap>
-                        <Typography.Text type="secondary">
-                            {program ? `PRG-${row.DisplayId}` : `REQ-${row.DisplayId}`}
-                        </Typography.Text>
-                        <Typography.Text type="secondary">·</Typography.Text>
-                        <Typography.Text type="secondary">
-                            {formatProgramDateRangeFromBounds(
-                                program
-                                    ? (row as ProgramRequestDTO).sessionStart
-                                    : (row as InventoryRequestDTO).StartDate,
-                                program
-                                    ? (row as ProgramRequestDTO).sessionEnd
-                                    : (row as InventoryRequestDTO).EndDate,
-                            )}
-                        </Typography.Text>
-                    </Space>
+                    {/* One unbreakable line: the id and dates are never split; if
+                        the card is ever too narrow the line is cut with an
+                        ellipsis instead. */}
+                    <Typography.Text type="secondary" className="request-block-meta">
+                        {`${program ? 'PRG' : 'REQ'}-${row.DisplayId} · ${formatProgramDateRangeFromBounds(
+                            program
+                                ? (row as ProgramRequestDTO).sessionStart
+                                : (row as InventoryRequestDTO).StartDate,
+                            program
+                                ? (row as ProgramRequestDTO).sessionEnd
+                                : (row as InventoryRequestDTO).EndDate,
+                        )}`}
+                    </Typography.Text>
                     <Tag color={requestStatusTagColor(row.Status, overdue)}>
                         {statusLabel(row.Status)}
                     </Tag>

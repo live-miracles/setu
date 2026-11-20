@@ -980,8 +980,15 @@ form {
 }
 
 .antd-request-list {
-    display: block;
+    /* Cards share the row: as many 19rem-minimum columns as fit (wide enough
+       for the id, dates and status on one line), each growing to take the
+       leftover width so no empty strip is left on the right. */
+    display: grid;
     flex: 1 1 auto;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+    align-content: start;
+    align-items: start;
+    gap: 0.5rem;
     width: 100%;
     min-width: 0;
     overflow-y: auto;
@@ -989,11 +996,13 @@ form {
 }
 
 .antd-request-list > .record-block {
-    display: inline-block;
-    vertical-align: top;
-    width: calc(100% - 8px);
-    max-width: 320px;
-    margin: 0 8px 8px 0;
+    min-width: 0;
+    margin: 0;
+}
+
+/* Loading text, the empty state and pagination are not cards: span the row. */
+.antd-request-list > :not(.record-block) {
+    grid-column: 1 / -1;
 }
 
 .antd-settings-compact {
@@ -1543,6 +1552,15 @@ a.record-block:focus-visible {
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
+}
+
+/* The id and dates stay on one line; too narrow a card cuts it with an
+   ellipsis rather than wrapping. */
+.request-block-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .inventory-type-toolbar {
