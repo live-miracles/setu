@@ -7,8 +7,9 @@ import { Icon } from '../ui/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { showErrorAlert } from '../ui/feedback';
-import { formatDateTime } from '../ui/format';
+import { formatDateTime, formatTimeOfDay } from '../ui/format';
 import { formatDateTimeLocal } from '../ui/date';
+import { toneProps } from '../ui/tone';
 import { matchesSearch } from '../ui/search';
 import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
@@ -106,6 +107,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
     'shift-types': {
         kind: 'shift-type',
+        layout: 'blocks',
         title: 'Shift types',
         addLabel: 'Add shift type',
         emptyMessage: 'No shift types yet.',
@@ -116,6 +118,11 @@ const RESOURCES: Record<string, ResourceConfig> = {
             { field: 'Color', label: 'Color', type: 'color' },
         ],
         rowKey: (row) => String(row.Name),
+        describe: (row) =>
+            [row.DefaultStartTime, row.DefaultEndTime]
+                .map((time) => formatTimeOfDay(String(time ?? '')))
+                .filter(Boolean)
+                .join(' – '),
         toInput: (v) => ({
             name: v.Name,
             defaultStartTime: v.DefaultStartTime || null,
@@ -125,6 +132,7 @@ const RESOURCES: Record<string, ResourceConfig> = {
     },
     'program-types': {
         kind: 'program-type',
+        layout: 'blocks',
         title: 'Program types',
         addLabel: 'Add program type',
         emptyMessage: 'No program types configured yet.',
@@ -236,22 +244,6 @@ export function SettingsResourcePage({
                 dataIndex: field.field,
                 key: field.field,
                 render: (value: unknown) => {
-                    if (field.type === 'color') {
-                        const color = String(value || '').trim();
-                        const validColor = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color);
-                        return validColor ? (
-                            <Space size="small">
-                                <span
-                                    className="settings-color-swatch"
-                                    style={{ backgroundColor: color }}
-                                    aria-hidden="true"
-                                />
-                                <span>{color}</span>
-                            </Space>
-                        ) : (
-                            <span className="text-xs opacity-60">No color</span>
-                        );
-                    }
                     if (field.type === 'datetime-local') return formatDateTime(String(value || ''));
                     if (field.type === 'select' && field.optionsResource) {
                         return (
@@ -295,16 +287,26 @@ export function SettingsResourcePage({
                     {config.layout === 'blocks' ? (
                         filteredRows.length > 0 ? (
                             <div className="settings-block-grid">
-                                {filteredRows.map((row) => (
-                                    <BlockCard
-                                        key={rowKeyOf(config, row)}
-                                        className="settings-block">
-                                        <strong className="settings-block-name">
-                                            {String(row.Name ?? '')}
-                                        </strong>
-                                        {renderActions(row)}
-                                    </BlockCard>
-                                ))}
+                                {filteredRows.map((row) => {
+                                    const tone = toneProps(
+                                        String(row.Color ?? ''),
+                                        'settings-block',
+                                        ['accent'],
+                                    );
+                                    const description = config.describe?.(row);
+                                    return (
+                                        <BlockCard
+                                            key={rowKeyOf(config, row)}
+                                            className={tone.className}
+                                            style={tone.style}>
+                                            <div className="settings-block-text">
+                                                <strong>{String(row.Name ?? '')}</strong>
+                                                {description && <span>{description}</span>}
+                                            </div>
+                                            {renderActions(row)}
+                                        </BlockCard>
+                                    );
+                                })}
                             </div>
                         ) : (
                             <Empty description={config.emptyMessage} />

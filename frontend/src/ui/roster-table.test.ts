@@ -1,4 +1,3 @@
-import { readableTextColor } from './date';
 import {
     buildRosterTableModel,
     formatRosterTableDate,
@@ -109,11 +108,4 @@ export function runRosterTableAssertions(): void {
         shifts.find((shift) => shift.roster.Id === 'uncolored')?.color === '',
         'unconfigured roster color should be empty',
     );
-}
-
-export function runReadableTextColorAssertions(): void {
-    assert(readableTextColor('#ffffff') === '#1a1a1a', 'light colours should get dark text');
-    assert(readableTextColor('#7cc9a4') === '#1a1a1a', 'pastel colours should get dark text');
-    assert(readableTextColor('#222') === '#ffffff', 'dark colours should get light text');
-    assert(readableTextColor('#0b3d91') === '#ffffff', 'deep blue should get light text');
 }

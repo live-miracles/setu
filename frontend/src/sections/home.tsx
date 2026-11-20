@@ -12,7 +12,8 @@ import {
 } from '../paths';
 import { isPlainLeftClick } from '../ui/link-click';
 import { formatDateTime, formatProgramDateRangeFromBounds, formatTimeOfDay } from '../ui/format';
-import { formatLocalDateOnly, isValidHexColor, readableTextColor } from '../ui/date';
+import { formatLocalDateOnly } from '../ui/date';
+import { toneProps } from '../ui/tone';
 import { isOngoingInventoryRequest } from '../ui/inventory-status';
 import { statusLabel } from '../ui/request-block';
 import { requestStatusTagColor } from '../ui/request-status';
@@ -145,7 +146,11 @@ function ShiftList({
     return (
         <div>
             {shifts.map((shift) => {
-                const color = shiftColors.get(shift.ShiftTypeId);
+                const tone = toneProps(
+                    shiftColors.get(shift.ShiftTypeId),
+                    'justify-center md:min-w-28',
+                    ['ring'],
+                );
                 const hours = [formatTimeOfDay(shift.StartTime), formatTimeOfDay(shift.EndTime)]
                     .filter(Boolean)
                     .join(' – ');
@@ -153,16 +158,7 @@ function ShiftList({
                     <div key={shift.Id} className="border-b border-line last:border-b-0">
                         <Button type="text" block className="antd-list-button" onClick={onOpen}>
                             <div className="home-list-row">
-                                <Tag
-                                    className="justify-center md:min-w-28"
-                                    style={
-                                        color && isValidHexColor(color)
-                                            ? {
-                                                  backgroundColor: color,
-                                                  color: readableTextColor(color),
-                                              }
-                                            : undefined
-                                    }>
+                                <Tag className={tone.className} style={tone.style}>
                                     {shift.Name || shift.ShiftName}
                                 </Tag>
                                 <span className="home-list-title text-left font-medium">

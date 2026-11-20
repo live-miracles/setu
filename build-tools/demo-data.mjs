@@ -123,31 +123,31 @@ export const shiftTypes = [
     {
         Id: 'sh-morning',
         Name: 'Morning',
-        Color: '#ffe8d4',
+        Color: '#f97316',
         DefaultStartTime: '07:00',
         DefaultEndTime: '15:00',
     },
     {
         Id: 'sh-evening',
         Name: 'Evening',
-        Color: '#dcecfa',
+        Color: '#3b82f6',
         DefaultStartTime: '15:00',
         DefaultEndTime: '23:00',
     },
     {
         Id: 'sh-live',
         Name: 'Live broadcast',
-        Color: '#d9f3e1',
+        Color: '#22c55e',
         DefaultStartTime: '',
         DefaultEndTime: '',
     },
 ];
 
 export const programTypes = [
-    { Name: 'Workshop', Color: '#e8590c' },
-    { Name: 'Live session', Color: '#1c7ed6' },
-    { Name: 'Interview', Color: '#9c36b5' },
-    { Name: 'Recording', Color: '#2f9e44' },
+    { Name: 'Workshop', Color: '#f97316' },
+    { Name: 'Live session', Color: '#3b82f6' },
+    { Name: 'Interview', Color: '#a855f7' },
+    { Name: 'Recording', Color: '#22c55e' },
 ];
 export const programLanguages = [{ Name: 'English' }, { Name: 'Spanish' }, { Name: 'Hindi' }];
 export const sessionTypes = [{ Name: 'Rehearsal' }, { Name: 'Main session' }, { Name: 'Q&A' }];

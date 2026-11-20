@@ -2,10 +2,11 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
 import { Modal } from '../ui/overlay-kit';
 import { Select, Field } from '../ui/form-kit';
-import { Button, Checkbox, Space } from '../ui/kit';
+import { Button, Checkbox } from '../ui/kit';
 import { useDashboard } from '../dashboard-context';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTimeLocal } from '../ui/date';
+import { TONE_PALETTE, toneName } from '../ui/tone';
 import { TextField } from './refine-shared';
 
 export type Field = {
@@ -33,9 +34,12 @@ export interface ResourceConfig {
     addLabel: string;
     emptyMessage: string;
     fields: Field[];
-    // Name-only lists (places, brands) show as a grid of blocks, the way
-    // departments and inventory types do, instead of a table of rows.
+    // Simple lists (places, brands, types) show as a grid of blocks, the way
+    // departments and inventory types do, instead of a table of rows. A block
+    // shows the name, a `Color` field as its background, and `describe`'s text
+    // on a second line.
     layout?: 'table' | 'blocks';
+    describe?: (row: Row) => string;
     // Most resources are keyed by a generated Id. Program languages have no
     // Id column — the name itself is the identifier — so this lets the
     // shared table below key/match/save rows without every resource needing
@@ -133,28 +137,53 @@ function inputValue(field: Field, raw: unknown): string {
     return formatDateTimeLocal(date);
 }
 
+// Pick from the fixed palette (ui/tone.ts) rather than any colour: the palette
+// is chosen to look right on both themes. A colour saved before the palette
+// existed is kept as one extra swatch until another is picked.
 function ColorField({ row, field }: { row?: Row; field: Field }) {
-    const initialColor = inputValue(field, row?.[field.field]);
-    const [color, setColor] = useState(initialColor || '');
-    const pickerValue = color || '#ffffff';
+    const initialColor = inputValue(field, row?.[field.field]).trim();
+    const [color, setColor] = useState(initialColor);
+    const legacy =
+        initialColor && !toneName(initialColor)
+            ? [{ name: 'Current color', value: initialColor }]
+            : [];
+    const options = [...TONE_PALETTE, ...legacy];
+    const swatch =
+        'size-7 shrink-0 cursor-pointer rounded-full border border-ink/20 outline-offset-2 hover:scale-110 focus-visible:outline-2 focus-visible:outline-ink';
 
     return (
-        <Space>
-            <input
-                className="settings-color-input"
-                type="color"
-                value={pickerValue}
-                onChange={(event) => setColor(event.currentTarget.value)}
-                aria-label={color ? `Selected color ${color}` : 'Choose a color'}
-            />
+        <div>
             <input type="hidden" name={field.field} value={color} />
-            <span className="text-xs opacity-60">{color || 'No color selected'}</span>
-            {color && (
-                <Button type="link" size="small" onClick={() => setColor('')}>
-                    Clear
-                </Button>
-            )}
-        </Space>
+            <div
+                role="radiogroup"
+                aria-label={field.label}
+                className="flex flex-wrap items-center gap-2">
+                {options.map((tone) => {
+                    const selected = tone.value.toLowerCase() === color.toLowerCase();
+                    return (
+                        <button
+                            key={tone.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            aria-label={tone.name}
+                            title={tone.name}
+                            className={`${swatch}${selected ? ' outline-2 outline-ink' : ''}`}
+                            style={{ backgroundColor: tone.value }}
+                            onClick={() => setColor(tone.value)}
+                        />
+                    );
+                })}
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-xs text-steel">
+                <span>{color ? (toneName(color) ?? 'Current color') : 'No color selected'}</span>
+                {color && (
+                    <Button type="link" size="small" onClick={() => setColor('')}>
+                        Clear
+                    </Button>
+                )}
+            </div>
+        </div>
     );
 }
 

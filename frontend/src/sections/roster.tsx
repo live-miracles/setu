@@ -4,7 +4,8 @@ import { Input, Select, Field } from '../ui/form-kit';
 import { Button } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useDashboard } from '../dashboard-context';
-import { formatLocalDateOnly, readableTextColor } from '../ui/date';
+import { formatLocalDateOnly } from '../ui/date';
+import { toneProps } from '../ui/tone';
 import {
     buildRosterTableModel,
     formatRosterTableTimes,
@@ -289,6 +290,11 @@ export function Roster({ dashboard }: Props) {
                                                     );
                                                 }
                                                 const timing = formatRosterTableTimes(shift.roster);
+                                                const tone = toneProps(
+                                                    shift.color,
+                                                    'roster-shift-block',
+                                                    ['accent'],
+                                                );
                                                 const dateRange =
                                                     shift.roster.StartDate === shift.roster.EndDate
                                                         ? row.label
@@ -302,18 +308,8 @@ export function Roster({ dashboard }: Props) {
                                                         className="roster-shift-cell">
                                                         <button
                                                             type="button"
-                                                            className="roster-shift-block"
-                                                            style={
-                                                                shift.color
-                                                                    ? {
-                                                                          backgroundColor:
-                                                                              shift.color,
-                                                                          color: readableTextColor(
-                                                                              shift.color,
-                                                                          ),
-                                                                      }
-                                                                    : undefined
-                                                            }
+                                                            className={tone.className}
+                                                            style={tone.style}
                                                             onClick={() => setEditing(shift.roster)}
                                                             aria-label={`Edit ${shift.roster.Name} for ${volunteer.name}, ${dateRange}${timing ? `, ${timing}` : ''}`}>
                                                             <span className="roster-shift-name">

@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { programRequestPath } from '../paths';
 import { formatLocalDateOnly } from '../ui/date';
 import { buildCalendarTableModel } from '../ui/calendar-table';
+import { toneProps } from '../ui/tone';
 import { Page } from './refine-shared';
 
 type Props = { dashboard: DashboardPayload };
@@ -139,31 +140,36 @@ export function Calendar({ dashboard }: Props) {
                                                                 ? ' calendar-blocked-place-cell'
                                                                 : ''
                                                         }`}>
-                                                        {place.blocks.map((block) => (
-                                                            <Link
-                                                                key={block.programId}
-                                                                className="calendar-program-block"
-                                                                to={programRequestPath(
-                                                                    block.programId,
-                                                                )}
-                                                                style={{
-                                                                    backgroundColor: block.color
-                                                                        ? `${block.color}26`
-                                                                        : undefined,
-                                                                }}
-                                                                aria-label={`Open ${block.title}`}>
-                                                                <span className="calendar-program-title">
-                                                                    {block.title}
-                                                                </span>
-                                                                {block.sessions.map((session) => (
-                                                                    <span
-                                                                        key={`${session.startDateTime}-${session.label}`}
-                                                                        className="calendar-session-line">
-                                                                        {session.label}
+                                                        {place.blocks.map((block) => {
+                                                            const tone = toneProps(
+                                                                block.color,
+                                                                'calendar-program-block',
+                                                                ['accent'],
+                                                            );
+                                                            return (
+                                                                <Link
+                                                                    key={block.programId}
+                                                                    className={tone.className}
+                                                                    to={programRequestPath(
+                                                                        block.programId,
+                                                                    )}
+                                                                    style={tone.style}
+                                                                    aria-label={`Open ${block.title}`}>
+                                                                    <span className="calendar-program-title">
+                                                                        {block.title}
                                                                     </span>
-                                                                ))}
-                                                            </Link>
-                                                        ))}
+                                                                    {block.sessions.map(
+                                                                        (session) => (
+                                                                            <span
+                                                                                key={`${session.startDateTime}-${session.label}`}
+                                                                                className="calendar-session-line">
+                                                                                {session.label}
+                                                                            </span>
+                                                                        ),
+                                                                    )}
+                                                                </Link>
+                                                            );
+                                                        })}
                                                     </td>
                                                 );
                                             })}

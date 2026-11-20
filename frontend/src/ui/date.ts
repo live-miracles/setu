@@ -50,17 +50,6 @@ export function isValidHexColor(value: string): boolean {
     return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
 }
 
-// Dark or light text for a user-chosen background colour, so a configured shift
-// colour stays readable whichever theme (and so whichever default text colour)
-// is active. `value` must pass isValidHexColor.
-export function readableTextColor(value: string): '#1a1a1a' | '#ffffff' {
-    let hex = value.trim().slice(1);
-    if (hex.length === 3) hex = [...hex].map((digit) => digit + digit).join('');
-    const [red, green, blue] = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16));
-    // Perceived brightness (YIQ), 0-255.
-    return (red * 299 + green * 587 + blue * 114) / 1000 >= 150 ? '#1a1a1a' : '#ffffff';
-}
-
 // Session times are stored as real instants (ISO with offset). The datetime-local
 // inputs work in the viewer's local wall-clock time, so convert at that edge:
 // showing a stored instant in the editor, and saving what was typed.
