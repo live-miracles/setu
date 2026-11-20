@@ -1,5 +1,5 @@
 import { isValidHexColor } from './date';
-import { TONE_PALETTE, toneName, toneProps } from './tone';
+import { TONE_PALETTE, snapToTone, toneName, toneProps } from './tone';
 
 function assert(condition: boolean, message: string): void {
     if (!condition) throw new Error(message);
@@ -32,4 +32,15 @@ export function runToneAssertions(): void {
         'an invalid colour should leave the element plain',
     );
     assert(toneProps(undefined).className === '', 'a missing colour should leave no classes');
+
+    assert(snapToTone('#EF4444') === '#ef4444', 'a palette colour should map to itself');
+    assert(snapToTone('#ffe8d4') === '#f97316', 'a pastel orange should map to Orange');
+    assert(
+        ['#0ea5e9', '#3b82f6'].includes(snapToTone('#dcecfa')),
+        'a pastel blue should map to a blue',
+    );
+    assert(snapToTone('#d9f3e1') === '#22c55e', 'a pastel green should map to Green');
+    assert(['#64748b', '#78716c'].includes(snapToTone('#ffffff')), 'white should map to a neutral');
+    assert(snapToTone('#222') !== '', 'a short hex colour should map to the palette');
+    assert(snapToTone('') === '' && snapToTone('nope') === '', 'no colour should stay empty');
 }

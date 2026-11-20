@@ -98,8 +98,10 @@
     --setu-wash-1: #ffe2cf;
     --setu-wash-2: #fdf1d6;
     --setu-wash-3: #ffe8d4;
-    /* How much of a type's palette colour is mixed into the surface (.tone-tint). */
-    --setu-tone-mix: 24%;
+    /* A type's palette colour as a badge (.tone-tint): this much of it tinted into
+       the surface, and text that is this much the colour (rest is the ink). */
+    --setu-tone-mix: 20%;
+    --setu-tone-text: 50%;
 }
 
 /* Dark: a warm near-black canvas with slightly lifted cards and hairline
@@ -152,7 +154,8 @@
     --setu-wash-1: rgb(255 122 61 / 12%);
     --setu-wash-2: rgb(240 207 90 / 7%);
     --setu-wash-3: rgb(255 122 61 / 8%);
-    --setu-tone-mix: 28%;
+    --setu-tone-mix: 24%;
+    --setu-tone-text: 55%;
 }
 
 html,
@@ -1383,14 +1386,15 @@ a.record-block:focus-visible {
     outline-offset: 2px;
 }
 
-/* A shift or program type's palette colour (ui/tone.ts sets --tone). The colour
-   is mixed into the theme's own surface, with normal text, so it reads as a
-   soft tint on both themes instead of a solid fill that is too bright on dark
-   or too heavy on light. Declared after every block that uses it (.record-block, .roster-shift-block...)
-   so it wins. */
+/* A shift or program type's palette colour (ui/tone.ts sets --tone), styled like
+   the status badges: a faint tint of the colour behind text in the same hue,
+   lightened on dark and darkened on light because it is mixed with the theme's
+   ink. So each colour stays itself on both themes instead of turning grey.
+   Declared after every block that uses it (.record-block,
+   .roster-shift-block...) so it wins. */
 .tone-tint {
     background: color-mix(in srgb, var(--tone) var(--setu-tone-mix), var(--setu-surface));
-    color: var(--setu-ink);
+    color: color-mix(in srgb, var(--tone) var(--setu-tone-text), var(--setu-ink));
 }
 
 .tone-accent,

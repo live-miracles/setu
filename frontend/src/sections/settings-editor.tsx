@@ -6,7 +6,7 @@ import { Button, Checkbox } from '../ui/kit';
 import { useDashboard } from '../dashboard-context';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTimeLocal } from '../ui/date';
-import { TONE_PALETTE, toneName } from '../ui/tone';
+import { TONE_PALETTE, snapToTone, toneName } from '../ui/tone';
 import { TextField } from './refine-shared';
 
 export type Field = {
@@ -139,15 +139,10 @@ function inputValue(field: Field, raw: unknown): string {
 
 // Pick from the fixed palette (ui/tone.ts) rather than any colour: the palette
 // is chosen to look right on both themes. A colour saved before the palette
-// existed is kept as one extra swatch until another is picked.
+// existed starts as the palette colour it is shown as (snapToTone), so saving
+// moves it onto the palette.
 function ColorField({ row, field }: { row?: Row; field: Field }) {
-    const initialColor = inputValue(field, row?.[field.field]).trim();
-    const [color, setColor] = useState(initialColor);
-    const legacy =
-        initialColor && !toneName(initialColor)
-            ? [{ name: 'Current color', value: initialColor }]
-            : [];
-    const options = [...TONE_PALETTE, ...legacy];
+    const [color, setColor] = useState(snapToTone(inputValue(field, row?.[field.field])));
     const swatch =
         'size-7 shrink-0 cursor-pointer rounded-full border border-ink/20 outline-offset-2 hover:scale-110 focus-visible:outline-2 focus-visible:outline-ink';
 
@@ -158,7 +153,7 @@ function ColorField({ row, field }: { row?: Row; field: Field }) {
                 role="radiogroup"
                 aria-label={field.label}
                 className="flex flex-wrap items-center gap-2">
-                {options.map((tone) => {
+                {TONE_PALETTE.map((tone) => {
                     const selected = tone.value.toLowerCase() === color.toLowerCase();
                     return (
                         <button
@@ -176,7 +171,7 @@ function ColorField({ row, field }: { row?: Row; field: Field }) {
                 })}
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs text-steel">
-                <span>{color ? (toneName(color) ?? 'Current color') : 'No color selected'}</span>
+                <span>{toneName(color) ?? 'No color selected'}</span>
                 {color && (
                     <Button type="link" size="small" onClick={() => setColor('')}>
                         Clear
