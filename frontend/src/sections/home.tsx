@@ -18,6 +18,7 @@ import { isOngoingInventoryRequest } from '../ui/inventory-status';
 import { statusLabel } from '../ui/request-block';
 import { requestStatusTagColor } from '../ui/request-status';
 import { isRequestOverdue } from '../workflows';
+import { isViewVisible } from '../ui/views';
 
 type Props = { dashboard: DashboardPayload };
 
@@ -245,13 +246,32 @@ export function Home({ dashboard }: Props) {
     const shiftColors = new Map(dashboard.shiftTypes.map((type) => [type.Id, type.Color]));
     const todayShifts = shiftsForDate(todayIso);
     const tomorrowShifts = shiftsForDate(tomorrowIso);
+    // Views an admin hid (Other settings) leave their cards off the home screen.
+    const showPrograms = isViewVisible(dashboard.homeContent, 'programs');
+    const showInventory = isViewVisible(dashboard.homeContent, 'inventory');
+    const showRoster = isViewVisible(dashboard.homeContent, 'roster');
+    // A row with a single card gives it the full width.
+    const rowClass = (cards: boolean[]) =>
+        `home-section antd-two-column${cards.filter(Boolean).length === 1 ? ' grid-cols-1!' : ''}`;
     const recentComments = [
-        ...dashboard.programRequests.flatMap((request) =>
-            request.comments.map((comment) => ({ comment, request, kind: 'programs' as const })),
-        ),
-        ...dashboard.inventoryRequests.flatMap((request) =>
-            request.comments.map((comment) => ({ comment, request, kind: 'inventory' as const })),
-        ),
+        ...(showPrograms
+            ? dashboard.programRequests.flatMap((request) =>
+                  request.comments.map((comment) => ({
+                      comment,
+                      request,
+                      kind: 'programs' as const,
+                  })),
+              )
+            : []),
+        ...(showInventory
+            ? dashboard.inventoryRequests.flatMap((request) =>
+                  request.comments.map((comment) => ({
+                      comment,
+                      request,
+                      kind: 'inventory' as const,
+                  })),
+              )
+            : []),
     ]
         .sort(
             (a, b) =>
@@ -261,7 +281,7 @@ export function Home({ dashboard }: Props) {
 
     return (
         <Page>
-            <div className="home-section antd-two-column">
+            <div className={rowClass([true, showRoster])}>
                 <Card title={null}>
                     {dashboard.homeContent.Guidelines ? (
                         <div className="guidelines-markdown text-sm text-ink/75">
@@ -273,87 +293,102 @@ export function Home({ dashboard }: Props) {
                         <EmptyState />
                     )}
                 </Card>
-                <Card title={null}>
-                    <ShiftsHeading
-                        label="Today's shifts"
-                        count={todayShifts.length}
-                        date={shortDate(todayIso)}
-                    />
-                    <ShiftList
-                        shifts={todayShifts}
-                        shiftColors={shiftColors}
-                        onOpen={() => navigate(rosterPath)}
-                    />
-                    <Divider className="home-shifts-divider" />
-                    <ShiftsHeading
-                        label="Tomorrow's shifts"
-                        count={tomorrowShifts.length}
-                        date={shortDate(tomorrowIso)}
-                    />
-                    <ShiftList
-                        shifts={tomorrowShifts}
-                        shiftColors={shiftColors}
-                        onOpen={() => navigate(rosterPath)}
-                    />
-                </Card>
+                {showRoster && (
+                    <Card title={null}>
+                        <ShiftsHeading
+                            label="Today's shifts"
+                            count={todayShifts.length}
+                            date={shortDate(todayIso)}
+                        />
+                        <ShiftList
+                            shifts={todayShifts}
+                            shiftColors={shiftColors}
+                            onOpen={() => navigate(rosterPath)}
+                        />
+                        <Divider className="home-shifts-divider" />
+                        <ShiftsHeading
+                            label="Tomorrow's shifts"
+                            count={tomorrowShifts.length}
+                            date={shortDate(tomorrowIso)}
+                        />
+                        <ShiftList
+                            shifts={tomorrowShifts}
+                            shiftColors={shiftColors}
+                            onOpen={() => navigate(rosterPath)}
+                        />
+                    </Card>
+                )}
             </div>
-            <div className="home-section antd-two-column">
-                <Card
-                    title={sectionTitle('Pending program requests', pendingProgramRequests.length)}
-                    className="home-scroll-card"
-                    extra={sectionAction('Pending program requests', () => navigate(programsPath))}>
-                    <HomeRequestList requests={pendingProgramRequests} kind="programs" />
-                </Card>
-                <Card
-                    title={sectionTitle(
-                        'Ongoing Inventory Requests',
-                        ongoingInventoryRequests.length,
+            {(showPrograms || showInventory) && (
+                <div className={rowClass([showPrograms, showInventory])}>
+                    {showPrograms && (
+                        <Card
+                            title={sectionTitle(
+                                'Pending program requests',
+                                pendingProgramRequests.length,
+                            )}
+                            className="home-scroll-card"
+                            extra={sectionAction('Pending program requests', () =>
+                                navigate(programsPath),
+                            )}>
+                            <HomeRequestList requests={pendingProgramRequests} kind="programs" />
+                        </Card>
                     )}
-                    className="home-scroll-card"
-                    extra={sectionAction('Ongoing Inventory Requests', () =>
-                        navigate(inventoryPath),
-                    )}>
-                    <HomeRequestList requests={ongoingInventoryRequests} kind="inventory" />
-                </Card>
-            </div>
-            <div className="home-section">
-                <Card
-                    title={sectionTitle('Recent comments', recentComments.length)}
-                    className="home-recent-comments">
-                    <HomeLinkList
-                        items={recentComments}
-                        getKey={({ comment }) => comment.Id}
-                        getHref={({ request, kind }) =>
-                            kind === 'programs'
-                                ? programRequestPath(request.Id)
-                                : inventoryRequestPath(request.Id)
-                        }
-                        onOpen={({ request, kind }) =>
-                            navigate(
+                    {showInventory && (
+                        <Card
+                            title={sectionTitle(
+                                'Ongoing Inventory Requests',
+                                ongoingInventoryRequests.length,
+                            )}
+                            className="home-scroll-card"
+                            extra={sectionAction('Ongoing Inventory Requests', () =>
+                                navigate(inventoryPath),
+                            )}>
+                            <HomeRequestList requests={ongoingInventoryRequests} kind="inventory" />
+                        </Card>
+                    )}
+                </div>
+            )}
+            {(showPrograms || showInventory) && (
+                <div className="home-section">
+                    <Card
+                        title={sectionTitle('Recent comments', recentComments.length)}
+                        className="home-recent-comments">
+                        <HomeLinkList
+                            items={recentComments}
+                            getKey={({ comment }) => comment.Id}
+                            getHref={({ request, kind }) =>
                                 kind === 'programs'
                                     ? programRequestPath(request.Id)
-                                    : inventoryRequestPath(request.Id),
-                            )
-                        }
-                        render={({ comment, request, kind }) => (
-                            <div className="home-comment-row">
-                                <div className="home-list-row">
-                                    <RequestTitle kind={kind} request={request} />
-                                    <span className="home-comment-meta text-xs font-normal text-steel">
-                                        <span className="font-medium text-charcoal">
-                                            {comment.userName || comment.UserId}
-                                        </span>{' '}
-                                        · {formatDateTime(comment.Timestamp)}
-                                    </span>
+                                    : inventoryRequestPath(request.Id)
+                            }
+                            onOpen={({ request, kind }) =>
+                                navigate(
+                                    kind === 'programs'
+                                        ? programRequestPath(request.Id)
+                                        : inventoryRequestPath(request.Id),
+                                )
+                            }
+                            render={({ comment, request, kind }) => (
+                                <div className="home-comment-row">
+                                    <div className="home-list-row">
+                                        <RequestTitle kind={kind} request={request} />
+                                        <span className="home-comment-meta text-xs font-normal text-steel">
+                                            <span className="font-medium text-charcoal">
+                                                {comment.userName || comment.UserId}
+                                            </span>{' '}
+                                            · {formatDateTime(comment.Timestamp)}
+                                        </span>
+                                    </div>
+                                    <div className="home-comment-message border-l-2 border-line-strong pl-2.5 text-sm font-normal text-charcoal">
+                                        {comment.Message}
+                                    </div>
                                 </div>
-                                <div className="home-comment-message border-l-2 border-line-strong pl-2.5 text-sm font-normal text-charcoal">
-                                    {comment.Message}
-                                </div>
-                            </div>
-                        )}
-                    />
-                </Card>
-            </div>
+                            )}
+                        />
+                    </Card>
+                </div>
+            )}
         </Page>
     );
 }

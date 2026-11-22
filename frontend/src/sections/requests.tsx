@@ -27,6 +27,7 @@ import {
     writeLastRequestKind,
     type RequestKind,
 } from '../ui/request-kind';
+import { visibleRequestKinds } from '../ui/views';
 import { RequestBlock } from '../ui/request-block';
 import { MasterDetail } from '../ui/master-detail';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
@@ -187,6 +188,10 @@ export function RequestBoard({
         isInventory ? inventoryRequestPath(id) : programRequestPath(id);
     const title = requestKindLabel(kind);
     const requestNoun = isInventory ? 'inventory request' : 'program request';
+    const visibleKinds = visibleRequestKinds(dashboard.homeContent);
+    const switchKinds = REQUEST_KINDS.filter(
+        (value) => value === kind || visibleKinds.includes(value),
+    );
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
         setSearchParams(
@@ -281,18 +286,26 @@ export function RequestBoard({
     const heading = (
         <div className="antd-page-heading resource-page-heading">
             <div>
-                <h2 className="sr-only">Requests</h2>
                 {/* Each kind keeps its own filters, so switching starts that
-                    kind's list afresh at its plain path. */}
-                <SegmentedControl
-                    aria-label="Request type"
-                    value={kind}
-                    options={REQUEST_KINDS.map((value) => ({
-                        value,
-                        label: requestKindLabel(value),
-                    }))}
-                    onChange={(value) => navigate(requestKindPath(value))}
-                />
+                    kind's list afresh at its plain path. A kind an admin hid
+                    is not offered, unless it is the one open (opened by a
+                    link). With a single kind left there is nothing to switch. */}
+                {switchKinds.length > 1 ? (
+                    <>
+                        <h2 className="sr-only">Requests</h2>
+                        <SegmentedControl
+                            aria-label="Request type"
+                            value={kind}
+                            options={switchKinds.map((value) => ({
+                                value,
+                                label: requestKindLabel(value),
+                            }))}
+                            onChange={(value) => navigate(requestKindPath(value))}
+                        />
+                    </>
+                ) : (
+                    <Typography.Title level={2}>{title}</Typography.Title>
+                )}
             </div>
             {boardFilters}
             {canWrite(dashboard.me) && (

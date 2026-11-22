@@ -13,6 +13,7 @@ import {
 } from './core.ts';
 import { profilesFor } from './core.ts';
 import { isApproverRole } from '../_shared/request-policy.ts';
+import { homeContentDto } from './settings.ts';
 
 function timeDto(value: unknown): string {
     return value == null ? '' : String(value).slice(0, 5);
@@ -173,7 +174,7 @@ export async function getHomeContent(client: SupabaseClient): Promise<Row> {
     const home = result(
         await client.from('home_content').select('*').eq('id', true).single(),
     ) as Row;
-    return { Guidelines: home.guidelines };
+    return homeContentDto(home);
 }
 
 export async function listBlocks(client: SupabaseClient): Promise<Row[]> {

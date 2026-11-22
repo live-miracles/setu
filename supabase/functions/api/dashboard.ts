@@ -14,7 +14,7 @@ import { attachItemLabels, inventoryRequestDto } from './inventory.ts';
 import { programRequestDto } from './programs.ts';
 import { rosterTimeFields } from './roster.ts';
 import { groupByKey } from './query.ts';
-import { departmentDto } from './settings.ts';
+import { departmentDto, homeContentDto } from './settings.ts';
 import { isApproverRole, ONGOING_INVENTORY_STATUSES } from '../_shared/request-policy.ts';
 
 // The dashboard carries a bounded, recent sample of requests for the home
@@ -253,7 +253,7 @@ export async function dashboard(
                 commentsByRequest.get(x.id) || [],
             ),
         ),
-        homeContent: { Guidelines: home.guidelines },
+        homeContent: homeContentDto(home),
         shiftTypes: shiftTypes.map((x: Row) => ({
             Id: x.id,
             Name: x.name,

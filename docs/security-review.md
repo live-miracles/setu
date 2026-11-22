@@ -75,6 +75,10 @@ Organization-wide visibility of approved programs is required for cross-team sch
 
 Allowlist changes take effect at the application API boundary. Existing Supabase sessions are not globally revoked solely by a domain configuration change. Row Level Security continues to limit data access, and an Admin can delete an individual authentication identity when immediate revocation is required.
 
+### Hidden views are presentation only
+
+An Admin can hide the Program requests, Inventory requests, Calendar, Roster and Inventory types views from the menu and home screen (Other settings, stored in `home_content.hidden_views`). This is a display preference, not access control: the API never reads it, a hidden view's pages still open from a link, and access stays governed by authentication, Row Level Security and the request policy. Only Admins can change it, and the pages for Admins and Approvers cannot be hidden, so the setting cannot lock an Admin out of Other settings.
+
 ## 5 Secrets and Deployment Controls
 
 - The browser receives only the Supabase publishable key, which does not bypass authentication or Row Level Security.

@@ -14,6 +14,14 @@ import {
     type Row,
 } from './core.ts';
 import { boundedText, MAX_NAME_LENGTH, MAX_PHONE_LENGTH } from './validation.ts';
+import { normalizeHiddenViews } from '../_shared/views.ts';
+
+export function homeContentDto(row: Row): Row {
+    return {
+        Guidelines: row.guidelines,
+        HiddenViews: normalizeHiddenViews(row.hidden_views),
+    };
+}
 
 const USER_ROLES = ['admin', 'approver', 'viewer', 'user'];
 
@@ -1010,13 +1018,15 @@ export async function updateHomeContent(
     input: Row,
 ): Promise<Row> {
     await requireAdmin(client, userId);
+    // Each field is optional so the guidelines and the hidden views can be
+    // saved separately without one overwriting the other.
+    const changes: Row = { updated_by: userId };
+    if (input.guidelines !== undefined) changes.guidelines = String(input.guidelines || '');
+    if (input.hiddenViews !== undefined) {
+        changes.hidden_views = normalizeHiddenViews(input.hiddenViews);
+    }
     const row = result(
-        await admin
-            .from('home_content')
-            .update({ guidelines: String(input.guidelines || ''), updated_by: userId })
-            .eq('id', true)
-            .select('*')
-            .single(),
+        await admin.from('home_content').update(changes).eq('id', true).select('*').single(),
     ) as Row;
-    return { Guidelines: row.guidelines };
+    return homeContentDto(row);
 }

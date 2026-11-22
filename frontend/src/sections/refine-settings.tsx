@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useList } from '../ui/resources';
 import { Input, TextArea, Field } from '../ui/form-kit';
 import { Modal } from '../ui/overlay-kit';
-import { Table, Button, Card, Empty, Space, Tag, Typography } from '../ui/kit';
+import { Table, Button, Card, Checkbox, Empty, Space, Tag, Typography } from '../ui/kit';
+import { HIDEABLE_VIEWS, VIEW_LABELS, isViewVisible } from '../ui/views';
 import { Icon } from '../ui/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
@@ -387,6 +388,7 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
                     )}
                 </form>
             </Card>
+            <ViewsCard dashboard={dashboard} />
             <AllowedEmailDomainsPage dashboard={dashboard} />
             {(
                 [
@@ -402,6 +404,71 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
                 <SettingsResourcePage key={key} resourceName={key} dashboard={dashboard} compact />
             ))}
         </section>
+    );
+}
+
+// Which views everyone sees. Unchecked views leave the menu and the home screen;
+// the pages for admins and approvers always stay.
+function ViewsCard({ dashboard }: { dashboard: DashboardPayload }) {
+    const { refreshDashboard } = useDashboard();
+    const canEdit = canManageConfig(dashboard.me);
+    const [shown, setShown] = useState<string[]>(() =>
+        HIDEABLE_VIEWS.filter((view) => isViewVisible(dashboard.homeContent, view)),
+    );
+    const [saving, setSaving] = useState(false);
+
+    async function save(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        setSaving(true);
+        try {
+            const saved = await api.updateHomeContent({
+                hiddenViews: HIDEABLE_VIEWS.filter((view) => !shown.includes(view)),
+            });
+            // An API that has not been updated yet ignores hiddenViews and
+            // answers without it; say so instead of looking like a save.
+            if (!Array.isArray(saved?.HiddenViews)) {
+                throw new Error(
+                    'The server did not save the views. Apply the latest database migration and deploy the API first.',
+                );
+            }
+            await refreshDashboard();
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <Card title="Views" className="settings-form-card">
+            <form onSubmit={save}>
+                <Typography.Paragraph type="secondary">
+                    Unchecked views are hidden from the menu and the home screen for everyone. This
+                    only changes what is shown: anyone with a link can still open a hidden view.
+                </Typography.Paragraph>
+                <div className="mb-3 grid gap-2" role="group" aria-label="Views">
+                    {HIDEABLE_VIEWS.map((view) => (
+                        <Checkbox
+                            key={view}
+                            checked={shown.includes(view)}
+                            onChange={(event) =>
+                                setShown((current) =>
+                                    event.target.checked
+                                        ? [...current, view]
+                                        : current.filter((item) => item !== view),
+                                )
+                            }>
+                            {VIEW_LABELS[view]}
+                        </Checkbox>
+                    ))}
+                </div>
+                {canEdit && (
+                    <Button type="primary" htmlType="submit" loading={saving}>
+                        Save
+                    </Button>
+                )}
+            </form>
+        </Card>
     );
 }
 

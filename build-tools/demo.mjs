@@ -121,9 +121,10 @@ const operations = {
     getImageUrl: () => '',
 };
 
-// The only writes the demo accepts: workflow actions (approve, reject, ...) and
-// comments. They change the in-memory data, so a demo can approve a request and
-// show the new status; everything resets when the server restarts.
+// The only writes the demo accepts: workflow actions (approve, reject, ...),
+// comments and the hidden views. They change the in-memory data, so a demo can
+// approve a request and show the new status; everything resets when the server
+// restarts.
 const ACTION_STATUS = {
     submit: 'submitted',
     approve: 'approved',
@@ -163,6 +164,10 @@ function performAction(rows) {
 const writes = {
     performProgramRequestAction: performAction(data.programRequests),
     performInventoryRequestAction: performAction(data.inventoryRequests),
+    updateHomeContent: (input) => {
+        if (Array.isArray(input.hiddenViews)) data.homeContent.HiddenViews = input.hiddenViews;
+        return data.homeContent;
+    },
     addComment: (requestId, message) => {
         const request = [...data.programRequests, ...data.inventoryRequests].find(
             (r) => r.Id === requestId,

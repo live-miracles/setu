@@ -207,6 +207,9 @@ interface SettingRow {
 
 interface HomeContent {
     Guidelines: string;
+    // Keys of the views an admin hid from the navigation and home screen
+    // (see supabase/functions/_shared/views.ts). Presentation only.
+    HiddenViews: string[];
 }
 
 interface SettingsPayload {
@@ -475,8 +478,10 @@ interface UpdateProgramRequestInput {
     status: ProgramRequestStatus;
 }
 
+// Fields that are left out stay as they are.
 interface UpdateHomeContentInput {
-    guidelines: string;
+    guidelines?: string;
+    hiddenViews?: string[];
 }
 
 interface CreateShiftTypeInput {

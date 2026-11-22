@@ -21,14 +21,23 @@ import {
 } from '../paths';
 import { canApprove } from '../workflows';
 import { readLastRequestKind, requestKindPath } from './request-kind';
+import { isViewVisible, visibleRequestKinds, type HideableView } from './views';
 import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
 import { toggleTheme, useTheme } from './theme';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 
 // `also` lists other paths that keep the item selected (Requests covers both the
-// Programs and the Inventory board).
-type NavItem = { key: string; to: string; label: string; icon?: ReactNode; also?: string[] };
+// Programs and the Inventory board). `view` is the setting that can hide the
+// item (Other settings); Requests hides when both of its boards are hidden.
+type NavItem = {
+    key: string;
+    to: string;
+    label: string;
+    icon?: ReactNode;
+    also?: string[];
+    view?: HideableView;
+};
 
 const primaryNavItems: NavItem[] = [
     {
@@ -38,13 +47,25 @@ const primaryNavItems: NavItem[] = [
         icon: <Icon name="appstore" />,
         also: [inventoryPath],
     },
-    { key: 'calendar', to: calendarPath, label: 'Calendar', icon: <Icon name="calendar" /> },
+    {
+        key: 'calendar',
+        to: calendarPath,
+        label: 'Calendar',
+        icon: <Icon name="calendar" />,
+        view: 'calendar',
+    },
 ];
 
 // Roster and inventory types are readable by every signed-in user. The
 // remaining configuration entries are admin/approver-only.
 const configNavItems: NavItem[] = [
-    { key: 'roster', to: rosterPath, label: 'Roster', icon: <Icon name="schedule" /> },
+    {
+        key: 'roster',
+        to: rosterPath,
+        label: 'Roster',
+        icon: <Icon name="schedule" />,
+        view: 'roster',
+    },
     { key: 'users', to: usersPath, label: 'Users', icon: <Icon name="team" /> },
     {
         key: 'departments',
@@ -57,6 +78,7 @@ const configNavItems: NavItem[] = [
         to: inventoryTypesPath,
         label: 'Inventory types',
         icon: <Icon name="tags" />,
+        view: 'inventory-types',
     },
     { key: 'blocks', to: blocksPath, label: 'Blocks', icon: <Icon name="block" /> },
     {
@@ -211,8 +233,17 @@ export function Shell({
     // to wait for dashboard data.
     const showPrimaryNav = Boolean(userEmail) || isRegistered;
     const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
-    const moreItems = [...moreNavItems, ...(canOpenConfig ? moreConfigNavItems : [])];
-    const desktopItems = [...tabNavItems, ...moreItems];
+    const homeContent = dashboard?.homeContent;
+    const visibleKinds = visibleRequestKinds(homeContent);
+    const isShown = (item: NavItem) =>
+        item.key === 'requests'
+            ? visibleKinds.length > 0
+            : !item.view || isViewVisible(homeContent, item.view);
+    const tabItems = tabNavItems.filter(isShown);
+    const moreItems = [...moreNavItems, ...(canOpenConfig ? moreConfigNavItems : [])].filter(
+        isShown,
+    );
+    const desktopItems = [...tabItems, ...moreItems];
     const { navRef, measureRef, fit } = useFittingCount(desktopItems.length, showPrimaryNav);
     const visibleItems = desktopItems.slice(0, fit);
     const overflowItems = desktopItems.slice(fit);
@@ -249,9 +280,10 @@ export function Shell({
         if (item.key !== 'requests') return item.to;
         if (isPathSection(location.pathname, inventoryPath)) return inventoryPath;
         if (isPathSection(location.pathname, programsPath)) return programsPath;
-        return requestKindPath(readLastRequestKind());
+        const last = readLastRequestKind();
+        return requestKindPath(visibleKinds.includes(last) ? last : (visibleKinds[0] ?? last));
     };
-    const dockSelectedKey = tabNavItems.find(isCurrent)?.key;
+    const dockSelectedKey = tabItems.find(isCurrent)?.key;
     const dockMoreSelected = moreItems.some(isCurrent);
     // Menu rows for the given destinations; the admin-only ones sit under a
     // "Configuration" heading.
@@ -412,7 +444,7 @@ export function Shell({
             {appLoading && <AppLoading />}
             {showPrimaryNav && (
                 <nav id="mobile-dock" className="app-mobile-menu" aria-label="Main navigation">
-                    {tabNavItems.map((item) => (
+                    {tabItems.map((item) => (
                         <Link
                             key={item.key}
                             to={navTarget(item)}
@@ -424,21 +456,23 @@ export function Shell({
                             <span>{item.label}</span>
                         </Link>
                     ))}
-                    <DropdownMenu
-                        className="flex min-w-0 flex-1"
-                        placement="top"
-                        items={buildMoreMenu(moreItems)}
-                        onSelect={navigate}>
-                        <button
-                            type="button"
-                            aria-haspopup="menu"
-                            className={`app-mobile-nav-item w-full${
-                                dockMoreSelected ? ' is-selected' : ''
-                            }`}>
-                            <Icon name="more" />
-                            <span>More</span>
-                        </button>
-                    </DropdownMenu>
+                    {moreItems.length > 0 && (
+                        <DropdownMenu
+                            className="flex min-w-0 flex-1"
+                            placement="top"
+                            items={buildMoreMenu(moreItems)}
+                            onSelect={navigate}>
+                            <button
+                                type="button"
+                                aria-haspopup="menu"
+                                className={`app-mobile-nav-item w-full${
+                                    dockMoreSelected ? ' is-selected' : ''
+                                }`}>
+                                <Icon name="more" />
+                                <span>More</span>
+                            </button>
+                        </DropdownMenu>
+                    )}
                 </nav>
             )}
         </div>
