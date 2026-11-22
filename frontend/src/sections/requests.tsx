@@ -1,7 +1,15 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCreate, useList } from '../ui/resources';
 import { Field, Input, MultiSelect, Select } from '../ui/form-kit';
-import { Pagination, CountBadge, Button, Empty as AntEmpty, Space, Typography } from '../ui/kit';
+import {
+    Pagination,
+    CountBadge,
+    Button,
+    Empty as AntEmpty,
+    SegmentedControl,
+    Space,
+    Typography,
+} from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useDashboard } from '../dashboard-context';
@@ -12,6 +20,13 @@ import {
     WORKBENCH_VIEW_QUERY_PARAM,
 } from '../config';
 import { createRecordDestination } from '../ui/create-record';
+import {
+    REQUEST_KINDS,
+    requestKindLabel,
+    requestKindPath,
+    writeLastRequestKind,
+    type RequestKind,
+} from '../ui/request-kind';
 import { RequestBlock } from '../ui/request-block';
 import { MasterDetail } from '../ui/master-detail';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
@@ -98,13 +113,15 @@ export function RequestBoard({
     dashboard,
     renderDetail,
 }: Props & {
-    kind: 'inventory' | 'programs';
+    kind: RequestKind;
     // The open request (from the URL) shows beside the list on wide screens.
     renderDetail: (id: string) => ReactNode;
 }) {
     const isInventory = kind === 'inventory';
     const isProgram = kind === 'programs';
     const navigate = useNavigate();
+    // The Requests tab reopens on the kind the person looked at last.
+    useEffect(() => writeLastRequestKind(kind), [kind]);
     const { id: detailId = null } = useParams<{ id: string }>();
     const [searchParams, setSearchParams] = useSearchParams();
     const [search, setSearch] = useState(searchParams.get(WORKBENCH_SEARCH_QUERY_PARAM) || '');
@@ -168,7 +185,8 @@ export function RequestBoard({
         navigate(isInventory ? inventoryRequestPath(id) : programRequestPath(id));
     const hrefFor = (id: string) =>
         isInventory ? inventoryRequestPath(id) : programRequestPath(id);
-    const title = isInventory ? 'Inventory' : 'Programs';
+    const title = requestKindLabel(kind);
+    const requestNoun = isInventory ? 'inventory request' : 'program request';
     const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
     const updateQuery = (key: string, value: string) => {
         setSearchParams(
@@ -263,7 +281,18 @@ export function RequestBoard({
     const heading = (
         <div className="antd-page-heading resource-page-heading">
             <div>
-                <Typography.Title level={2}>{title}</Typography.Title>
+                <h2 className="sr-only">Requests</h2>
+                {/* Each kind keeps its own filters, so switching starts that
+                    kind's list afresh at its plain path. */}
+                <SegmentedControl
+                    aria-label="Request type"
+                    value={kind}
+                    options={REQUEST_KINDS.map((value) => ({
+                        value,
+                        label: requestKindLabel(value),
+                    }))}
+                    onChange={(value) => navigate(requestKindPath(value))}
+                />
             </div>
             {boardFilters}
             {canWrite(dashboard.me) && (
@@ -271,8 +300,8 @@ export function RequestBoard({
                     type="primary"
                     icon={<Icon name="plus" />}
                     onClick={() => setCreating(true)}
-                    aria-label={`Add ${title.toLowerCase()}`}
-                    title={`Add ${title.toLowerCase()}`}
+                    aria-label={`Add ${requestNoun}`}
+                    title={`Add ${requestNoun}`}
                 />
             )}
         </div>
@@ -326,9 +355,7 @@ export function RequestBoard({
             detailKey={detailId ?? ''}
             narrowListClassName="antd-page-board">
             {creating && (
-                <Modal
-                    title={`New ${isInventory ? 'inventory request' : 'program request'}`}
-                    close={() => setCreating(false)}>
+                <Modal title={`New ${requestNoun}`} close={() => setCreating(false)}>
                     <CreateRecord
                         kind={kind}
                         dashboard={dashboard}
@@ -347,7 +374,7 @@ export function RequestBoard({
 
 export function RequestTable(
     props: Props & {
-        kind: 'inventory' | 'programs';
+        kind: RequestKind;
         renderDetail: (id: string) => ReactNode;
     },
 ) {
@@ -361,7 +388,7 @@ export function CreateRecord({
     onSubmitStart,
     onSubmitEnd,
 }: Props & {
-    kind: 'inventory' | 'programs';
+    kind: RequestKind;
     onClose: () => void;
     onSubmitStart?: () => void;
     onSubmitEnd?: () => void;

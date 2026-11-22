@@ -20,17 +20,25 @@ import {
     usersPath,
 } from '../paths';
 import { canApprove } from '../workflows';
+import { readLastRequestKind, requestKindPath } from './request-kind';
 import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
 import { toggleTheme, useTheme } from './theme';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 
-type NavItem = { key: string; to: string; label: string; icon?: ReactNode };
+// `also` lists other paths that keep the item selected (Requests covers both the
+// Programs and the Inventory board).
+type NavItem = { key: string; to: string; label: string; icon?: ReactNode; also?: string[] };
 
 const primaryNavItems: NavItem[] = [
-    { key: 'programs', to: programsPath, label: 'Programs', icon: <Icon name="appstore" /> },
+    {
+        key: 'requests',
+        to: programsPath,
+        label: 'Requests',
+        icon: <Icon name="appstore" />,
+        also: [inventoryPath],
+    },
     { key: 'calendar', to: calendarPath, label: 'Calendar', icon: <Icon name="calendar" /> },
-    { key: 'inventory', to: inventoryPath, label: 'Inventory', icon: <Icon name="inbox" /> },
 ];
 
 // Roster and inventory types are readable by every signed-in user. The
@@ -59,12 +67,12 @@ const configNavItems: NavItem[] = [
     },
 ];
 
-// Navigation. Mobile (bottom dock) always shows the four everyday destinations
+// Navigation. Mobile (bottom dock) always shows the three everyday destinations
 // and puts everything else behind "More". Desktop shows every destination as a
 // top tab while they fit, and only the ones that no longer fit move into "More"
 // as the window narrows (see useFittingCount). The account menu is only about
 // the person.
-const tabKeys = new Set(['programs', 'calendar', 'inventory', 'roster']);
+const tabKeys = new Set(['requests', 'calendar', 'roster']);
 const tabNavItems = [...primaryNavItems, ...configNavItems].filter((item) => tabKeys.has(item.key));
 const moreNavItems = configNavItems.filter(
     (item) => !tabKeys.has(item.key) && item.key === 'inventory-types',
@@ -233,7 +241,16 @@ export function Shell({
             navigationType === 'PUSH' ? 0 : (scrollPositions.current.get(location.pathname) ?? 0);
     }, [location.key, location.pathname, navigationType]);
 
-    const isCurrent = (item: NavItem) => isPathSection(location.pathname, item.to);
+    const isCurrent = (item: NavItem) =>
+        [item.to, ...(item.also ?? [])].some((base) => isPathSection(location.pathname, base));
+    // The Requests tab stays on the board that is open and otherwise opens the
+    // kind of request the person looked at last.
+    const navTarget = (item: NavItem): string => {
+        if (item.key !== 'requests') return item.to;
+        if (isPathSection(location.pathname, inventoryPath)) return inventoryPath;
+        if (isPathSection(location.pathname, programsPath)) return programsPath;
+        return requestKindPath(readLastRequestKind());
+    };
     const dockSelectedKey = tabNavItems.find(isCurrent)?.key;
     const dockMoreSelected = moreItems.some(isCurrent);
     // Menu rows for the given destinations; the admin-only ones sit under a
@@ -249,7 +266,7 @@ export function Shell({
                 menu.push({ type: 'label', label: 'Configuration' });
             }
             menu.push({
-                key: item.to,
+                key: navTarget(item),
                 label: item.label,
                 icon: item.icon,
                 selected: isCurrent(item),
@@ -300,7 +317,7 @@ export function Shell({
                         {visibleItems.map((item) => (
                             <Link
                                 key={item.key}
-                                to={item.to}
+                                to={navTarget(item)}
                                 aria-current={isCurrent(item) ? 'page' : undefined}
                                 className={navTabClass(isCurrent(item))}>
                                 {item.icon}
@@ -398,7 +415,7 @@ export function Shell({
                     {tabNavItems.map((item) => (
                         <Link
                             key={item.key}
-                            to={item.to}
+                            to={navTarget(item)}
                             aria-current={dockSelectedKey === item.key ? 'page' : undefined}
                             className={`app-mobile-nav-item${
                                 dockSelectedKey === item.key ? ' is-selected' : ''

@@ -77,9 +77,11 @@ export function App() {
 
     const me = dashboard.me;
     // The list and an open request share one element, so opening a request
-    // keeps the list's filters, search and page.
+    // keeps the list's filters, search and page. The key makes switching between
+    // Programs and Inventory start the other board's filters afresh.
     const inventoryBoard = (
         <RequestTable
+            key="inventory"
             kind="inventory"
             dashboard={dashboard}
             renderDetail={(id) => <RequestDetail kind="inventory" id={id} dashboard={dashboard} />}
@@ -87,6 +89,7 @@ export function App() {
     );
     const programBoard = (
         <RequestTable
+            key="programs"
             kind="programs"
             dashboard={dashboard}
             renderDetail={(id) => <RequestDetail kind="programs" id={id} dashboard={dashboard} />}

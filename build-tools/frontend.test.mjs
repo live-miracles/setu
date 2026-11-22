@@ -24,6 +24,7 @@ test('frontend utility and table assertions', async () => {
                 import { runInventoryStockAssertions } from './frontend/src/ui/inventory-stock.test.ts';
                 import { runProgramActionAssertions } from './frontend/src/ui/program-actions.test.ts';
                 import { runRequestFieldsAssertions } from './frontend/src/ui/request-fields.test.ts';
+                import { runRequestKindAssertions } from './frontend/src/ui/request-kind.test.ts';
                 import { runRosterTableAssertions } from './frontend/src/ui/roster-table.test.ts';
                 import { runToneAssertions } from './frontend/src/ui/tone.test.ts';
 
@@ -36,6 +37,7 @@ test('frontend utility and table assertions', async () => {
                 runInventoryStockAssertions();
                 runProgramActionAssertions();
                 runRequestFieldsAssertions();
+                runRequestKindAssertions();
                 runRosterTableAssertions();
                 runToneAssertions();
             `,

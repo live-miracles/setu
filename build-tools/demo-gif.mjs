@@ -156,7 +156,7 @@ function driver(cdp) {
 
 async function storyboard(d) {
     await d.sleep(1400); // home
-    await d.click(byText('a', 'Programs'), 1300);
+    await d.click(byText('a', 'Requests'), 1300); // opens on Programs
     await d.click(linkContaining('Spanish storytelling hour'), 1600);
     await d.click(byText('button', 'approve'), 1000);
     await d.click(byText('button', 'Yes'), 2200); // now approved, with a new comment
@@ -168,7 +168,8 @@ async function storyboard(d) {
     await d.moveTo(block);
     await d.sleep(1600); // the approved program is on the calendar
     await d.click(byText('a', 'Roster'), 2000);
-    await d.click(byText('a', 'Inventory'), 1400);
+    await d.click(byText('a', 'Requests'), 1400);
+    await d.click(byText('button', 'Inventory'), 1400); // the Programs / Inventory switch
     await d.click(linkContaining('Spring interview shoot'), 2200);
 }
 

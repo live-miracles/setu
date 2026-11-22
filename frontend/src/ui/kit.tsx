@@ -153,6 +153,55 @@ export function Button({
     );
 }
 
+// ------------------------------------------------------- SegmentedControl
+
+// A short row of mutually exclusive choices that swap what the page shows
+// (e.g. Programs / Inventory). Buttons rather than a dropdown, so every choice
+// is visible and one tap away.
+export function SegmentedControl<T extends string>({
+    value,
+    options,
+    onChange,
+    className,
+    ...rest
+}: {
+    value: T;
+    options: Array<{ value: T; label: string; icon?: ReactNode }>;
+    onChange: (value: T) => void;
+    className?: string;
+    'aria-label': string;
+}) {
+    return (
+        <div
+            role="group"
+            aria-label={rest['aria-label']}
+            className={cx(
+                'inline-flex shrink-0 gap-0.5 rounded-lg border border-line-strong bg-tag-neutral p-0.5',
+                className,
+            )}>
+            {options.map((option) => {
+                const selected = option.value === value;
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => !selected && onChange(option.value)}
+                        className={cx(
+                            'inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors select-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-md:h-10 max-md:px-4',
+                            selected
+                                ? 'bg-surface text-accent shadow-sm'
+                                : 'text-ink hover:text-accent',
+                        )}>
+                        {option.icon}
+                        {option.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 // ------------------------------------------------------------------ Tags
 
 // Soft tinted chips (Notion's badge-tag-*), keyed by the semantic names the
