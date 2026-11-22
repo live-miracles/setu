@@ -250,9 +250,6 @@ export function Home({ dashboard }: Props) {
     const showPrograms = isViewVisible(dashboard.homeContent, 'programs');
     const showInventory = isViewVisible(dashboard.homeContent, 'inventory');
     const showRoster = isViewVisible(dashboard.homeContent, 'roster');
-    // A row with a single card gives it the full width.
-    const rowClass = (cards: boolean[]) =>
-        `home-section antd-two-column${cards.filter(Boolean).length === 1 ? ' grid-cols-1!' : ''}`;
     const recentComments = [
         ...(showPrograms
             ? dashboard.programRequests.flatMap((request) =>
@@ -279,116 +276,135 @@ export function Home({ dashboard }: Props) {
         )
         .slice(0, 8);
 
+    // The cards that are left, in reading order. They are laid out two to a row,
+    // so hiding a view pulls the next card up beside its neighbour instead of
+    // leaving one card alone on a wide row.
+    const cards = [
+        <Card key="guidelines" title={null}>
+            {dashboard.homeContent.Guidelines ? (
+                <div className="guidelines-markdown text-sm text-ink/75">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {dashboard.homeContent.Guidelines}
+                    </ReactMarkdown>
+                </div>
+            ) : (
+                <EmptyState />
+            )}
+        </Card>,
+        ...(showRoster
+            ? [
+                  <Card key="shifts" title={null}>
+                      <ShiftsHeading
+                          label="Today's shifts"
+                          count={todayShifts.length}
+                          date={shortDate(todayIso)}
+                      />
+                      <ShiftList
+                          shifts={todayShifts}
+                          shiftColors={shiftColors}
+                          onOpen={() => navigate(rosterPath)}
+                      />
+                      <Divider className="home-shifts-divider" />
+                      <ShiftsHeading
+                          label="Tomorrow's shifts"
+                          count={tomorrowShifts.length}
+                          date={shortDate(tomorrowIso)}
+                      />
+                      <ShiftList
+                          shifts={tomorrowShifts}
+                          shiftColors={shiftColors}
+                          onOpen={() => navigate(rosterPath)}
+                      />
+                  </Card>,
+              ]
+            : []),
+        ...(showPrograms
+            ? [
+                  <Card
+                      key="pending-programs"
+                      title={sectionTitle(
+                          'Pending program requests',
+                          pendingProgramRequests.length,
+                      )}
+                      className="home-scroll-card"
+                      extra={sectionAction('Pending program requests', () =>
+                          navigate(programsPath),
+                      )}>
+                      <HomeRequestList requests={pendingProgramRequests} kind="programs" />
+                  </Card>,
+              ]
+            : []),
+        ...(showInventory
+            ? [
+                  <Card
+                      key="ongoing-inventory"
+                      title={sectionTitle(
+                          'Ongoing Inventory Requests',
+                          ongoingInventoryRequests.length,
+                      )}
+                      className="home-scroll-card"
+                      extra={sectionAction('Ongoing Inventory Requests', () =>
+                          navigate(inventoryPath),
+                      )}>
+                      <HomeRequestList requests={ongoingInventoryRequests} kind="inventory" />
+                  </Card>,
+              ]
+            : []),
+        ...(showPrograms || showInventory
+            ? [
+                  <Card
+                      key="recent-comments"
+                      title={sectionTitle('Recent comments', recentComments.length)}
+                      className="home-recent-comments">
+                      <HomeLinkList
+                          items={recentComments}
+                          getKey={({ comment }) => comment.Id}
+                          getHref={({ request, kind }) =>
+                              kind === 'programs'
+                                  ? programRequestPath(request.Id)
+                                  : inventoryRequestPath(request.Id)
+                          }
+                          onOpen={({ request, kind }) =>
+                              navigate(
+                                  kind === 'programs'
+                                      ? programRequestPath(request.Id)
+                                      : inventoryRequestPath(request.Id),
+                              )
+                          }
+                          render={({ comment, request, kind }) => (
+                              <div className="home-comment-row">
+                                  <div className="home-list-row">
+                                      <RequestTitle kind={kind} request={request} />
+                                      <span className="home-comment-meta text-xs font-normal text-steel">
+                                          <span className="font-medium text-charcoal">
+                                              {comment.userName || comment.UserId}
+                                          </span>{' '}
+                                          · {formatDateTime(comment.Timestamp)}
+                                      </span>
+                                  </div>
+                                  <div className="home-comment-message border-l-2 border-line-strong pl-2.5 text-sm font-normal text-charcoal">
+                                      {comment.Message}
+                                  </div>
+                              </div>
+                          )}
+                      />
+                  </Card>,
+              ]
+            : []),
+    ];
+    const rows = Array.from({ length: Math.ceil(cards.length / 2) }, (_, index) =>
+        cards.slice(index * 2, index * 2 + 2),
+    );
+
     return (
         <Page>
-            <div className={rowClass([true, showRoster])}>
-                <Card title={null}>
-                    {dashboard.homeContent.Guidelines ? (
-                        <div className="guidelines-markdown text-sm text-ink/75">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {dashboard.homeContent.Guidelines}
-                            </ReactMarkdown>
-                        </div>
-                    ) : (
-                        <EmptyState />
-                    )}
-                </Card>
-                {showRoster && (
-                    <Card title={null}>
-                        <ShiftsHeading
-                            label="Today's shifts"
-                            count={todayShifts.length}
-                            date={shortDate(todayIso)}
-                        />
-                        <ShiftList
-                            shifts={todayShifts}
-                            shiftColors={shiftColors}
-                            onOpen={() => navigate(rosterPath)}
-                        />
-                        <Divider className="home-shifts-divider" />
-                        <ShiftsHeading
-                            label="Tomorrow's shifts"
-                            count={tomorrowShifts.length}
-                            date={shortDate(tomorrowIso)}
-                        />
-                        <ShiftList
-                            shifts={tomorrowShifts}
-                            shiftColors={shiftColors}
-                            onOpen={() => navigate(rosterPath)}
-                        />
-                    </Card>
-                )}
-            </div>
-            {(showPrograms || showInventory) && (
-                <div className={rowClass([showPrograms, showInventory])}>
-                    {showPrograms && (
-                        <Card
-                            title={sectionTitle(
-                                'Pending program requests',
-                                pendingProgramRequests.length,
-                            )}
-                            className="home-scroll-card"
-                            extra={sectionAction('Pending program requests', () =>
-                                navigate(programsPath),
-                            )}>
-                            <HomeRequestList requests={pendingProgramRequests} kind="programs" />
-                        </Card>
-                    )}
-                    {showInventory && (
-                        <Card
-                            title={sectionTitle(
-                                'Ongoing Inventory Requests',
-                                ongoingInventoryRequests.length,
-                            )}
-                            className="home-scroll-card"
-                            extra={sectionAction('Ongoing Inventory Requests', () =>
-                                navigate(inventoryPath),
-                            )}>
-                            <HomeRequestList requests={ongoingInventoryRequests} kind="inventory" />
-                        </Card>
-                    )}
+            {rows.map((row, index) => (
+                <div
+                    key={index}
+                    className={`home-section antd-two-column${row.length === 1 ? ' grid-cols-1!' : ''}`}>
+                    {row}
                 </div>
-            )}
-            {(showPrograms || showInventory) && (
-                <div className="home-section">
-                    <Card
-                        title={sectionTitle('Recent comments', recentComments.length)}
-                        className="home-recent-comments">
-                        <HomeLinkList
-                            items={recentComments}
-                            getKey={({ comment }) => comment.Id}
-                            getHref={({ request, kind }) =>
-                                kind === 'programs'
-                                    ? programRequestPath(request.Id)
-                                    : inventoryRequestPath(request.Id)
-                            }
-                            onOpen={({ request, kind }) =>
-                                navigate(
-                                    kind === 'programs'
-                                        ? programRequestPath(request.Id)
-                                        : inventoryRequestPath(request.Id),
-                                )
-                            }
-                            render={({ comment, request, kind }) => (
-                                <div className="home-comment-row">
-                                    <div className="home-list-row">
-                                        <RequestTitle kind={kind} request={request} />
-                                        <span className="home-comment-meta text-xs font-normal text-steel">
-                                            <span className="font-medium text-charcoal">
-                                                {comment.userName || comment.UserId}
-                                            </span>{' '}
-                                            · {formatDateTime(comment.Timestamp)}
-                                        </span>
-                                    </div>
-                                    <div className="home-comment-message border-l-2 border-line-strong pl-2.5 text-sm font-normal text-charcoal">
-                                        {comment.Message}
-                                    </div>
-                                </div>
-                            )}
-                        />
-                    </Card>
-                </div>
-            )}
+            ))}
         </Page>
     );
 }
