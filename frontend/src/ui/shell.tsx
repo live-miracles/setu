@@ -89,12 +89,14 @@ const configNavItems: NavItem[] = [
     },
 ];
 
-// Navigation. Mobile (bottom dock) always shows the three everyday destinations
-// and puts everything else behind "More". Desktop shows every destination as a
+// Navigation. Mobile (bottom dock) shows the first three destinations that are
+// not hidden (normally Requests, Calendar and Roster, so a hidden one is replaced
+// by the next in line) and puts the rest behind "More". Desktop shows every destination as a
 // top tab while they fit, and only the ones that no longer fit move into "More"
 // as the window narrows (see useFittingCount). The account menu is only about
 // the person.
 const tabKeys = new Set(['requests', 'calendar', 'roster']);
+const DOCK_SLOTS = tabKeys.size;
 const tabNavItems = [...primaryNavItems, ...configNavItems].filter((item) => tabKeys.has(item.key));
 const moreNavItems = configNavItems.filter(
     (item) => !tabKeys.has(item.key) && item.key === 'inventory-types',
@@ -283,8 +285,12 @@ export function Shell({
         const last = readLastRequestKind();
         return requestKindPath(visibleKinds.includes(last) ? last : (visibleKinds[0] ?? last));
     };
-    const dockSelectedKey = tabItems.find(isCurrent)?.key;
-    const dockMoreSelected = moreItems.some(isCurrent);
+    // desktopItems is every destination in menu order, so the dock takes the
+    // first few of them and the rest go behind More.
+    const dockItems = desktopItems.slice(0, DOCK_SLOTS);
+    const dockMoreItems = desktopItems.slice(DOCK_SLOTS);
+    const dockSelectedKey = dockItems.find(isCurrent)?.key;
+    const dockMoreSelected = dockMoreItems.some(isCurrent);
     // Menu rows for the given destinations; the admin-only ones sit under a
     // "Configuration" heading.
     const configKeys = new Set(moreConfigNavItems.map((item) => item.key));
@@ -444,7 +450,7 @@ export function Shell({
             {appLoading && <AppLoading />}
             {showPrimaryNav && (
                 <nav id="mobile-dock" className="app-mobile-menu" aria-label="Main navigation">
-                    {tabItems.map((item) => (
+                    {dockItems.map((item) => (
                         <Link
                             key={item.key}
                             to={navTarget(item)}
@@ -456,11 +462,11 @@ export function Shell({
                             <span>{item.label}</span>
                         </Link>
                     ))}
-                    {moreItems.length > 0 && (
+                    {dockMoreItems.length > 0 && (
                         <DropdownMenu
                             className="flex min-w-0 flex-1"
                             placement="top"
-                            items={buildMoreMenu(moreItems)}
+                            items={buildMoreMenu(dockMoreItems)}
                             onSelect={navigate}>
                             <button
                                 type="button"
