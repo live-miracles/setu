@@ -229,11 +229,11 @@ export function Shell({
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const isRegistered = Boolean(dashboard?.me.Phone);
-    // Authentication has already completed before Shell mounts. Keep the
-    // primary navigation visible while the dashboard (and therefore role /
-    // registration state) is still loading; only role-specific links need
-    // to wait for dashboard data.
-    const showPrimaryNav = Boolean(userEmail) || isRegistered;
+    // Authentication has already completed before Shell mounts. The primary
+    // navigation waits for the dashboard, which says the person's role and
+    // which views an admin hid; drawing it earlier showed every link and then
+    // removed some once the data arrived.
+    const showPrimaryNav = Boolean(dashboard) && (Boolean(userEmail) || isRegistered);
     const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
     const homeContent = dashboard?.homeContent;
     const visibleKinds = visibleRequestKinds(homeContent);
