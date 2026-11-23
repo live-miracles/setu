@@ -30,8 +30,8 @@ to Supabase:
   function loads only the requests on the page.
 - Idempotency is the client's id for a create: it becomes the new row's primary
   key, so a replay finds the row. Other writes are repeatable or rejected by their
-  own transition and uniqueness rules. The `idempotency_keys` table is no longer
-  written; it is dropped in a follow-up release, once the new edge function is live.
+  own transition and uniqueness rules. The `idempotency_keys` table is
+  dropped (20261124040000), one release after the edge function stopped writing to it.
 - `supabase/functions/api/operations.ts` is the single table of operations the
   browser may call, with an argument schema per operation.
 
