@@ -6,8 +6,7 @@ import { Table, Button, Checkbox, Empty, Space, Tag, Typography } from '../ui/ki
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
-import { generateRequestId } from '../ids';
-import { useDashboard } from '../dashboard-context';
+import { useHomeContent, useMe } from '../ui/reference';
 import {
     inventoryLabelsPath,
     inventoryRequestPath,
@@ -43,7 +42,8 @@ import { useRelatedRequests } from '../ui/related-requests';
 import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { DetailBackButton, DetailHeading, MasterDetail } from '../ui/master-detail';
-import { ActionConfirmation, SaveFooter, TextField } from './refine-shared';
+import { ActionConfirmation } from './action-confirmation';
+import { SaveFooter, TextField } from './form-fields';
 import {
     Editor,
     SettingsDetailFields,
@@ -141,22 +141,16 @@ function storeGroupBy(value: InventoryGroupBy): void {
 // The Types view lists equipment types; the Labels view lists every labelled
 // unit instead. Both open the selected type's details beside the list, so the
 // open type stays in the URL of whichever view is showing.
-export function InventoryTypesPage({
-    dashboard,
-    kind = 'types',
-}: {
-    dashboard: DashboardPayload;
-    kind?: InventoryKind;
-}) {
+export function InventoryTypesPage({ kind = 'types' }: { kind?: InventoryKind }) {
     const config = INVENTORY_TYPE_CONFIG;
     const isLabels = kind === 'labels';
     const listPath = isLabels ? inventoryLabelsPath : inventoryTypesPath;
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const selectedLabelId = searchParams.get('label');
-    const { refreshDashboard } = useDashboard();
+    const homeContent = useHomeContent();
     const { id: detailId = null } = useParams<{ id: string }>();
-    const canEdit = canManageConfig(dashboard.me);
+    const canEdit = canManageConfig(useMe());
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
@@ -204,7 +198,7 @@ export function InventoryTypesPage({
         setEditing(null);
     };
     // History is read from the request list endpoint (which sees every
-    // request) rather than the dashboard's bounded recent sample.
+    // request) rather than the home screen's bounded sample.
     const typeRequests = useRelatedRequests<InventoryRequestDTO>(
         'inventory-requests',
         selectedInventoryType ? { inventoryTypeId: String(selectedInventoryType.Id) } : null,
@@ -235,7 +229,6 @@ export function InventoryTypesPage({
                     imageId,
                 },
             });
-            await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -278,11 +271,10 @@ export function InventoryTypesPage({
     async function removeInventoryLabel(label: InventoryLabel) {
         setLabelBusy(true);
         try {
-            await api.deleteInventoryLabel(label.Id, generateRequestId());
+            await api.deleteInventoryLabel(label.Id);
             await invalidate({
                 resource: 'inventory-types',
             });
-            await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -313,26 +305,21 @@ export function InventoryTypesPage({
         setLabelBusy(true);
         try {
             if (labelEditor) {
-                await api.updateInventoryLabel(
-                    labelEditor.Id,
-                    { name: labelEditorName.trim(), locationId: labelEditorLocation },
-                    generateRequestId(),
-                );
+                await api.updateInventoryLabel(labelEditor.Id, {
+                    name: labelEditorName.trim(),
+                    locationId: labelEditorLocation,
+                });
             } else {
-                await api.createInventoryLabel(
-                    {
-                        inventoryTypeId: String(selectedInventoryType.Id),
-                        name: labelEditorName.trim(),
-                        locationId: labelEditorLocation,
-                    },
-                    generateRequestId(),
-                );
+                await api.createInventoryLabel({
+                    inventoryTypeId: String(selectedInventoryType.Id),
+                    name: labelEditorName.trim(),
+                    locationId: labelEditorLocation,
+                });
             }
             closeInventoryLabelEditor();
             await invalidate({
                 resource: 'inventory-types',
             });
-            await refreshDashboard();
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -415,11 +402,11 @@ export function InventoryTypesPage({
     );
     const searchNoun = isLabels ? 'inventory labels' : config.title.toLowerCase();
     const inventoryTypeHeader = (
-        <div className="antd-page-heading resource-page-heading">
+        <div className="app-page-heading resource-page-heading">
             <div>
-                <InventoryKindHeading kind={kind} homeContent={dashboard.homeContent} />
+                <InventoryKindHeading kind={kind} homeContent={homeContent} />
             </div>
-            <Space className="antd-board-filters" wrap>
+            <Space className="board-filters" wrap>
                 {isLabels ? (
                     <Select
                         value={labelGroupBy}
@@ -752,7 +739,6 @@ export function InventoryTypesPage({
                             kind="inventory"
                             items={typeRequests.items}
                             total={typeRequests.total}
-                            dashboard={dashboard}
                             hrefFor={inventoryRequestPath}
                             onOpen={(id) => navigate(inventoryRequestPath(id))}
                         />
@@ -802,7 +788,6 @@ export function InventoryTypesPage({
                             kind="inventory"
                             items={historyLabelRequests.items}
                             total={historyLabelRequests.total}
-                            dashboard={dashboard}
                             hrefFor={inventoryRequestPath}
                             onOpen={(id) => navigate(inventoryRequestPath(id))}
                         />

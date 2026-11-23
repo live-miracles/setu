@@ -1,6 +1,6 @@
 import { getRequestPermissions } from '../workflows';
 import { localDateToDayNumber, toIsoDate } from './date';
-import { toProgramSessionInputs } from './request-fields';
+import { serializeParticipants, toProgramSessionInputs } from './request-fields';
 
 function shiftLocalDateTime(value: string, dayDelta: number): string {
     getLocalDateFromSession(value);
@@ -25,7 +25,7 @@ export function buildDuplicateProgramInput(
         sessions: toProgramSessionInputs(sessions),
         departmentId: request.DepartmentId,
         leadEmail: request.LeadEmail,
-        participants: request.participants.join(', '),
+        participants: serializeParticipants(request.participants),
     };
 }
 
@@ -56,4 +56,19 @@ export function shiftProgramSessions(
         StartDateTime: shiftLocalDateTime(session.StartDateTime, dayDelta),
         EndDateTime: shiftLocalDateTime(session.EndDateTime, dayDelta),
     }));
+}
+
+// Adds a session (index null) or replaces one.
+export function upsertSession(
+    sessions: ProgramSession[],
+    index: number | null,
+    next: ProgramSession,
+): ProgramSession[] {
+    return index === null
+        ? [...sessions, next]
+        : sessions.map((session, at) => (at === index ? next : session));
+}
+
+export function removeSession(sessions: ProgramSession[], index: number): ProgramSession[] {
+    return sessions.filter((_, at) => at !== index);
 }

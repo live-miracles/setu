@@ -30,7 +30,8 @@ type ProgramRequestAction =
     'submit' | 'approve' | 'reject' | 'cancel' | 'revise' | 'unapprove' | 'reopen';
 
 // ---------------------------------------------------------------------------
-// Sheet row shapes (raw, one per tab)
+// Entity shapes: the stored fields of each entity. The DTOs further down extend
+// them with the joined and derived fields the API adds.
 // ---------------------------------------------------------------------------
 
 interface Department {
@@ -45,12 +46,11 @@ interface Place {
     Name: string;
 }
 
-// Email is the primary key itself (lowercased) — no separate generated id.
-// See the email-domain auto-registration in Auth.ts and the keyColumn
-// support in SheetTable.ts. Phone starts empty on auto-creation and is
-// required (like Name) once the user submits the registration/profile form
-// (see updateOwnProfile in Admin.ts) — the frontend gates the rest of the
-// app on Phone being set, rather than a separate registered flag.
+// Email is the key the app uses to identify a user (lowercased). Phone starts
+// empty when a profile is created at first sign-in and is required (like Name)
+// once the user submits the profile form (updateOwnProfile) — the frontend
+// gates the rest of the app on Phone being set, rather than a separate
+// registered flag.
 interface User {
     Email: string;
     Name: string;
@@ -100,8 +100,8 @@ interface InventoryLabel {
     LocationId: string;
 }
 
-// Status-change history (who/when) lives in Comments — every transition is
-// narrated there as a comment authored by the acting user. See Comments.ts.
+// Status-change history (who/when) lives in comments — every transition is
+// narrated there as a comment authored by the acting user.
 interface InventoryRequest {
     Id: string;
     DisplayId: number;
@@ -113,11 +113,6 @@ interface InventoryRequest {
     ImageId: string;
     DepartmentId: string;
     LeadEmail: string;
-    // Comma-separated emails. Co-own the request (see the submit-permission
-    // check in Inventory.ts) and are notified alongside UserId.
-    Participants: string;
-    ItemsJson: string;
-    CommentsJson: string;
 }
 
 interface InventoryItem {
@@ -138,9 +133,6 @@ interface ProgramRequest {
     PlaceId: string | null;
     DepartmentId: string;
     LeadEmail: string;
-    Participants: string;
-    SessionsJson: string;
-    CommentsJson: string;
 }
 
 // One or more scheduled sessions per program request. Named ProgramSession
@@ -166,7 +158,7 @@ interface CommentRecord {
 
 // A named shift with default clock-in/out times and an optional color, so
 // scheduling a roster entry can prefill times and the roster can use the
-// configured color. See Admin.ts and the shift-name select in roster.ts.
+// configured color.
 interface ShiftType {
     Id: string;
     Name: string;
@@ -196,15 +188,6 @@ interface Block {
     Place: string;
 }
 
-// Generic key-value store, e.g. for the Home content fields below and
-// display-id counters — Id doubles as the setting's key (see
-// readHomeContent/upsertSetting in Admin.ts, getNextDisplayId in
-// SheetTable.ts).
-interface SettingRow {
-    Id: string;
-    Value: string;
-}
-
 interface HomeContent {
     Guidelines: string;
     // Keys of the views an admin hid from the navigation and home screen
@@ -223,15 +206,6 @@ interface SettingsPayload {
 interface AllowedEmailDomain {
     domain: string;
     enabled: boolean;
-}
-
-interface FailedEmail {
-    Id: string;
-    Timestamp: string;
-    UserId: string;
-    Title: string;
-    Message: string;
-    Error: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,22 +298,38 @@ interface ProgramRequestQuery {
     sortDirection?: SortDirection;
 }
 
+// The home screen's data, and only that: reference data (departments, places,
+// inventory types, the current user, ...) is read through its own operations.
+// The requests are the summary rows the home cards print, not full DTOs.
+type DashboardProgramRequest = Pick<
+    ProgramRequestDTO,
+    'Id' | 'DisplayId' | 'Name' | 'Status' | 'userName' | 'sessionStart' | 'sessionEnd'
+>;
+
+type DashboardInventoryRequest = Pick<
+    InventoryRequestDTO,
+    'Id' | 'DisplayId' | 'Name' | 'Status' | 'userName' | 'StartDate' | 'EndDate'
+>;
+
+interface DashboardComment {
+    kind: 'programs' | 'inventory';
+    request: { Id: string; DisplayId: number; Name: string };
+    comment: CommentDTO;
+}
+
 interface DashboardPayload {
-    me: UserDTO;
-    users: UserDTO[];
-    departments: Department[];
-    places: Place[];
-    inventoryTypes: InventoryTypeDTO[];
+    // Shifts that have not ended yet (the home cards and the roster grid).
     upcomingRosters: RosterDTO[];
-    inventoryRequests: InventoryRequestDTO[];
-    programRequests: ProgramRequestDTO[];
-    homeContent: HomeContent;
-    shiftTypes: ShiftType[];
-    programTypes: ProgramType[];
-    programLanguages: ProgramLanguage[];
-    sessionTypes: SessionType[];
-    blocks: Block[];
-    failedEmailCount: number;
+    // Draft and submitted program requests, newest activity first, at most a
+    // bounded sample; the count is the true total.
+    pendingProgramRequests: DashboardProgramRequest[];
+    pendingProgramCount: number;
+    // Inventory requests still in play (see ONGOING_INVENTORY_STATUSES), the
+    // same way.
+    ongoingInventoryRequests: DashboardInventoryRequest[];
+    ongoingInventoryCount: number;
+    // The newest comments of each kind, newest first within a kind.
+    recentComments: DashboardComment[];
 }
 
 // ---------------------------------------------------------------------------
@@ -480,7 +470,6 @@ interface UpdateProgramRequestInput {
     departmentId: string;
     leadEmail: string;
     participants?: string;
-    status: ProgramRequestStatus;
 }
 
 // Fields that are left out stay as they are.
@@ -518,130 +507,106 @@ interface Api {
     getDashboard(): DashboardPayload;
 
     listUsers(): UserDTO[];
-    createUser(input: CreateUserInput, requestId: string): UserDTO;
+    createUser(input: CreateUserInput): UserDTO;
     updateUser(userId: string, patch: UpdateUserInput): UserDTO;
-    deleteUser(userId: string, requestId: string): void;
+    deleteUser(userId: string): void;
     updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO;
 
     listDepartments(): Department[];
-    createDepartment(input: CreateDepartmentInput, requestId: string): Department;
-    updateDepartment(id: string, input: CreateDepartmentInput, requestId: string): Department;
-    deleteDepartment(id: string, requestId: string): void;
+    createDepartment(input: CreateDepartmentInput): Department;
+    updateDepartment(id: string, input: CreateDepartmentInput): Department;
+    deleteDepartment(id: string): void;
 
     listPlaces(): Place[];
-    createPlace(input: CreatePlaceInput, requestId: string): Place;
-    updatePlace(id: string, input: CreatePlaceInput, requestId: string): Place;
-    deletePlace(id: string, requestId: string): void;
+    createPlace(input: CreatePlaceInput): Place;
+    updatePlace(id: string, input: CreatePlaceInput): Place;
+    deletePlace(id: string): void;
     listInventoryBrands(): Place[];
-    createInventoryBrand(input: CreatePlaceInput, requestId: string): Place;
-    updateInventoryBrand(id: string, input: CreatePlaceInput, requestId: string): Place;
-    deleteInventoryBrand(id: string, requestId: string): void;
+    createInventoryBrand(input: CreatePlaceInput): Place;
+    updateInventoryBrand(id: string, input: CreatePlaceInput): Place;
+    deleteInventoryBrand(id: string): void;
     listInventoryPlaces(): Place[];
-    createInventoryPlace(input: CreatePlaceInput, requestId: string): Place;
-    updateInventoryPlace(id: string, input: CreatePlaceInput, requestId: string): Place;
-    deleteInventoryPlace(id: string, requestId: string): void;
+    createInventoryPlace(input: CreatePlaceInput): Place;
+    updateInventoryPlace(id: string, input: CreatePlaceInput): Place;
+    deleteInventoryPlace(id: string): void;
 
     getHomeContent(): HomeContent;
     updateHomeContent(input: UpdateHomeContentInput): HomeContent;
 
     getSettings(): SettingsPayload;
     listAllowedEmailDomains(): AllowedEmailDomain[];
-    createAllowedEmailDomain(input: { domain: string }, requestId: string): AllowedEmailDomain;
-    deleteAllowedEmailDomain(domain: string, requestId: string): void;
-    createShiftType(input: CreateShiftTypeInput, requestId: string): ShiftType;
-    updateShiftType(name: string, input: CreateShiftTypeInput, requestId: string): ShiftType;
-    deleteShiftType(name: string, requestId: string): void;
+    createAllowedEmailDomain(input: { domain: string }): AllowedEmailDomain;
+    deleteAllowedEmailDomain(domain: string): void;
+    createShiftType(input: CreateShiftTypeInput): ShiftType;
+    updateShiftType(name: string, input: CreateShiftTypeInput): ShiftType;
+    deleteShiftType(name: string): void;
 
-    createProgramType(input: CreateNamedOptionInput, requestId: string): ProgramType;
-    updateProgramType(name: string, input: CreateNamedOptionInput, requestId: string): ProgramType;
-    deleteProgramType(name: string, requestId: string): void;
+    createProgramType(input: CreateNamedOptionInput): ProgramType;
+    updateProgramType(name: string, input: CreateNamedOptionInput): ProgramType;
+    deleteProgramType(name: string): void;
 
-    createProgramLanguage(input: CreateNamedOptionInput, requestId: string): ProgramLanguage;
-    updateProgramLanguage(
-        name: string,
-        input: CreateNamedOptionInput,
-        requestId: string,
-    ): ProgramLanguage;
-    deleteProgramLanguage(name: string, requestId: string): void;
+    createProgramLanguage(input: CreateNamedOptionInput): ProgramLanguage;
+    updateProgramLanguage(name: string, input: CreateNamedOptionInput): ProgramLanguage;
+    deleteProgramLanguage(name: string): void;
 
-    createSessionType(input: CreateNamedOptionInput, requestId: string): SessionType;
-    updateSessionType(name: string, input: CreateNamedOptionInput, requestId: string): SessionType;
-    deleteSessionType(name: string, requestId: string): void;
+    createSessionType(input: CreateNamedOptionInput): SessionType;
+    updateSessionType(name: string, input: CreateNamedOptionInput): SessionType;
+    deleteSessionType(name: string): void;
 
     listBlocks(): Block[];
-    createBlock(input: CreateBlockInput, requestId: string): Block;
-    updateBlock(id: string, input: CreateBlockInput, requestId: string): Block;
-    deleteBlock(id: string, requestId: string): void;
+    createBlock(input: CreateBlockInput): Block;
+    updateBlock(id: string, input: CreateBlockInput): Block;
+    deleteBlock(id: string): void;
 
     listRosters(page: number): Paginated<RosterDTO>;
-    createRoster(input: CreateRosterInput, requestId: string): RosterDTO;
-    updateRoster(id: string, input: CreateRosterInput, requestId: string): RosterDTO;
-    deleteRoster(id: string, requestId: string): void;
+    createRoster(input: CreateRosterInput): RosterDTO;
+    updateRoster(id: string, input: CreateRosterInput): RosterDTO;
+    deleteRoster(id: string): void;
 
     listInventoryTypes(): InventoryTypeDTO[];
-    createInventoryLabel(input: CreateInventoryLabelInput, requestId: string): InventoryLabel;
-    updateInventoryLabel(
-        id: string,
-        input: UpdateInventoryLabelInput,
-        requestId: string,
-    ): InventoryLabel;
-    deleteInventoryLabel(id: string, requestId: string): void;
-    createInventoryType(input: CreateInventoryTypeInput, requestId: string): InventoryTypeDTO;
-    updateInventoryType(
-        id: string,
-        input: CreateInventoryTypeInput,
-        requestId: string,
-    ): InventoryTypeDTO;
-    deleteInventoryType(id: string, requestId: string): void;
+    createInventoryLabel(input: CreateInventoryLabelInput): InventoryLabel;
+    updateInventoryLabel(id: string, input: UpdateInventoryLabelInput): InventoryLabel;
+    deleteInventoryLabel(id: string): void;
+    createInventoryType(input: CreateInventoryTypeInput): InventoryTypeDTO;
+    updateInventoryType(id: string, input: CreateInventoryTypeInput): InventoryTypeDTO;
+    deleteInventoryType(id: string): void;
 
     listInventoryRequests(page: number, query?: InventoryRequestQuery): InventoryRequestPage;
     getInventoryRequest(id: string): InventoryRequestDTO;
     createInventoryRequest(
         input: CreateInventoryRequestInput,
-        requestId: string,
+        clientId?: string,
     ): InventoryRequestDTO;
-    updateInventoryRequest(
-        id: string,
-        input: UpdateInventoryRequestInput,
-        requestId: string,
-    ): InventoryRequestDTO;
+    updateInventoryRequest(id: string, input: UpdateInventoryRequestInput): InventoryRequestDTO;
     updateInventoryRequestParticipants(
         id: string,
         input: UpdateRequestParticipantsInput,
-        requestId: string,
     ): InventoryRequestDTO;
-    deleteInventoryRequest(id: string, requestId: string): void;
+    deleteInventoryRequest(id: string): void;
     performInventoryRequestAction(
         requestId: string,
         action: InventoryRequestAction,
         note: string,
-        dedupeRequestId: string,
     ): InventoryRequestStatus;
 
     listProgramRequests(page: number, query?: ProgramRequestQuery): Paginated<ProgramRequestDTO>;
     getProgramRequest(id: string): ProgramRequestDTO;
     getAvailablePlaces(requestId: string, sessions: ProgramSessionInput[]): Place[];
     getCalendarMonth(year: number, month: number): CalendarMonthPayload;
-    createProgramRequest(input: CreateProgramRequestInput, requestId: string): ProgramRequestDTO;
-    updateProgramRequest(
-        id: string,
-        input: UpdateProgramRequestInput,
-        requestId: string,
-    ): ProgramRequestDTO;
+    createProgramRequest(input: CreateProgramRequestInput, clientId?: string): ProgramRequestDTO;
+    updateProgramRequest(id: string, input: UpdateProgramRequestInput): ProgramRequestDTO;
     updateProgramRequestParticipants(
         id: string,
         input: UpdateRequestParticipantsInput,
-        requestId: string,
     ): ProgramRequestDTO;
-    deleteProgramRequest(id: string, requestId: string): void;
+    deleteProgramRequest(id: string): void;
     performProgramRequestAction(
         requestId: string,
         action: ProgramRequestAction,
         note: string,
-        dedupeRequestId: string,
     ): ProgramRequestStatus;
 
-    addComment(requestId: string, message: string, dedupeRequestId: string): CommentDTO;
+    addComment(requestId: string, message: string, clientId?: string): CommentDTO;
 
     createImageUploadUrl(
         fileName: string,
@@ -649,8 +614,4 @@ interface Api {
         targetType: 'inventory_request' | 'inventory_type',
         targetId: string,
     ): { path: string; token: string };
-
-    // The request-images bucket is public, so a stored image id/path can
-    // be turned into a stable public URL in the browser.
-    getImageUrl(imageId: string): string;
 }

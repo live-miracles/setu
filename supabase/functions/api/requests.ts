@@ -1,5 +1,5 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { currentWriter, result, withLockedDedupe, type Row } from './core.ts';
+import { currentWriter, result, type Row } from './core.ts';
 import { isValidEmail, MAX_PARTICIPANTS } from './validation.ts';
 import {
     canCollaborate,
@@ -12,12 +12,11 @@ import {
 // Everything inventory and program requests have in common, behind one
 // interface: what differs (tables, the SQL transition function, the DTO reader)
 // is a RequestKindConfig; the lifecycle skeleton — load the request with its
-// participants, authorize through the shared policy, lock-and-dedupe, write —
-// lives here once.
+// participants, authorize through the shared policy, write — lives here once.
+// Multi-row writes are single SQL functions (save_*_request_tx, migration
+// 20261124000000), so a request is never left half-saved.
 export interface RequestKindConfig {
     kind: RequestKind;
-    // Used in idempotency scopes, e.g. 'inventory_request:delete:<id>'.
-    scope: 'inventory_request' | 'program_request';
     table: 'inventory_requests' | 'program_requests';
     participantsTable: 'inventory_request_participants' | 'program_request_participants';
     actionRpc: 'perform_inventory_request_action_tx' | 'perform_program_request_action_tx';
@@ -70,22 +69,6 @@ export async function resolveParticipants(admin: SupabaseClient, emails: string[
             ? { profile_id: profileId, external_email: null }
             : { profile_id: null, external_email: email };
     });
-}
-
-export async function replaceParticipants(
-    admin: SupabaseClient,
-    table: RequestKindConfig['participantsTable'],
-    requestId: string,
-    participantEmails: string[],
-): Promise<void> {
-    const { error: deleteError } = await admin.from(table).delete().eq('request_id', requestId);
-    if (deleteError) throw new Error(deleteError.message);
-    const participants = await resolveParticipants(admin, participantEmails);
-    if (!participants.length) return;
-    const { error } = await admin
-        .from(table)
-        .insert(participants.map((p) => ({ ...p, request_id: requestId })));
-    if (error) throw new Error(error.message);
 }
 
 export async function requireRequesterProfile(admin: SupabaseClient, email: string): Promise<Row> {
@@ -144,23 +127,19 @@ export async function updateRequestParticipants(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const participantEmails = parseParticipants(input.participants);
-    await withLockedDedupe(
-        admin,
-        `${config.scope}:participants:${id}`,
-        requestId,
-        userId,
-        async () => {
-            const access = await loadRequestAccess(admin, config, id, actor);
-            if (!canCollaborate({ isParty: access.isParty, role: actor.role })) {
-                throw new Error('You are not allowed to edit participants on this request.');
-            }
-            await replaceParticipants(admin, config.participantsTable, id, participantEmails);
-            return null;
-        },
+    const access = await loadRequestAccess(admin, config, id, actor);
+    if (!canCollaborate({ isParty: access.isParty, role: actor.role })) {
+        throw new Error('You are not allowed to edit participants on this request.');
+    }
+    result(
+        await admin.rpc('save_request_participants_tx', {
+            p_kind: config.kind,
+            p_request_id: id,
+            p_participants: await resolveParticipants(admin, participantEmails),
+        }),
     );
     return config.read(client, admin, id);
 }
@@ -175,25 +154,16 @@ export async function performRequestAction(
     id: string,
     action: string,
     note: string,
-    dedupeRequestId: string,
 ): Promise<string> {
     const actor = await currentWriter(client, userId);
-    const { result: nextStatus } = await withLockedDedupe(
-        admin,
-        `${config.scope}:${id}:${action}`,
-        dedupeRequestId,
-        userId,
-        async () =>
-            result(
-                await admin.rpc(config.actionRpc, {
-                    p_request_id: id,
-                    p_action: action,
-                    p_actor_id: actor.id,
-                    p_note: note,
-                }),
-            ) as string,
-    );
-    return nextStatus;
+    return result(
+        await admin.rpc(config.actionRpc, {
+            p_request_id: id,
+            p_action: action,
+            p_actor_id: actor.id,
+            p_note: note,
+        }),
+    ) as string;
 }
 
 export async function deleteRequest(
@@ -202,19 +172,15 @@ export async function deleteRequest(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     const actor = await currentWriter(client, userId);
-    await withLockedDedupe(admin, `${config.scope}:delete:${id}`, requestId, userId, async () => {
-        const access = await loadRequestAccess(admin, config, id, actor);
-        if (!isApprover(actor) && !access.isParty) {
-            throw new Error('You are not allowed to delete this request.');
-        }
-        if (!canDeleteRequest(config.kind, policyInput(actor, access))) {
-            throw new Error('This request can no longer be deleted.');
-        }
-        const { error } = await admin.from(config.table).delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    const access = await loadRequestAccess(admin, config, id, actor);
+    if (!isApprover(actor) && !access.isParty) {
+        throw new Error('You are not allowed to delete this request.');
+    }
+    if (!canDeleteRequest(config.kind, policyInput(actor, access))) {
+        throw new Error('This request can no longer be deleted.');
+    }
+    const { error } = await admin.from(config.table).delete().eq('id', id);
+    if (error) throw new Error(error.message);
 }

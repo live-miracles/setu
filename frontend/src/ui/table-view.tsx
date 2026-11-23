@@ -35,7 +35,7 @@ export function TableView({
             }
             extra={action}>
             {onSearch && (
-                <div className="antd-table-search">
+                <div className="table-search">
                     <Input
                         allowClear
                         prefix={<Icon name="search" />}

@@ -3,11 +3,10 @@ import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
 import { Modal } from '../ui/overlay-kit';
 import { Select, Field } from '../ui/form-kit';
 import { Button, Checkbox } from '../ui/kit';
-import { useDashboard } from '../dashboard-context';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { formatDateTimeLocal } from '../ui/date';
 import { TONE_PALETTE, snapToTone, toneName } from '../ui/tone';
-import { TextField } from './refine-shared';
+import { TextField } from './form-fields';
 
 export type Field = {
     field: string;
@@ -16,9 +15,9 @@ export type Field = {
     datalistId?: string;
     hiddenInTable?: boolean;
     // Names another RESOURCES entry (and ui/resources.ts resource)
-    // whose rows populate this select — resolved via its own useList rather
-    // than the shared dashboard blob. optionsLabel adds a blank/"All ..."
-    // entry ahead of the fetched rows when set.
+    // whose rows populate this select — resolved via its own useList.
+    // optionsLabel adds a blank/"All ..." entry ahead of the fetched rows
+    // when set.
     optionsResource?: string;
     // Which property of an option is stored as the field's value (default Id).
     optionsValueKey?: 'Id' | 'Name';
@@ -73,13 +72,10 @@ export function SettingsDetailFields({
     );
 }
 
-// Create/update/delete for one settings resource, with the saving badge and the
-// shared dashboard blob kept in sync. The react-query cache already
-// refetches the list on success; refreshDashboard also keeps the dashboard in
-// sync for pages that still cross-reference this resource from there (e.g. a
-// department/place picker) and haven't been migrated to the resource hooks yet.
+// Create/update/delete for one settings resource, with the saving badge. The
+// resource hooks refetch what a save can change (see DEPENDENT_QUERIES in
+// ui/resources.ts), so there is nothing else to keep in sync.
 export function useResourceMutations(resourceName: string, config: ResourceConfig) {
-    const { refreshDashboard } = useDashboard();
     const { mutateAsync: createRow } = useCreate();
     const { mutateAsync: updateRow } = useUpdate();
     const { mutateAsync: deleteRow } = useDelete();
@@ -103,7 +99,6 @@ export function useResourceMutations(resourceName: string, config: ResourceConfi
                     values: payload,
                 });
             }
-            await refreshDashboard();
             return created;
         } finally {
             showSavingBadge(false);
@@ -117,7 +112,6 @@ export function useResourceMutations(resourceName: string, config: ResourceConfi
                 resource: resourceName,
                 id: rowKeyOf(config, row),
             });
-            await refreshDashboard();
             return true;
         } catch (error) {
             showErrorAlert(error);
@@ -201,7 +195,7 @@ function SelectField({ field, row }: { field: Field; row?: Row }) {
             <Select
                 value={selected}
                 onChange={setSelected}
-                className="antd-full-width"
+                className="w-full"
                 showSearch
                 options={options.map((option) => ({ value: option.value, label: option.label }))}
             />

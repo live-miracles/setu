@@ -7,7 +7,10 @@ import { fakeClient, loadBundle } from './test-support.mjs';
 const rootUrl = new URL('../', import.meta.url);
 
 async function load(path, { prelude = '', from, to } = {}) {
-    let source = (await readFile(new URL(path, rootUrl), 'utf8')).replace(/^import [^;]*;\n/gm, '');
+    let source = (await readFile(new URL(path, rootUrl), 'utf8')).replace(
+        /^import [^;]*;\r?\n/gm,
+        '',
+    );
     if (from) source = source.slice(source.indexOf(from));
     if (to) source = source.slice(0, source.indexOf(to));
     const { code } = await transform(prelude + source, { loader: 'ts', format: 'esm' });
@@ -36,16 +39,6 @@ test('email validation accepts one address and rejects multi-recipient or malfor
         assert.throws(() => validation.emailArg(bad, 'required'), /valid email/, bad);
     }
     assert.throws(() => validation.emailArg('   ', 'Lead email is required.'), /required/);
-});
-
-test('program status changes must use a workflow action', async () => {
-    const validation = await loadBundle(`export * from './supabase/functions/api/validation';`);
-    assert.doesNotThrow(() => validation.requireUnchangedWorkflowStatus(undefined, 'submitted'));
-    assert.doesNotThrow(() => validation.requireUnchangedWorkflowStatus('submitted', 'submitted'));
-    assert.throws(
-        () => validation.requireUnchangedWorkflowStatus('approved', 'submitted'),
-        /workflow action/,
-    );
 });
 
 test('participant lists are validated, de-duplicated and capped', async () => {
@@ -101,11 +94,7 @@ async function loadDeleteUser(actorId) {
             const requireApprover = requireAdmin;
             const requireNonEmpty = (value) => String(value).trim();
             const result = (response) => response.data;
-            const userDto = (value) => value;
-            const withLockedDedupe = async (_admin, _scope, _requestId, _actor, fn) => ({
-                duplicate: false,
-                result: await fn(),
-            });\n`,
+            const userDto = (value) => value;\n`,
     });
 }
 
@@ -113,7 +102,7 @@ test('deleting a user is refused for the caller and for users with history', asy
     const own = deleteUserFixture();
     const settingsSelf = await loadDeleteUser('target-1');
     await assert.rejects(
-        settingsSelf.deleteUser({}, own.admin, 'target-1', 'me@example.org', 'request-1'),
+        settingsSelf.deleteUser({}, own.admin, 'target-1', 'me@example.org'),
         /own account/,
     );
     assert.deepEqual(own.deleted, []);
@@ -127,14 +116,14 @@ test('deleting a user is refused for the caller and for users with history', asy
     ]) {
         const withHistory = deleteUserFixture({ counts });
         await assert.rejects(
-            settings.deleteUser({}, withHistory.admin, 'admin-1', 'x@example.org', 'request-1'),
+            settings.deleteUser({}, withHistory.admin, 'admin-1', 'x@example.org'),
             /cannot be deleted/,
         );
         assert.deepEqual(withHistory.deleted, []);
     }
 
     const clean = deleteUserFixture();
-    await settings.deleteUser({}, clean.admin, 'admin-1', 'x@example.org', 'request-1');
+    await settings.deleteUser({}, clean.admin, 'admin-1', 'x@example.org');
     assert.deepEqual(clean.deleted, ['target-1']);
 });
 
@@ -160,11 +149,7 @@ async function loadMemberSettings() {
                 SignInBlocked: Boolean(profile.sign_in_blocked),
             });
             const emailDomainAllowed = async (admin, email) =>
-                Boolean((await admin.rpc('is_email_domain_allowed', { candidate_email: email })).data);
-            const withLockedDedupe = async (_admin, _scope, _requestId, _actor, fn) => ({
-                duplicate: false,
-                result: await fn(),
-            });\n`,
+                Boolean((await admin.rpc('is_email_domain_allowed', { candidate_email: email })).data);\n`,
     });
 }
 
@@ -236,13 +221,12 @@ function memberFixture({
 test('an administrator can add a member who cannot sign in yet', async () => {
     const settings = await loadMemberSettings();
     const { admin, calls } = memberFixture();
-    const member = await settings.createUser(
-        {},
-        admin,
-        'admin-1',
-        { email: ' Sam@Gmail.Example ', name: 'Sam', role: 'approver', departmentId: 'dept-1' },
-        'request-1',
-    );
+    const member = await settings.createUser({}, admin, 'admin-1', {
+        email: ' Sam@Gmail.Example ',
+        name: 'Sam',
+        role: 'approver',
+        departmentId: 'dept-1',
+    });
     assert.equal(calls.created.length, 1);
     assert.equal(calls.created[0].email, 'sam@gmail.example');
     assert.equal(calls.created[0].email_confirm, true);
@@ -258,22 +242,20 @@ test('adding a member rejects a duplicate email or unknown role before touching 
     const settings = await loadMemberSettings();
     const duplicate = memberFixture({ existing: { id: 'someone' } });
     await assert.rejects(
-        settings.createUser({}, duplicate.admin, 'admin-1', { email: 'a@b.org', name: 'A' }, 'r1'),
+        settings.createUser({}, duplicate.admin, 'admin-1', { email: 'a@b.org', name: 'A' }),
         /already exists/,
     );
     const badRole = memberFixture();
     await assert.rejects(
-        settings.createUser(
-            {},
-            badRole.admin,
-            'admin-1',
-            { email: 'a@b.org', name: 'A', role: 'owner' },
-            'r2',
-        ),
+        settings.createUser({}, badRole.admin, 'admin-1', {
+            email: 'a@b.org',
+            name: 'A',
+            role: 'owner',
+        }),
         /Unknown role/,
     );
     await assert.rejects(
-        settings.createUser({}, badRole.admin, 'admin-1', { email: 'a@b.org', name: ' ' }, 'r3'),
+        settings.createUser({}, badRole.admin, 'admin-1', { email: 'a@b.org', name: ' ' }),
         /Name is required/,
     );
     assert.deepEqual([...duplicate.calls.created, ...badRole.calls.created], []);
@@ -283,7 +265,7 @@ test('a member whose profile cannot be completed does not keep a banned identity
     const settings = await loadMemberSettings();
     const { admin, calls } = memberFixture({ profileSaveFails: true });
     await assert.rejects(
-        settings.createUser({}, admin, 'admin-1', { email: 'a@b.org', name: 'A' }, 'r1'),
+        settings.createUser({}, admin, 'admin-1', { email: 'a@b.org', name: 'A' }),
         /profile save failed/,
     );
     assert.deepEqual(calls.deleted, ['new-1']);
@@ -381,7 +363,7 @@ test('comment length limit is enforced before any request lookup', async () => {
         },
     };
     await assert.rejects(
-        comments.addComment(client, admin, 'user-1', 'request-1', 'x'.repeat(4001), 'dedupe-123'),
+        comments.addComment(client, admin, 'user-1', 'request-1', 'x'.repeat(4001)),
         /at most 4000/,
     );
 });

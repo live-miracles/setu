@@ -317,8 +317,8 @@ body {
     overflow: auto;
 }
 
-.home-recent-comments .antd-list-button {
-    text-align: left;
+/* The comment rows' button lets its content sit at the top left. */
+.home-recent-comments .home-list-button {
     justify-content: flex-start;
     align-items: flex-start;
     /* Without this, a flex container's automatic minimum width is the
@@ -327,10 +327,9 @@ body {
     min-width: 0;
 }
 
-/* antd's Button wraps multiple top-level children in its own spacing
-   wrapper, which silently breaks any flex layout applied to the button
-   itself (see the request/shift rows' single home-list-row div for the
-   same pattern). Giving the button a single child that owns its own flex
+/* A button with several top-level children can break a flex layout applied to
+   the button itself (see the request/shift rows' single home-list-row div for
+   the same pattern). Giving the button a single child that owns its own flex
    column keeps the title/meta line and the message reliably stacked. */
 .home-comment-row {
     display: flex;
@@ -353,10 +352,6 @@ body {
     -webkit-box-orient: vertical;
     white-space: normal;
     overflow-wrap: anywhere;
-}
-
-.antd-full-width {
-    width: 100%;
 }
 
 form {
@@ -789,7 +784,7 @@ form {
 /* Board pages size themselves between the fixed header and mobile dock, so
    their request list can own the vertical scroll without moving the heading
    and filters out of view. */
-.app-content:has(.antd-page-board),
+.app-content:has(.app-page-board),
 .app-content:has(.calendar-page) {
     overflow: hidden;
 }
@@ -853,12 +848,6 @@ form {
     text-align: center;
 }
 
-.app-content-settings > .refine-page :is(.antd-page, .antd-settings-compact) {
-    width: 100%;
-    max-width: 50rem;
-    margin-inline: auto;
-}
-
 .app-content-settings .blocks-page {
     width: 100%;
     max-width: 50rem;
@@ -869,19 +858,7 @@ form {
     max-width: none;
 }
 
-.app-content-departments > .refine-page :is(.antd-page, .antd-settings-compact) {
-    max-width: none;
-}
-
 .app-content-users {
-    max-width: none;
-}
-
-.app-content-users > .refine-page .detail-page {
-    max-width: none;
-}
-
-.app-content-users > .refine-page .users-list-page {
     max-width: none;
 }
 
@@ -905,7 +882,7 @@ form {
     display: none;
 }
 
-.antd-page {
+.app-page {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -914,87 +891,41 @@ form {
     padding: 1.5rem;
 }
 
-.antd-page-board {
+.app-page-board {
     height: calc(100dvh - 4rem);
     min-height: 0;
     box-sizing: border-box;
     overflow: hidden;
 }
 
-.antd-page-heading {
+.app-page-heading {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
 }
 
-.antd-board-filters {
+.board-filters {
     flex: 1 1 auto;
     justify-content: flex-end;
     align-items: center;
 }
 
-.antd-board-filters .ui-input {
+.board-filters .ui-input {
     flex: 1 1 14rem;
     width: auto;
     max-width: 32rem;
 }
 
-.antd-board-filter-select {
-    width: 5.625rem !important;
-    min-width: 5.625rem !important;
-}
-
-.antd-table-search {
+.table-search {
     margin-bottom: 1rem;
 }
 
-.antd-table-search .ui-input {
+.table-search .ui-input {
     max-width: 32rem;
 }
 
-.antd-board {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    min-height: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 0.5rem;
-}
-
-.antd-page-board .antd-board {
-    flex: 1 1 auto;
-    width: 100%;
-    min-width: 0;
-}
-
-.antd-board-column {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 19rem;
-    min-width: 19rem;
-    padding: 0.75rem;
-    background: color-mix(in srgb, var(--setu-line) 22%, transparent);
-    border: 1px solid var(--setu-line);
-    border-radius: 0.4rem;
-    overflow-y: auto;
-}
-
-.antd-page-board .antd-board-column {
-    height: 100%;
-    max-height: none;
-    box-sizing: border-box;
-}
-
-.antd-board-column-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.75rem;
-}
-
-.antd-request-list {
+.request-list {
     /* Cards share the row: as many 19rem-minimum columns as fit (wide enough
        for the id, dates and status on one line), each growing to take the
        leftover width so no empty strip is left on the right. */
@@ -1010,17 +941,17 @@ form {
     padding-bottom: 0.5rem;
 }
 
-.antd-request-list > .record-block {
+.request-list > .record-block {
     min-width: 0;
     margin: 0;
 }
 
 /* Loading text, the empty state and pagination are not cards: span the row. */
-.antd-request-list > :not(.record-block) {
+.request-list > :not(.record-block) {
     grid-column: 1 / -1;
 }
 
-.antd-settings-compact {
+.settings-compact {
     display: flex;
     box-sizing: border-box;
     flex-direction: column;
@@ -1028,20 +959,6 @@ form {
     width: 100%;
     max-width: 50rem;
     margin-inline: auto;
-}
-
-.antd-stat-grid,
-.antd-two-column {
-    display: grid;
-    gap: 1rem;
-}
-
-.antd-stat-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.antd-two-column {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .detail-sections {
@@ -1320,17 +1237,10 @@ form {
     }
 }
 
-.antd-list-button {
+.home-list-button {
     height: auto;
     padding: 0.65rem 0;
     text-align: left;
-}
-
-.antd-list-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.65rem 0;
-    border-bottom: 1px solid var(--setu-line);
 }
 
 /* Name-only settings lists (places, brands, languages, session types): a grid
@@ -1767,7 +1677,7 @@ a.record-block:focus-visible {
         line-height: 1.2;
     }
 
-    .antd-page {
+    .app-page {
         padding: 0.5rem 1rem 1rem;
     }
 
@@ -1785,17 +1695,17 @@ a.record-block:focus-visible {
         margin-bottom: 1rem;
     }
 
-    .antd-page-heading {
+    .app-page-heading {
         flex-wrap: wrap;
     }
 
-    .resource-page-heading .antd-board-filters {
+    .resource-page-heading .board-filters {
         order: 3;
         flex: 1 1 100%;
         justify-content: flex-start;
     }
 
-    .antd-page-heading > div:first-child {
+    .app-page-heading > div:first-child {
         min-width: 0;
     }
 
@@ -1804,17 +1714,17 @@ a.record-block:focus-visible {
         justify-content: flex-end;
     }
 
-    .antd-page-board .antd-page-heading {
+    .app-page-board .app-page-heading {
         flex-wrap: wrap;
     }
 
-    .antd-page-board .antd-board-filters {
+    .app-page-board .board-filters {
         order: 3;
         flex: 1 1 100%;
         justify-content: flex-start;
     }
 
-    .antd-page-board {
+    .app-page-board {
         height: calc(100dvh - 8rem);
     }
 
@@ -1834,11 +1744,6 @@ a.record-block:focus-visible {
 
     .app-content {
         overflow-x: hidden;
-    }
-
-    .antd-stat-grid,
-    .antd-two-column {
-        grid-template-columns: 1fr;
     }
 }
 

@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { TextArea } from '../ui/form-kit';
-import { Button, Card, Tag, Typography } from '../ui/kit';
+import { Button, Card, Empty, Tag, Typography } from '../ui/kit';
+import { Modal } from '../ui/overlay-kit';
 import { Icon } from '../ui/icons';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
-import { useDashboard } from '../dashboard-context';
+import { useInvalidate } from '../ui/resources';
+import { useMe } from '../ui/reference';
 import { formatDateTime } from '../ui/format';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { canWrite } from '../workflows';
-import { Empty, Modal, SaveFooter, TextField } from './refine-shared';
+import { SaveFooter, TextField } from './form-fields';
 
 const error = (value: unknown) => showErrorAlert(value);
 const PARTICIPANT_EMAIL_PATTERN = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
@@ -20,8 +22,8 @@ export function Activity({
     requestId: string;
     initialComments: CommentDTO[];
 }) {
-    const { dashboard, refreshDashboard } = useDashboard();
-    const canComment = canWrite(dashboard.me);
+    const invalidate = useInvalidate();
+    const canComment = canWrite(useMe());
     const [comment, setComment] = useState('');
     const [comments, setComments] = useState<CommentDTO[]>(initialComments);
     const commentsRef = useRef<HTMLDivElement>(null);
@@ -41,10 +43,9 @@ export function Activity({
             showSavingBadge(true);
             const added = await api.addComment(requestId, trimmed, generateRequestId());
             setComments((current) => [...current, added]);
-            // The dashboard's cached request lists aren't patched with the new
-            // comment, so a later visit would show the request without it until
-            // this quiet refresh catches it up.
-            void refreshDashboard().catch(() => undefined);
+            // The home screen's latest comments aren't patched with the new
+            // one; this quiet refresh catches them up.
+            void invalidate({ resource: 'dashboard' }).catch(() => undefined);
         } catch (e) {
             setComment(trimmed);
             error(e);

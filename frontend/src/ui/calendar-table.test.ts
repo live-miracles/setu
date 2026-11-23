@@ -25,8 +25,6 @@ const program = (overrides: Partial<ProgramRequestDTO>): ProgramRequestDTO =>
         PlaceId: 'place-1',
         DepartmentId: '',
         LeadEmail: '',
-        Participants: '',
-        SessionsJson: '',
         userName: 'User',
         placeName: 'Studio A',
         departmentName: '',

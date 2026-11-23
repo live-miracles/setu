@@ -8,7 +8,7 @@ const rootUrl = new URL('../', import.meta.url);
 
 async function importSource(path, prelude = '') {
     const source = (await readFile(new URL(path, rootUrl), 'utf8')).replace(
-        /^import[\s\S]*?;\n/gm,
+        /^import[\s\S]*?;\r?\n/gm,
         '',
     );
     const { code } = await transform(prelude + source, { loader: 'ts', format: 'esm' });
@@ -132,123 +132,142 @@ test('viewer comments are rejected before request access checks', async () => {
     );
     const viewerClient = fakeClient({ profiles: [{ id: 'viewer-1', role: 'viewer' }] });
     await assert.rejects(
-        comments.addComment(viewerClient, {}, 'viewer-1', 'request-1', 'hello', 'request-123'),
+        comments.addComment(viewerClient, {}, 'viewer-1', 'request-1', 'hello'),
         /read-only/,
     );
 });
 
-test('idempotency claims and lookups are isolated by actor', async () => {
-    const core = await importSource(
-        'supabase/functions/api/core.ts',
-        'const requiredStringArg = (value) => String(value).trim();\n',
-    );
-    const calls = [];
-    const builder = {
-        insert(value) {
-            calls.push(['insert', value]);
-            return Promise.resolve({ error: { code: '23505' } });
-        },
-        select() {
-            calls.push(['select']);
-            return this;
-        },
-        eq(column, value) {
-            calls.push(['eq', column, value]);
-            return this;
-        },
-        single() {
-            calls.push(['single']);
-            return Promise.resolve({
-                data: { result: { ok: true }, completed: true },
-                error: null,
-            });
+const CLIENT_COMMENT_ID = '3f1c2a9e-7b64-4d0a-9c1e-5a2b8d4e6f70';
+
+// The user-scoped client inserts the comment (RLS applies); `insertError`
+// makes that insert fail the way a primary-key replay does.
+function commentFixture({ insertError = null, existing = [] } = {}) {
+    const inserted = [];
+    const tables = fakeClient({
+        profiles: [
+            { id: 'user-1', role: 'user', email: 'one@example.org', name: 'One' },
+            { id: 'user-2', role: 'user', email: 'two@example.org', name: 'Two' },
+        ],
+        comments: existing,
+    });
+    const client = {
+        from(table) {
+            if (table !== 'comments') return tables.from(table);
+            return {
+                insert(row) {
+                    inserted.push(row);
+                    return {
+                        select: () => ({
+                            single: async () =>
+                                insertError
+                                    ? { data: null, error: insertError }
+                                    : { data: { ...row, created_at: 'now' }, error: null },
+                        }),
+                    };
+                },
+                select: () => tables.from('comments').select('*'),
+            };
         },
     };
-    const admin = { from: () => builder };
-    const value = await core.withLockedDedupe(
-        admin,
-        'request:create',
-        'request-123',
-        'actor-a',
-        async () => assert.fail('duplicate callback must not run'),
-    );
+    const admin = fakeClient({
+        inventory_requests: [{ id: 'request-1', requester_id: 'user-1' }],
+        inventory_request_participants: [],
+        program_requests: [],
+        program_request_participants: [],
+    });
+    return { client, admin, inserted };
+}
 
-    assert.deepEqual(value.result, { ok: true });
-    assert.deepEqual(calls[0], [
-        'insert',
-        { actor_id: 'actor-a', scope: 'request:create', request_id: 'request-123' },
-    ]);
-    assert.ok(calls.some((call) => call.join(':') === 'eq:actor_id:actor-a'));
+async function loadComments() {
+    return loadBundle(`export { addComment } from './supabase/functions/api/comments';`);
+}
+
+test('a comment is stored under the id the client chose, or a generated one', async () => {
+    const comments = await loadComments();
+    const chosen = commentFixture();
+    const comment = await comments.addComment(
+        chosen.client,
+        chosen.admin,
+        'user-1',
+        'request-1',
+        ' hello ',
+        CLIENT_COMMENT_ID,
+    );
+    assert.equal(chosen.inserted[0].id, CLIENT_COMMENT_ID);
+    assert.equal(chosen.inserted[0].author_id, 'user-1');
+    assert.equal(chosen.inserted[0].message, 'hello');
+    assert.equal(comment.Id, CLIENT_COMMENT_ID);
+
+    const generated = commentFixture();
+    for (const clientId of ['not-a-uuid', '', undefined]) {
+        await comments.addComment(
+            generated.client,
+            generated.admin,
+            'user-1',
+            'request-1',
+            'hello',
+            clientId,
+        );
+    }
+    const ids = generated.inserted.map((row) => row.id);
+    assert.equal(new Set(ids).size, 3, 'each unusable client id gets its own fresh id');
+    for (const id of ids) assert.match(id, /^[0-9a-f-]{36}$/);
+    assert.ok(!ids.includes('not-a-uuid'));
 });
 
-test('completed idempotent mutations may have a null result', async () => {
-    const core = await importSource(
-        'supabase/functions/api/core.ts',
-        'const requiredStringArg = (value) => String(value).trim();\n',
+test('replaying a comment submit returns the existing comment for its author only', async () => {
+    const comments = await loadComments();
+    const existing = [
+        {
+            id: CLIENT_COMMENT_ID,
+            inventory_request_id: 'request-1',
+            author_id: 'user-1',
+            message: 'hello',
+            created_at: 'earlier',
+        },
+    ];
+    const replay = commentFixture({
+        insertError: { code: '23505', message: 'duplicate' },
+        existing,
+    });
+    const comment = await comments.addComment(
+        replay.client,
+        replay.admin,
+        'user-1',
+        'request-1',
+        'hello',
+        CLIENT_COMMENT_ID,
     );
-    const builder = {
-        insert() {
-            return Promise.resolve({ error: { code: '23505' } });
-        },
-        select() {
-            return this;
-        },
-        eq() {
-            return this;
-        },
-        single() {
-            return Promise.resolve({ data: { result: null, completed: true }, error: null });
-        },
-    };
-    const value = await core.withLockedDedupe(
-        { from: () => builder },
-        'request:delete',
-        'request-456',
-        'actor-a',
-        async () => assert.fail('completed duplicate callback must not run'),
-    );
-    assert.equal(value.duplicate, true);
-    assert.equal(value.result, null);
-});
+    assert.equal(comment.Id, CLIENT_COMMENT_ID);
+    assert.equal(comment.Timestamp, 'earlier', 'the first comment is returned, not a new one');
 
-test('an incomplete idempotency claim remains retryable', async () => {
-    const core = await importSource(
-        'supabase/functions/api/core.ts',
-        'const requiredStringArg = (value) => String(value).trim();\n',
-    );
-    const builder = {
-        insert() {
-            return Promise.resolve({ error: { code: '23505' } });
-        },
-        select() {
-            return this;
-        },
-        eq() {
-            return this;
-        },
-        single() {
-            return Promise.resolve({ data: { result: null, completed: false }, error: null });
-        },
-    };
+    // Another user cannot claim or read a comment through an id they do not own.
+    const foreign = commentFixture({
+        insertError: { code: '23505', message: 'duplicate' },
+        existing,
+    });
+    foreign.admin = fakeClient({
+        inventory_requests: [{ id: 'request-1', requester_id: 'user-2' }],
+        inventory_request_participants: [],
+    });
     await assert.rejects(
-        core.withLockedDedupe(
-            { from: () => builder },
-            'request:delete',
-            'request-789',
-            'actor-a',
-            async () => assert.fail('in-flight duplicate callback must not run'),
+        comments.addComment(
+            foreign.client,
+            foreign.admin,
+            'user-2',
+            'request-1',
+            'hi',
+            CLIENT_COMMENT_ID,
         ),
-        /already being processed/,
+        /already in use/,
     );
-});
 
-test('idempotency completion is stored separately from the result', async () => {
-    const sql = await readFile(
-        new URL('supabase/migrations/20261003000000_idempotency_completion.sql', rootUrl),
-        'utf8',
+    // Any other insert failure is reported, not mistaken for a replay.
+    const failing = commentFixture({ insertError: { code: '42501', message: 'denied by policy' } });
+    await assert.rejects(
+        comments.addComment(failing.client, failing.admin, 'user-1', 'request-1', 'hi'),
+        /denied by policy/,
     );
-    assert.match(sql, /add column completed boolean not null default false/);
-    assert.match(sql, /update public\.idempotency_keys set completed = true/);
 });
 
 test('security migration closes the direct database authorization gaps', async () => {
@@ -262,7 +281,6 @@ test('security migration closes the direct database authorization gaps', async (
     assert.match(sql, /create policy "admins manage allowed email domains"[\s\S]*is_admin\(\)/);
     assert.match(sql, /create policy "request participants insert comments"/);
     assert.match(sql, /author_name is null/);
-    assert.match(sql, /primary key \(actor_id, scope, request_id\)/);
 });
 
 test('viewer comments remain blocked through the direct Data API', async () => {

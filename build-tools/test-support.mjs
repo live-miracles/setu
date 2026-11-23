@@ -42,46 +42,82 @@ export async function loadBundle(entry, { stubs = {}, banner = '' } = {}) {
     );
 }
 
-// In-memory stand-in for PostgREST: honours filters/order/range, truncates at
+// In-memory stand-in for PostgREST: honours filters/order/range/limit, counts
+// (`select(cols, { count: 'exact' })`), embedded inner joins, truncates at
 // max-rows like a hosted project, and rejects `.in()` lists too long for a URL.
 // Reads only; tests that exercise writes hand it `insert`/`update`/`delete`
 // handlers through `writes`.
 const MAX_ROWS = 1000;
 const MAX_IN_VALUES = 100;
+
+// Embedded resources a select can ask for (`program_requests!inner(status)`):
+// child table -> relation name -> foreign key on the child row. The relation
+// name is also the parent table. A filter on `relation.column` reads the parent.
+const RELATIONS = { program_sessions: { program_requests: 'request_id' } };
+
 export function fakeClient(tables, calls = []) {
     return {
         from(table) {
             const filters = [];
             const orders = [];
             let bounds = null;
+            let selected = '*';
+            let counted = false;
+            const read = (row, column) => {
+                const [relation, field] = column.split('.');
+                return field === undefined ? row[column] : row[relation]?.[field];
+            };
             const query = {
-                select: () => query,
-                eq: (column, value) => (filters.push((row) => row[column] === value), query),
-                lt: (column, value) => (filters.push((row) => row[column] < value), query),
-                gt: (column, value) => (filters.push((row) => row[column] > value), query),
-                gte: (column, value) => (filters.push((row) => row[column] >= value), query),
+                select: (columns = '*', options = {}) => (
+                    (selected = columns),
+                    (counted = options.count === 'exact'),
+                    query
+                ),
+                eq: (column, value) => (filters.push((row) => read(row, column) === value), query),
+                neq: (column, value) => (filters.push((row) => read(row, column) !== value), query),
+                lt: (column, value) => (filters.push((row) => read(row, column) < value), query),
+                gt: (column, value) => (filters.push((row) => read(row, column) > value), query),
+                gte: (column, value) => (filters.push((row) => read(row, column) >= value), query),
                 limit: (count) => ((bounds = [0, count - 1]), query),
-                is: (column, value) => (filters.push((row) => row[column] === value), query),
+                is: (column, value) => (
+                    filters.push((row) => (read(row, column) ?? null) === value),
+                    query
+                ),
                 not: (column, op, value) => (
-                    filters.push((row) => !(op === 'is' && row[column] === value)),
+                    filters.push((row) => !(op === 'is' && (read(row, column) ?? null) === value)),
                     query
                 ),
                 in: (column, values) => {
                     if (values.length > MAX_IN_VALUES) throw new Error('URI too long');
-                    filters.push((row) => values.includes(row[column]));
+                    filters.push((row) => values.includes(read(row, column)));
                     return query;
                 },
-                order: (column) => (orders.push(column), query),
+                order: (column, options = {}) => (
+                    orders.push([column, options.ascending === false ? -1 : 1]),
+                    query
+                ),
                 range: (from, to) => ((bounds = [from, to]), query),
                 single: () => query.then((res) => ({ data: res.data?.[0] ?? null, error: null })),
                 maybeSingle: () =>
                     query.then((res) => ({ data: res.data?.[0] ?? null, error: null })),
                 then(resolve, reject) {
-                    let rows = (tables[table] || []).filter((row) => filters.every((f) => f(row)));
+                    let rows = tables[table] || [];
+                    for (const [relation, foreignKey] of Object.entries(RELATIONS[table] || {})) {
+                        if (!selected.includes(relation + '!inner')) continue;
+                        rows = rows
+                            .map((row) => ({
+                                ...row,
+                                [relation]: (tables[relation] || []).find(
+                                    (parent) => parent.id === row[foreignKey],
+                                ),
+                            }))
+                            .filter((row) => row[relation]);
+                    }
+                    rows = rows.filter((row) => filters.every((f) => f(row)));
                     rows = [...rows].sort((a, b) => {
-                        for (const column of orders) {
-                            if (a[column] < b[column]) return -1;
-                            if (a[column] > b[column]) return 1;
+                        for (const [column, direction] of orders) {
+                            if (a[column] < b[column]) return -direction;
+                            if (a[column] > b[column]) return direction;
                         }
                         return 0;
                     });
@@ -90,6 +126,7 @@ export function fakeClient(tables, calls = []) {
                     calls.push({ table, from, to });
                     return Promise.resolve({
                         data: rows.slice(from, Math.min(to + 1, from + MAX_ROWS)),
+                        count: counted ? rows.length : null,
                         error: null,
                     }).then(resolve, reject);
                 },

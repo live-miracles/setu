@@ -18,7 +18,7 @@ const bundle = await build({
     stdin: {
         resolveDir: fileURLToPath(new URL('..', import.meta.url)),
         contents: `
-            export { TextField } from './frontend/src/sections/refine-shared';
+            export { TextField } from './frontend/src/sections/form-fields';
             export { internationalPhoneRules } from './frontend/src/sections/form-utils';
             export { captured } from './frontend/src/ui/form-kit';
         `,

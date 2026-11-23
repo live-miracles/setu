@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import appLogo from '../../assets/logo.png';
-import { useDashboardOptional } from '../dashboard-context';
+import { useHomeContentQuery, useMeQuery } from './reference';
 import {
     blocksPath,
     calendarPath,
@@ -207,18 +207,11 @@ function contentClassName(pathname: string): string {
         .join(' ');
 }
 
-export function Shell({
-    children,
-    dashboard: dashboardProp,
-    refreshDashboard: refreshDashboardProp,
-}: {
-    children?: ReactNode;
-    dashboard?: DashboardPayload | null;
-    refreshDashboard?: () => Promise<void>;
-}) {
-    const dashboardContext = useDashboardOptional();
-    const dashboard = dashboardProp ?? dashboardContext?.dashboard ?? null;
-    const refreshDashboard = refreshDashboardProp ?? dashboardContext?.refreshDashboard;
+export function Shell({ children }: { children?: ReactNode }) {
+    // Both are loaded before the app draws its routes (app.tsx); until then, or
+    // if they fail, the shell shows without navigation.
+    const me = useMeQuery().data;
+    const homeContent = useHomeContentQuery().data;
     const location = useLocation();
     const navigationType = useNavigationType();
     const navigate = useNavigate();
@@ -232,14 +225,13 @@ export function Shell({
     const queryClient = useQueryClient();
     const [appLoading, setAppLoading] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
-    const isRegistered = Boolean(dashboard?.me.Phone);
+    const isRegistered = Boolean(me?.Phone);
     // Authentication has already completed before Shell mounts. The primary
-    // navigation waits for the dashboard, which says the person's role and
+    // navigation waits for the person's role and
     // which views an admin hid; drawing it earlier showed every link and then
     // removed some once the data arrived.
-    const showPrimaryNav = Boolean(dashboard) && (Boolean(userEmail) || isRegistered);
-    const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
-    const homeContent = dashboard?.homeContent;
+    const showPrimaryNav = Boolean(me && homeContent) && (Boolean(userEmail) || isRegistered);
+    const canOpenConfig = me ? canApprove(me) : false;
     const visibleKinds = visibleRequestKinds(homeContent);
     const visibleInventory = visibleInventoryKinds(homeContent);
     const isShown = (item: NavItem) =>
@@ -262,8 +254,8 @@ export function Shell({
             setAppLoading((event as CustomEvent<boolean>).detail === true);
         window.addEventListener(APP_LOADING_EVENT, syncAppLoading);
         // Shell only ever mounts once boot() has confirmed a Supabase session
-        // exists, so this reflects who is signed in even when the dashboard
-        // call that fills in role/name fails (e.g. an access-restriction error).
+        // exists, so this reflects who is signed in even when the call
+        // that fills in role/name fails (e.g. an access-restriction error).
         void currentUserEmail().then(setUserEmail);
         return () => {
             window.removeEventListener(APP_LOADING_EVENT, syncAppLoading);
@@ -329,7 +321,7 @@ export function Shell({
         return menu;
     };
     const profileMenuItems: MenuItem[] = [
-        { type: 'label', label: dashboard?.me.Name || userEmail, description: userEmail },
+        { type: 'label', label: me?.Name || userEmail, description: userEmail },
         { type: 'divider' },
         ...(isRegistered
             ? [{ key: profilePath, label: 'Profile', icon: <Icon name="user" /> }]
@@ -341,9 +333,9 @@ export function Shell({
         if (refreshing) return;
         setRefreshing(true);
         try {
-            // Resource-hook pages read from the query cache, not the dashboard
-            // blob, so both must be refetched to pick up other users' changes.
-            await Promise.all([refreshDashboard?.(), queryClient.invalidateQueries()]);
+            // The query cache is the only copy of the data: refetch whatever is
+            // on screen, and the rest the next time it opens.
+            await queryClient.invalidateQueries();
         } catch (err) {
             showErrorAlert(err);
         } finally {
@@ -444,9 +436,9 @@ export function Shell({
                                 type="button"
                                 aria-haspopup="menu"
                                 aria-label="Profile menu"
-                                title={dashboard?.me.Name || userEmail}
+                                title={me?.Name || userEmail}
                                 className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-sm font-semibold text-accent transition-colors select-none hover:border-accent hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-md:size-11">
-                                {initialsOf(dashboard?.me.Name, userEmail)}
+                                {initialsOf(me?.Name, userEmail)}
                             </button>
                         </DropdownMenu>
                     )}

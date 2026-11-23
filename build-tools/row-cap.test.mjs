@@ -10,7 +10,6 @@ const api = await loadBundle(`
             export { dashboard } from './supabase/functions/api/dashboard';
             export { profilesFor } from './supabase/functions/api/core';
             export { getAvailablePlaces, getCalendarMonth } from './supabase/functions/api/programs';
-            export { assertPlaceAvailability } from './supabase/functions/api/scheduling';
             export { listInventoryTypes } from './supabase/functions/api/reference';
         `);
 
@@ -26,7 +25,19 @@ test('fetchAll returns every row even when the table exceeds the server row cap'
     assert.equal(new Set(all.map((row) => row.id)).size, 2503);
 });
 
-test('program list keeps every request, session and comment past the row cap', async () => {
+// The list endpoints ask Postgres for one page of ids (list_*_requests_page; its
+// filtering, search, sorting and paging are covered by
+// request-list-pages-db-check.mjs) and then load only those requests.
+function withPageRpc(client, found) {
+    const rpcCalls = [];
+    client.rpc = async (name, args) => {
+        rpcCalls.push({ name, args });
+        return { data: found, error: null };
+    };
+    return rpcCalls;
+}
+
+test('program list loads the requested page in the database order, with every comment', async () => {
     const requests = Array.from({ length: 1200 }, (_, i) => ({
         id: pad(i),
         display_id: i,
@@ -59,16 +70,46 @@ test('program list keeps every request, session and comment past the row cap', a
         comments,
         profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1' }],
     });
-    const page = await api.listProgramRequests(client, client, 1, { sortBy: 'name' });
-    assert.equal(page.totalCount, 1200);
-    const first = (await api.listProgramRequests(client, client, 1, {})).items.find(
-        (item) => item.Id === requests[0].id,
+    // The database's order wins; an id the caller may not see (or that is gone) is skipped.
+    const ids = [requests[5].id, requests[0].id, 'not-visible', requests[3].id];
+    const rpcCalls = withPageRpc(client, { ids, total: 1200 });
+    const page = await api.listProgramRequests(client, client, 2, { sortBy: 'name' });
+    assert.deepEqual(rpcCalls, [
+        {
+            name: 'list_program_requests_page',
+            args: { p_query: { sortBy: 'name' }, p_page: 2, p_page_size: 25 },
+        },
+    ]);
+    assert.deepEqual(
+        page.items.map((item) => item.Id),
+        [requests[5].id, requests[0].id, requests[3].id],
     );
+    assert.equal(page.page, 2);
+    assert.equal(page.pageSize, 25);
+    assert.equal(page.totalCount, 1200);
+    const first = page.items[1];
     assert.equal(first.comments.length, 1100);
     assert.equal(first.comments.at(-1).Message, 'm1099');
+    assert.equal(first.sessions.length, 1);
+
+    // Page numbers are whole and at least 1; nothing found loads nothing.
+    for (const [asked, sent] of [
+        [0, 1],
+        [Number.NaN, 1],
+        [3.9, 3],
+    ]) {
+        rpcCalls.length = 0;
+        await api.listProgramRequests(client, client, asked, {});
+        assert.equal(rpcCalls[0].args.p_page, sent);
+    }
+    const empty = fakeClient({});
+    withPageRpc(empty, { ids: [], total: 0 });
+    const none = await api.listProgramRequests(empty, empty, 1, {});
+    assert.deepEqual(none.items, []);
+    assert.equal(none.totalCount, 0);
 });
 
-test('inventory list keeps every request, item, label and comment past the row cap', async () => {
+test('inventory list loads items, labels and comments for the page and passes status counts on', async () => {
     const requests = Array.from({ length: 1100 }, (_, i) => ({
         id: pad(i),
         display_id: i,
@@ -106,22 +147,29 @@ test('inventory list keeps every request, item, label and comment past the row c
         })),
         profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1' }],
     });
-    const page = await api.listInventoryRequests(client, client, 1, { sortBy: 'name' });
+    // 25 ids on a page are loaded together, in the given order.
+    const ids = requests
+        .slice(-25)
+        .map((request) => request.id)
+        .reverse();
+    const rpcCalls = withPageRpc(client, { ids, total: 1100, statusCounts: { draft: 1100 } });
+    const query = { statuses: ['closed'], search: 'cam' };
+    const page = await api.listInventoryRequests(client, client, 1, query);
+    assert.equal(rpcCalls[0].name, 'list_inventory_requests_page');
+    assert.deepEqual(rpcCalls[0].args, { p_query: query, p_page: 1, p_page_size: 25 });
     assert.equal(page.totalCount, 1100);
     assert.deepEqual(page.statusCounts, { draft: 1100 });
-    // Status counts ignore the status filter so every option keeps its badge.
-    const closedOnly = await api.listInventoryRequests(client, client, 1, { statuses: ['closed'] });
-    assert.equal(closedOnly.totalCount, 0);
-    assert.deepEqual(closedOnly.statusCounts, { draft: 1100 });
-    // Default ordering is newest activity first, which needs real comment timestamps.
-    const recent = await api.listInventoryRequests(client, client, 1, {});
-    assert.equal(recent.items[0].Id, requests.at(-1).id);
-    assert.equal(recent.items[0].items.length, 1);
     assert.deepEqual(
-        recent.items[0].items[0].labels.map((label) => label.Name),
+        page.items.map((item) => item.Id),
+        ids,
+    );
+    assert.equal(page.items[0].Id, requests.at(-1).id);
+    assert.equal(page.items[0].items.length, 1);
+    assert.deepEqual(
+        page.items[0].items[0].labels.map((label) => label.Name),
         ['CAM-1'],
     );
-    assert.equal(recent.items[0].comments[0].userName, 'U1');
+    assert.equal(page.items[0].comments[0].userName, 'U1');
 });
 
 test('roster history and the inventory catalog are not truncated at the row cap', async () => {
@@ -193,71 +241,7 @@ test('calendar keeps sessions that only fall in this month in the viewer local t
     assert.equal(april.programs.length, 0);
 });
 
-test('dashboard loads every dependent row for 250 requests without oversized id lists', async () => {
-    const requests = Array.from({ length: 250 }, (_, i) => ({
-        id: pad(i),
-        display_id: i,
-        name: `R${i}`,
-        requester_id: 'u1',
-        status: 'draft',
-        updated_at: new Date(Date.UTC(2031, 0, 1, 0, 0, i)).toISOString(),
-    }));
-    // 5 items and 6 comments per request: 1250 items and 1500 comments, past the row cap.
-    const items = requests.flatMap((request, i) =>
-        Array.from({ length: 5 }, (_, j) => ({
-            id: `i${pad(i)}${j}`,
-            request_id: request.id,
-            inventory_type_id: 't1',
-            quantity: 1,
-        })),
-    );
-    const comments = requests.flatMap((request, i) =>
-        Array.from({ length: 6 }, (_, j) => ({
-            id: `c${pad(i)}${j}`,
-            inventory_request_id: request.id,
-            author_id: 'u1',
-            message: `m${j}`,
-            created_at: new Date(Date.UTC(2031, 1, 1, 0, 0, i * 6 + j)).toISOString(),
-        })),
-    );
-    const client = fakeClient({
-        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1', role: 'admin' }],
-        departments: [],
-        places: [],
-        inventory_types: [{ id: 't1', name: 'Camera', brand: 'Acme' }],
-        rosters: [],
-        inventory_requests: requests,
-        inventory_type_labels: [],
-        program_requests: [],
-        home_content: [{ id: true, guidelines: '' }],
-        shift_types: [],
-        program_types: [],
-        program_languages: [],
-        session_types: [],
-        blocks: [],
-        inventory_request_items: items,
-        inventory_request_participants: [],
-        program_sessions: [],
-        program_request_participants: [],
-        comments,
-        inventory_request_item_labels: [
-            { id: 'a1', request_item_id: items.at(-1).id, inventory_type_label_id: 'l1' },
-        ],
-    });
-    client.rpc = async () => ({ data: [], error: null });
-    const payload = await api.dashboard(client, client, 'u1');
-    assert.equal(payload.inventoryRequests.length, 250);
-    assert.equal(
-        payload.inventoryRequests.reduce((total, request) => total + request.items.length, 0),
-        1250,
-    );
-    assert.equal(
-        payload.inventoryRequests.reduce((total, request) => total + request.comments.length, 0),
-        1500,
-    );
-});
-
-test('calendar and place checks work with hundreds of approved programs', async () => {
+test('calendar and available places work with hundreds of approved programs', async () => {
     const requests = Array.from({ length: 1100 }, (_, i) => ({
         id: pad(i),
         display_id: i,
@@ -298,15 +282,12 @@ test('calendar and place checks work with hundreds of approved programs', async 
         (await api.getAvailablePlaces(client, '', probe)).map((place) => place.Id),
         ['pl2'],
     );
-    await assert.rejects(
-        api.assertPlaceAvailability(client, 'pl1', [
-            { start_at: '2033-01-05T11:30:00Z', end_at: '2033-01-05T12:00:00Z' },
-        ]),
-        /unavailable/,
+    // Editing the program that holds the slot does not clash with itself.
+    const holder = requests[Math.round((Date.UTC(2033, 0, 5) - Date.UTC(2031, 0, 1)) / 86400000)];
+    assert.deepEqual(
+        (await api.getAvailablePlaces(client, holder.id, probe)).map((place) => place.Id),
+        ['pl1', 'pl2'],
     );
-    await api.assertPlaceAvailability(client, 'pl2', [
-        { start_at: '2033-01-05T11:30:00Z', end_at: '2033-01-05T12:00:00Z' },
-    ]);
 });
 
 test('profilesFor handles more users than fit in one request URL', async () => {
@@ -348,9 +329,93 @@ test('inventory detail loads only the labels and types its items use', async () 
         request.items.map((item) => [item.itemName, item.labels.map((label) => label.Name)]),
         [['Acme · Camera', [labels.at(-1).name]]],
     );
+    await assert.rejects(api.getInventoryRequest(client, client, 'gone'), /Request not found/);
 });
 
-test('dashboard requests are built by the same DTO builders as the request lists', async () => {
+test('dashboard bounds each request kind, loads every session past the row cap and keeps the newest comments', async () => {
+    // 300 pending programs (past the 250 cap), each with a session, plus
+    // programs that are not pending; likewise 300 ongoing inventory requests and a closed one.
+    const programs = Array.from({ length: 300 }, (_, i) => ({
+        id: pad(i),
+        display_id: i,
+        name: `P${i}`,
+        requester_id: 'u1',
+        status: i % 2 ? 'draft' : 'submitted',
+        updated_at: new Date(Date.UTC(2031, 0, 1, 0, 0, i)).toISOString(),
+    }));
+    programs.push({
+        id: 'approved-1',
+        display_id: 900,
+        name: 'Done',
+        requester_id: 'u1',
+        status: 'approved',
+    });
+    const inventory = Array.from({ length: 300 }, (_, i) => ({
+        id: pad(i),
+        display_id: i,
+        name: `R${i}`,
+        requester_id: 'u1',
+        status: 'draft',
+        start_date: '2031-01-01',
+        end_date: '2031-01-02',
+        updated_at: new Date(Date.UTC(2031, 0, 1, 0, 0, i)).toISOString(),
+    }));
+    inventory.push({
+        id: 'closed-1',
+        display_id: 901,
+        name: 'Back',
+        requester_id: 'u1',
+        status: 'closed',
+    });
+    const sessions = programs.map((program, i) => ({
+        id: `s${pad(i)}`,
+        request_id: program.id,
+        session_type: 'Talk',
+        start_at: '2031-02-01T10:00:00Z',
+        end_at: '2031-02-01T11:00:00Z',
+    }));
+    // 20 comments of each kind: only the newest 8 of each come back.
+    const commentsOf = (column, requestId) =>
+        Array.from({ length: 20 }, (_, i) => ({
+            id: `${column}-${i}`,
+            [column]: requestId,
+            author_id: 'u1',
+            message: `${column} ${i}`,
+            created_at: new Date(Date.UTC(2031, 1, 1, 0, 0, i)).toISOString(),
+        }));
+    const client = fakeClient({
+        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1', role: 'admin' }],
+        program_requests: programs,
+        inventory_requests: inventory,
+        program_sessions: sessions,
+        comments: [
+            ...commentsOf('program_request_id', programs[0].id),
+            ...commentsOf('inventory_request_id', inventory[0].id),
+        ],
+        shift_types: [],
+        rosters: [],
+    });
+    const payload = await api.dashboard(client, client, 'u1');
+    assert.equal(payload.pendingProgramRequests.length, 250);
+    assert.equal(payload.pendingProgramCount, 300);
+    assert.equal(payload.ongoingInventoryRequests.length, 250);
+    assert.equal(payload.ongoingInventoryCount, 300);
+    assert.ok(!payload.pendingProgramRequests.some((x) => x.Id === 'approved-1'));
+    assert.ok(!payload.ongoingInventoryRequests.some((x) => x.Id === 'closed-1'));
+    // Newest activity first; every listed program has its session (the id list is chunked).
+    assert.equal(payload.pendingProgramRequests[0].Id, programs[299].id);
+    assert.ok(payload.pendingProgramRequests.every((x) => x.sessionStart));
+    assert.equal(payload.recentComments.length, 16);
+    for (const kind of ['programs', 'inventory']) {
+        const messages = payload.recentComments
+            .filter((entry) => entry.kind === kind)
+            .map((entry) => entry.comment.Message.split(' ')[1]);
+        assert.deepEqual(messages, ['19', '18', '17', '16', '15', '14', '13', '12']);
+    }
+    assert.ok(payload.recentComments.every((entry) => entry.request.Name));
+});
+
+test('dashboard summaries come from the same DTO builders as the request lists', async () => {
     const tables = {
         profiles: [
             { id: 'u1', email: 'u1@x.org', name: 'U1', role: 'admin' },
@@ -359,9 +424,6 @@ test('dashboard requests are built by the same DTO builders as the request lists
         departments: [{ id: 'd1', name: 'Media', short_name: 'MED', lead_email: 'l@x.org' }],
         places: [{ id: 'pl1', name: 'Hall' }],
         inventory_types: [{ id: 't1', name: 'Camera', brand: 'Acme' }],
-        inventory_type_labels: [
-            { id: 'l1', display_id: 1, inventory_type_id: 't1', name: 'CAM-1' },
-        ],
         inventory_requests: [
             {
                 id: 'ir1',
@@ -378,12 +440,9 @@ test('dashboard requests are built by the same DTO builders as the request lists
         inventory_request_items: [
             { id: 'i1', request_id: 'ir1', inventory_type_id: 't1', quantity: 2 },
         ],
-        inventory_request_item_labels: [
-            { id: 'a1', request_item_id: 'i1', inventory_type_label_id: 'l1' },
-        ],
-        inventory_request_participants: [
-            { id: 'p1', request_id: 'ir1', profile_id: null, external_email: 'ext@x.org' },
-        ],
+        inventory_request_item_labels: [],
+        inventory_type_labels: [],
+        inventory_request_participants: [],
         program_requests: [
             {
                 id: 'pr1',
@@ -392,7 +451,7 @@ test('dashboard requests are built by the same DTO builders as the request lists
                 language: 'English',
                 program_type: 'Other',
                 requester_id: 'u2',
-                status: 'approved',
+                status: 'submitted',
                 place_id: 'pl1',
                 department_id: 'd1',
                 lead_email: 'l@x.org',
@@ -409,84 +468,48 @@ test('dashboard requests are built by the same DTO builders as the request lists
             },
         ],
         program_request_participants: [],
-        comments: [
-            {
-                id: 'c1',
-                inventory_request_id: 'ir1',
-                author_id: null,
-                author_name: 'Setu Bot',
-                message: 'hello',
-                created_at: '2031-01-01T00:00:00Z',
-            },
-            {
-                id: 'c2',
-                program_request_id: 'pr1',
-                author_id: 'u2',
-                message: 'hi',
-                created_at: '2031-01-01T00:00:00Z',
-            },
-        ],
+        comments: [],
         rosters: [],
-        home_content: [{ id: true, guidelines: '' }],
         shift_types: [],
-        program_types: [],
-        program_languages: [],
-        session_types: [],
-        blocks: [],
     };
-    const client = { ...fakeClient(tables), rpc: async () => ({ data: [], error: null }) };
+    const client = fakeClient(tables);
     const board = await api.dashboard(client, client, 'u1');
-    const inventory = await api.listInventoryRequests(client, client, 1, {});
-    const programs = await api.listProgramRequests(client, client, 1, {});
-    assert.deepEqual(board.inventoryRequests, inventory.items);
-    assert.deepEqual(board.programRequests, programs.items);
-    assert.deepEqual(board.departments, [
-        { Id: 'd1', Name: 'Media', ShortName: 'MED', LeadEmail: 'l@x.org' },
-    ]);
+    withPageRpc(client, { ids: ['ir1'], total: 1 });
+    const inventory = (await api.listInventoryRequests(client, client, 1, {})).items[0];
+    withPageRpc(client, { ids: ['pr1'], total: 1 });
+    const program = (await api.listProgramRequests(client, client, 1, {})).items[0];
+    const pick = (row, keys) => Object.fromEntries(keys.map((key) => [key, row[key]]));
+    assert.deepEqual(
+        board.pendingProgramRequests[0],
+        pick(program, [
+            'Id',
+            'DisplayId',
+            'Name',
+            'Status',
+            'userName',
+            'sessionStart',
+            'sessionEnd',
+        ]),
+    );
+    assert.deepEqual(
+        board.ongoingInventoryRequests[0],
+        pick(inventory, ['Id', 'DisplayId', 'Name', 'Status', 'userName', 'StartDate', 'EndDate']),
+    );
 });
 
-test('request lists can be narrowed by department, requester and label', async () => {
-    const base = {
-        profiles: [
-            { id: 'u1', email: 'u1@x.org', name: 'U1' },
-            { id: 'u2', email: 'u2@x.org', name: 'U2' },
+test('request list calls hand the caller query to the database untouched', async () => {
+    const client = fakeClient({});
+    const rpcCalls = withPageRpc(client, { ids: [], total: 0 });
+    const filters = { departmentId: 'd2', requesterEmail: 'u1@x.org', labelId: 'l2' };
+    await api.listInventoryRequests(client, client, 1, filters);
+    await api.listProgramRequests(client, client, 1, filters);
+    assert.deepEqual(
+        rpcCalls.map((call) => [call.name, call.args.p_query]),
+        [
+            ['list_inventory_requests_page', filters],
+            ['list_program_requests_page', filters],
         ],
-        departments: [],
-        places: [],
-        comments: [],
-        inventory_types: [{ id: 't1', name: 'Camera' }],
-        inventory_type_labels: [
-            { id: 'l1', display_id: 1, inventory_type_id: 't1', name: 'CAM-1' },
-            { id: 'l2', display_id: 2, inventory_type_id: 't1', name: 'CAM-2' },
-        ],
-        inventory_requests: [
-            { id: 'ir1', display_id: 1, requester_id: 'u1', status: 'draft', department_id: 'd1' },
-            { id: 'ir2', display_id: 2, requester_id: 'u2', status: 'draft', department_id: 'd2' },
-        ],
-        inventory_request_items: [
-            { id: 'i1', request_id: 'ir1', inventory_type_id: 't1', quantity: 1 },
-            { id: 'i2', request_id: 'ir2', inventory_type_id: 't1', quantity: 1 },
-        ],
-        inventory_request_item_labels: [
-            { id: 'a1', request_item_id: 'i1', inventory_type_label_id: 'l1' },
-            { id: 'a2', request_item_id: 'i2', inventory_type_label_id: 'l2' },
-        ],
-        inventory_request_participants: [],
-        program_requests: [
-            { id: 'pr1', display_id: 1, requester_id: 'u1', status: 'draft', department_id: 'd1' },
-            { id: 'pr2', display_id: 2, requester_id: 'u2', status: 'draft', department_id: 'd2' },
-        ],
-        program_sessions: [],
-        program_request_participants: [],
-    };
-    const client = fakeClient(base);
-    const ids = async (list, query) =>
-        (await list(client, client, 1, query)).items.map((r) => r.Id);
-    assert.deepEqual(await ids(api.listInventoryRequests, { departmentId: 'd2' }), ['ir2']);
-    assert.deepEqual(await ids(api.listInventoryRequests, { requesterEmail: 'u1@x.org' }), ['ir1']);
-    assert.deepEqual(await ids(api.listInventoryRequests, { labelId: 'l2' }), ['ir2']);
-    assert.deepEqual(await ids(api.listProgramRequests, { departmentId: 'd1' }), ['pr1']);
-    assert.deepEqual(await ids(api.listProgramRequests, { requesterEmail: 'u2@x.org' }), ['pr2']);
+    );
 });
 
 test('blank roster times are stored as day bounds and read back as empty', () => {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useList } from '../ui/resources';
+import { useMe, useUsers } from '../ui/reference';
 import { Input } from '../ui/form-kit';
 import { Button, Empty, Space, Tag, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
@@ -18,7 +19,7 @@ import { UserBlock } from '../ui/user-block';
 import { BlockCard } from '../ui/block-card';
 import { DetailSection, DetailSections } from '../ui/detail-layout';
 import { DetailBackButton, DetailHeading, MasterDetail } from '../ui/master-detail';
-import { ActionConfirmation } from './refine-shared';
+import { ActionConfirmation } from './action-confirmation';
 import {
     Editor,
     SettingsDetailFields,
@@ -41,11 +42,12 @@ const DEPARTMENT_CONFIG: ResourceConfig = {
     toInput: (v) => ({ name: v.Name, shortName: v.ShortName, leadEmail: v.LeadEmail }),
 };
 
-export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) {
+export function DepartmentsPage() {
     const config = DEPARTMENT_CONFIG;
     const navigate = useNavigate();
     const { id: detailId = null } = useParams<{ id: string }>();
-    const canEdit = canManageConfig(dashboard.me);
+    const canEdit = canManageConfig(useMe());
+    const users = useUsers();
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
@@ -73,7 +75,7 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
         departmentFilter,
     );
     const departmentUsers = selectedDepartment
-        ? dashboard.users.filter((user) => user.DepartmentId === selectedDepartment.Id)
+        ? users.filter((user) => user.DepartmentId === selectedDepartment.Id)
         : [];
 
     const departmentCards = query.isLoading ? (
@@ -103,11 +105,11 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
         <Empty description={config.emptyMessage} />
     );
     const departmentHeader = (
-        <div className="antd-page-heading resource-page-heading">
+        <div className="app-page-heading resource-page-heading">
             <div>
                 <Typography.Title level={2}>{config.title}</Typography.Title>
             </div>
-            <Space className="antd-board-filters" wrap>
+            <Space className="board-filters" wrap>
                 <Input
                     allowClear
                     prefix={<Icon name="search" />}
@@ -200,7 +202,6 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                                     <UserBlock
                                         key={user.Email}
                                         user={user}
-                                        dashboard={dashboard}
                                         href={userPath(user.Email)}
                                         onClick={() => navigate(userPath(user.Email))}
                                     />
@@ -216,7 +217,6 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                             kind="program"
                             items={departmentPrograms.items}
                             total={departmentPrograms.total}
-                            dashboard={dashboard}
                             hrefFor={programRequestPath}
                             onOpen={(id) => navigate(programRequestPath(id))}
                         />
@@ -229,7 +229,6 @@ export function DepartmentsPage({ dashboard }: { dashboard: DashboardPayload }) 
                             kind="inventory"
                             items={departmentInventoryRequests.items}
                             total={departmentInventoryRequests.total}
-                            dashboard={dashboard}
                             hrefFor={inventoryRequestPath}
                             onOpen={(id) => navigate(inventoryRequestPath(id))}
                         />

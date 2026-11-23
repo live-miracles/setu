@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useList } from '../ui/resources';
+import { useInvalidate, useList } from '../ui/resources';
+import { useHomeContent, useMe } from '../ui/reference';
 import { Input, TextArea, Field } from '../ui/form-kit';
 import { Modal } from '../ui/overlay-kit';
 import { Table, Button, Card, Checkbox, Empty, Space, Tag, Typography } from '../ui/kit';
 import { HIDEABLE_VIEWS, VIEW_LABELS, isViewVisible } from '../ui/views';
 import { Icon } from '../ui/icons';
 import { api } from '../api';
-import { generateRequestId } from '../ids';
 import { showErrorAlert } from '../ui/feedback';
 import { formatDateTime, formatTimeOfDay } from '../ui/format';
 import { formatDateTimeLocal } from '../ui/date';
@@ -14,8 +14,7 @@ import { toneProps } from '../ui/tone';
 import { matchesSearch } from '../ui/search';
 import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
-import { useDashboard } from '../dashboard-context';
-import { ActionConfirmation } from './refine-shared';
+import { ActionConfirmation } from './action-confirmation';
 import {
     Editor,
     rowKeyOf,
@@ -174,16 +173,14 @@ function todayAt(hours: number, minutes = 0): string {
 
 export function SettingsResourcePage({
     resourceName,
-    dashboard,
     compact = false,
 }: {
     resourceName: string;
-    dashboard: DashboardPayload;
     compact?: boolean;
 }) {
     const config = RESOURCES[resourceName];
     if (!config) throw new Error(`Unknown settings resource: ${resourceName}`);
-    const canEdit = canManageConfig(dashboard.me);
+    const canEdit = canManageConfig(useMe());
     const [editing, setEditing] = useState<Row | null>(null);
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<Row | null>(null);
@@ -193,8 +190,7 @@ export function SettingsResourcePage({
     const { save, remove } = useResourceMutations(resourceName, config);
     // blocks' Place field is the only select today — its options come from
     // its own useList (called unconditionally like every other hook here;
-    // `enabled: false` skips the request for every other resource kind)
-    // rather than the shared dashboard blob.
+    // `enabled: false` skips the request for every other resource kind).
     const selectField = config.fields.find((f) => f.type === 'select' && f.optionsResource);
     const { result: selectOptionsResult } = useList({
         resource: selectField?.optionsResource || '',
@@ -281,7 +277,7 @@ export function SettingsResourcePage({
     ];
     return (
         <section
-            className={`${compact ? 'antd-settings-compact' : 'antd-page'}${
+            className={`${compact ? 'settings-compact' : 'app-page'}${
                 config.kind === 'block' ? ' blocks-page' : ''
             }`}>
             <div>
@@ -376,10 +372,11 @@ export function SettingsResourcePage({
     );
 }
 
-export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) {
-    const { refreshDashboard } = useDashboard();
+export function HomeContentPage() {
+    const invalidate = useInvalidate();
+    const homeContent = useHomeContent();
     const [savingGuidelines, setSavingGuidelines] = useState(false);
-    const canEdit = canManageConfig(dashboard.me);
+    const canEdit = canManageConfig(useMe());
 
     async function saveGuidelines(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -388,7 +385,7 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
         const guidelines = String(data.get('guidelines') || '');
         try {
             await api.updateHomeContent({ guidelines });
-            await refreshDashboard();
+            await invalidate({ resource: 'home-content' });
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -397,7 +394,7 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
     }
 
     return (
-        <section className="antd-page">
+        <section className="app-page">
             <Card title="Guidelines" className="settings-form-card">
                 <form onSubmit={saveGuidelines}>
                     <Field>
@@ -405,7 +402,7 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
                             name="guidelines"
                             aria-label="Guidelines"
                             rows={6}
-                            defaultValue={dashboard.homeContent.Guidelines}
+                            defaultValue={homeContent.Guidelines}
                         />
                     </Field>
                     {canEdit && (
@@ -415,8 +412,8 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
                     )}
                 </form>
             </Card>
-            <ViewsCard dashboard={dashboard} />
-            <AllowedEmailDomainsPage dashboard={dashboard} />
+            <ViewsCard />
+            <AllowedEmailDomainsPage />
             {(
                 [
                     'places',
@@ -428,7 +425,7 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
                     'session-types',
                 ] as const
             ).map((key) => (
-                <SettingsResourcePage key={key} resourceName={key} dashboard={dashboard} compact />
+                <SettingsResourcePage key={key} resourceName={key} compact />
             ))}
         </section>
     );
@@ -436,11 +433,12 @@ export function HomeContentPage({ dashboard }: { dashboard: DashboardPayload }) 
 
 // Which views everyone sees. Unchecked views leave the menu and the home screen;
 // the pages for admins and approvers always stay.
-function ViewsCard({ dashboard }: { dashboard: DashboardPayload }) {
-    const { refreshDashboard } = useDashboard();
-    const canEdit = canManageConfig(dashboard.me);
+function ViewsCard() {
+    const invalidate = useInvalidate();
+    const homeContent = useHomeContent();
+    const canEdit = canManageConfig(useMe());
     const [shown, setShown] = useState<string[]>(() =>
-        HIDEABLE_VIEWS.filter((view) => isViewVisible(dashboard.homeContent, view)),
+        HIDEABLE_VIEWS.filter((view) => isViewVisible(homeContent, view)),
     );
     const [saving, setSaving] = useState(false);
 
@@ -458,7 +456,7 @@ function ViewsCard({ dashboard }: { dashboard: DashboardPayload }) {
                     'The server did not save the views. Apply the latest database migration and deploy the API first.',
                 );
             }
-            await refreshDashboard();
+            await invalidate({ resource: 'home-content' });
         } catch (error) {
             showErrorAlert(error);
         } finally {
@@ -499,8 +497,8 @@ function ViewsCard({ dashboard }: { dashboard: DashboardPayload }) {
     );
 }
 
-function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload }) {
-    const canEdit = canManageConfig(dashboard.me);
+function AllowedEmailDomainsPage() {
+    const canEdit = canManageConfig(useMe());
     const [domains, setDomains] = useState<AllowedEmailDomain[]>([]);
     const [domain, setDomain] = useState('');
     const [loading, setLoading] = useState(canEdit);
@@ -541,10 +539,7 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
         setSaving(true);
         setDomainError('');
         try {
-            const added = await api.createAllowedEmailDomain(
-                { domain: normalized },
-                generateRequestId(),
-            );
+            const added = await api.createAllowedEmailDomain({ domain: normalized });
             setDomains((current) =>
                 [...current, added].sort((a, b) => a.domain.localeCompare(b.domain)),
             );
@@ -560,7 +555,7 @@ function AllowedEmailDomainsPage({ dashboard }: { dashboard: DashboardPayload })
     async function removeDomain(value: string) {
         setSaving(true);
         try {
-            await api.deleteAllowedEmailDomain(value, generateRequestId());
+            await api.deleteAllowedEmailDomain(value);
             setDomains((current) => current.filter((entry) => entry.domain !== value));
         } catch (error) {
             setDomainError(error instanceof Error ? error.message : String(error));

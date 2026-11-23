@@ -9,7 +9,6 @@ export function RelatedRequestBlocks({
     kind,
     items,
     total = items.length,
-    dashboard,
     hrefFor,
     onOpen,
 }: {
@@ -18,7 +17,6 @@ export function RelatedRequestBlocks({
     items: (ProgramRequestDTO | InventoryRequestDTO)[];
     // The true number of related requests when `items` is only the latest page.
     total?: number;
-    dashboard: DashboardPayload;
     hrefFor?: (id: string) => string;
     onOpen: (id: string) => void;
 }) {
@@ -49,7 +47,6 @@ export function RelatedRequestBlocks({
                         key={item.Id}
                         kind={kind}
                         row={item}
-                        dashboard={dashboard}
                         href={hrefFor?.(item.Id)}
                         onClick={() => onOpen(item.Id)}
                     />

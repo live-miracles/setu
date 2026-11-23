@@ -3,11 +3,31 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 // The browser calls the edge function through the typed `Api` interface; the
-// handler decodes positional `args`. The interface is an ambient declaration
-// the Deno function cannot import, so this test is what ties the two together:
-// every operation exists on both sides and the handler reads exactly the
-// arguments the interface declares.
+// operation table (supabase/functions/api/operations.ts) declares the positional
+// arguments each operation takes. The interface is an ambient declaration the
+// Deno function cannot import, so this test is what ties the two together:
+// every operation exists on both sides, takes the same number of arguments, and
+// the server never requires an argument the browser is allowed to leave out.
 const rootUrl = new URL('../', import.meta.url);
+
+// Splits on top-level commas, so generics, tuples and call arguments stay whole.
+function splitTopLevel(text) {
+    const parts = [];
+    let nesting = 0;
+    let current = '';
+    for (const char of text) {
+        if ('<({['.includes(char)) nesting++;
+        if ('>)}]'.includes(char)) nesting--;
+        if (char === ',' && nesting === 0) {
+            parts.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    if (current.trim()) parts.push(current);
+    return parts.map((part) => part.trim()).filter(Boolean);
+}
 
 function apiOperations(source) {
     const start = source.indexOf('interface Api {');
@@ -22,69 +42,76 @@ function apiOperations(source) {
             if (char === '(') depth++;
             if (char === ')') depth--;
         }
-        const params = body.slice(from, index - 1);
-        let nesting = 0;
-        let count = params.trim() ? 1 : 0;
-        for (const char of params) {
-            if ('<({['.includes(char)) nesting++;
-            if ('>)}]'.includes(char)) nesting--;
-            if (char === ',' && nesting === 0) count++;
-        }
-        // A trailing comma (prettier's style) does not add a parameter.
-        if (/,\s*$/.test(params)) count--;
-        operations.set(match[1], count);
+        const params = splitTopLevel(body.slice(from, index - 1));
+        operations.set(
+            match[1],
+            params.map((param) => ({ optional: /^\w+\?:/.test(param) })),
+        );
     }
     return operations;
 }
 
-function handlerOperations(source) {
-    const start = source.indexOf('const operationHandlers');
+// Schemas that accept a missing argument.
+const OPTIONAL_SCHEMAS = new Set(['optionalText', 'optionalInput', 'page', 'sessions']);
+
+function tableOperations(source) {
+    const start = source.indexOf('export const operations');
     const body = source.slice(start);
-    const matches = [...body.matchAll(/^ {4}(\w+): async /gm)];
     const operations = new Map();
-    matches.forEach((match, index) => {
-        const block = body
-            .slice(match.index, matches[index + 1]?.index ?? body.length)
-            .replace(/\/\/.*$/gm, '');
-        const indexes = [...block.matchAll(/args\[(\d+)\]/g)].map((m) => Number(m[1]));
-        operations.set(match[1], {
-            used: indexes.length ? Math.max(...indexes) + 1 : 0,
-            readsLastArgument: block.includes('args.length - 1'),
-        });
-    });
+    for (const match of body.matchAll(/^ {4}(\w+): operation\(\s*\[/gm)) {
+        let depth = 1;
+        let index = match.index + match[0].length;
+        const from = index;
+        while (depth > 0) {
+            const char = body[index++];
+            if (char === '[') depth++;
+            if (char === ']') depth--;
+        }
+        operations.set(
+            match[1],
+            splitTopLevel(body.slice(from, index - 1)).map((schema) => ({
+                optional: OPTIONAL_SCHEMAS.has(schema),
+            })),
+        );
+    }
     return operations;
 }
 
 const api = apiOperations(await readFile(new URL('shared/types.d.ts', rootUrl), 'utf8'));
-const handler = handlerOperations(
-    await readFile(new URL('supabase/functions/api/handler.ts', rootUrl), 'utf8'),
+const table = tableOperations(
+    await readFile(new URL('supabase/functions/api/operations.ts', rootUrl), 'utf8'),
 );
 
-test('every Api operation has a handler and every handler is an Api operation', () => {
+test('every Api operation is in the operation table and every operation is in the Api', () => {
     assert.ok(api.size > 50, 'the Api interface should have been parsed');
+    assert.ok(table.size > 50, 'the operation table should have been parsed');
     assert.deepEqual(
-        [...api.keys()].filter((name) => !handler.has(name)),
+        [...api.keys()].filter((name) => !table.has(name)),
         [],
-        'Api operations without a handler',
+        'Api operations without a table entry',
     );
     assert.deepEqual(
-        [...handler.keys()].filter((name) => !api.has(name)),
+        [...table.keys()].filter((name) => !api.has(name)),
         [],
-        'handlers that are not part of the Api interface',
+        'table operations that are not part of the Api interface',
     );
 });
 
-test('handlers read exactly the arguments the Api interface declares', () => {
+test('the table declares exactly the arguments the Api interface declares', () => {
     for (const [name, declared] of api) {
-        const { used, readsLastArgument } = handler.get(name);
-        if (readsLastArgument) {
-            assert.ok(used < declared, `${name} reads past its declared arguments`);
-        } else {
-            assert.equal(
-                used,
-                declared,
-                `${name}: handler reads ${used}, Api declares ${declared}`,
-            );
-        }
+        const schemas = table.get(name);
+        assert.equal(
+            schemas.length,
+            declared.length,
+            `${name}: table declares ${schemas.length} arguments, Api declares ${declared.length}`,
+        );
+        declared.forEach((param, index) => {
+            if (param.optional) {
+                assert.ok(
+                    schemas[index].optional,
+                    `${name}: argument ${index + 1} is optional in the Api but required by the table`,
+                );
+            }
+        });
     }
 });

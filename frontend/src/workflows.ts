@@ -15,7 +15,9 @@ import {
     type RequestKind,
 } from '../../supabase/functions/_shared/request-policy';
 
-export function isRequestOverdue(request: InventoryRequestDTO): boolean {
+export function isRequestOverdue(
+    request: Pick<InventoryRequestDTO, 'Status' | 'EndDate'>,
+): boolean {
     if (request.Status !== 'issued' || !request.EndDate) return false;
     // The due date is inclusive: a request becomes overdue after the end of
     // its due date, rather than at midnight at the start of that date.

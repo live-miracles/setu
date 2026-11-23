@@ -10,7 +10,7 @@ const api = await loadBundle(`
                 performProgramRequestAction, deleteProgramRequest, validateProgramSessions }
                 from './supabase/functions/api/programs';
             export { createImageUploadUrl } from './supabase/functions/api/images';
-            export { updateOwnProfile } from './supabase/functions/api/core';
+            export { updateOwnProfile, ApiError } from './supabase/functions/api/core';
         `);
 
 const clientFor = (role) => ({
@@ -34,50 +34,17 @@ const untouchedAdmin = new Proxy(
 test('viewers cannot create, edit, transition, delete or upload for requests', async () => {
     const viewer = clientFor('viewer');
     const calls = [
-        () => api.createInventoryRequest(viewer, untouchedAdmin, 'user-1', {}, 'request-123'),
-        () => api.updateInventoryRequest(viewer, untouchedAdmin, 'user-1', 'r1', {}, 'request-123'),
+        () => api.createInventoryRequest(viewer, untouchedAdmin, 'user-1', {}),
+        () => api.updateInventoryRequest(viewer, untouchedAdmin, 'user-1', 'r1', {}),
+        () => api.updateInventoryRequestParticipants(viewer, untouchedAdmin, 'user-1', 'r1', {}),
         () =>
-            api.updateInventoryRequestParticipants(
-                viewer,
-                untouchedAdmin,
-                'user-1',
-                'r1',
-                {},
-                'request-123',
-            ),
-        () =>
-            api.performInventoryRequestAction(
-                viewer,
-                untouchedAdmin,
-                'user-1',
-                'r1',
-                'submit',
-                '',
-                'request-123',
-            ),
-        () => api.deleteInventoryRequest(viewer, untouchedAdmin, 'user-1', 'r1', 'request-123'),
-        () => api.createProgramRequest(viewer, untouchedAdmin, 'user-1', {}, 'request-123'),
-        () => api.updateProgramRequest(viewer, untouchedAdmin, 'user-1', 'r1', {}, 'request-123'),
-        () =>
-            api.updateProgramRequestParticipants(
-                viewer,
-                untouchedAdmin,
-                'user-1',
-                'r1',
-                {},
-                'request-123',
-            ),
-        () =>
-            api.performProgramRequestAction(
-                viewer,
-                untouchedAdmin,
-                'user-1',
-                'r1',
-                'submit',
-                '',
-                'request-123',
-            ),
-        () => api.deleteProgramRequest(viewer, untouchedAdmin, 'user-1', 'r1', 'request-123'),
+            api.performInventoryRequestAction(viewer, untouchedAdmin, 'user-1', 'r1', 'submit', ''),
+        () => api.deleteInventoryRequest(viewer, untouchedAdmin, 'user-1', 'r1'),
+        () => api.createProgramRequest(viewer, untouchedAdmin, 'user-1', {}),
+        () => api.updateProgramRequest(viewer, untouchedAdmin, 'user-1', 'r1', {}),
+        () => api.updateProgramRequestParticipants(viewer, untouchedAdmin, 'user-1', 'r1', {}),
+        () => api.performProgramRequestAction(viewer, untouchedAdmin, 'user-1', 'r1', 'submit', ''),
+        () => api.deleteProgramRequest(viewer, untouchedAdmin, 'user-1', 'r1'),
         () =>
             api.createImageUploadUrl(
                 viewer,
@@ -89,19 +56,20 @@ test('viewers cannot create, edit, transition, delete or upload for requests', a
                 'r1',
             ),
     ];
-    for (const call of calls) await assert.rejects(call(), /read-only/);
+    for (const call of calls) {
+        await assert.rejects(
+            call(),
+            (error) => error instanceof api.ApiError && error.status === 403,
+            'a refused write is a 403, not a 400',
+        );
+        await assert.rejects(call(), /read-only/);
+    }
 });
 
 test('other roles still pass the viewer gate', async () => {
     // A plain user gets past the gate and only fails later on missing data.
     await assert.rejects(
-        api.createInventoryRequest(
-            clientFor('user'),
-            untouchedAdmin,
-            'user-1',
-            { name: 'x' },
-            'request-123',
-        ),
+        api.createInventoryRequest(clientFor('user'), untouchedAdmin, 'user-1', { name: 'x' }),
         /must be refused before any database access/,
     );
 });

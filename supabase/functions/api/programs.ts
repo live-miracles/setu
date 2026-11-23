@@ -3,22 +3,14 @@ import {
     currentWriter,
     fetchAll,
     fetchAllIn,
+    newRequestId,
     profilesFor,
     requireNonEmpty,
     result,
-    withLockedDedupe,
     type Row,
 } from './core.ts';
-import {
-    commentDto,
-    commentsByTargetFor,
-    compareQueryValues,
-    groupByKey,
-    latestActivityAt,
-    matchesSearch,
-    paginate,
-} from './query.ts';
-import { emailArg, requireUnchangedWorkflowStatus } from './validation.ts';
+import { commentDto, groupByKey, REQUEST_PAGE_SIZE, requestPage } from './query.ts';
+import { emailArg } from './validation.ts';
 import {
     assertCanEdit,
     deleteRequest,
@@ -26,13 +18,13 @@ import {
     loadRequestAccess,
     parseParticipants,
     performRequestAction,
-    replaceParticipants,
+    resolveParticipants,
     requireDepartment,
     requireRequesterProfile,
     updateRequestParticipants,
     type RequestKindConfig,
 } from './requests.ts';
-import { assertPlaceAvailability, availablePlaces } from './scheduling.ts';
+import { availablePlaces } from './scheduling.ts';
 
 export function programSessionDto(x: Row): Row {
     return {
@@ -64,9 +56,6 @@ export function programRequestDto(
         PlaceId: x.place_id,
         DepartmentId: x.department_id || '',
         LeadEmail: x.lead_email,
-        Participants: '',
-        SessionsJson: '',
-        CommentsJson: '',
         userName: profilesById.get(x.requester_id)?.name || '',
         placeName: placesById.get(x.place_id)?.name || '',
         departmentName: departmentsById.get(x.department_id)?.name || '',
@@ -80,32 +69,23 @@ export function programRequestDto(
     };
 }
 
-export function programRequestSortValue(request: Row, sortBy: unknown): string | number {
-    if (sortBy === 'name') return request.Name;
-    if (sortBy === 'status') return request.Status;
-    if (sortBy === 'place') return request.placeName;
-    if (sortBy === 'sessionStart') return request.sessionStart;
-    if (sortBy === 'requester') return request.userName;
-    return request.DisplayId;
-}
-
-export function matchesProgramDateScope(request: Row, dateScope: unknown): boolean {
-    if (!dateScope) return true;
-    const nowIso = new Date().toISOString();
-    const hasOngoingOrFuture = (request.sessions as Row[]).some((s) => s.EndDateTime >= nowIso);
-    const isUnscheduled = (request.sessions as Row[]).length === 0;
-    return dateScope === 'past'
-        ? !hasOngoingOrFuture && !isUnscheduled
-        : hasOngoingOrFuture || isUnscheduled;
-}
-
-export async function listProgramRequests(
+// Loads the requests with these ids, children included, as DTOs in the order
+// given. Requests the caller may not see are left out (the reads run through the
+// caller's own RLS-scoped client).
+async function loadProgramRequests(
     client: SupabaseClient,
     admin: SupabaseClient,
-    page: number,
-    query: Row,
-): Promise<Row> {
-    const [places, departments, requests, sessions, participants] = await Promise.all([
+    ids: string[],
+): Promise<Row[]> {
+    if (!ids.length) return [];
+    const byRequest = (table: string, column: string, order: string[]) =>
+        fetchAllIn(ids, (chunk, from, to) => {
+            let query = client.from(table).select('*').in(column, chunk);
+            for (const key of order) query = query.order(key);
+            return query.range(from, to);
+        });
+    const [requests, places, departments, sessions, participants, comments] = await Promise.all([
+        byRequest('program_requests', 'id', ['id']),
         client
             .from('places')
             .select('*')
@@ -114,83 +94,51 @@ export async function listProgramRequests(
             .from('departments')
             .select('*')
             .then((res) => result(res) as Row[]),
-        fetchAll((from, to) =>
-            client.from('program_requests').select('*').order('id').range(from, to),
-        ),
-        fetchAll((from, to) =>
-            client
-                .from('program_sessions')
-                .select('*')
-                .order('start_at')
-                .order('id')
-                .range(from, to),
-        ),
-        fetchAll((from, to) =>
-            client.from('program_request_participants').select('*').order('id').range(from, to),
-        ),
+        byRequest('program_sessions', 'request_id', ['start_at', 'id']),
+        byRequest('program_request_participants', 'request_id', ['id']),
+        byRequest('comments', 'program_request_id', ['created_at', 'id']),
     ]);
-    const placesById = new Map(places.map((x) => [x.id, x]));
-    const departmentsById = new Map(departments.map((x) => [x.id, x]));
-    const commentsByTarget = await commentsByTargetFor(client, 'program_request_id');
+    const placesById = new Map<string, Row>(places.map((x) => [x.id, x]));
+    const departmentsById = new Map<string, Row>(departments.map((x) => [x.id, x]));
+    const requestsById = new Map<string, Row>(requests.map((x) => [x.id, x]));
     const sessionsByRequest = groupByKey(sessions, 'request_id');
     const participantsByRequest = groupByKey(participants, 'request_id');
+    const commentsByRequest = groupByKey(comments, 'program_request_id');
     const profilesById = await profilesFor(admin, [
         ...requests.map((x) => x.requester_id),
         ...participants.map((x) => x.profile_id),
-        ...[...commentsByTarget.values()].flat().map((x) => x.author_id),
+        ...comments.map((x) => x.author_id),
     ]);
-
-    const dtos = requests.map((x) =>
-        programRequestDto(
-            x,
-            placesById,
-            departmentsById,
-            profilesById,
-            sessionsByRequest.get(x.id) || [],
-            participantsByRequest.get(x.id) || [],
-            commentsByTarget.get(x.id) || [],
-        ),
-    );
-
-    const statuses: string[] = query.statuses || [];
-    const filtered = dtos
-        .filter((r) => statuses.length === 0 || statuses.indexOf(r.Status) !== -1)
-        .filter((r) => !query.placeId || r.PlaceId === query.placeId)
-        .filter((r) => !query.departmentId || r.DepartmentId === query.departmentId)
-        .filter((r) => !query.requesterEmail || r.UserId === query.requesterEmail)
-        .filter((r) => matchesProgramDateScope(r, query.dateScope))
-        .filter((r) =>
-            matchesSearch(query.q, [
-                'PRG-' + r.DisplayId,
-                r.Name,
-                r.Language,
-                r.Type,
-                r.userName,
-                r.UserId,
-                r.departmentName,
-                r.LeadEmail,
-                r.participants.join(' '),
-                r.placeName,
-                r.sessions.map((s: Row) => s.Name + ' ' + s.Type).join(' '),
-            ]),
-        );
-
-    if (query.sortBy) {
-        filtered.sort((a, b) =>
-            compareQueryValues(
-                programRequestSortValue(a, query.sortBy),
-                programRequestSortValue(b, query.sortBy),
-                query.sortDirection,
+    return ids
+        .filter((id) => requestsById.has(id))
+        .map((id) =>
+            programRequestDto(
+                requestsById.get(id)!,
+                placesById,
+                departmentsById,
+                profilesById,
+                sessionsByRequest.get(id) || [],
+                participantsByRequest.get(id) || [],
+                commentsByRequest.get(id) || [],
             ),
         );
-    } else {
-        filtered.sort((a, b) =>
-            latestActivityAt(b.comments, b.DisplayId).localeCompare(
-                latestActivityAt(a.comments, a.DisplayId),
-            ),
-        );
-    }
-    return paginate(filtered, page, 25);
+}
+
+// One page of requests. The database filters, searches, sorts and counts (see
+// requestPage); only the 25 requests on the page are loaded.
+export async function listProgramRequests(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    page: number,
+    query: Row,
+): Promise<Row> {
+    const found = await requestPage(client, 'list_program_requests_page', page, query);
+    return {
+        items: await loadProgramRequests(client, admin, found.ids),
+        page: found.page,
+        pageSize: REQUEST_PAGE_SIZE,
+        totalCount: found.totalCount,
+    };
 }
 
 export async function getProgramRequest(
@@ -198,35 +146,9 @@ export async function getProgramRequest(
     admin: SupabaseClient,
     id: string,
 ): Promise<Row> {
-    const [requestRes, placesRes, departmentsRes, sessionsRes, participantsRes, commentsRes] =
-        await Promise.all([
-            client.from('program_requests').select('*').eq('id', id).single(),
-            client.from('places').select('*'),
-            client.from('departments').select('*'),
-            client.from('program_sessions').select('*').eq('request_id', id).order('start_at'),
-            client.from('program_request_participants').select('*').eq('request_id', id),
-            client.from('comments').select('*').eq('program_request_id', id).order('created_at'),
-        ]);
-    const request = result(requestRes) as Row;
-    const placesById = new Map((result(placesRes) as Row[]).map((x) => [x.id, x]));
-    const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
-    const sessions = result(sessionsRes) as Row[];
-    const participants = result(participantsRes) as Row[];
-    const comments = result(commentsRes) as Row[];
-    const profilesById = await profilesFor(admin, [
-        request.requester_id,
-        ...participants.map((x) => x.profile_id),
-        ...comments.map((x) => x.author_id),
-    ]);
-    return programRequestDto(
-        request,
-        placesById,
-        departmentsById,
-        profilesById,
-        sessions,
-        participants,
-        comments,
-    );
+    const [request] = await loadProgramRequests(client, admin, [id]);
+    if (!request) throw new Error('Request not found.');
+    return request;
 }
 
 const MAX_PROGRAM_SESSIONS = 100;
@@ -289,23 +211,39 @@ export async function getCalendarMonth(
     year: number,
     month: number,
 ): Promise<Row> {
-    const [placesRes, departmentsRes, requests] = await Promise.all([
+    // The browser buckets sessions by *local* date, so a session in the first or
+    // last hours of a local month can fall in the neighbouring UTC month. Pad
+    // the window by a day each side (more than any UTC offset); the client only
+    // draws sessions whose local date is inside the visible month.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const monthStart = new Date(Date.UTC(year, month - 1, 1) - DAY_MS).toISOString();
+    const monthEnd = new Date(Date.UTC(year, month, 1) + DAY_MS).toISOString();
+    // Only the sessions that touch the window, of approved programs; a program's
+    // other sessions are then loaded so its full schedule can be summarised.
+    const [placesRes, departmentsRes, windowSessions] = await Promise.all([
         admin.from('places').select('*').order('name'),
         admin.from('departments').select('*'),
         fetchAll((from, to) =>
             admin
-                .from('program_requests')
-                .select('*')
-                .eq('status', 'approved')
+                .from('program_sessions')
+                .select('id, request_id, program_requests!inner(status)')
+                .eq('program_requests.status', 'approved')
+                .lt('start_at', monthEnd)
+                .gt('end_at', monthStart)
                 .order('id')
                 .range(from, to),
         ),
     ]);
     const places = result(placesRes) as Row[];
-    const placesById = new Map(places.map((p) => [p.id, p]));
-    const departmentsById = new Map((result(departmentsRes) as Row[]).map((d) => [d.id, d]));
-    const requestIds = requests.map((r) => r.id);
-    const [sessions, participants] = await Promise.all([
+    const placesById = new Map<string, Row>(places.map((p) => [p.id, p]));
+    const departmentsById = new Map<string, Row>(
+        (result(departmentsRes) as Row[]).map((d) => [d.id, d]),
+    );
+    const requestIds = [...new Set(windowSessions.map((s) => s.request_id as string))];
+    const [requests, sessions, participants] = await Promise.all([
+        fetchAllIn(requestIds, (chunk, from, to) =>
+            admin.from('program_requests').select('*').in('id', chunk).order('id').range(from, to),
+        ),
         fetchAllIn(requestIds, (chunk, from, to) =>
             admin
                 .from('program_sessions')
@@ -330,13 +268,8 @@ export async function getCalendarMonth(
         admin,
         requests.map((r) => r.requester_id),
     );
-    // The browser buckets sessions by *local* date, so a session in the first or
-    // last hours of a local month can fall in the neighbouring UTC month. Pad
-    // the window by a day each side (more than any UTC offset); the client only
-    // draws sessions whose local date is inside the visible month.
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const monthStart = Date.UTC(year, month - 1, 1) - DAY_MS;
-    const monthEnd = Date.UTC(year, month, 1) + DAY_MS;
+    const windowStartMs = Date.parse(monthStart);
+    const windowEndMs = Date.parse(monthEnd);
     const programs: Row[] = [];
     requests.forEach((request) => {
         const allSessions = sessionsByRequest.get(request.id) || [];
@@ -344,7 +277,10 @@ export async function getCalendarMonth(
             const start = Date.parse(s.start_at);
             const end = Date.parse(s.end_at);
             return (
-                !Number.isNaN(start) && !Number.isNaN(end) && start < monthEnd && end > monthStart
+                !Number.isNaN(start) &&
+                !Number.isNaN(end) &&
+                start < windowEndMs &&
+                end > windowStartMs
             );
         });
         if (!monthSessions.length) return;
@@ -370,7 +306,7 @@ export async function createProgramRequest(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
+    clientId?: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const approver = isApprover(actor);
@@ -398,7 +334,6 @@ export async function createProgramRequest(
         place = data;
     }
     const sessions = validateProgramSessions(input.sessions || [], false);
-    await assertPlaceAvailability(admin, place?.id || null, sessions);
     const department = await requireDepartment(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
@@ -406,44 +341,28 @@ export async function createProgramRequest(
     const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
 
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'program_request:create',
-        requestId,
-        userId,
-        async () => {
-            const created = result(
-                await admin
-                    .from('program_requests')
-                    .insert({
-                        name,
-                        language,
-                        program_type: type,
-                        requester_id: requestedBy.id,
-                        status: 'draft',
-                        place_id: place ? place.id : null,
-                        department_id: department.id,
-                        lead_email: leadEmail,
-                    })
-                    .select('*')
-                    .single(),
-            ) as Row;
-            if (sessions.length) {
-                const { error } = await admin
-                    .from('program_sessions')
-                    .insert(sessions.map((s) => ({ ...s, request_id: created.id })));
-                if (error) throw new Error(error.message);
-            }
-            await replaceParticipants(
-                admin,
-                'program_request_participants',
-                created.id,
-                participantEmails,
-            );
-            return getProgramRequest(client, admin, created.id);
-        },
+    const id = newRequestId(clientId);
+    // The save checks place availability under the place lock, in the same
+    // transaction as the writes.
+    result(
+        await admin.rpc('save_program_request_tx', {
+            p_mode: 'create',
+            p_request_id: id,
+            p_fields: {
+                name,
+                language,
+                program_type: type,
+                requester_id: requestedBy.id,
+                place_id: place ? place.id : null,
+                department_id: department.id,
+                lead_email: leadEmail,
+            },
+            p_sessions: sessions,
+            p_participants: await resolveParticipants(admin, participantEmails),
+            p_expected_status: 'draft',
+        }),
     );
-    return dto;
+    return getProgramRequest(client, admin, id);
 }
 
 export async function updateProgramRequest(
@@ -452,7 +371,6 @@ export async function updateProgramRequest(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const approver = isApprover(actor);
@@ -478,72 +396,45 @@ export async function updateProgramRequest(
     // Existing legacy programs may have no sessions; they remain editable —
     // only createProgramRequest requires at least one.
     const sessions = validateProgramSessions(input.sessions || [], false);
-    await assertPlaceAvailability(admin, place?.id || null, sessions, id);
     const department = await requireDepartment(
         admin,
         requireNonEmpty(input.departmentId, 'Department is required.'),
     );
     const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'program_request:update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const access = await loadRequestAccess(admin, programRequestKind, id, actor);
-            assertCanEdit(actor, access);
-            const existing = access.request;
-            const newPlaceId = place ? place.id : null;
-            if (existing.place_id !== newPlaceId && !approver) {
-                throw new Error('Only an approver can change the assigned place.');
-            }
-            if (existing.requester_id !== requestedBy.id && !approver) {
-                throw new Error('You cannot reassign the requester.');
-            }
-            requireUnchangedWorkflowStatus(input.status, String(existing.status));
-            const updated = result(
-                await admin
-                    .from('program_requests')
-                    .update({
-                        name,
-                        language,
-                        program_type: type,
-                        requester_id: requestedBy.id,
-                        place_id: newPlaceId,
-                        department_id: department.id,
-                        lead_email: leadEmail,
-                    })
-                    .eq('id', id)
-                    .select('*')
-                    .single(),
-            ) as Row;
-            const { error: deleteSessionsError } = await admin
-                .from('program_sessions')
-                .delete()
-                .eq('request_id', id);
-            if (deleteSessionsError) throw new Error(deleteSessionsError.message);
-            if (sessions.length) {
-                const { error } = await admin
-                    .from('program_sessions')
-                    .insert(sessions.map((s) => ({ ...s, request_id: id })));
-                if (error) throw new Error(error.message);
-            }
-            await replaceParticipants(
-                admin,
-                programRequestKind.participantsTable,
-                id,
-                participantEmails,
-            );
-            return updated;
-        },
+    const access = await loadRequestAccess(admin, programRequestKind, id, actor);
+    assertCanEdit(actor, access);
+    const existing = access.request;
+    const newPlaceId = place ? place.id : null;
+    if (existing.place_id !== newPlaceId && !approver) {
+        throw new Error('Only an approver can change the assigned place.');
+    }
+    if (existing.requester_id !== requestedBy.id && !approver) {
+        throw new Error('You cannot reassign the requester.');
+    }
+    result(
+        await admin.rpc('save_program_request_tx', {
+            p_mode: 'update',
+            p_request_id: id,
+            p_fields: {
+                name,
+                language,
+                program_type: type,
+                requester_id: requestedBy.id,
+                place_id: newPlaceId,
+                department_id: department.id,
+                lead_email: leadEmail,
+            },
+            p_sessions: sessions,
+            p_participants: await resolveParticipants(admin, participantEmails),
+            p_expected_status: String(existing.status),
+        }),
     );
-    return getProgramRequest(client, admin, dto.id);
+    return getProgramRequest(client, admin, id);
 }
 
 const programRequestKind: RequestKindConfig = {
     kind: 'program',
-    scope: 'program_request',
     table: 'program_requests',
     participantsTable: 'program_request_participants',
     actionRpc: 'perform_program_request_action_tx',
@@ -556,17 +447,8 @@ export function updateProgramRequestParticipants(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return updateRequestParticipants(
-        programRequestKind,
-        client,
-        admin,
-        userId,
-        id,
-        input,
-        requestId,
-    );
+    return updateRequestParticipants(programRequestKind, client, admin, userId, id, input);
 }
 
 // The RPC locks the request (and its place during approval), validates the
@@ -578,18 +460,8 @@ export function performProgramRequestAction(
     id: string,
     action: string,
     note: string,
-    dedupeRequestId: string,
 ): Promise<string> {
-    return performRequestAction(
-        programRequestKind,
-        client,
-        admin,
-        userId,
-        id,
-        action,
-        note,
-        dedupeRequestId,
-    );
+    return performRequestAction(programRequestKind, client, admin, userId, id, action, note);
 }
 
 export function deleteProgramRequest(
@@ -597,7 +469,6 @@ export function deleteProgramRequest(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
-    return deleteRequest(programRequestKind, client, admin, userId, id, requestId);
+    return deleteRequest(programRequestKind, client, admin, userId, id);
 }

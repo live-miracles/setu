@@ -1,10 +1,11 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { fetchAll, fetchAllIn, result, type Row } from './core.ts';
+import { fetchAll, result, type Row } from './core.ts';
 
-// The place-availability rule, owned in one place: two approved programs may not
-// use the same place within an hour of each other. SQL approval
-// (perform_program_request_action_tx) enforces the same rule under a lock; this
-// module answers it ahead of time for edits and for the place picker.
+// The place-availability rule: two approved programs may not use the same place
+// within an hour of each other. SQL enforces it under a lock, both when a
+// request is approved (perform_program_request_action_tx) and when a request is
+// saved (save_program_request_tx); this module only answers it ahead of time
+// for the place picker.
 const PLACE_BUFFER_MS = 60 * 60 * 1000;
 
 export interface TimeSpan {
@@ -41,56 +42,38 @@ function clashes(sessions: TimeSpan[], others: TimeSpan[]): boolean {
     );
 }
 
-// Sessions of every approved program (optionally only at one place), grouped
-// by the place they occupy; the request being edited never conflicts with itself.
+// Approved sessions that could clash with `sessions` (they touch the sessions'
+// overall time span, widened by the buffer), grouped by the place they occupy;
+// the request being edited never conflicts with itself.
 async function approvedSessionsByPlace(
     admin: SupabaseClient,
     excludeRequestId: string | undefined,
-    placeId?: string,
+    sessions: TimeSpan[],
 ): Promise<Map<string, TimeSpan[]>> {
-    const approved = await fetchAll((from, to) => {
+    const starts = sessions.map((s) => Date.parse(s.start_at)).filter((ms) => !Number.isNaN(ms));
+    const ends = sessions.map((s) => Date.parse(s.end_at)).filter((ms) => !Number.isNaN(ms));
+    if (!starts.length || !ends.length) return new Map();
+    const windowStart = new Date(Math.min(...starts) - PLACE_BUFFER_MS).toISOString();
+    const windowEnd = new Date(Math.max(...ends) + PLACE_BUFFER_MS).toISOString();
+    const rows = await fetchAll((from, to) => {
         const query = admin
-            .from('program_requests')
-            .select('id, place_id')
-            .eq('status', 'approved');
-        return (placeId ? query.eq('place_id', placeId) : query).order('id').range(from, to);
-    });
-    const placeIdByRequest = new Map<string, string>();
-    approved.forEach((request) => {
-        if (request.id !== excludeRequestId && request.place_id) {
-            placeIdByRequest.set(request.id, request.place_id);
-        }
-    });
-    const sessions = await fetchAllIn(placeIdByRequest.keys(), (chunk, from, to) =>
-        admin
             .from('program_sessions')
-            .select('id, request_id, start_at, end_at')
-            .in('request_id', chunk)
+            .select('id, request_id, start_at, end_at, program_requests!inner(place_id, status)')
+            .eq('program_requests.status', 'approved')
+            .not('program_requests.place_id', 'is', null)
+            .lt('start_at', windowEnd)
+            .gt('end_at', windowStart);
+        return (excludeRequestId ? query.neq('request_id', excludeRequestId) : query)
             .order('id')
-            .range(from, to),
-    );
+            .range(from, to);
+    });
     const byPlace = new Map<string, TimeSpan[]>();
-    sessions.forEach((session) => {
-        const place = placeIdByRequest.get(session.request_id);
+    rows.forEach((row) => {
+        const place = row.program_requests?.place_id as string | undefined;
         if (!place) return;
-        byPlace.set(place, [...(byPlace.get(place) || []), session as TimeSpan]);
+        byPlace.set(place, [...(byPlace.get(place) || []), row as TimeSpan]);
     });
     return byPlace;
-}
-
-export async function assertPlaceAvailability(
-    admin: SupabaseClient,
-    placeId: string | null,
-    sessions: TimeSpan[],
-    currentRequestId?: string,
-): Promise<void> {
-    if (!placeId || !sessions.length) return;
-    const byPlace = await approvedSessionsByPlace(admin, currentRequestId, placeId);
-    if (clashes(sessions, byPlace.get(placeId) || [])) {
-        throw new Error(
-            'This place is unavailable: its session is within one hour of another scheduled program.',
-        );
-    }
 }
 
 export async function availablePlaces(
@@ -99,9 +82,7 @@ export async function availablePlaces(
     sessions: TimeSpan[],
 ): Promise<Row[]> {
     const places = result(await admin.from('places').select('*').order('name')) as Row[];
-    const byPlace = sessions.length
-        ? await approvedSessionsByPlace(admin, currentRequestId)
-        : new Map<string, TimeSpan[]>();
+    const byPlace = await approvedSessionsByPlace(admin, currentRequestId, sessions);
     return places
         .filter((place) => !clashes(sessions, byPlace.get(place.id) || []))
         .map((place) => ({ Id: place.id, Name: place.name }));

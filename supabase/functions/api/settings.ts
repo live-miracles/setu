@@ -11,28 +11,25 @@ import {
     result,
     userDto,
     WITH_LOCATION,
-    withLockedDedupe,
     type Row,
 } from './core.ts';
+import {
+    departmentDto,
+    homeContentDto,
+    inventoryTypeDto,
+    namedOptionDto,
+    type NamedOptionTable,
+    placeDto,
+    shiftTypeDto,
+} from './dto.ts';
 import { boundedText, emailArg, MAX_NAME_LENGTH, MAX_PHONE_LENGTH } from './validation.ts';
 import { normalizeHiddenViews } from '../_shared/views.ts';
-
-export function homeContentDto(row: Row): Row {
-    return {
-        Guidelines: row.guidelines,
-        HiddenViews: normalizeHiddenViews(row.hidden_views),
-    };
-}
 
 const USER_ROLES = ['admin', 'approver', 'viewer', 'user'];
 
 function optionalTime(value: unknown): string | null {
     const time = String(value ?? '').trim();
     return time || null;
-}
-
-function timeDto(value: unknown): string {
-    return value == null ? '' : String(value).slice(0, 5);
 }
 
 function parseInventoryTotalQuantity(value: unknown): number | null {
@@ -42,10 +39,6 @@ function parseInventoryTotalQuantity(value: unknown): number | null {
         throw new Error('Total quantity must be a non-negative whole number.');
     }
     return quantity;
-}
-
-export function departmentDto(x: Row): Row {
-    return { Id: x.id, Name: x.name, ShortName: x.short_name, LeadEmail: x.lead_email };
 }
 
 function departmentDuplicateMessage(error: string): string {
@@ -59,34 +52,24 @@ export async function createDepartment(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'department:create',
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('departments')
-                    .insert({
-                        name,
-                        short_name: String(input.shortName || ''),
-                        lead_email: String(input.leadEmail || '')
-                            .trim()
-                            .toLowerCase(),
-                    })
-                    .select('*')
-                    .single(),
-                departmentDuplicateMessage,
-            ) as Row;
-            return departmentDto(row);
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('departments')
+            .insert({
+                name,
+                short_name: String(input.shortName || ''),
+                lead_email: String(input.leadEmail || '')
+                    .trim()
+                    .toLowerCase(),
+            })
+            .select('*')
+            .single(),
+        departmentDuplicateMessage,
+    ) as Row;
+    return departmentDto(row);
 }
 
 export async function updateDepartment(
@@ -95,35 +78,25 @@ export async function updateDepartment(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'department:update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('departments')
-                    .update({
-                        name,
-                        short_name: String(input.shortName || ''),
-                        lead_email: String(input.leadEmail || '')
-                            .trim()
-                            .toLowerCase(),
-                    })
-                    .eq('id', id)
-                    .select('*')
-                    .single(),
-                departmentDuplicateMessage,
-            ) as Row;
-            return departmentDto(row);
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('departments')
+            .update({
+                name,
+                short_name: String(input.shortName || ''),
+                lead_email: String(input.leadEmail || '')
+                    .trim()
+                    .toLowerCase(),
+            })
+            .eq('id', id)
+            .select('*')
+            .single(),
+        departmentDuplicateMessage,
+    ) as Row;
+    return departmentDto(row);
 }
 
 export async function deleteDepartment(
@@ -131,14 +104,10 @@ export async function deleteDepartment(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'department:delete:' + id, requestId, userId, async () => {
-        const { error } = await admin.from('departments').delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    const { error } = await admin.from('departments').delete().eq('id', id);
+    if (error) throw new Error(error.message);
 }
 
 // Program places (where sessions are held), inventory places (where equipment
@@ -154,75 +123,48 @@ const DUPLICATE_NAME_MESSAGE: Record<PlaceTable, string> = {
 
 async function createPlaceIn(
     table: PlaceTable,
-    scope: string,
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        scope + ':create',
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin.from(table).insert({ name }).select('*').single(),
-                DUPLICATE_NAME_MESSAGE[table],
-            ) as Row;
-            return { Id: row.id, Name: row.name };
-        },
-    );
-    return dto;
+    const row = result(
+        await admin.from(table).insert({ name }).select('*').single(),
+        DUPLICATE_NAME_MESSAGE[table],
+    ) as Row;
+    return placeDto(row);
 }
 
 async function updatePlaceIn(
     table: PlaceTable,
-    scope: string,
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        scope + ':update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin.from(table).update({ name }).eq('id', id).select('*').single(),
-                DUPLICATE_NAME_MESSAGE[table],
-            ) as Row;
-            return { Id: row.id, Name: row.name };
-        },
-    );
-    return dto;
+    const row = result(
+        await admin.from(table).update({ name }).eq('id', id).select('*').single(),
+        DUPLICATE_NAME_MESSAGE[table],
+    ) as Row;
+    return placeDto(row);
 }
 
 async function deletePlaceIn(
     table: PlaceTable,
-    scope: string,
     inUseMessage: string,
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, scope + ':delete:' + id, requestId, userId, async () => {
-        const { error } = await admin.from(table).delete().eq('id', id);
-        if (error) throw new Error(error.code === '23503' ? inUseMessage : error.message);
-        return null;
-    });
+    const { error } = await admin.from(table).delete().eq('id', id);
+    if (error) throw new Error(error.code === '23503' ? inUseMessage : error.message);
 }
 
 export function createPlace(
@@ -230,9 +172,8 @@ export function createPlace(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return createPlaceIn('places', 'place', client, admin, userId, input, requestId);
+    return createPlaceIn('places', client, admin, userId, input);
 }
 
 export function updatePlace(
@@ -241,9 +182,8 @@ export function updatePlace(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return updatePlaceIn('places', 'place', client, admin, userId, id, input, requestId);
+    return updatePlaceIn('places', client, admin, userId, id, input);
 }
 
 export function deletePlace(
@@ -251,17 +191,14 @@ export function deletePlace(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     return deletePlaceIn(
         'places',
-        'place',
         'This place is used by programs or blocks and cannot be deleted.',
         client,
         admin,
         userId,
         id,
-        requestId,
     );
 }
 
@@ -270,17 +207,8 @@ export function createInventoryPlace(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return createPlaceIn(
-        'inventory_places',
-        'inventory-place',
-        client,
-        admin,
-        userId,
-        input,
-        requestId,
-    );
+    return createPlaceIn('inventory_places', client, admin, userId, input);
 }
 
 export function updateInventoryPlace(
@@ -289,18 +217,8 @@ export function updateInventoryPlace(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return updatePlaceIn(
-        'inventory_places',
-        'inventory-place',
-        client,
-        admin,
-        userId,
-        id,
-        input,
-        requestId,
-    );
+    return updatePlaceIn('inventory_places', client, admin, userId, id, input);
 }
 
 export function deleteInventoryPlace(
@@ -308,17 +226,14 @@ export function deleteInventoryPlace(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     return deletePlaceIn(
         'inventory_places',
-        'inventory-place',
         'This place is used by inventory types or labels and cannot be deleted.',
         client,
         admin,
         userId,
         id,
-        requestId,
     );
 }
 
@@ -327,17 +242,8 @@ export function createInventoryBrand(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return createPlaceIn(
-        'inventory_brands',
-        'inventory-brand',
-        client,
-        admin,
-        userId,
-        input,
-        requestId,
-    );
+    return createPlaceIn('inventory_brands', client, admin, userId, input);
 }
 
 export function updateInventoryBrand(
@@ -346,18 +252,8 @@ export function updateInventoryBrand(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return updatePlaceIn(
-        'inventory_brands',
-        'inventory-brand',
-        client,
-        admin,
-        userId,
-        id,
-        input,
-        requestId,
-    );
+    return updatePlaceIn('inventory_brands', client, admin, userId, id, input);
 }
 
 export function deleteInventoryBrand(
@@ -365,21 +261,20 @@ export function deleteInventoryBrand(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     return deletePlaceIn(
         'inventory_brands',
-        'inventory-brand',
         'This brand is used by inventory types and cannot be deleted.',
         client,
         admin,
         userId,
         id,
-        requestId,
     );
 }
 
-export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promise<Row> {
+// The DTO of one inventory type as it is right now: its availability and
+// labels are read fresh.
+async function loadInventoryTypeDto(client: SupabaseClient, row: Row): Promise<Row> {
     const [availabilityRes, labelsRes] = await Promise.all([
         client.rpc('inventory_availability'),
         client
@@ -388,60 +283,33 @@ export async function inventoryTypeDto(client: SupabaseClient, row: Row): Promis
             .eq('inventory_type_id', row.id)
             .order('name'),
     ]);
-    const availability = result(availabilityRes) as Row[];
-    const labels = result(labelsRes) as Row[];
-    const available = availability.find((x) => x.inventory_type_id === row.id);
-    return {
-        Id: row.id,
-        DisplayId: row.display_id,
-        Brand: row.brand,
-        Name: row.name,
-        Model: row.model,
-        ...locationFields(row),
-        Description: row.description,
-        Requestable: row.requestable,
-        ImageId: row.image_path,
-        TotalQuantity: row.total_quantity,
-        availableQuantity: available ? available.available_quantity : row.total_quantity,
-        labels: labels.map(inventoryLabelDto),
-    };
+    const available = (result(availabilityRes) as Row[]).find(
+        (x) => x.inventory_type_id === row.id,
+    );
+    return inventoryTypeDto(row, available?.available_quantity, result(labelsRes) as Row[]);
 }
-
 export async function createInventoryLabel(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const inventoryTypeId = requireNonEmpty(input.inventoryTypeId, 'Inventory type is required.');
     const name = boundedText(input.name, 'Label name', MAX_NAME_LENGTH);
-    const { result: label } = await withLockedDedupe(
-        admin,
-        'inventory-label:create:' + inventoryTypeId,
-        requestId,
-        userId,
-        async () => {
-            const type = result(
-                await admin
-                    .from('inventory_types')
-                    .select('id')
-                    .eq('id', inventoryTypeId)
-                    .maybeSingle(),
-            ) as Row | null;
-            if (!type) throw new Error('Inventory type not found.');
-            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
-            return result(
-                await admin
-                    .from('inventory_type_labels')
-                    .insert({ inventory_type_id: inventoryTypeId, name, location_id: locationId })
-                    .select(WITH_LOCATION)
-                    .single(),
-                'A label with this name already exists for this inventory type.',
-            ) as Row;
-        },
-    );
+    const type = result(
+        await admin.from('inventory_types').select('id').eq('id', inventoryTypeId).maybeSingle(),
+    ) as Row | null;
+    if (!type) throw new Error('Inventory type not found.');
+    const locationId = await optionalInventoryPlaceId(admin, input.locationId);
+    const label = result(
+        await admin
+            .from('inventory_type_labels')
+            .insert({ inventory_type_id: inventoryTypeId, name, location_id: locationId })
+            .select(WITH_LOCATION)
+            .single(),
+        'A label with this name already exists for this inventory type.',
+    ) as Row;
     return inventoryLabelDto(label);
 }
 
@@ -450,14 +318,10 @@ export async function deleteInventoryLabel(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'inventory-label:delete:' + id, requestId, userId, async () => {
-        const { error } = await admin.from('inventory_type_labels').delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    const { error } = await admin.from('inventory_type_labels').delete().eq('id', id);
+    if (error) throw new Error(error.message);
 }
 
 export async function updateInventoryLabel(
@@ -466,28 +330,19 @@ export async function updateInventoryLabel(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = boundedText(input.name, 'Label name', MAX_NAME_LENGTH);
-    const { result: label } = await withLockedDedupe(
-        admin,
-        'inventory-label:update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
-            return result(
-                await admin
-                    .from('inventory_type_labels')
-                    .update({ name, location_id: locationId })
-                    .eq('id', id)
-                    .select(WITH_LOCATION)
-                    .single(),
-                'A label with this name already exists for this inventory type.',
-            ) as Row;
-        },
-    );
+    const locationId = await optionalInventoryPlaceId(admin, input.locationId);
+    const label = result(
+        await admin
+            .from('inventory_type_labels')
+            .update({ name, location_id: locationId })
+            .eq('id', id)
+            .select(WITH_LOCATION)
+            .single(),
+        'A label with this name already exists for this inventory type.',
+    ) as Row;
     return inventoryLabelDto(label);
 }
 
@@ -496,42 +351,32 @@ export async function createInventoryType(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
     const brand = String(input.brand || '').trim();
     const model = String(input.model || '').trim();
     const totalQuantity = parseInventoryTotalQuantity(input.totalQuantity);
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'inventory-type:create',
-        requestId,
-        userId,
-        async () => {
-            await requireInventoryBrand(admin, brand);
-            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
-            const row = result(
-                await admin
-                    .from('inventory_types')
-                    .insert({
-                        brand,
-                        name,
-                        model,
-                        location_id: locationId,
-                        description: String(input.description || ''),
-                        requestable: input.requestable !== false,
-                        image_path: String(input.imageId || ''),
-                        total_quantity: totalQuantity,
-                    })
-                    .select(WITH_LOCATION)
-                    .single(),
-                'An inventory type with this brand, name, and model already exists.',
-            ) as Row;
-            return inventoryTypeDto(client, row);
-        },
-    );
-    return dto;
+    await requireInventoryBrand(admin, brand);
+    const locationId = await optionalInventoryPlaceId(admin, input.locationId);
+    const row = result(
+        await admin
+            .from('inventory_types')
+            .insert({
+                brand,
+                name,
+                model,
+                location_id: locationId,
+                description: String(input.description || ''),
+                requestable: input.requestable !== false,
+                image_path: String(input.imageId || ''),
+                total_quantity: totalQuantity,
+            })
+            .select(WITH_LOCATION)
+            .single(),
+        'An inventory type with this brand, name, and model already exists.',
+    ) as Row;
+    return loadInventoryTypeDto(client, row);
 }
 
 export async function updateInventoryType(
@@ -540,49 +385,37 @@ export async function updateInventoryType(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
     const brand = String(input.brand || '').trim();
     const model = String(input.model || '').trim();
     const totalQuantity = parseInventoryTotalQuantity(input.totalQuantity);
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'inventory-type:update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const existing = result(
-                await admin.from('inventory_types').select('*').eq('id', id).single(),
-            ) as Row;
-            await requireInventoryBrand(admin, brand);
-            const locationId = await optionalInventoryPlaceId(admin, input.locationId);
-            const row = result(
-                await admin
-                    .from('inventory_types')
-                    .update({
-                        brand,
-                        name,
-                        model,
-                        location_id: locationId,
-                        description: String(input.description || ''),
-                        requestable: input.requestable !== false,
-                        image_path:
-                            input.imageId === undefined
-                                ? existing.image_path
-                                : String(input.imageId || ''),
-                        total_quantity: totalQuantity,
-                    })
-                    .eq('id', id)
-                    .select(WITH_LOCATION)
-                    .single(),
-                'An inventory type with this brand, name, and model already exists.',
-            ) as Row;
-            return inventoryTypeDto(client, row);
-        },
-    );
-    return dto;
+    const existing = result(
+        await admin.from('inventory_types').select('*').eq('id', id).single(),
+    ) as Row;
+    await requireInventoryBrand(admin, brand);
+    const locationId = await optionalInventoryPlaceId(admin, input.locationId);
+    const row = result(
+        await admin
+            .from('inventory_types')
+            .update({
+                brand,
+                name,
+                model,
+                location_id: locationId,
+                description: String(input.description || ''),
+                requestable: input.requestable !== false,
+                image_path:
+                    input.imageId === undefined ? existing.image_path : String(input.imageId || ''),
+                total_quantity: totalQuantity,
+            })
+            .eq('id', id)
+            .select(WITH_LOCATION)
+            .single(),
+        'An inventory type with this brand, name, and model already exists.',
+    ) as Row;
+    return loadInventoryTypeDto(client, row);
 }
 
 export async function deleteInventoryType(
@@ -590,16 +423,12 @@ export async function deleteInventoryType(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'inventory-type:delete:' + id, requestId, userId, async () => {
-        const { error } = await admin.rpc('delete_inventory_type_with_items', {
-            target_inventory_type_id: id,
-        });
-        if (error) throw new Error(error.message);
-        return null;
+    const { error } = await admin.rpc('delete_inventory_type_with_items', {
+        target_inventory_type_id: id,
     });
+    if (error) throw new Error(error.message);
 }
 
 async function requireDepartmentExists(admin: SupabaseClient, id: unknown): Promise<void> {
@@ -622,7 +451,6 @@ export async function createUser(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const email = emailArg(input.email, 'Email is required.');
@@ -637,48 +465,39 @@ export async function createUser(
     if (departmentId) await requireDepartmentExists(admin, departmentId);
     const phone = boundedText(input.phone, 'Phone', MAX_PHONE_LENGTH);
     const whatsapp = boundedText(input.whatsapp, 'WhatsApp', MAX_PHONE_LENGTH);
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'user:create',
-        requestId,
-        userId,
-        async () => {
-            await requireEmailUnused(admin, email);
-            const created = await admin.auth.admin.createUser({
-                email,
-                email_confirm: true,
-                ban_duration: SIGN_IN_BLOCKED_BAN,
-                user_metadata: { full_name: name },
-            });
-            if (created.error || !created.data.user) {
-                throw new Error(created.error?.message || 'Unable to add this member.');
-            }
-            const authUserId = created.data.user.id;
-            const updated = await admin
-                .from('profiles')
-                .update({
-                    name,
-                    role,
-                    department_id: departmentId,
-                    phone,
-                    whatsapp,
-                    sign_in_blocked: true,
-                })
-                .eq('id', authUserId)
-                .select('*')
-                .single();
-            if (updated.error || !updated.data) {
-                // Do not leave a banned identity without its profile details.
-                await admin.auth.admin.deleteUser(authUserId);
-                throw new Error(updated.error?.message || 'Unable to add this member.');
-            }
-            const departments = (result(await admin.from('departments').select('*')) as Row[]).map(
-                (x) => [x.id, x] as [string, Row],
-            );
-            return userDto(updated.data, new Map(departments));
-        },
+    await requireEmailUnused(admin, email);
+    const created = await admin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        ban_duration: SIGN_IN_BLOCKED_BAN,
+        user_metadata: { full_name: name },
+    });
+    if (created.error || !created.data.user) {
+        throw new Error(created.error?.message || 'Unable to add this member.');
+    }
+    const authUserId = created.data.user.id;
+    const updated = await admin
+        .from('profiles')
+        .update({
+            name,
+            role,
+            department_id: departmentId,
+            phone,
+            whatsapp,
+            sign_in_blocked: true,
+        })
+        .eq('id', authUserId)
+        .select('*')
+        .single();
+    if (updated.error || !updated.data) {
+        // Do not leave a banned identity without its profile details.
+        await admin.auth.admin.deleteUser(authUserId);
+        throw new Error(updated.error?.message || 'Unable to add this member.');
+    }
+    const departments = (result(await admin.from('departments').select('*')) as Row[]).map(
+        (x) => [x.id, x] as [string, Row],
     );
-    return dto;
+    return userDto(updated.data, new Map(departments));
 }
 
 async function requireEmailUnused(admin: SupabaseClient, email: string): Promise<void> {
@@ -780,7 +599,6 @@ export async function deleteUser(
     admin: SupabaseClient,
     userId: string,
     targetEmail: string,
-    requestId: string,
 ): Promise<void> {
     const actor = await requireAdmin(client, userId);
     const target = result(
@@ -812,11 +630,8 @@ export async function deleteUser(
             'This user has requests, comments or roster shifts and cannot be deleted. Change their role instead.',
         );
     }
-    await withLockedDedupe(admin, 'user:delete:' + target.id, requestId, userId, async () => {
-        const { error } = await admin.auth.admin.deleteUser(target.id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    const { error } = await admin.auth.admin.deleteUser(target.id);
+    if (error) throw new Error(error.message);
 }
 
 // Shift/program/session types and languages are still edited through their
@@ -827,39 +642,23 @@ export async function createShiftType(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'shift-type:create',
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('shift_types')
-                    .insert({
-                        name,
-                        color: String(input.color || '').trim(),
-                        default_start_time: optionalTime(input.defaultStartTime),
-                        default_end_time: optionalTime(input.defaultEndTime),
-                    })
-                    .select('*')
-                    .single(),
-                'A shift type with this name already exists.',
-            ) as Row;
-            return {
-                Id: row.id,
-                Name: row.name,
-                Color: row.color,
-                DefaultStartTime: timeDto(row.default_start_time),
-                DefaultEndTime: timeDto(row.default_end_time),
-            };
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('shift_types')
+            .insert({
+                name,
+                color: String(input.color || '').trim(),
+                default_start_time: optionalTime(input.defaultStartTime),
+                default_end_time: optionalTime(input.defaultEndTime),
+            })
+            .select('*')
+            .single(),
+        'A shift type with this name already exists.',
+    ) as Row;
+    return shiftTypeDto(row);
 }
 
 export async function updateShiftType(
@@ -868,40 +667,24 @@ export async function updateShiftType(
     userId: string,
     name: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const newName = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'shift-type:update:' + name,
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('shift_types')
-                    .update({
-                        name: newName,
-                        color: String(input.color || '').trim(),
-                        default_start_time: optionalTime(input.defaultStartTime),
-                        default_end_time: optionalTime(input.defaultEndTime),
-                    })
-                    .eq('name', name)
-                    .select('*')
-                    .single(),
-                'A shift type with this name already exists.',
-            ) as Row;
-            return {
-                Id: row.id,
-                Name: row.name,
-                Color: row.color,
-                DefaultStartTime: timeDto(row.default_start_time),
-                DefaultEndTime: timeDto(row.default_end_time),
-            };
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('shift_types')
+            .update({
+                name: newName,
+                color: String(input.color || '').trim(),
+                default_start_time: optionalTime(input.defaultStartTime),
+                default_end_time: optionalTime(input.defaultEndTime),
+            })
+            .eq('name', name)
+            .select('*')
+            .single(),
+        'A shift type with this name already exists.',
+    ) as Row;
+    return shiftTypeDto(row);
 }
 
 export async function deleteShiftType(
@@ -909,20 +692,10 @@ export async function deleteShiftType(
     admin: SupabaseClient,
     userId: string,
     name: string,
-    requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, 'shift-type:delete:' + name, requestId, userId, async () => {
-        const { error } = await admin.from('shift_types').delete().eq('name', name);
-        if (error) throw new Error(error.message);
-        return null;
-    });
-}
-
-type NamedOptionTable = 'program_types' | 'program_languages' | 'session_types';
-
-export function namedOptionDto(table: NamedOptionTable, row: Row): Row {
-    return table === 'program_types' ? { Name: row.name, Color: row.color } : { Name: row.name };
+    const { error } = await admin.from('shift_types').delete().eq('name', name);
+    if (error) throw new Error(error.message);
 }
 
 export async function createNamedOption(
@@ -930,35 +703,24 @@ export async function createNamedOption(
     admin: SupabaseClient,
     userId: string,
     table: NamedOptionTable,
-    scope: string,
     label: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        scope + ':create',
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from(table)
-                    .insert(
-                        table === 'program_types'
-                            ? { name, color: String(input.color || '').trim() }
-                            : { name },
-                    )
-                    .select('*')
-                    .single(),
-                `A ${label} with this name already exists.`,
-            ) as Row;
-            return namedOptionDto(table, row);
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from(table)
+            .insert(
+                table === 'program_types'
+                    ? { name, color: String(input.color || '').trim() }
+                    : { name },
+            )
+            .select('*')
+            .single(),
+        `A ${label} with this name already exists.`,
+    ) as Row;
+    return namedOptionDto(table, row);
 }
 
 export async function updateNamedOption(
@@ -966,37 +728,26 @@ export async function updateNamedOption(
     admin: SupabaseClient,
     userId: string,
     table: NamedOptionTable,
-    scope: string,
     label: string,
     name: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const newName = requireNonEmpty(input.name, 'Name is required.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        scope + ':update:' + name,
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from(table)
-                    .update(
-                        table === 'program_types'
-                            ? { name: newName, color: String(input.color || '').trim() }
-                            : { name: newName },
-                    )
-                    .eq('name', name)
-                    .select('*')
-                    .single(),
-                `A ${label} with this name already exists.`,
-            ) as Row;
-            return namedOptionDto(table, row);
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from(table)
+            .update(
+                table === 'program_types'
+                    ? { name: newName, color: String(input.color || '').trim() }
+                    : { name: newName },
+            )
+            .eq('name', name)
+            .select('*')
+            .single(),
+        `A ${label} with this name already exists.`,
+    ) as Row;
+    return namedOptionDto(table, row);
 }
 
 export async function deleteNamedOption(
@@ -1004,16 +755,11 @@ export async function deleteNamedOption(
     admin: SupabaseClient,
     userId: string,
     table: NamedOptionTable,
-    scope: string,
     name: string,
-    requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(admin, scope + ':delete:' + name, requestId, userId, async () => {
-        const { error } = await admin.from(table).delete().eq('name', name);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    const { error } = await admin.from(table).delete().eq('name', name);
+    if (error) throw new Error(error.message);
 }
 
 export async function createBlock(
@@ -1021,41 +767,31 @@ export async function createBlock(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireApprover(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
     const startDateTime = requireNonEmpty(input.startDateTime, 'Start is required.');
     const endDateTime = requireNonEmpty(input.endDateTime, 'End is required.');
     if (endDateTime <= startDateTime) throw new Error('Block end must be after start.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'block:create',
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('blocks')
-                    .insert({
-                        name,
-                        start_at: startDateTime,
-                        end_at: endDateTime,
-                        place_id: input.place || null,
-                    })
-                    .select('*')
-                    .single(),
-            ) as Row;
-            return {
-                Id: row.id,
-                Name: row.name,
-                Place: row.place_id || '',
-                StartDateTime: row.start_at,
-                EndDateTime: row.end_at,
-            };
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('blocks')
+            .insert({
+                name,
+                start_at: startDateTime,
+                end_at: endDateTime,
+                place_id: input.place || null,
+            })
+            .select('*')
+            .single(),
+    ) as Row;
+    return {
+        Id: row.id,
+        Name: row.name,
+        Place: row.place_id || '',
+        StartDateTime: row.start_at,
+        EndDateTime: row.end_at,
+    };
 }
 
 export async function updateBlock(
@@ -1064,42 +800,32 @@ export async function updateBlock(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireApprover(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
     const startDateTime = requireNonEmpty(input.startDateTime, 'Start is required.');
     const endDateTime = requireNonEmpty(input.endDateTime, 'End is required.');
     if (endDateTime <= startDateTime) throw new Error('Block end must be after start.');
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'block:update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('blocks')
-                    .update({
-                        name,
-                        start_at: startDateTime,
-                        end_at: endDateTime,
-                        place_id: input.place || null,
-                    })
-                    .eq('id', id)
-                    .select('*')
-                    .single(),
-            ) as Row;
-            return {
-                Id: row.id,
-                Name: row.name,
-                Place: row.place_id || '',
-                StartDateTime: row.start_at,
-                EndDateTime: row.end_at,
-            };
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('blocks')
+            .update({
+                name,
+                start_at: startDateTime,
+                end_at: endDateTime,
+                place_id: input.place || null,
+            })
+            .eq('id', id)
+            .select('*')
+            .single(),
+    ) as Row;
+    return {
+        Id: row.id,
+        Name: row.name,
+        Place: row.place_id || '',
+        StartDateTime: row.start_at,
+        EndDateTime: row.end_at,
+    };
 }
 
 export async function deleteBlock(
@@ -1107,14 +833,10 @@ export async function deleteBlock(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     await requireApprover(client, userId);
-    await withLockedDedupe(admin, 'block:delete:' + id, requestId, userId, async () => {
-        const { error } = await admin.from('blocks').delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    const { error } = await admin.from('blocks').delete().eq('id', id);
+    if (error) throw new Error(error.message);
 }
 
 export async function updateHomeContent(

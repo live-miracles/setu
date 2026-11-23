@@ -31,7 +31,7 @@ export function MasterDetail({
     if (!wide) {
         return (
             <section
-                className={`antd-page${hasDetail ? ' detail-page' : narrowListClassName ? ` ${narrowListClassName}` : ''}`}>
+                className={`app-page${hasDetail ? ' detail-page' : narrowListClassName ? ` ${narrowListClassName}` : ''}`}>
                 {hasDetail ? (
                     detail
                 ) : (
@@ -45,7 +45,7 @@ export function MasterDetail({
         );
     }
     return (
-        <section className="antd-page master-detail-page">
+        <section className="app-page master-detail-page">
             {heading}
             <div className={`master-detail${hasDetail ? ' has-detail' : ''}`}>
                 <div className="master-detail-list">{list}</div>
@@ -63,7 +63,7 @@ export function MasterDetail({
 // The detail's title row: the record's name with its actions on the right.
 export function DetailHeading({ title, actions }: { title: ReactNode; actions: ReactNode }) {
     return (
-        <div className="antd-page-heading">
+        <div className="app-page-heading">
             <div>
                 <Typography.Title level={2}>{title}</Typography.Title>
             </div>

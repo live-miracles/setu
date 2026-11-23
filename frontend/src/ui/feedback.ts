@@ -16,3 +16,13 @@ export function showErrorAlert(error: unknown): void {
             : String((error as any)?.message || error || 'Something went wrong.');
     pushToast({ kind: 'error', title: 'Something went wrong', description: message }, 10000);
 }
+
+// Shows the saving badge for the length of a write, whether it succeeds or throws.
+export async function withSavingBadge<T>(work: () => Promise<T>): Promise<T> {
+    showSavingBadge(true);
+    try {
+        return await work();
+    } finally {
+        showSavingBadge(false);
+    }
+}

@@ -18,6 +18,7 @@ test('frontend utility and table assertions', async () => {
                 import { runCalendarTableAssertions } from './frontend/src/ui/calendar-table.test.ts';
                 import { runCreateRecordAssertions } from './frontend/src/ui/create-record.test.ts';
                 import { runInventoryImageAssertions } from './frontend/src/ui/inventory-image.test.ts';
+                import { runInventoryItemsAssertions } from './frontend/src/ui/inventory-items.test.ts';
                 import { runInventoryQrPdfAssertions } from './frontend/src/ui/inventory-qr-pdf.test.ts';
                 import { runInventoryQrAssertions } from './frontend/src/ui/inventory-qr.test.ts';
                 import { runInventoryStatusAssertions } from './frontend/src/ui/inventory-status.test.ts';
@@ -29,10 +30,12 @@ test('frontend utility and table assertions', async () => {
                 import { runToneAssertions } from './frontend/src/ui/tone.test.ts';
                 import { runViewsAssertions } from './frontend/src/ui/views.test.ts';
                 import { runFormUtilsAssertions } from './frontend/src/sections/form-utils.test.ts';
+                import { runRequestDetailAssertions } from './frontend/src/sections/request-detail.test.ts';
 
                 runCalendarTableAssertions();
                 runCreateRecordAssertions();
                 runInventoryImageAssertions();
+                runInventoryItemsAssertions();
                 runInventoryQrPdfAssertions();
                 runInventoryQrAssertions();
                 runInventoryStatusAssertions();
@@ -44,6 +47,7 @@ test('frontend utility and table assertions', async () => {
                 runToneAssertions();
                 runViewsAssertions();
                 runFormUtilsAssertions();
+                runRequestDetailAssertions();
             `,
         },
     });

@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { Result } from './ui/kit';
-import { api } from './api';
-import { DashboardProvider } from './dashboard-context';
+import { useHomeContentQuery, useMeQuery } from './ui/reference';
 import { AppProviders } from './ui/providers';
 import {
     blocksPath,
@@ -26,57 +24,53 @@ import { canApprove } from './workflows';
 import { AppLoading } from './ui/app-loading';
 import { Shell } from './ui/shell';
 import { Home } from './sections/home';
-import { Profile, RequestDetail } from './sections/refine-app';
+import { Profile } from './sections/profile';
+import { RequestDetail } from './sections/request-detail';
 import { Roster } from './sections/roster';
 import { Users } from './sections/users';
 import { Calendar } from './sections/calendar';
 import { CreateRecord, RequestTable } from './sections/requests';
 import { DepartmentsPage } from './sections/departments';
 import { InventoryTypesPage } from './sections/inventory-types';
-import { HomeContentPage, SettingsResourcePage } from './sections/refine-settings';
+import { HomeContentPage, SettingsResourcePage } from './sections/settings-pages';
 
 export function App() {
     const navigate = useNavigate();
-    const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
-    const [error, setError] = useState<string | null>(null);
-
-    const refreshDashboard = useCallback(async () => {
-        const next = await api.getDashboard();
-        setDashboard(next);
-    }, []);
-
-    useEffect(() => {
-        refreshDashboard().catch((err) =>
-            setError(err instanceof Error ? err.message : String(err)),
-        );
-    }, [refreshDashboard]);
+    // The two things every screen needs before it can draw: who is signed in
+    // (role, registration) and which views are hidden. Everything else is read by
+    // the screen that needs it.
+    const meQuery = useMeQuery();
+    const homeContentQuery = useHomeContentQuery();
+    const me = meQuery.data;
+    const error = [meQuery, homeContentQuery].find((query) => !query.data && query.error)?.error;
 
     if (error) {
         return (
-            <Shell dashboard={null} refreshDashboard={refreshDashboard}>
-                <Result status="error" title="Something went wrong" subTitle={error} />
+            <Shell>
+                <Result
+                    status="error"
+                    title="Something went wrong"
+                    subTitle={error instanceof Error ? error.message : String(error)}
+                />
             </Shell>
         );
     }
-    if (!dashboard) {
+    if (!me || !homeContentQuery.data) {
         return (
-            <Shell dashboard={null} refreshDashboard={refreshDashboard}>
+            <Shell>
                 <AppLoading />
             </Shell>
         );
     }
 
-    if (!dashboard.me.Phone) {
+    if (!me.Phone) {
         return (
-            <DashboardProvider dashboard={dashboard} refreshDashboard={refreshDashboard}>
-                <Shell>
-                    <Profile dashboard={dashboard} registration />
-                </Shell>
-            </DashboardProvider>
+            <Shell>
+                <Profile registration />
+            </Shell>
         );
     }
 
-    const me = dashboard.me;
     // The list and an open request share one element, so opening a request
     // keeps the list's filters, search and page. The key makes switching between
     // Programs and Inventory start the other board's filters afresh.
@@ -84,118 +78,107 @@ export function App() {
         <RequestTable
             key="inventory"
             kind="inventory"
-            dashboard={dashboard}
-            renderDetail={(id) => <RequestDetail kind="inventory" id={id} dashboard={dashboard} />}
+
+            renderDetail={(id) => <RequestDetail kind="inventory" id={id} />}
         />
     );
     const programBoard = (
         <RequestTable
             key="programs"
             kind="programs"
-            dashboard={dashboard}
-            renderDetail={(id) => <RequestDetail kind="programs" id={id} dashboard={dashboard} />}
+
+            renderDetail={(id) => <RequestDetail kind="programs" id={id} />}
         />
     );
     return (
-        <DashboardProvider dashboard={dashboard} refreshDashboard={refreshDashboard}>
-            <Routes>
-                <Route element={<Shell />}>
-                    <Route path={homePath} element={<Home dashboard={dashboard} />} />
-                    <Route path={profilePath} element={<Profile dashboard={dashboard} />} />
-                    <Route path={rosterPath} element={<Roster dashboard={dashboard} />} />
-                    <Route
-                        path={usersPath}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <Users dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
-                    <Route
-                        path={`${usersPath}/:email`}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <Users dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
-                    <Route path={calendarPath} element={<Calendar dashboard={dashboard} />} />
-                    <Route path={inventoryPath} element={inventoryBoard} />
-                    <Route
-                        path={inventoryCreatePath}
-                        element={
-                            <CreateRecord
-                                kind="inventory"
-                                dashboard={dashboard}
-                                onClose={() => navigate(inventoryPath)}
-                            />
-                        }
-                    />
-                    <Route path={`${inventoryPath}/:id`} element={inventoryBoard} />
-                    <Route path={programsPath} element={programBoard} />
-                    <Route
-                        path={programCreatePath}
-                        element={
-                            <CreateRecord
-                                kind="programs"
-                                dashboard={dashboard}
-                                onClose={() => navigate(programsPath)}
-                            />
-                        }
-                    />
-                    <Route path={`${programsPath}/:id`} element={programBoard} />
-                    <Route
-                        path={departmentsPath}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <DepartmentsPage dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
-                    <Route
-                        path={`${departmentsPath}/:id`}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <DepartmentsPage dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
-                    <Route
-                        path={inventoryTypesPath}
-                        element={<InventoryTypesPage dashboard={dashboard} />}
-                    />
-                    <Route
-                        path={`${inventoryTypesPath}/:id`}
-                        element={<InventoryTypesPage dashboard={dashboard} />}
-                    />
-                    <Route
-                        path={inventoryLabelsPath}
-                        element={<InventoryTypesPage dashboard={dashboard} kind="labels" />}
-                    />
-                    <Route
-                        path={`${inventoryLabelsPath}/:id`}
-                        element={<InventoryTypesPage dashboard={dashboard} kind="labels" />}
-                    />
-                    <Route
-                        path={blocksPath}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <SettingsResourcePage resourceName="blocks" dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
-                    <Route
-                        path={homeContentPath}
-                        element={
-                            <RequireRole me={me} allow={canApprove}>
-                                <HomeContentPage dashboard={dashboard} />
-                            </RequireRole>
-                        }
-                    />
-                    <Route path="*" element={<Navigate to={homePath} replace />} />
-                </Route>
-            </Routes>
-        </DashboardProvider>
+        <Routes>
+            <Route element={<Shell />}>
+                <Route path={homePath} element={<Home />} />
+                <Route path={profilePath} element={<Profile />} />
+                <Route path={rosterPath} element={<Roster />} />
+                <Route
+                    path={usersPath}
+                    element={
+                        <RequireRole me={me} allow={canApprove}>
+                            <Users />
+                        </RequireRole>
+                    }
+                />
+                <Route
+                    path={`${usersPath}/:email`}
+                    element={
+                        <RequireRole me={me} allow={canApprove}>
+                            <Users />
+                        </RequireRole>
+                    }
+                />
+                <Route path={calendarPath} element={<Calendar />} />
+                <Route path={inventoryPath} element={inventoryBoard} />
+                <Route
+                    path={inventoryCreatePath}
+                    element={
+                        <CreateRecord
+                            kind="inventory"
+
+                            onClose={() => navigate(inventoryPath)}
+                        />
+                    }
+                />
+                <Route path={`${inventoryPath}/:id`} element={inventoryBoard} />
+                <Route path={programsPath} element={programBoard} />
+                <Route
+                    path={programCreatePath}
+                    element={
+                        <CreateRecord
+                            kind="programs"
+
+                            onClose={() => navigate(programsPath)}
+                        />
+                    }
+                />
+                <Route path={`${programsPath}/:id`} element={programBoard} />
+                <Route
+                    path={departmentsPath}
+                    element={
+                        <RequireRole me={me} allow={canApprove}>
+                            <DepartmentsPage />
+                        </RequireRole>
+                    }
+                />
+                <Route
+                    path={`${departmentsPath}/:id`}
+                    element={
+                        <RequireRole me={me} allow={canApprove}>
+                            <DepartmentsPage />
+                        </RequireRole>
+                    }
+                />
+                <Route path={inventoryTypesPath} element={<InventoryTypesPage />} />
+                <Route path={`${inventoryTypesPath}/:id`} element={<InventoryTypesPage />} />
+                <Route path={inventoryLabelsPath} element={<InventoryTypesPage kind="labels" />} />
+                <Route
+                    path={`${inventoryLabelsPath}/:id`}
+                    element={<InventoryTypesPage kind="labels" />}
+                />
+                <Route
+                    path={blocksPath}
+                    element={
+                        <RequireRole me={me} allow={canApprove}>
+                            <SettingsResourcePage resourceName="blocks" />
+                        </RequireRole>
+                    }
+                />
+                <Route
+                    path={homeContentPath}
+                    element={
+                        <RequireRole me={me} allow={canApprove}>
+                            <HomeContentPage />
+                        </RequireRole>
+                    }
+                />
+                <Route path="*" element={<Navigate to={homePath} replace />} />
+            </Route>
+        </Routes>
     );
 }
 
