@@ -28,6 +28,7 @@ test('frontend utility and table assertions', async () => {
                 import { runRosterTableAssertions } from './frontend/src/ui/roster-table.test.ts';
                 import { runToneAssertions } from './frontend/src/ui/tone.test.ts';
                 import { runViewsAssertions } from './frontend/src/ui/views.test.ts';
+                import { runFormUtilsAssertions } from './frontend/src/sections/form-utils.test.ts';
 
                 runCalendarTableAssertions();
                 runCreateRecordAssertions();
@@ -42,6 +43,7 @@ test('frontend utility and table assertions', async () => {
                 runRosterTableAssertions();
                 runToneAssertions();
                 runViewsAssertions();
+                runFormUtilsAssertions();
             `,
         },
     });

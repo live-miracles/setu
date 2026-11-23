@@ -1,6 +1,13 @@
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import type { FieldValues, UseFormRegisterReturn, UseFormReturn } from 'react-hook-form';
-import { Input, Field } from '../ui/form-kit';
+import { Input, Field, Select } from '../ui/form-kit';
+import { COUNTRIES, COUNTRY_BY_ISO } from './country-codes';
+import {
+    cleanNationalNumber,
+    defaultCountry,
+    joinInternationalPhone,
+    splitInternationalPhone,
+} from './form-utils';
 import { Button, Card as KitCard, Empty as KitEmpty, Typography } from '../ui/kit';
 import { Modal } from '../ui/overlay-kit';
 import { requestActionTone } from '../ui/request-status';
@@ -266,6 +273,84 @@ export function TextField({
                     void registeredOnChange?.(event);
                 }}
             />
+        </Field>
+    );
+}
+
+const COUNTRY_OPTIONS = COUNTRIES.map((country) => ({
+    value: country.iso,
+    label: `+${country.dial} ${country.name}`,
+}));
+
+// A phone number as two inputs, a searchable country code and the number
+// itself, so nobody has to know to type "+91" first. The form value stays the
+// single international string ("+919000000000"); it is empty until a number is
+// typed, which keeps the "required" rule working.
+export function PhoneField({
+    name,
+    label,
+    value,
+    onChange,
+    error,
+}: {
+    name: string;
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    error?: string;
+}) {
+    const countryId = useId();
+    const [iso, setIso] = useState(() => splitInternationalPhone(value)?.country.iso);
+    const parsed = splitInternationalPhone(value);
+    // The stored number wins over the picker when they disagree (a form reset).
+    const chosen = iso ? COUNTRY_BY_ISO.get(iso) : undefined;
+    const country =
+        parsed && parsed.country.dial !== chosen?.dial
+            ? parsed.country
+            : (chosen ?? defaultCountry());
+    const national = parsed?.national ?? '';
+    return (
+        <Field
+            label={label}
+            required
+            error={error}
+            help="Pick the country code, then type the number without it.">
+            <div className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] gap-2">
+                <Select
+                    id={countryId}
+                    aria-label={`${label} country code`}
+                    value={country.iso}
+                    showSearch
+                    onChange={(next) => {
+                        const picked = COUNTRY_BY_ISO.get(next);
+                        if (!picked) return;
+                        setIso(picked.iso);
+                        onChange(joinInternationalPhone(picked, national));
+                    }}
+                    options={COUNTRY_OPTIONS}
+                />
+                <Input
+                    name={name}
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel-national"
+                    placeholder="Number"
+                    value={national}
+                    onChange={(event) => {
+                        const raw = event.target.value;
+                        // Someone pasting a full "+91 90000 00000" still works.
+                        const pasted = raw.trim().startsWith('+')
+                            ? splitInternationalPhone(raw)
+                            : null;
+                        if (pasted) {
+                            setIso(pasted.country.iso);
+                            onChange(joinInternationalPhone(pasted.country, pasted.national));
+                        } else {
+                            onChange(joinInternationalPhone(country, cleanNationalNumber(raw)));
+                        }
+                    }}
+                />
+            </div>
         </Field>
     );
 }

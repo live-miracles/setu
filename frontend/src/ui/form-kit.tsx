@@ -250,6 +250,9 @@ interface SelectProps {
     loading?: boolean;
     status?: 'error';
     name?: string;
+    // Overrides the id a surrounding Field would give the control, for a Field
+    // that holds more than one control (the phone field's country picker).
+    id?: string;
     className?: string;
     size?: ControlSize;
     'aria-label'?: string;
@@ -288,6 +291,7 @@ function NativeSelect({
     disabled,
     status,
     name,
+    id,
     className,
     size = 'middle',
     'aria-label': ariaLabel,
@@ -301,7 +305,7 @@ function NativeSelect({
     return (
         <span className={cx('relative inline-block max-w-full min-w-0', className)}>
             <select
-                id={field?.id}
+                id={id ?? field?.id}
                 ref={ref}
                 name={name}
                 value={current}
@@ -442,6 +446,7 @@ function Combobox({
     placeholder,
     disabled,
     status,
+    id,
     className,
     size = 'middle',
     'aria-label': ariaLabel,
@@ -477,7 +482,7 @@ function Combobox({
     return (
         <div ref={rootRef} className={cx('relative inline-block max-w-full min-w-0', className)}>
             <input
-                id={field?.id}
+                id={id ?? field?.id}
                 role="combobox"
                 aria-expanded={open}
                 aria-controls={listId}

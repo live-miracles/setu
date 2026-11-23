@@ -32,6 +32,7 @@ const bundle = await build({
                         export const captured = new Map();
                         export function Input(props) { captured.set(props.name, props); return null; }
                         export function Field({ children }) { return children; }
+                        export function Select() { return null; }
                     `,
                     kit: `
                         export const Button = () => null;

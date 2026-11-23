@@ -10,12 +10,11 @@ import { roleLabel } from '../ui/styles';
 import {
     internationalPhoneRules,
     isValidInternationalPhone,
-    INTERNATIONAL_PHONE_PATTERN,
     INTERNATIONAL_PHONE_TITLE,
 } from './form-utils';
 import { InventoryDetail } from './inventory-detail';
 import { ProgramDetail } from './program-detail';
-import { Card, Page, SaveFooter, TextField, useRHFSave } from './refine-shared';
+import { Card, Page, PhoneField, SaveFooter, TextField, useRHFSave } from './refine-shared';
 
 type Props = { dashboard: DashboardPayload };
 type ProfileFormValues = {
@@ -95,14 +94,10 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                         control={form.control}
                         rules={internationalPhoneRules('Phone')}
                         render={({ field }) => (
-                            <TextField
+                            <PhoneField
                                 name={field.name}
                                 label="Phone"
                                 value={field.value}
-                                type="tel"
-                                required
-                                pattern={INTERNATIONAL_PHONE_PATTERN}
-                                title={INTERNATIONAL_PHONE_TITLE}
                                 onChange={field.onChange}
                                 error={form.formState.errors.phone?.message}
                             />
@@ -113,14 +108,10 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                         control={form.control}
                         rules={internationalPhoneRules('WhatsApp')}
                         render={({ field }) => (
-                            <TextField
+                            <PhoneField
                                 name={field.name}
                                 label="WhatsApp"
                                 value={field.value}
-                                type="tel"
-                                required
-                                pattern={INTERNATIONAL_PHONE_PATTERN}
-                                title={INTERNATIONAL_PHONE_TITLE}
                                 onChange={field.onChange}
                                 error={form.formState.errors.whatsapp?.message}
                             />

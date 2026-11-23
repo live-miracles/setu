@@ -26,6 +26,7 @@ import {
     ActionConfirmation,
     Empty,
     Modal,
+    PhoneField,
     SaveFooter,
     TextField,
     useRHFSave,
@@ -33,7 +34,6 @@ import {
 import {
     internationalPhoneRules,
     isValidInternationalPhone,
-    INTERNATIONAL_PHONE_PATTERN,
     INTERNATIONAL_PHONE_TITLE,
 } from './form-utils';
 
@@ -163,27 +163,33 @@ export function UserForm({
                         )}
                     />
                 </Field>
-                <TextField
+                <Controller
                     name="phone"
-                    label="Phone"
-                    value={user?.Phone}
-                    type="tel"
-                    required
-                    pattern={INTERNATIONAL_PHONE_PATTERN}
-                    title={INTERNATIONAL_PHONE_TITLE}
-                    registration={form.register('phone', internationalPhoneRules('Phone'))}
-                    error={form.formState.errors.phone?.message}
+                    control={form.control}
+                    rules={internationalPhoneRules('Phone')}
+                    render={({ field }) => (
+                        <PhoneField
+                            name={field.name}
+                            label="Phone"
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={form.formState.errors.phone?.message}
+                        />
+                    )}
                 />
-                <TextField
+                <Controller
                     name="whatsapp"
-                    label="WhatsApp"
-                    value={user?.Whatsapp}
-                    type="tel"
-                    required
-                    pattern={INTERNATIONAL_PHONE_PATTERN}
-                    title={INTERNATIONAL_PHONE_TITLE}
-                    registration={form.register('whatsapp', internationalPhoneRules('WhatsApp'))}
-                    error={form.formState.errors.whatsapp?.message}
+                    control={form.control}
+                    rules={internationalPhoneRules('WhatsApp')}
+                    render={({ field }) => (
+                        <PhoneField
+                            name={field.name}
+                            label="WhatsApp"
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={form.formState.errors.whatsapp?.message}
+                        />
+                    )}
                 />
                 <div>
                     <SaveFooter label="Save" busy={save.busy} errorMessage={save.errorMessage} />
