@@ -90,7 +90,7 @@ export function InventoryLabelCards({
                             {group.title} <Tag>{group.rows.length}</Tag>
                             {/* Grouped by type, the heading also says where the type is kept. */}
                             {groupBy === 'type' && group.rows[0].type.Location && (
-                                <span className="block text-sm font-normal text-steel">
+                                <span className="ml-2 text-sm font-normal text-steel">
                                     {group.rows[0].type.Location}
                                 </span>
                             )}
@@ -137,9 +137,8 @@ export function InventoryLabelCards({
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="shrink-0 self-start text-xs text-steel">
-                                            {inventoryQrValue(type, label)}
-                                        </span>
+                                        {/* The label's own Setu number on every card, named or not. */}
+                                        <Tag className="self-start">{label.DisplayId}</Tag>
                                     </div>
                                 </BlockCard>
                             );
