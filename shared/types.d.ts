@@ -240,6 +240,9 @@ interface FailedEmail {
 
 interface UserDTO extends User {
     departmentName: string;
+    // Added by an administrator before getting an organisation email: the
+    // account exists for rosters and requests but cannot sign in yet.
+    SignInBlocked: boolean;
 }
 
 interface RosterDTO extends Roster {
@@ -354,6 +357,8 @@ interface CreatePlaceInput {
 }
 
 interface UpdateUserInput {
+    // Only accepted for a member who cannot sign in yet (SignInBlocked).
+    email?: string;
     name?: string;
     role?: UserRole;
     departmentId?: string;
@@ -513,6 +518,7 @@ interface Api {
     getDashboard(): DashboardPayload;
 
     listUsers(): UserDTO[];
+    createUser(input: CreateUserInput, requestId: string): UserDTO;
     updateUser(userId: string, patch: UpdateUserInput): UserDTO;
     deleteUser(userId: string, requestId: string): void;
     updateOwnProfile(patch: UpdateOwnProfileInput): UserDTO;

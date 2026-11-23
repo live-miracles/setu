@@ -75,6 +75,12 @@ Organization-wide visibility of approved programs is required for cross-team sch
 
 Allowlist changes take effect at the application API boundary. Existing Supabase sessions are not globally revoked solely by a domain configuration change. Row Level Security continues to limit data access, and an Admin can delete an individual authentication identity when immediate revocation is required.
 
+### Members added before they have an organisation email
+
+Most users self-register on their first Google sign-in. An Admin can also add a member who has no organisation email yet (Users page, "Add member") so they can be rostered, because rosters and requests point at profiles, which point at authentication identities. The identity is created already banned in Supabase Auth (`ban_duration`) and its profile is flagged `sign_in_blocked`, so the member cannot sign in with any Google account, whatever the domain allowlist says (including when the allowlist is empty and access is open). It exists only to be referenced.
+
+An Admin can later set the member's work email, which is the only case where an email is changed through the app: it is refused for anyone who is not `sign_in_blocked`, and Admins cannot change the email of a member who has signed in. When the new address passes the domain allowlist, the ban is lifted and the flag cleared, so the member's first Google sign-in links to the same identity and keeps their roster shifts, requests and role. If it does not pass the allowlist, the member stays banned. Users cannot set `sign_in_blocked` themselves: the profile protection trigger rejects direct changes to it, like role and email. Deleting a member without history (shifts, requests, comments) removes the identity, as for any user.
+
 ### Hidden views are presentation only
 
 An Admin can hide the Program requests, Inventory requests, Calendar, Roster and Inventory types views from the menu and home screen (Other settings, stored in `home_content.hidden_views`). This is a display preference, not access control: the API never reads it, a hidden view's pages still open from a link, and access stays governed by authentication, Row Level Security and the request policy. Only Admins can change it, and the pages for Admins and Approvers cannot be hidden, so the setting cannot lock an Admin out of Other settings.

@@ -12,6 +12,7 @@ import {
     createNamedOption,
     createPlace,
     createShiftType,
+    createUser,
     deleteBlock,
     deleteDepartment,
     deleteInventoryType,
@@ -283,6 +284,10 @@ const operationHandlers: Record<string, OperationHandler> = {
     deleteInventoryType: async ({ client, admin, userId, args }) => {
         await deleteInventoryType(client, admin, userId, String(args[0]), String(args[1]));
         return respond(null);
+    },
+
+    createUser: async ({ client, admin, userId, args }) => {
+        return respond(await createUser(client, admin, userId, args[0] as Row, String(args[1])));
     },
 
     updateUser: async ({ client, admin, userId, args }) => {

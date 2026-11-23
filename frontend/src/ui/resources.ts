@@ -145,8 +145,9 @@ const RESOURCES: Record<string, ResourceConfig> = {
     users: {
         idField: 'Email',
         list: simpleList(async () => (await api.listUsers()) as unknown as Row[]),
-        // No create: users self-register on first sign-in (see the
-        // handle_new_user trigger) rather than being pre-provisioned.
+        // Most users self-register on first sign-in (handle_new_user trigger);
+        // create adds a member who has no organisation email yet.
+        create: (v) => api.createUser(v as unknown as CreateUserInput, generateRequestId()),
         update: (id, v) => api.updateUser(id, v as unknown as UpdateUserInput),
         deleteOne: (id) => api.deleteUser(id, generateRequestId()),
     },

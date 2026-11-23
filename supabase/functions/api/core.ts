@@ -234,6 +234,7 @@ export function userDto(profile: Row, departments: Map<string, Row>): Row {
         Phone: profile.phone || '',
         Whatsapp: profile.whatsapp || '',
         departmentName: departments.get(profile.department_id)?.name || '',
+        SignInBlocked: Boolean(profile.sign_in_blocked),
     };
 }
 

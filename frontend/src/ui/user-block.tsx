@@ -28,7 +28,10 @@ export function UserBlock({
                         {departmentName && <> · {departmentName}</>}
                     </Typography.Text>
                 </div>
-                <Tag color="blue">{roleLabel(user.Role)}</Tag>
+                <div className="flex items-center gap-1.5">
+                    {user.SignInBlocked && <Tag color="gold">No sign-in yet</Tag>}
+                    <Tag color="blue">{roleLabel(user.Role)}</Tag>
+                </div>
             </div>
             <div className="user-card-contact">
                 <span>

@@ -138,6 +138,238 @@ test('deleting a user is refused for the caller and for users with history', asy
     assert.deepEqual(clean.deleted, ['target-1']);
 });
 
+async function loadMemberSettings() {
+    return load('supabase/functions/api/settings.ts', {
+        prelude: `const requireAdmin = async () => ({ id: 'admin-1', email: 'admin@example.org' });
+            const requireNonEmpty = (value, message) => {
+                const text = String(value ?? '').trim();
+                if (!text) throw new Error(message);
+                return text;
+            };
+            const emailArg = (value, message) => requireNonEmpty(value, message).toLowerCase();
+            const boundedText = (value) => String(value ?? '').trim();
+            const MAX_NAME_LENGTH = 200;
+            const MAX_PHONE_LENGTH = 50;
+            const result = (response) => {
+                if (response.error) throw new Error(response.error.message);
+                return response.data;
+            };
+            const userDto = (profile) => ({
+                Email: profile.email,
+                Role: profile.role,
+                SignInBlocked: Boolean(profile.sign_in_blocked),
+            });
+            const emailDomainAllowed = async (admin, email) =>
+                Boolean((await admin.rpc('is_email_domain_allowed', { candidate_email: email })).data);
+            const withLockedDedupe = async (_admin, _scope, _requestId, _actor, fn) => ({
+                duplicate: false,
+                result: await fn(),
+            });\n`,
+    });
+}
+
+// A fake service-role client that records what a member change does to the
+// auth identity and to the profile.
+function memberFixture({
+    existing = null,
+    target = null,
+    domainAllowed = true,
+    profileSaveFails = false,
+} = {}) {
+    const calls = { created: [], authUpdates: [], deleted: [], profileUpdates: [] };
+    const admin = {
+        rpc: async () => ({ data: domainAllowed, error: null }),
+        from(table) {
+            if (table === 'departments') {
+                return {
+                    select: () => ({
+                        eq: () => ({ maybeSingle: async () => ({ data: { id: 'dept-1' } }) }),
+                        then: (resolve) => resolve({ data: [], error: null }),
+                    }),
+                };
+            }
+            return {
+                select: () => ({
+                    eq: () => ({
+                        maybeSingle: async () => ({ data: existing, error: null }),
+                        single: async () => ({ data: target, error: null }),
+                    }),
+                }),
+                update: (values) => {
+                    calls.profileUpdates.push(values);
+                    return {
+                        eq: () => ({
+                            select: () => ({
+                                single: async () =>
+                                    profileSaveFails
+                                        ? { data: null, error: { message: 'profile save failed' } }
+                                        : {
+                                              data: { id: 'new-1', ...(target || {}), ...values },
+                                              error: null,
+                                          },
+                            }),
+                        }),
+                    };
+                },
+            };
+        },
+        auth: {
+            admin: {
+                createUser: async (attributes) => {
+                    calls.created.push(attributes);
+                    return { data: { user: { id: 'new-1' } }, error: null };
+                },
+                updateUserById: async (id, attributes) => {
+                    calls.authUpdates.push([id, attributes]);
+                    return { data: {}, error: null };
+                },
+                deleteUser: async (id) => {
+                    calls.deleted.push(id);
+                    return { error: null };
+                },
+            },
+        },
+    };
+    return { admin, calls };
+}
+
+test('an administrator can add a member who cannot sign in yet', async () => {
+    const settings = await loadMemberSettings();
+    const { admin, calls } = memberFixture();
+    const member = await settings.createUser(
+        {},
+        admin,
+        'admin-1',
+        { email: ' Sam@Gmail.Example ', name: 'Sam', role: 'approver', departmentId: 'dept-1' },
+        'request-1',
+    );
+    assert.equal(calls.created.length, 1);
+    assert.equal(calls.created[0].email, 'sam@gmail.example');
+    assert.equal(calls.created[0].email_confirm, true);
+    assert.match(calls.created[0].ban_duration, /^\d+h$/);
+    assert.equal(calls.created[0].user_metadata.full_name, 'Sam');
+    assert.equal(calls.profileUpdates[0].sign_in_blocked, true);
+    assert.equal(calls.profileUpdates[0].role, 'approver');
+    assert.equal(member.SignInBlocked, true);
+    assert.deepEqual(calls.deleted, []);
+});
+
+test('adding a member rejects a duplicate email or unknown role before touching auth', async () => {
+    const settings = await loadMemberSettings();
+    const duplicate = memberFixture({ existing: { id: 'someone' } });
+    await assert.rejects(
+        settings.createUser({}, duplicate.admin, 'admin-1', { email: 'a@b.org', name: 'A' }, 'r1'),
+        /already exists/,
+    );
+    const badRole = memberFixture();
+    await assert.rejects(
+        settings.createUser(
+            {},
+            badRole.admin,
+            'admin-1',
+            { email: 'a@b.org', name: 'A', role: 'owner' },
+            'r2',
+        ),
+        /Unknown role/,
+    );
+    await assert.rejects(
+        settings.createUser({}, badRole.admin, 'admin-1', { email: 'a@b.org', name: ' ' }, 'r3'),
+        /Name is required/,
+    );
+    assert.deepEqual([...duplicate.calls.created, ...badRole.calls.created], []);
+});
+
+test('a member whose profile cannot be completed does not keep a banned identity', async () => {
+    const settings = await loadMemberSettings();
+    const { admin, calls } = memberFixture({ profileSaveFails: true });
+    await assert.rejects(
+        settings.createUser({}, admin, 'admin-1', { email: 'a@b.org', name: 'A' }, 'r1'),
+        /profile save failed/,
+    );
+    assert.deepEqual(calls.deleted, ['new-1']);
+});
+
+test('setting a work email lifts the sign-in block only for an allowed domain', async () => {
+    const settings = await loadMemberSettings();
+    const blocked = {
+        id: 'target-1',
+        email: 'sam@gmail.example',
+        role: 'approver',
+        sign_in_blocked: true,
+    };
+
+    const allowed = memberFixture({ target: blocked, domainAllowed: true });
+    const unblocked = await settings.updateUser(
+        allowed.admin,
+        allowed.admin,
+        'admin-1',
+        blocked.email,
+        {
+            email: 'Sam@Org.Example',
+        },
+    );
+    assert.deepEqual(allowed.calls.authUpdates, [
+        ['target-1', { email: 'sam@org.example', email_confirm: true, ban_duration: 'none' }],
+    ]);
+    assert.equal(allowed.calls.profileUpdates[0].email, 'sam@org.example');
+    assert.equal(allowed.calls.profileUpdates[0].sign_in_blocked, false);
+    assert.equal(unblocked.SignInBlocked, false);
+
+    const notAllowed = memberFixture({ target: blocked, domainAllowed: false });
+    const stillBlocked = await settings.updateUser(
+        notAllowed.admin,
+        notAllowed.admin,
+        'admin-1',
+        blocked.email,
+        {
+            email: 'sam@other.example',
+        },
+    );
+    assert.equal('ban_duration' in notAllowed.calls.authUpdates[0][1], false);
+    assert.equal(stillBlocked.SignInBlocked, true);
+});
+
+test('the email of a member who can sign in cannot be changed', async () => {
+    const settings = await loadMemberSettings();
+    const active = {
+        id: 'target-2',
+        email: 'kim@org.example',
+        role: 'user',
+        sign_in_blocked: false,
+    };
+    const { admin, calls } = memberFixture({ target: active });
+    await assert.rejects(
+        settings.updateUser({}, admin, 'admin-1', active.email, { email: 'kim@new.example' }),
+        /has not signed in yet/,
+    );
+    assert.deepEqual(calls.authUpdates, []);
+    assert.deepEqual(calls.profileUpdates, []);
+    // Sending the unchanged email alongside other edits is fine.
+    await settings.updateUser(admin, admin, 'admin-1', active.email, {
+        email: active.email,
+        name: 'Kim',
+    });
+    assert.deepEqual(calls.authUpdates, []);
+});
+
+test('a failed profile save puts the previous email back on the identity', async () => {
+    const settings = await loadMemberSettings();
+    const blocked = {
+        id: 'target-1',
+        email: 'sam@gmail.example',
+        role: 'approver',
+        sign_in_blocked: true,
+    };
+    const { admin, calls } = memberFixture({ target: blocked, profileSaveFails: true });
+    await assert.rejects(
+        settings.updateUser({}, admin, 'admin-1', blocked.email, { email: 'sam@org.example' }),
+        /profile save failed/,
+    );
+    assert.equal(calls.authUpdates.length, 2);
+    assert.equal(calls.authUpdates[1][1].email, 'sam@gmail.example');
+    assert.match(calls.authUpdates[1][1].ban_duration, /^\d+h$/);
+});
+
 test('comment length limit is enforced before any request lookup', async () => {
     const comments = await loadBundle(
         `export { addComment } from './supabase/functions/api/comments';`,

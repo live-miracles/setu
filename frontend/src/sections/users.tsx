@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDelete, useList, useUpdate } from '../ui/resources';
+import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
 import { Input, Select, Field } from '../ui/form-kit';
 import { Button, Space, Typography } from '../ui/kit';
 import { Controller, useForm } from 'react-hook-form';
@@ -39,6 +39,7 @@ import {
 
 type Props = { dashboard: DashboardPayload };
 type UserFormValues = {
+    email: string;
     name: string;
     role: UserRole;
     departmentId: string;
@@ -53,25 +54,31 @@ const USER_ROLE_ORDER: Record<UserRole, number> = {
     user: 3,
 };
 
+// Without `user` the form adds a member who has no organisation email yet.
+// Such a member (SignInBlocked) can be given their work email later, which
+// lets them sign in with Google and keeps everything already linked to them.
 export function UserForm({
     dashboard,
     user,
     close,
 }: {
     dashboard: DashboardPayload;
-    user: UserDTO;
+    user?: UserDTO;
     close: () => void;
 }) {
     const form = useForm<UserFormValues>({
         defaultValues: {
-            name: user.Name,
-            role: user.Role,
-            departmentId: user.DepartmentId,
-            phone: user.Phone,
-            whatsapp: user.Whatsapp,
+            email: user?.Email ?? '',
+            name: user?.Name ?? '',
+            role: user?.Role ?? 'user',
+            departmentId: user?.DepartmentId ?? '',
+            phone: user?.Phone ?? '',
+            whatsapp: user?.Whatsapp ?? '',
         },
     });
+    const { mutateAsync: createUser } = useCreate();
     const { mutateAsync: updateUser } = useUpdate();
+    const editableEmail = !user || user.SignInBlocked;
     const save = useRHFSave(form, async (values) => {
         if (
             !isValidInternationalPhone(values.phone) ||
@@ -79,20 +86,42 @@ export function UserForm({
         ) {
             throw new Error(INTERNATIONAL_PHONE_TITLE);
         }
-        await updateUser({
-            resource: 'users',
-            id: user.Email,
-            values,
-        });
+        if (user) {
+            const { email, ...rest } = values;
+            await updateUser({
+                resource: 'users',
+                id: user.Email,
+                values: editableEmail ? { ...rest, email } : rest,
+            });
+        } else {
+            await createUser({ resource: 'users', values });
+        }
         close();
     });
     return (
-        <Modal title="Edit user" close={close}>
+        <Modal title={user ? 'Edit user' : 'Add member'} close={close}>
             <form className="grid gap-3" noValidate onSubmit={save.onSubmit}>
+                {!user && (
+                    <Typography.Text type="secondary">
+                        Add a member who has no organisation email yet so they can be rostered. They
+                        cannot sign in until you set their work email.
+                    </Typography.Text>
+                )}
+                {editableEmail && (
+                    <TextField
+                        name="email"
+                        label={user ? 'Work email' : 'Email'}
+                        value={user?.Email}
+                        type="email"
+                        required
+                        registration={form.register('email', { required: 'Email is required' })}
+                        error={form.formState.errors.email?.message}
+                    />
+                )}
                 <TextField
                     name="name"
                     label="Name"
-                    value={user.Name}
+                    value={user?.Name}
                     required
                     registration={form.register('name', { required: 'Name is required' })}
                     error={form.formState.errors.name?.message}
@@ -137,7 +166,7 @@ export function UserForm({
                 <TextField
                     name="phone"
                     label="Phone"
-                    value={user.Phone}
+                    value={user?.Phone}
                     type="tel"
                     required
                     pattern={INTERNATIONAL_PHONE_PATTERN}
@@ -148,7 +177,7 @@ export function UserForm({
                 <TextField
                     name="whatsapp"
                     label="WhatsApp"
-                    value={user.Whatsapp}
+                    value={user?.Whatsapp}
                     type="tel"
                     required
                     pattern={INTERNATIONAL_PHONE_PATTERN}
@@ -168,6 +197,7 @@ export function Users({ dashboard }: Props) {
     const { refreshDashboard } = useDashboard();
     const { email: selectedUserId = null } = useParams<{ email: string }>();
     const [editing, setEditing] = useState<UserDTO | undefined>();
+    const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<UserDTO | null>(null);
     const { mutateAsync: deleteUser } = useDelete();
     const { result } = useList({ resource: 'users', pagination: { mode: 'off' } });
@@ -220,6 +250,15 @@ export function Users({ dashboard }: Props) {
                     aria-label="Search users"
                     title="Search users"
                 />
+                {canManageConfig(dashboard.me) && (
+                    <Button
+                        type="primary"
+                        icon={<Icon name="plus" />}
+                        onClick={() => setCreating(true)}
+                        aria-label="Add member"
+                        title="Add member"
+                    />
+                )}
             </Space>
         </div>
     );
@@ -262,7 +301,12 @@ export function Users({ dashboard }: Props) {
                     }>
                     <DetailFields
                         fields={[
-                            ['Email', selectedUser.Email],
+                            [
+                                'Email',
+                                selectedUser.SignInBlocked
+                                    ? `${selectedUser.Email} (cannot sign in until a work email is set)`
+                                    : selectedUser.Email,
+                            ],
                             [
                                 'Department',
                                 selectedUser.DepartmentId ? (
@@ -347,6 +391,7 @@ export function Users({ dashboard }: Props) {
                     }}
                 />
             )}
+            {creating && <UserForm dashboard={dashboard} close={() => setCreating(false)} />}
             {editing && (
                 <UserForm
                     dashboard={dashboard}

@@ -139,9 +139,6 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
     );
 }
 
-// Edit-only: users self-register on first sign-in (see the
-// on_auth_user_created trigger) rather than being pre-provisioned by an
-// admin, so there is no "Add user" flow.
 // Rendered inside the request board's MasterDetail, so it returns the record's
 // heading and sections only, not a page.
 export function RequestDetail({

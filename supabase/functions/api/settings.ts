@@ -1,5 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
+    emailDomainAllowed,
     inventoryLabelDto,
     locationFields,
     optionalInventoryPlaceId,
@@ -13,7 +14,7 @@ import {
     withLockedDedupe,
     type Row,
 } from './core.ts';
-import { boundedText, MAX_NAME_LENGTH, MAX_PHONE_LENGTH } from './validation.ts';
+import { boundedText, emailArg, MAX_NAME_LENGTH, MAX_PHONE_LENGTH } from './validation.ts';
 import { normalizeHiddenViews } from '../_shared/views.ts';
 
 export function homeContentDto(row: Row): Row {
@@ -601,10 +602,113 @@ export async function deleteInventoryType(
     });
 }
 
-// No createUser: users self-register on first Google sign-in (the
-// on_auth_user_created trigger inserts their profile automatically, same as
-// getCurrentActor() used to in the Apps Script backend) rather than being
-// pre-provisioned by an admin.
+async function requireDepartmentExists(admin: SupabaseClient, id: unknown): Promise<void> {
+    const { data, error } = await admin.from('departments').select('id').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Department not found.');
+}
+
+// About a hundred years: Supabase has no permanent ban, only a duration.
+const SIGN_IN_BLOCKED_BAN = '876000h';
+
+// Most users self-register on first Google sign-in (the on_auth_user_created
+// trigger inserts their profile). An administrator can also add a member who
+// has no organisation email yet, so they can be rostered: the auth identity is
+// created banned (cannot sign in, whatever the domain allowlist says) and the
+// profile is flagged sign_in_blocked. updateUser lifts both once the member's
+// work email is set.
+export async function createUser(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    input: Row,
+    requestId: string,
+): Promise<Row> {
+    await requireAdmin(client, userId);
+    const email = emailArg(input.email, 'Email is required.');
+    const name = boundedText(
+        requireNonEmpty(input.name, 'Name is required.'),
+        'Name',
+        MAX_NAME_LENGTH,
+    );
+    const role = input.role === undefined || input.role === '' ? 'user' : input.role;
+    if (USER_ROLES.indexOf(role) === -1) throw new Error('Unknown role.');
+    const departmentId = String(input.departmentId || '') || null;
+    if (departmentId) await requireDepartmentExists(admin, departmentId);
+    const phone = boundedText(input.phone, 'Phone', MAX_PHONE_LENGTH);
+    const whatsapp = boundedText(input.whatsapp, 'WhatsApp', MAX_PHONE_LENGTH);
+    const { result: dto } = await withLockedDedupe(
+        admin,
+        'user:create',
+        requestId,
+        userId,
+        async () => {
+            await requireEmailUnused(admin, email);
+            const created = await admin.auth.admin.createUser({
+                email,
+                email_confirm: true,
+                ban_duration: SIGN_IN_BLOCKED_BAN,
+                user_metadata: { full_name: name },
+            });
+            if (created.error || !created.data.user) {
+                throw new Error(created.error?.message || 'Unable to add this member.');
+            }
+            const authUserId = created.data.user.id;
+            const updated = await admin
+                .from('profiles')
+                .update({
+                    name,
+                    role,
+                    department_id: departmentId,
+                    phone,
+                    whatsapp,
+                    sign_in_blocked: true,
+                })
+                .eq('id', authUserId)
+                .select('*')
+                .single();
+            if (updated.error || !updated.data) {
+                // Do not leave a banned identity without its profile details.
+                await admin.auth.admin.deleteUser(authUserId);
+                throw new Error(updated.error?.message || 'Unable to add this member.');
+            }
+            const departments = (result(await admin.from('departments').select('*')) as Row[]).map(
+                (x) => [x.id, x] as [string, Row],
+            );
+            return userDto(updated.data, new Map(departments));
+        },
+    );
+    return dto;
+}
+
+async function requireEmailUnused(admin: SupabaseClient, email: string): Promise<void> {
+    const { data, error } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data) throw new Error('A user with this email already exists.');
+}
+
+// Sets the work email of a member who cannot sign in yet. When the new address
+// is allowed to sign in, the ban is lifted so their first Google sign-in links
+// to this same identity and keeps their roster shifts, requests and role.
+async function setWorkEmail(admin: SupabaseClient, target: Row, newEmail: string): Promise<Row> {
+    if (!target.sign_in_blocked) {
+        throw new Error('The email can only be changed for a member who has not signed in yet.');
+    }
+    await requireEmailUnused(admin, newEmail);
+    const mayNowSignIn = await emailDomainAllowed(admin, newEmail);
+    const changed = await admin.auth.admin.updateUserById(target.id, {
+        email: newEmail,
+        email_confirm: true,
+        ...(mayNowSignIn ? { ban_duration: 'none' } : {}),
+    });
+    if (changed.error) throw new Error(changed.error.message);
+    return { email: newEmail, sign_in_blocked: !mayNowSignIn };
+}
+
 export async function updateUser(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -622,45 +726,47 @@ export async function updateUser(
     if (target.email === actor.email && patch.role && patch.role !== 'admin') {
         throw new Error('You cannot remove your own administrator access.');
     }
-    if (patch.departmentId) {
-        const { data, error } = await admin
-            .from('departments')
-            .select('id')
-            .eq('id', patch.departmentId)
-            .maybeSingle();
-        if (error) throw new Error(error.message);
-        if (!data) throw new Error('Department not found.');
+    if (patch.departmentId) await requireDepartmentExists(admin, patch.departmentId);
+    const newEmail = patch.email === undefined ? '' : emailArg(patch.email, 'Email is required.');
+    // Validate every field before the identity is touched, so a bad value
+    // cannot leave the auth email changed and the profile not.
+    const fields = {
+        name:
+            patch.name !== undefined
+                ? boundedText(
+                      requireNonEmpty(patch.name, 'Name is required.'),
+                      'Name',
+                      MAX_NAME_LENGTH,
+                  )
+                : target.name,
+        role: patch.role !== undefined ? patch.role : target.role,
+        department_id:
+            patch.departmentId !== undefined ? patch.departmentId || null : target.department_id,
+        phone:
+            patch.phone !== undefined
+                ? boundedText(patch.phone, 'Phone', MAX_PHONE_LENGTH)
+                : target.phone,
+        whatsapp:
+            patch.whatsapp !== undefined
+                ? boundedText(patch.whatsapp, 'WhatsApp', MAX_PHONE_LENGTH)
+                : target.whatsapp,
+    };
+    const emailChange =
+        newEmail && newEmail !== target.email ? await setWorkEmail(admin, target, newEmail) : {};
+    const saved = await admin
+        .from('profiles')
+        .update({ ...emailChange, ...fields })
+        .eq('id', target.id)
+        .select('*')
+        .single();
+    if (saved.error && 'email' in emailChange) {
+        // Put the identity back so it keeps matching the profile.
+        await admin.auth.admin.updateUserById(target.id, {
+            email: target.email,
+            ban_duration: SIGN_IN_BLOCKED_BAN,
+        });
     }
-    const updated = result(
-        await admin
-            .from('profiles')
-            .update({
-                name:
-                    patch.name !== undefined
-                        ? boundedText(
-                              requireNonEmpty(patch.name, 'Name is required.'),
-                              'Name',
-                              MAX_NAME_LENGTH,
-                          )
-                        : target.name,
-                role: patch.role !== undefined ? patch.role : target.role,
-                department_id:
-                    patch.departmentId !== undefined
-                        ? patch.departmentId || null
-                        : target.department_id,
-                phone:
-                    patch.phone !== undefined
-                        ? boundedText(patch.phone, 'Phone', MAX_PHONE_LENGTH)
-                        : target.phone,
-                whatsapp:
-                    patch.whatsapp !== undefined
-                        ? boundedText(patch.whatsapp, 'WhatsApp', MAX_PHONE_LENGTH)
-                        : target.whatsapp,
-            })
-            .eq('email', targetEmail)
-            .select('*')
-            .single(),
-    ) as Row;
+    const updated = result(saved) as Row;
     const departmentsById = new Map(
         (result(await client.from('departments').select('*')) as Row[]).map((x) => [x.id, x]),
     );
