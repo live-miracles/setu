@@ -21,6 +21,7 @@ export function Modal({
     children: ReactNode;
 }) {
     const ref = useRef<HTMLDialogElement>(null);
+    const pressedBackdrop = useRef(false);
     useEffect(() => {
         const dialog = ref.current;
         if (dialog && !dialog.open) dialog.showModal();
@@ -33,10 +34,17 @@ export function Modal({
                 event.preventDefault();
                 close();
             }}
-            // The dialog has no padding of its own, so a click that lands on it
-            // (not on the panel inside) is a click on the backdrop.
+            // The dialog has no padding of its own, so a press that lands on it
+            // (not on the panel inside) is a press on the backdrop. Close only
+            // when the press started AND ended there: dragging out of the panel
+            // (e.g. selecting text) also fires a click on the dialog.
+            onPointerDown={(event) => {
+                pressedBackdrop.current = event.target === event.currentTarget;
+            }}
             onClick={(event) => {
-                if (event.target === event.currentTarget) close();
+                const closeIt = pressedBackdrop.current && event.target === event.currentTarget;
+                pressedBackdrop.current = false;
+                if (closeIt) close();
             }}
             className={cx(
                 'm-auto max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),34rem)] rounded-xl border-0 bg-surface p-0 text-ink shadow-overlay backdrop:bg-black/40',
