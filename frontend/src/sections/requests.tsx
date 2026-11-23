@@ -5,14 +5,21 @@ import {
     Pagination,
     CountBadge,
     Button,
-    Empty as AntEmpty,
+    Empty,
     SegmentedControl,
     Space,
     Typography,
 } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useDashboard } from '../dashboard-context';
+import {
+    useDepartments,
+    useHomeContent,
+    useMe,
+    useProgramLanguages,
+    useProgramTypes,
+    useUsers,
+} from '../ui/reference';
 import { inventoryRequestPath, programRequestPath } from '../paths';
 import {
     WORKBENCH_SEARCH_QUERY_PARAM,
@@ -33,18 +40,12 @@ import { MasterDetail } from '../ui/master-detail';
 import { AppLoading, setAppLoading } from '../ui/app-loading';
 import { addDays, formatDateTimeLocal, toIsoDate } from '../ui/date';
 import { canApprove, canWrite } from '../workflows';
-import { Modal, Page, SaveFooter, TextField, useSave } from './refine-shared';
-
-type Props = { dashboard: DashboardPayload };
+import { Modal } from '../ui/overlay-kit';
+import { SaveFooter, TextField } from './form-fields';
+import { Page } from './page';
+import { useSave } from './save-hooks';
 
 export const OTHER_PROGRAM_TYPE = 'Other';
-export const PROGRAM_REQUEST_STATUSES: ProgramRequestStatus[] = [
-    'draft',
-    'submitted',
-    'approved',
-    'rejected',
-    'cancelled',
-];
 export const requesterOptionLabel = (user: UserDTO): string => user.Name + ' <' + user.Email + '>';
 
 const REQUEST_FILTER_STORAGE_PREFIX = 'setu:request-board-filter';
@@ -111,15 +112,16 @@ export function defaultSessionDraft(sessions: ProgramSession[]): ProgramSession 
 
 export function RequestBoard({
     kind,
-    dashboard,
     renderDetail,
-}: Props & {
+}: {
     kind: RequestKind;
     // The open request (from the URL) shows beside the list on wide screens.
     renderDetail: (id: string) => ReactNode;
 }) {
     const isInventory = kind === 'inventory';
     const isProgram = kind === 'programs';
+    const me = useMe();
+    const homeContent = useHomeContent();
     const navigate = useNavigate();
     // The Requests tab reopens on the kind the person looked at last.
     useEffect(() => writeLastRequestKind(kind), [kind]);
@@ -188,7 +190,7 @@ export function RequestBoard({
         isInventory ? inventoryRequestPath(id) : programRequestPath(id);
     const title = requestKindLabel(kind);
     const requestNoun = isInventory ? 'inventory request' : 'program request';
-    const visibleKinds = visibleRequestKinds(dashboard.homeContent);
+    const visibleKinds = visibleRequestKinds(homeContent);
     const switchKinds = REQUEST_KINDS.filter(
         (value) => value === kind || visibleKinds.includes(value),
     );
@@ -258,7 +260,7 @@ export function RequestBoard({
         </Space>
     );
     const boardFilters = (
-        <Space className="antd-board-filters" wrap>
+        <Space className="board-filters" wrap>
             <Input
                 value={search}
                 placeholder={`Search ${title.toLowerCase()}`}
@@ -278,13 +280,13 @@ export function RequestBoard({
     );
     if (submitting) {
         return (
-            <Page className="antd-page-board" title={title}>
+            <Page className="app-page-board" title={title}>
                 <AppLoading inline />
             </Page>
         );
     }
     const heading = (
-        <div className="antd-page-heading resource-page-heading">
+        <div className="app-page-heading resource-page-heading">
             <div>
                 {/* Each kind keeps its own filters, so switching starts that
                     kind's list afresh at its plain path. A kind an admin hid
@@ -308,7 +310,7 @@ export function RequestBoard({
                 )}
             </div>
             {boardFilters}
-            {canWrite(dashboard.me) && (
+            {canWrite(me) && (
                 <Button
                     type="primary"
                     icon={<Icon name="plus" />}
@@ -320,18 +322,17 @@ export function RequestBoard({
         </div>
     );
     const list = (
-        <div className="antd-request-list">
+        <div className="request-list">
             {loading && <Typography.Text type="secondary">Loading requests…</Typography.Text>}
-            {/* Rows stay put while a refresh is in flight: the dashboard is
-                refreshed after every mutation, and blanking the board on each
-                one flashed an empty list between the two renders. */}
+            {/* Rows stay put while a refresh is in flight: every mutation
+                refetches the list, and blanking the board on each one flashed
+                an empty list between the two renders. */}
             {rows.map((row) =>
                 isProgram ? (
                     <RequestBlock
                         key={row.Id}
                         kind="program"
                         row={row as ProgramRequestDTO}
-                        dashboard={dashboard}
                         href={hrefFor(row.Id)}
                         selected={row.Id === detailId}
                         onClick={() => open(row.Id)}
@@ -341,14 +342,13 @@ export function RequestBoard({
                         key={row.Id}
                         kind="inventory"
                         row={row as InventoryRequestDTO}
-                        dashboard={dashboard}
                         href={hrefFor(row.Id)}
                         selected={row.Id === detailId}
                         onClick={() => open(row.Id)}
                     />
                 ),
             )}
-            {!loading && !rows.length && <AntEmpty description="No requests" />}
+            {!loading && !rows.length && <Empty description="No requests" />}
             {(result.total ?? 0) > pageSize && (
                 <Pagination
                     current={page}
@@ -366,12 +366,11 @@ export function RequestBoard({
             list={list}
             detail={detailId ? renderDetail(detailId) : null}
             detailKey={detailId ?? ''}
-            narrowListClassName="antd-page-board">
+            narrowListClassName="app-page-board">
             {creating && (
                 <Modal title={`New ${requestNoun}`} close={() => setCreating(false)}>
                     <CreateRecord
                         kind={kind}
-                        dashboard={dashboard}
                         onClose={() => setCreating(false)}
                         onSubmitStart={() => {
                             setCreating(false);
@@ -385,48 +384,42 @@ export function RequestBoard({
     );
 }
 
-export function RequestTable(
-    props: Props & {
-        kind: RequestKind;
-        renderDetail: (id: string) => ReactNode;
-    },
-) {
+export function RequestTable(props: {
+    kind: RequestKind;
+    renderDetail: (id: string) => ReactNode;
+}) {
     return <RequestBoard {...props} />;
 }
 
 export function CreateRecord({
     kind,
-    dashboard,
     onClose,
     onSubmitStart,
     onSubmitEnd,
-}: Props & {
+}: {
     kind: RequestKind;
     onClose: () => void;
     onSubmitStart?: () => void;
     onSubmitEnd?: () => void;
 }) {
     const navigate = useNavigate();
-    const { refreshDashboard } = useDashboard();
-    const { result: usersResult } = useList<UserDTO>({
-        resource: 'users',
-        pagination: { mode: 'off' },
-        queryOptions: { enabled: canApprove(dashboard.me) },
-    });
-    const users = usersResult.data;
+    const me = useMe();
+    const departments = useDepartments();
+    const programLanguages = useProgramLanguages();
+    const programTypes = useProgramTypes();
+    const users = useUsers();
     const [language, setLanguage] = useState('');
     const [languageError, setLanguageError] = useState(false);
     const [departmentError, setDepartmentError] = useState(false);
-    const [requestedBy, setRequestedBy] = useState(dashboard.me.Email);
-    const [departmentId, setDepartmentId] = useState(dashboard.me.DepartmentId);
+    const [requestedBy, setRequestedBy] = useState(me.Email);
+    const [departmentId, setDepartmentId] = useState(me.DepartmentId);
     const initialLeadEmail =
-        dashboard.departments.find((department) => department.Id === dashboard.me.DepartmentId)
-            ?.LeadEmail || '';
+        departments.find((department) => department.Id === me.DepartmentId)?.LeadEmail || '';
     const [leadEmail, setLeadEmail] = useState(initialLeadEmail);
     const [programType, setProgramType] = useState(OTHER_PROGRAM_TYPE);
     const formData = useRef<FormData | null>(null);
     const leadEmailForDepartment = (id: string) =>
-        dashboard.departments.find((department) => department.Id === id)?.LeadEmail || '';
+        departments.find((department) => department.Id === id)?.LeadEmail || '';
     const selectDepartment = (id: string) => {
         setDepartmentId(id);
         setDepartmentError(false);
@@ -442,7 +435,7 @@ export function CreateRecord({
         async (): Promise<{ Id: string }> => {
             const d =
                 formData.current ||
-                new FormData(document.getElementById('refine-request-form') as HTMLFormElement);
+                new FormData(document.getElementById('request-form') as HTMLFormElement);
             const name = String(d.get('name') || '');
             if (kind === 'inventory') {
                 const created = await createRecord({
@@ -479,11 +472,10 @@ export function CreateRecord({
         },
         undefined,
         false,
-        false,
     );
     return (
         <form
-            id="refine-request-form"
+            id="request-form"
             className="grid gap-3"
             noValidate
             onSubmit={async (e) => {
@@ -512,7 +504,6 @@ export function CreateRecord({
                         setAppLoading(true);
                         onClose();
                     }
-                    await refreshDashboard();
                     const id = createRecordDestination(kind, created.Id);
                     navigate(
                         kind === 'programs' ? programRequestPath(id) : inventoryRequestPath(id),
@@ -540,13 +531,13 @@ export function CreateRecord({
                         value={toIsoDate(addDays(new Date(), 1))}
                         required
                     />
-                    {canApprove(dashboard.me) && (
+                    {canApprove(me) && (
                         <Field label="Requested by" required>
                             <input type="hidden" name="userId" value={requestedBy} required />
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
-                                className="antd-full-width"
+                                className="w-full"
                                 showSearch>
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
@@ -564,9 +555,9 @@ export function CreateRecord({
                         <Select
                             value={departmentId}
                             onChange={selectDepartment}
-                            className="antd-full-width"
+                            className="w-full"
                             showSearch>
-                            {dashboard.departments.map((department) => (
+                            {departments.map((department) => (
                                 <Select.Option key={department.Id} value={department.Id}>
                                     {department.Name}
                                 </Select.Option>
@@ -593,9 +584,9 @@ export function CreateRecord({
                                 setLanguage(value);
                                 setLanguageError(false);
                             }}
-                            className="antd-full-width"
+                            className="w-full"
                             placeholder="Select language">
-                            {dashboard.programLanguages.map((language) => (
+                            {programLanguages.map((language) => (
                                 <Select.Option key={language.Name} value={language.Name}>
                                     {language.Name}
                                 </Select.Option>
@@ -607,11 +598,8 @@ export function CreateRecord({
                     </Field>
                     <Field label="Type" required>
                         <input type="hidden" name="type" value={programType} />
-                        <Select
-                            value={programType}
-                            onChange={setProgramType}
-                            className="antd-full-width">
-                            {programTypeOptions(dashboard.programTypes).map((type) => (
+                        <Select value={programType} onChange={setProgramType} className="w-full">
+                            {programTypeOptions(programTypes).map((type) => (
                                 <Select.Option key={type} value={type}>
                                     {type}
                                 </Select.Option>
@@ -623,13 +611,13 @@ export function CreateRecord({
                         label="Program title"
                         required={programType === OTHER_PROGRAM_TYPE}
                     />
-                    {canApprove(dashboard.me) && (
+                    {canApprove(me) && (
                         <Field label="Requested by" required>
                             <input type="hidden" name="userId" value={requestedBy} required />
                             <Select
                                 value={requestedBy}
                                 onChange={selectRequester}
-                                className="antd-full-width"
+                                className="w-full"
                                 showSearch>
                                 {users.map((user) => (
                                     <Select.Option key={user.Email} value={user.Email}>
@@ -647,9 +635,9 @@ export function CreateRecord({
                         <Select
                             value={departmentId}
                             onChange={selectDepartment}
-                            className="antd-full-width"
+                            className="w-full"
                             showSearch>
-                            {dashboard.departments.map((department) => (
+                            {departments.map((department) => (
                                 <Select.Option key={department.Id} value={department.Id}>
                                     {department.Name}
                                 </Select.Option>

@@ -95,8 +95,7 @@ for (const kind of ['Inventory', 'Program']) {
         }
     });
 
-    test(`${kind}: authenticated actor, RPC errors, and retry deduplication`, async () => {
-        const ledger = new Map();
+    test(`${kind}: actions run as the authenticated actor and surface RPC errors`, async () => {
         const actor = { id: 'authenticated-actor', role: 'user' };
         const client = {
             from(table) {
@@ -116,50 +115,11 @@ for (const kind of ['Inventory', 'Program']) {
                 };
             },
         };
-        let rpcCalls = 0;
+        const rpcCalls = [];
         let rpcError = 'Only rejected requests can be returned to draft.';
         const admin = {
-            from(table) {
-                assert.equal(table, 'idempotency_keys');
-                let scope, requestId, update;
-                let operation = 'select';
-                return {
-                    async insert(row) {
-                        const key = `${row.scope}/${row.request_id}`;
-                        if (ledger.has(key)) return { error: { code: '23505' } };
-                        ledger.set(key, { result: null });
-                        return { error: null };
-                    },
-                    select() {
-                        return this;
-                    },
-                    update(value) {
-                        operation = 'update';
-                        update = value;
-                        return this;
-                    },
-                    delete() {
-                        operation = 'delete';
-                        return this;
-                    },
-                    eq(column, value) {
-                        if (column === 'scope') scope = value;
-                        else requestId = value;
-                        return this;
-                    },
-                    async single() {
-                        return { data: ledger.get(`${scope}/${requestId}`), error: null };
-                    },
-                    then(resolve) {
-                        const key = `${scope}/${requestId}`;
-                        if (operation === 'delete') ledger.delete(key);
-                        if (operation === 'update') ledger.set(key, update);
-                        return Promise.resolve({ error: null }).then(resolve);
-                    },
-                };
-            },
             async rpc(name, args) {
-                rpcCalls++;
+                rpcCalls.push(name);
                 assert.equal(name, `perform_${kind.toLowerCase()}_request_action_tx`);
                 assert.deepEqual(args, {
                     p_request_id: 'request-1',
@@ -173,20 +133,10 @@ for (const kind of ['Inventory', 'Program']) {
             },
         };
         const perform = () =>
-            api[`perform${kind}RequestAction`](
-                client,
-                admin,
-                actor.id,
-                'request-1',
-                'revise',
-                '',
-                'retry-key-1',
-            );
+            api[`perform${kind}RequestAction`](client, admin, actor.id, 'request-1', 'revise', '');
         await assert.rejects(perform(), /Only rejected/);
-        assert.equal(ledger.size, 0, 'failed actions must be retryable');
         rpcError = null;
         assert.equal(await perform(), 'draft');
-        assert.equal(await perform(), 'draft');
-        assert.equal(rpcCalls, 2, 'a successful retry must not repeat the database mutation');
+        assert.equal(rpcCalls.length, 2, 'the RPC is the only writer and runs once per call');
     });
 }

@@ -3,11 +3,11 @@ import { formatProgramDateRangeFromBounds } from './format';
 import { BlockCard } from './block-card';
 import { requestStatusTagColor } from './request-status';
 import { isRequestOverdue } from '../workflows';
+import { useDepartments } from './reference';
 
 type RequestBlockProps = {
     kind: 'program' | 'inventory';
     row: ProgramRequestDTO | InventoryRequestDTO;
-    dashboard: DashboardPayload;
     href?: string;
     // The request currently open beside the list.
     selected?: boolean;
@@ -18,20 +18,18 @@ export function statusLabel(status: string): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-// The department's short name, or its full name when it has no short name.
+// The department the request was made for (not the requester's current one):
+// its short name, or its full name when it has no short name.
 export function departmentLabel(
     row: ProgramRequestDTO | InventoryRequestDTO,
-    dashboard: DashboardPayload,
+    departments: Department[],
 ): string {
-    const department = dashboard.departments.find(
-        (candidate) =>
-            candidate.Id ===
-            dashboard.users.find((user) => user.Email === row.UserId)?.DepartmentId,
-    );
-    return department?.ShortName || department?.Name || '—';
+    const department = departments.find((candidate) => candidate.Id === row.DepartmentId);
+    return department?.ShortName || row.departmentName || '—';
 }
 
-export function RequestBlock({ kind, row, dashboard, href, selected, onClick }: RequestBlockProps) {
+export function RequestBlock({ kind, row, href, selected, onClick }: RequestBlockProps) {
+    const departments = useDepartments();
     const program = kind === 'program';
     const overdue = !program && isRequestOverdue(row as InventoryRequestDTO);
     return (
@@ -68,7 +66,7 @@ export function RequestBlock({ kind, row, dashboard, href, selected, onClick }: 
                 <Typography.Text type="secondary">
                     {[
                         row.userName || 'Unknown requester',
-                        departmentLabel(row, dashboard),
+                        departmentLabel(row, departments),
                         ...(program && (row as ProgramRequestDTO).placeName
                             ? [(row as ProgramRequestDTO).placeName]
                             : []),

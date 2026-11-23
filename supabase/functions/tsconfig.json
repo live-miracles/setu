@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2022", "DOM"],
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "types": [],
+        "strict": true,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "baseUrl": ".",
+        "paths": {
+            "npm:@supabase/supabase-js@2": ["../../node_modules/@supabase/supabase-js"],
+            "npm:zod@4": ["../../node_modules/zod"]
+        }
+    },
+    "include": ["api/**/*.ts", "_shared/**/*.ts", "deno-shim.d.ts"],
+    "exclude": ["api/index.ts"]
+}

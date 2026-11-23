@@ -14,16 +14,15 @@ import { isPlainLeftClick } from '../ui/link-click';
 import { formatDateTime, formatProgramDateRangeFromBounds, formatTimeOfDay } from '../ui/format';
 import { formatLocalDateOnly } from '../ui/date';
 import { toneProps } from '../ui/tone';
-import { isOngoingInventoryRequest } from '../ui/inventory-status';
 import { statusLabel } from '../ui/request-block';
 import { requestStatusTagColor } from '../ui/request-status';
 import { isRequestOverdue } from '../workflows';
 import { isViewVisible } from '../ui/views';
-
-type Props = { dashboard: DashboardPayload };
+import { DashboardGate } from '../ui/dashboard';
+import { useHomeContent, useShiftTypes } from '../ui/reference';
 
 function Page({ children }: { children: React.ReactNode }) {
-    return <section className="antd-page">{children}</section>;
+    return <section className="app-page">{children}</section>;
 }
 
 function EmptyState({ children = 'Nothing here yet.' }: { children?: React.ReactNode }) {
@@ -57,12 +56,18 @@ type RequestKind = 'programs' | 'inventory';
 // Program requests are PRG-n everywhere else (detail page, request blocks).
 const requestSerial = (kind: RequestKind, displayId: number) =>
     `${kind === 'programs' ? 'PRG' : 'REQ'}-${displayId}`;
-type HomeRequest = ProgramRequestDTO | InventoryRequestDTO;
+type HomeRequest = DashboardProgramRequest | DashboardInventoryRequest;
 
 // Home rows share one hierarchy so neighbouring text doesn't blur together: the
 // request's name is the one emphasised piece, its serial and details are gray.
 // (Buttons are medium weight, hence the explicit font-normal on the quiet parts.)
-function RequestTitle({ kind, request }: { kind: RequestKind; request: HomeRequest }) {
+function RequestTitle({
+    kind,
+    request,
+}: {
+    kind: RequestKind;
+    request: DashboardComment['request'];
+}) {
     return (
         <span className="home-list-title">
             <span className="mr-1.5 font-normal text-steel">
@@ -76,12 +81,12 @@ function RequestTitle({ kind, request }: { kind: RequestKind; request: HomeReque
 function requestDates(kind: RequestKind, request: HomeRequest): string {
     return kind === 'programs'
         ? formatProgramDateRangeFromBounds(
-              (request as ProgramRequestDTO).sessionStart,
-              (request as ProgramRequestDTO).sessionEnd,
+              (request as DashboardProgramRequest).sessionStart,
+              (request as DashboardProgramRequest).sessionEnd,
           )
         : formatProgramDateRangeFromBounds(
-              (request as InventoryRequestDTO).StartDate,
-              (request as InventoryRequestDTO).EndDate,
+              (request as DashboardInventoryRequest).StartDate,
+              (request as DashboardInventoryRequest).EndDate,
           );
 }
 
@@ -104,7 +109,7 @@ function HomeLinkList<T>({
             <Button
                 type="text"
                 block
-                className="antd-list-button"
+                className="home-list-button h-auto! px-0! py-[0.65rem]! text-left"
                 href={getHref(item)}
                 onClick={(event) => {
                     if (!isPlainLeftClick(event)) return;
@@ -157,7 +162,11 @@ function ShiftList({
                     .join(' – ');
                 return (
                     <div key={shift.Id} className="border-b border-line last:border-b-0">
-                        <Button type="text" block className="antd-list-button" onClick={onOpen}>
+                        <Button
+                            type="text"
+                            block
+                            className="home-list-button h-auto! px-0! py-[0.65rem]! text-left"
+                            onClick={onOpen}>
                             <div className="home-list-row">
                                 <Tag className={tone.className} style={tone.style}>
                                     {shift.Name || shift.ShiftName}
@@ -203,7 +212,7 @@ function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: Re
                             color={requestStatusTagColor(
                                 request.Status,
                                 kind === 'inventory' &&
-                                    isRequestOverdue(request as InventoryRequestDTO),
+                                    isRequestOverdue(request as DashboardInventoryRequest),
                             )}>
                             {statusLabel(request.Status)}
                         </Tag>
@@ -220,12 +229,14 @@ function HomeRequestList({ requests, kind }: { requests: HomeRequest[]; kind: Re
     );
 }
 
-export function Home({ dashboard }: Props) {
+export function Home() {
+    return <DashboardGate>{(dashboard) => <HomeCards dashboard={dashboard} />}</DashboardGate>;
+}
+
+function HomeCards({ dashboard }: { dashboard: DashboardPayload }) {
     const navigate = useNavigate();
-    const pendingProgramRequests = dashboard.programRequests.filter((request) =>
-        ['draft', 'submitted'].includes(request.Status),
-    );
-    const ongoingInventoryRequests = dashboard.inventoryRequests.filter(isOngoingInventoryRequest);
+    const homeContent = useHomeContent();
+    const shiftTypes = useShiftTypes();
     const todayIso = formatLocalDateOnly(new Date());
     const tomorrowDate = new Date();
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -243,33 +254,15 @@ export function Home({ dashboard }: Props) {
                     `${b.StartTime}|${b.Name}|${b.userName}`,
                 ),
             );
-    const shiftColors = new Map(dashboard.shiftTypes.map((type) => [type.Id, type.Color]));
+    const shiftColors = new Map(shiftTypes.map((type) => [type.Id, type.Color]));
     const todayShifts = shiftsForDate(todayIso);
     const tomorrowShifts = shiftsForDate(tomorrowIso);
     // Views an admin hid (Other settings) leave their cards off the home screen.
-    const showPrograms = isViewVisible(dashboard.homeContent, 'programs');
-    const showInventory = isViewVisible(dashboard.homeContent, 'inventory');
-    const showRoster = isViewVisible(dashboard.homeContent, 'roster');
-    const recentComments = [
-        ...(showPrograms
-            ? dashboard.programRequests.flatMap((request) =>
-                  request.comments.map((comment) => ({
-                      comment,
-                      request,
-                      kind: 'programs' as const,
-                  })),
-              )
-            : []),
-        ...(showInventory
-            ? dashboard.inventoryRequests.flatMap((request) =>
-                  request.comments.map((comment) => ({
-                      comment,
-                      request,
-                      kind: 'inventory' as const,
-                  })),
-              )
-            : []),
-    ]
+    const showPrograms = isViewVisible(homeContent, 'programs');
+    const showInventory = isViewVisible(homeContent, 'inventory');
+    const showRoster = isViewVisible(homeContent, 'roster');
+    const recentComments = dashboard.recentComments
+        .filter(({ kind }) => (kind === 'programs' ? showPrograms : showInventory))
         .sort(
             (a, b) =>
                 new Date(b.comment.Timestamp).getTime() - new Date(a.comment.Timestamp).getTime(),
@@ -281,10 +274,10 @@ export function Home({ dashboard }: Props) {
     // leaving one card alone on a wide row.
     const cards = [
         <Card key="guidelines" title={null}>
-            {dashboard.homeContent.Guidelines ? (
+            {homeContent.Guidelines ? (
                 <div className="guidelines-markdown text-sm text-ink/75">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {dashboard.homeContent.Guidelines}
+                        {homeContent.Guidelines}
                     </ReactMarkdown>
                 </div>
             ) : (
@@ -324,13 +317,16 @@ export function Home({ dashboard }: Props) {
                       key="pending-programs"
                       title={sectionTitle(
                           'Pending program requests',
-                          pendingProgramRequests.length,
+                          dashboard.pendingProgramCount,
                       )}
                       className="home-scroll-card"
                       extra={sectionAction('Pending program requests', () =>
                           navigate(programsPath),
                       )}>
-                      <HomeRequestList requests={pendingProgramRequests} kind="programs" />
+                      <HomeRequestList
+                          requests={dashboard.pendingProgramRequests}
+                          kind="programs"
+                      />
                   </Card>,
               ]
             : []),
@@ -340,13 +336,16 @@ export function Home({ dashboard }: Props) {
                       key="ongoing-inventory"
                       title={sectionTitle(
                           'Ongoing Inventory Requests',
-                          ongoingInventoryRequests.length,
+                          dashboard.ongoingInventoryCount,
                       )}
                       className="home-scroll-card"
                       extra={sectionAction('Ongoing Inventory Requests', () =>
                           navigate(inventoryPath),
                       )}>
-                      <HomeRequestList requests={ongoingInventoryRequests} kind="inventory" />
+                      <HomeRequestList
+                          requests={dashboard.ongoingInventoryRequests}
+                          kind="inventory"
+                      />
                   </Card>,
               ]
             : []),
@@ -401,7 +400,7 @@ export function Home({ dashboard }: Props) {
             {rows.map((row, index) => (
                 <div
                     key={index}
-                    className={`home-section antd-two-column${row.length === 1 ? ' grid-cols-1!' : ''}`}>
+                    className={`home-section grid grid-cols-2 gap-4 max-md:grid-cols-1${row.length === 1 ? ' grid-cols-1!' : ''}`}>
                     {row}
                 </div>
             ))}

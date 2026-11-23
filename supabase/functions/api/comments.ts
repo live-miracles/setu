@@ -1,5 +1,5 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { currentProfile, requireNonEmpty, result, withLockedDedupe, type Row } from './core.ts';
+import { currentProfile, newRequestId, requireNonEmpty, result, type Row } from './core.ts';
 import { commentDto } from './query.ts';
 import { MAX_COMMENT_LENGTH } from './validation.ts';
 import { canCollaborate, canWriteRole } from '../_shared/request-policy.ts';
@@ -63,7 +63,7 @@ export async function addComment(
     userId: string,
     requestId: string,
     message: string,
-    dedupeRequestId: string,
+    clientId?: string,
 ): Promise<Row> {
     const actor = await currentProfile(client, userId);
     if (!canWriteRole(actor.role)) throw new Error('Viewer access is read-only.');
@@ -77,27 +77,27 @@ export async function addComment(
     if (!canCollaborate({ isParty, role: actor.role }))
         throw new Error('You do not have access to this request.');
 
-    const { result: comment } = await withLockedDedupe(
-        admin,
-        owner.kind + ':' + requestId + ':comment',
-        dedupeRequestId,
-        userId,
-        async () => {
-            const created = result(
-                await client
-                    .from('comments')
-                    .insert({
-                        ...(owner.kind === 'inventory_request'
-                            ? { inventory_request_id: requestId }
-                            : { program_request_id: requestId }),
-                        author_id: actor.id,
-                        message: trimmed,
-                    })
-                    .select('*')
-                    .single(),
-            ) as Row;
-            return commentDto(created, new Map([[actor.id, actor]]));
-        },
-    );
-    return comment;
+    // The client's id for this submission is the comment's id, so a replayed
+    // submit finds its own comment instead of posting a second one.
+    const commentId = newRequestId(clientId);
+    const { data, error } = await client
+        .from('comments')
+        .insert({
+            id: commentId,
+            ...(owner.kind === 'inventory_request'
+                ? { inventory_request_id: requestId }
+                : { program_request_id: requestId }),
+            author_id: actor.id,
+            message: trimmed,
+        })
+        .select('*')
+        .single();
+    if (error?.code === '23505') {
+        const existing = result(
+            await client.from('comments').select('*').eq('id', commentId).single(),
+        ) as Row;
+        if (existing.author_id !== actor.id) throw new Error('This comment id is already in use.');
+        return commentDto(existing, new Map([[actor.id, actor]]));
+    }
+    return commentDto(result({ data, error }) as Row, new Map([[actor.id, actor]]));
 }

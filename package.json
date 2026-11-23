@@ -11,7 +11,7 @@
         "demo:gif": "node build-tools/demo-gif.mjs",
         "test": "node --test build-tools/*.test.mjs",
         "build:vercel": "node build-tools/vercel.mjs",
-        "typecheck": "tsc --noEmit -p frontend/tsconfig.json",
+        "typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p supabase/functions/tsconfig.json",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },

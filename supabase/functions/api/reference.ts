@@ -8,40 +8,37 @@ import {
     result,
     userDto,
     WITH_LOCATION,
-    withLockedDedupe,
     type Row,
 } from './core.ts';
 import { profilesFor } from './core.ts';
 import { isApproverRole } from '../_shared/request-policy.ts';
-import { homeContentDto } from './settings.ts';
-
-function timeDto(value: unknown): string {
-    return value == null ? '' : String(value).slice(0, 5);
-}
+import {
+    departmentDto,
+    homeContentDto,
+    inventoryTypeDto,
+    namedOptionDto,
+    placeDto,
+    shiftTypeDto,
+} from './dto.ts';
 
 export async function listDepartments(client: SupabaseClient): Promise<Row[]> {
     const rows = result(await client.from('departments').select('*').order('name')) as Row[];
-    return rows.map((x) => ({
-        Id: x.id,
-        Name: x.name,
-        ShortName: x.short_name,
-        LeadEmail: x.lead_email,
-    }));
+    return rows.map(departmentDto);
 }
 
 export async function listPlaces(client: SupabaseClient): Promise<Row[]> {
     const rows = result(await client.from('places').select('*').order('name')) as Row[];
-    return rows.map((x) => ({ Id: x.id, Name: x.name }));
+    return rows.map(placeDto);
 }
 
 export async function listInventoryPlaces(client: SupabaseClient): Promise<Row[]> {
     const rows = result(await client.from('inventory_places').select('*').order('name')) as Row[];
-    return rows.map((x) => ({ Id: x.id, Name: x.name }));
+    return rows.map(placeDto);
 }
 
 export async function listInventoryBrands(client: SupabaseClient): Promise<Row[]> {
     const rows = result(await client.from('inventory_brands').select('*').order('name')) as Row[];
-    return rows.map((x) => ({ Id: x.id, Name: x.name }));
+    return rows.map(placeDto);
 }
 
 export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]> {
@@ -67,20 +64,13 @@ export async function listInventoryTypes(client: SupabaseClient): Promise<Row[]>
     const availableById = new Map(
         (result(availabilityRes) as Row[]).map((x) => [x.inventory_type_id, x.available_quantity]),
     );
-    return types.map((x) => ({
-        Id: x.id,
-        DisplayId: x.display_id,
-        Brand: x.brand,
-        Name: x.name,
-        Model: x.model,
-        ...locationFields(x),
-        Description: x.description,
-        Requestable: x.requestable,
-        ImageId: x.image_path,
-        TotalQuantity: x.total_quantity,
-        availableQuantity: availableById.get(x.id) ?? x.total_quantity,
-        labels: labels.filter((label) => label.inventory_type_id === x.id).map(inventoryLabelDto),
-    }));
+    return types.map((x) =>
+        inventoryTypeDto(
+            x,
+            availableById.get(x.id),
+            labels.filter((label) => label.inventory_type_id === x.id),
+        ),
+    );
 }
 
 export async function getSettings(client: SupabaseClient): Promise<Row> {
@@ -93,19 +83,16 @@ export async function getSettings(client: SupabaseClient): Promise<Row> {
     ]);
     return {
         guidelines: (result(homeRes) as Row).guidelines,
-        shiftTypes: (result(shiftRes) as Row[]).map((x) => ({
-            Id: x.id,
-            Name: x.name,
-            Color: x.color,
-            DefaultStartTime: timeDto(x.default_start_time),
-            DefaultEndTime: timeDto(x.default_end_time),
-        })),
-        programTypes: (result(programTypesRes) as Row[]).map((x) => ({
-            Name: x.name,
-            Color: x.color,
-        })),
-        programLanguages: (result(languagesRes) as Row[]).map((x) => ({ Name: x.name })),
-        sessionTypes: (result(sessionTypesRes) as Row[]).map((x) => ({ Name: x.name })),
+        shiftTypes: (result(shiftRes) as Row[]).map(shiftTypeDto),
+        programTypes: (result(programTypesRes) as Row[]).map((x) =>
+            namedOptionDto('program_types', x),
+        ),
+        programLanguages: (result(languagesRes) as Row[]).map((x) =>
+            namedOptionDto('program_languages', x),
+        ),
+        sessionTypes: (result(sessionTypesRes) as Row[]).map((x) =>
+            namedOptionDto('session_types', x),
+        ),
     };
 }
 
@@ -125,24 +112,16 @@ export async function createAllowedEmailDomain(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireAdmin(client, userId);
     const domain = requireNonEmpty(input.domain, 'Email domain is required.')
         .toLowerCase()
         .replace(/^@/, '');
     if (!/^[^@\s]+\.[^@\s]+$/.test(domain)) throw new Error('Enter a valid email domain.');
-    const { result: row } = await withLockedDedupe(
-        admin,
-        'allowed-email-domain:create',
-        requestId,
-        userId,
-        async () =>
-            result(
-                await admin.from('allowed_email_domains').insert({ domain }).select('*').single(),
-                'That email domain is already allowed.',
-            ),
-    );
+    const row = result(
+        await admin.from('allowed_email_domains').insert({ domain }).select('*').single(),
+        'That email domain is already allowed.',
+    ) as Row;
     return { domain: row.domain, enabled: row.enabled };
 }
 
@@ -151,23 +130,13 @@ export async function deleteAllowedEmailDomain(
     admin: SupabaseClient,
     userId: string,
     domain: string,
-    requestId: string,
 ): Promise<void> {
     await requireAdmin(client, userId);
-    await withLockedDedupe(
-        admin,
-        'allowed-email-domain:delete:' + domain,
-        requestId,
-        userId,
-        async () => {
-            const { error } = await admin
-                .from('allowed_email_domains')
-                .delete()
-                .eq('domain', domain.toLowerCase().replace(/^@/, ''));
-            if (error) throw new Error(error.message);
-            return null;
-        },
-    );
+    const { error } = await admin
+        .from('allowed_email_domains')
+        .delete()
+        .eq('domain', domain.toLowerCase().replace(/^@/, ''));
+    if (error) throw new Error(error.message);
 }
 
 export async function getHomeContent(client: SupabaseClient): Promise<Row> {
@@ -202,19 +171,3 @@ export async function listUsers(client: SupabaseClient, userId: string): Promise
         : [profile];
     return profiles.map((x) => userDto(x, departmentsById));
 }
-
-// ---------------------------------------------------------------------------
-// Comments (shared by inventory requests and program requests)
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Inventory requests
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Program requests
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Images (Supabase Storage, replacing the source app's DriveApp uploads)
-// ---------------------------------------------------------------------------

@@ -2,7 +2,9 @@ import {
     buildDuplicateProgramInput,
     canRescheduleProgram,
     getLocalDateFromSession,
+    removeSession,
     shiftProgramSessions,
+    upsertSession,
 } from './program-actions';
 import { instantToLocalInput, localInputToInstant } from './date';
 import { canWrite, getInventoryRequestActions, getProgramRequestActions } from '../workflows';
@@ -23,8 +25,6 @@ const request = (overrides: Partial<ProgramRequestDTO> = {}): ProgramRequestDTO 
         PlaceId: 'room-1',
         DepartmentId: 'dept-1',
         LeadEmail: 'lead@example.com',
-        Participants: 'guest@example.com',
-        SessionsJson: '',
         userName: 'Owner',
         placeName: 'Room 1',
         departmentName: 'Operations',
@@ -234,6 +234,18 @@ export function runProgramActionAssertions(): void {
         getLocalDateFromSession(new Date(2030, 0, 1, 0, 0).toISOString()) === '2030-01-01',
         'a local-midnight session keeps its local date',
     );
+
+    // Adding, replacing and removing sessions return new lists.
+    const extra = { ...source.sessions[0], Name: 'Extra' };
+    assert(upsertSession(source.sessions, null, extra).length === 3, 'a session is added');
+    const replaced = upsertSession(source.sessions, 0, extra);
+    assert(
+        replaced.length === 2 && replaced[0].Name === 'Extra' && replaced[1] === source.sessions[1],
+        'a session is replaced in place',
+    );
+    const remaining = removeSession(source.sessions, 0);
+    assert(remaining.length === 1 && remaining[0].Name === 'Practice', 'a session is removed');
+    assert(source.sessions.length === 2, 'the original sessions are not changed');
 
     // Viewer is read-only: no actions even on a request they own.
     const viewer = { Role: 'viewer', Email: 'owner@example.com' } as UserDTO;

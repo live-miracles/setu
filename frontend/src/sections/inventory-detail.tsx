@@ -1,79 +1,83 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useDelete, useInvalidate, useList, useUpdate } from '../ui/resources';
+import { useDepartments, useInventoryTypes, useUsers } from '../ui/reference';
 import { MultiSelect, Select, Field } from '../ui/form-kit';
-import { Button, Space, Tag, Typography } from '../ui/kit';
+import { Button, Empty, Space, Tag, Typography } from '../ui/kit';
+import { Modal } from '../ui/overlay-kit';
 import { Icon } from '../ui/icons';
 import { useNavigate } from 'react-router-dom';
-import { generateRequestId } from '../ids';
 import { api } from '../api';
-import { useDashboard } from '../dashboard-context';
-import { departmentPath, inventoryPath, inventoryTypePath, userPath } from '../paths';
-import { showErrorAlert, showSavingBadge } from '../ui/feedback';
+import { inventoryPath, inventoryTypePath } from '../paths';
+import { showErrorAlert } from '../ui/feedback';
 import { inventoryShortageMessage } from '../ui/inventory-stock';
 import {
-    addScannedInventoryItem,
-    addScannedInventoryItemForIssue,
     compareLabelNames,
-    inventoryItemHasLabel,
     inventoryLabelDisplayName,
+    inventoryTypeDisplayName,
     sortInventoryLabels,
-    parseInventoryQrValue,
 } from '../ui/inventory-qr';
+import {
+    closeBlockedByMissingCondition,
+    emptyItemDraft,
+    itemDraftError,
+    itemDraftOf,
+    itemFromDraft,
+    markItemReturned,
+    missingReturnStatusMessage,
+    removeItem,
+    scanIntoItems,
+    upsertItem,
+    type ItemDraft,
+} from '../ui/inventory-items';
 import { uploadTargetImage } from '../ui/image-upload';
 import { RequestImage } from '../ui/request-image';
-import { inventoryTypeDisplayName } from '../ui/inventory-qr';
 import { QrScanner } from '../ui/qr-scanner';
 import { ImageCamera } from '../ui/image-camera';
 import { BlockCard } from '../ui/block-card';
 import { TableView } from '../ui/table-view';
 import { DetailSection } from '../ui/detail-layout';
-import { DetailBackButton } from '../ui/master-detail';
-import { requestStatusTagColor } from '../ui/request-status';
 import {
+    buildInventoryUpdate,
     inventoryFormValues,
-    inventoryRequestFields,
-    toInventoryItemInputs,
+    type InventoryFormValues,
 } from '../ui/request-fields';
-import { canApprove, getRequestPermissions, isRequestOverdue } from '../workflows';
-import { Activity, ParticipantsEditor } from './detail-activity';
-import { DetailFields, DetailLayout, DetailLink, WorkflowActions } from './detail-shared';
-import { ActionConfirmation, Empty, Modal, SaveFooter, TextField, useSave } from './refine-shared';
+import { isRequestOverdue } from '../workflows';
+import { RequestDetailFrame } from './request-detail-frame';
+import { useRequestDetail, type RequestDetailKind } from './use-request-detail';
+import { ActionConfirmation } from './action-confirmation';
+import { SaveFooter, TextField } from './form-fields';
 import { requesterOptionLabel } from './requests';
 
 const error = (value: unknown) => showErrorAlert(value);
-const missingReturnStatusMessage =
-    'Please configure return status for all the issued inventory items before closing the request.';
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export function InventoryDetail({
-    request,
-    dashboard,
-}: {
-    request: InventoryRequestDTO;
-    dashboard: DashboardPayload;
-}) {
+const inventoryKind: RequestDetailKind<InventoryRequestDTO, InventoryFormValues> = {
+    policy: 'inventory',
+    resource: 'inventory-requests',
+    listPath: inventoryPath,
+    listLabel: 'Inventory requests',
+    noun: 'request',
+    deleteSubject: 'inventory request',
+    numberPrefix: 'REQ',
+    perform: (id, action) =>
+        api.performInventoryRequestAction(id, action as InventoryRequestAction, ''),
+    saveParticipants: (id, participants) =>
+        api.updateInventoryRequestParticipants(id, { participants }),
+    formValues: inventoryFormValues,
+    formUpdate: (request, values) => buildInventoryUpdate(request, { values }),
+};
+
+export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
     const navigate = useNavigate();
-    const { refreshDashboard } = useDashboard();
-    const { mutateAsync: updateInventoryRequest } = useUpdate();
-    const { mutateAsync: deleteInventoryRequest } = useDelete();
-    const invalidate = useInvalidate();
-    const invalidateThisRequest = () =>
-        invalidate({
-            resource: 'inventory-requests',
-        });
-    const permissions = getRequestPermissions<InventoryRequestAction>(
-        'inventory',
-        request,
-        dashboard.me,
-    );
-    const approver = canApprove(dashboard.me);
-    const overdue = isRequestOverdue(request);
-    const canEditItemCondition = approver && ['issued', 'closed'].includes(request.Status);
+    const inventoryTypes = useInventoryTypes();
+    const departments = useDepartments();
+    const users = useUsers();
+    const detail = useRequestDetail(inventoryKind, request);
+    const { approver, permissions, form } = detail;
+    const items = request.items;
+    const imageId = request.ImageId || '';
     const showItemCondition = ['issued', 'closed'].includes(request.Status);
+    const canEditItemCondition = approver && showItemCondition;
     const editable = permissions.canEdit;
-    const deletable = permissions.canDelete;
-    const [editing, setEditing] = useState(false);
-    const [pendingAction, setPendingAction] = useState<InventoryRequestAction | null>(null);
-    const [pendingDelete, setPendingDelete] = useState(false);
     const [pendingDeleteItemIndex, setPendingDeleteItemIndex] = useState<number | null>(null);
     const [itemIndex, setItemIndex] = useState<number | null>(null);
     const [itemOpen, setItemOpen] = useState(false);
@@ -82,203 +86,80 @@ export function InventoryDetail({
     const [cameraOpen, setCameraOpen] = useState(false);
     const [itemError, setItemError] = useState('');
     const [issueScanError, setIssueScanError] = useState('');
-    const [imageId, setImageId] = useState(request.ImageId || '');
     const [imageUploading, setImageUploading] = useState(false);
     const imageInputRef = useRef<HTMLInputElement>(null);
-    const [items, setItems] = useState<InventoryItemDTO[]>(
-        request.items.map((item) => ({ ...item })),
-    );
-    const [itemDraft, setItemDraft] = useState({
-        InventoryTypeId: '',
-        Quantity: 1,
-        Condition: '' as ReturnCondition | '',
-        LabelIds: [] as string[],
-    });
-    const [values, setValues] = useState(() => inventoryFormValues(request));
-    const openEditor = () => {
-        setValues(inventoryFormValues(request));
-        setEditing(true);
-    };
-    const { result: usersResult } = useList<UserDTO>({
-        resource: 'users',
-        pagination: { mode: 'off' },
-        queryOptions: { enabled: canApprove(dashboard.me) },
-    });
-    const users = usersResult.data;
-    const update = (key: keyof typeof values, value: string) =>
-        setValues((current) => ({ ...current, [key]: value }));
-    const persistItems = async (nextItems: InventoryItemDTO[]): Promise<boolean> => {
-        const previousItems = items;
+    const [itemDraft, setItemDraft] = useState<ItemDraft>(emptyItemDraft);
+    // Saves the item lines `change` returns for the newest copy of the request (null
+    // saves nothing); returns false, with the reason shown, when the save failed.
+    const persistItems = async (
+        change: (items: InventoryItemDTO[]) => InventoryItemDTO[] | null,
+    ): Promise<boolean> => {
         try {
             setItemError('');
-            showSavingBadge(true);
-            setItems(nextItems);
-            await updateInventoryRequest({
-                resource: 'inventory-requests',
-                id: request.Id,
-                values: {
-                    ...inventoryRequestFields(request),
-                    items: toInventoryItemInputs(nextItems),
-                },
+            await detail.persist((latest) => {
+                const next = change(latest.items);
+                return next && buildInventoryUpdate(latest, { items: next });
             });
-            await refreshDashboard();
             return true;
         } catch (e) {
-            setItems(previousItems);
-            setItemError(e instanceof Error ? e.message : String(e));
+            setItemError(messageOf(e));
             return false;
-        } finally {
-            showSavingBadge(false);
         }
     };
+    const scan = async (decodedValue: string, mode: 'request' | 'issue'): Promise<boolean> => {
+        const refused: { reason?: 'not-found' | 'duplicate-label' } = {};
+        const saved = await persistItems((current) => {
+            const result = scanIntoItems(inventoryTypes, current, decodedValue, mode);
+            if (result.ok) return result.items;
+            refused.reason = result.reason;
+            return null;
+        });
+        if (!refused.reason) return saved;
+        const message =
+            refused.reason === 'duplicate-label'
+                ? 'This label was already added to the request.'
+                : mode === 'issue'
+                  ? 'Inventory type or label not found for this QR code.'
+                  : 'Inventory type not found for this QR code.';
+        if (mode === 'issue') setIssueScanError(message);
+        else setItemError(message);
+        return false;
+    };
     const scanInventoryType = async (decodedValue: string): Promise<boolean> => {
-        const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
-        if (!scan) {
-            setItemError('Inventory type not found for this QR code.');
-            return false;
-        }
-        const existing = items.find((item) => item.InventoryTypeId === scan.type.Id);
-        if (scan.labelId && inventoryItemHasLabel(existing, scan.labelId)) {
-            setItemError('This label was already added to the request.');
-            return false;
-        }
-        const saved = await persistItems(
-            addScannedInventoryItem(items, scan.type.Id, scan.labelId).map((item) =>
-                item.InventoryTypeId === scan.type.Id && !item.itemName
-                    ? { ...item, itemName: inventoryTypeDisplayName(scan.type) }
-                    : item,
-            ),
-        );
+        const saved = await scan(decodedValue, 'request');
         if (saved) setScanOpen(false);
         return saved;
     };
     const scanIssueItem = async (decodedValue: string) => {
-        const scan = parseInventoryQrValue(dashboard.inventoryTypes, decodedValue);
-        if (!scan) {
-            setIssueScanError('Inventory type or label not found for this QR code.');
-            return;
-        }
-        const existing = items.find((item) => item.InventoryTypeId === scan.type.Id);
-        if (scan.labelId && inventoryItemHasLabel(existing, scan.labelId)) {
-            setIssueScanError('This label was already added to the request.');
-            return;
-        }
-        const saved = await persistItems(
-            addScannedInventoryItemForIssue(items, scan.type.Id, scan.labelId).map((item) =>
-                item.InventoryTypeId === scan.type.Id && !item.itemName
-                    ? { ...item, itemName: inventoryTypeDisplayName(scan.type) }
-                    : item,
-            ),
-        );
-        if (saved) setIssueScanError('');
-    };
-    const save = useSave(
-        () => {
-            if (!values.UserId) throw new Error('Requested by is required.');
-            if (!values.DepartmentId) throw new Error('Department is required.');
-            return updateInventoryRequest({
-                resource: 'inventory-requests',
-                id: request.Id,
-                values: {
-                    name: values.Name,
-                    userId: values.UserId,
-                    startDate: values.StartDate,
-                    endDate: values.EndDate,
-                    departmentId: values.DepartmentId,
-                    leadEmail: values.LeadEmail,
-                    participants: values.Participants,
-                    items: toInventoryItemInputs(items),
-                },
-            }).catch((e) => {
-                setValues(inventoryFormValues(request));
-                setItems(request.items);
-                throw e;
-            });
-        },
-        () => setEditing(false),
-    );
-    const saveParticipants = async (participants: string[]) => {
-        const serialized = participants.join(', ');
-        showSavingBadge(true);
-        try {
-            await api.updateInventoryRequestParticipants(
-                request.Id,
-                { participants: serialized },
-                generateRequestId(),
-            );
-            setValues((current) => ({ ...current, Participants: serialized }));
-            await invalidateThisRequest();
-            await refreshDashboard();
-        } finally {
-            showSavingBadge(false);
-        }
+        if (await scan(decodedValue, 'issue')) setIssueScanError('');
     };
     const editItem = (index: number | null) => {
         setItemIndex(index);
         setItemError('');
-        setItemDraft(
-            index === null
-                ? {
-                      InventoryTypeId: '',
-                      Quantity: 1,
-                      Condition: '',
-                      LabelIds: [],
-                  }
-                : {
-                      InventoryTypeId: items[index].InventoryTypeId,
-                      Quantity: Math.max(items[index].Quantity, items[index].labels?.length || 0),
-                      Condition: items[index].Condition,
-                      LabelIds: (items[index].labels || []).map((label) =>
-                          typeof label === 'string' ? label : label.Id,
-                      ),
-                  },
-        );
+        setItemDraft(index === null ? emptyItemDraft() : itemDraftOf(items[index]));
         setItemOpen(true);
     };
     const saveItem = async (event: FormEvent) => {
         event.preventDefault();
-        if (!itemDraft.InventoryTypeId) {
-            setItemError('Select an inventory type.');
-            return;
-        }
-        if (itemDraft.Quantity <= 0) {
-            setItemError('Quantity must be greater than zero.');
-            return;
-        }
-        const type = dashboard.inventoryTypes.find(
-            (entry) => entry.Id === itemDraft.InventoryTypeId,
-        );
-        if (!type) {
-            setItemError('Select a valid inventory type.');
+        const message = itemDraftError(itemDraft, inventoryTypes);
+        const type = inventoryTypes.find((entry) => entry.Id === itemDraft.InventoryTypeId);
+        if (message || !type) {
+            setItemError(message ?? '');
             return;
         }
         setItemError('');
-        const nextItem = {
-            InventoryTypeId: itemDraft.InventoryTypeId,
-            Quantity: Math.max(itemDraft.Quantity, itemDraft.LabelIds.length),
-            Condition: itemDraft.Condition,
-            itemName: inventoryTypeDisplayName(type),
-            labels: itemDraft.LabelIds,
-        };
-        const nextItems =
-            itemIndex === null
-                ? [...items, nextItem]
-                : items.map((item, index) =>
-                      index === itemIndex ? { ...item, ...nextItem } : item,
-                  );
+        const index = itemIndex;
         setItemIndex(null);
         setItemOpen(false);
-        await persistItems(nextItems);
+        await persistItems((current) => upsertItem(current, index, itemFromDraft(itemDraft, type)));
     };
-    const selectedInventoryType = dashboard.inventoryTypes.find(
+    const selectedInventoryType = inventoryTypes.find(
         (type) => type.Id === itemDraft.InventoryTypeId,
     );
-    const selectableInventoryTypes = dashboard.inventoryTypes
+    const selectableInventoryTypes = inventoryTypes
         .filter(
             (type) =>
-                canApprove(dashboard.me) ||
-                type.Requestable !== false ||
-                type.Id === itemDraft.InventoryTypeId,
+                approver || type.Requestable !== false || type.Id === itemDraft.InventoryTypeId,
         )
         .map((type) => ({ value: type.Id, label: inventoryTypeDisplayName(type) }))
         .sort((a, b) => compareLabelNames(a.label, b.label));
@@ -286,27 +167,17 @@ export function InventoryDetail({
         if (!file) return;
         try {
             setImageUploading(true);
-            showSavingBadge(true);
             const nextImageId = await uploadTargetImage(file, {
                 type: 'inventory_request',
                 id: request.Id,
             });
-            setImageId(nextImageId);
-            await updateInventoryRequest({
-                resource: 'inventory-requests',
-                id: request.Id,
-                values: {
-                    ...inventoryRequestFields(request),
-                    imageId: nextImageId,
-                    items: toInventoryItemInputs(items),
-                },
-            });
-            await refreshDashboard();
+            await detail.persist((latest) =>
+                buildInventoryUpdate(latest, { imageId: nextImageId }),
+            );
         } catch (e) {
             error(e);
         } finally {
             setImageUploading(false);
-            showSavingBadge(false);
         }
     };
     const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -314,117 +185,285 @@ export function InventoryDetail({
         event.target.value = '';
         if (file) void uploadRequestImage(file);
     };
-    const perform = async (action: InventoryRequestAction) => {
-        try {
-            showSavingBadge(true);
-            await api.performInventoryRequestAction(request.Id, action, '', generateRequestId());
-            await invalidateThisRequest();
-            await refreshDashboard();
-            if (action === 'issue') setIssueScanOpen(false);
-        } catch (e) {
-            error(e);
-        } finally {
-            showSavingBadge(false);
-        }
-    };
-    const actions = permissions.actions;
+    const formValues = form.values;
     return (
-        <DetailLayout
+        <RequestDetailFrame
+            request={request}
+            detail={detail}
             title={request.Name || 'Unnamed request'}
-            action={
-                <Space wrap>
-                    <DetailBackButton
-                        label="Inventory requests"
-                        onClick={() => navigate(inventoryPath, { replace: true })}
-                    />
-                    <WorkflowActions
-                        actions={actions}
-                        onAction={(action) => {
-                            if (action === 'issue') {
-                                setIssueScanError('');
-                                setIssueScanOpen(true);
-                            } else if (
-                                action === 'close' &&
-                                request.Status === 'issued' &&
-                                items.some((item) => !item.Condition)
-                            ) {
-                                error(new Error(missingReturnStatusMessage));
-                            } else setPendingAction(action as InventoryRequestAction);
-                        }}
-                    />
-                    {deletable && (
-                        <Button
-                            type="primary"
-                            danger
-                            icon={<Icon name="trash" />}
-                            onClick={() => setPendingDelete(true)}
-                            aria-label="Delete request"
-                            title="Delete request"
+            overdue={isRequestOverdue(request)}
+            interceptAction={(action) => {
+                if (action === 'issue') {
+                    setIssueScanError('');
+                    setIssueScanOpen(true);
+                    return true;
+                }
+                if (action === 'close' && closeBlockedByMissingCondition(request.Status, items)) {
+                    error(new Error(missingReturnStatusMessage));
+                    return true;
+                }
+                return false;
+            }}
+            fields={[
+                ['Request name', request.Name],
+                ['Start date', request.StartDate],
+                ['End date', request.EndDate],
+            ]}
+            modals={
+                <>
+                    {formValues && (
+                        <Modal title="Edit inventory request" close={form.close}>
+                            <form className="grid gap-3" noValidate onSubmit={form.save.run}>
+                                <TextField
+                                    name="name"
+                                    label="Event / Purpose"
+                                    value={formValues.Name}
+                                    required
+                                    onChange={(e) => form.update('Name', e.target.value)}
+                                />
+                                <TextField
+                                    name="startDate"
+                                    label="Start date"
+                                    type="date"
+                                    value={formValues.StartDate}
+                                    required
+                                    onChange={(e) => form.update('StartDate', e.target.value)}
+                                />
+                                <TextField
+                                    name="endDate"
+                                    label="End date"
+                                    type="date"
+                                    value={formValues.EndDate}
+                                    required
+                                    onChange={(e) => form.update('EndDate', e.target.value)}
+                                />
+                                {approver && (
+                                    <Field label="Requested by" required>
+                                        <input
+                                            type="hidden"
+                                            name="userId"
+                                            value={formValues.UserId}
+                                            required
+                                        />
+                                        <Select
+                                            value={formValues.UserId}
+                                            onChange={(value) => form.update('UserId', value)}
+                                            className="w-full"
+                                            showSearch>
+                                            {users.map((user) => (
+                                                <Select.Option key={user.Email} value={user.Email}>
+                                                    {requesterOptionLabel(user)}
+                                                </Select.Option>
+                                            ))}
+                                        </Select>
+                                    </Field>
+                                )}
+                                <Field label="Department" required>
+                                    <input
+                                        type="hidden"
+                                        name="departmentId"
+                                        value={formValues.DepartmentId}
+                                        required
+                                    />
+                                    <Select
+                                        value={formValues.DepartmentId}
+                                        onChange={(value) => form.update('DepartmentId', value)}
+                                        className="w-full"
+                                        showSearch>
+                                        {departments.map((department) => (
+                                            <Select.Option
+                                                key={department.Id}
+                                                value={department.Id}>
+                                                {department.Name}
+                                            </Select.Option>
+                                        ))}
+                                    </Select>
+                                </Field>
+                                <TextField
+                                    name="leadEmail"
+                                    label="Lead email"
+                                    type="email"
+                                    value={formValues.LeadEmail}
+                                    required
+                                    onChange={(e) => form.update('LeadEmail', e.target.value)}
+                                />
+                                <div>
+                                    <SaveFooter
+                                        label="Save"
+                                        busy={form.save.busy}
+                                        errorMessage={form.save.errorMessage}
+                                    />
+                                </div>
+                            </form>
+                        </Modal>
+                    )}
+                    {scanOpen && (
+                        <Modal
+                            title="Scan inventory type"
+                            close={() => {
+                                setScanOpen(false);
+                                setItemError('');
+                            }}>
+                            <div className="grid gap-3">
+                                <QrScanner onScan={scanInventoryType} stopOnScan manualEntry />
+                                {itemError && (
+                                    <Typography.Text type="danger">{itemError}</Typography.Text>
+                                )}
+                            </div>
+                        </Modal>
+                    )}
+                    {issueScanOpen && (
+                        <Modal title="Scan issued items" close={() => setIssueScanOpen(false)}>
+                            <div className="grid gap-3">
+                                <Typography.Text type="secondary">
+                                    Scan each item. A labeled QR code adds its label without
+                                    increasing the requested count; unlabeled codes only add a
+                                    missing inventory type.
+                                </Typography.Text>
+                                <QrScanner onScan={scanIssueItem} manualEntry />
+                                {issueScanError && (
+                                    <Typography.Text type="danger">
+                                        {issueScanError}
+                                    </Typography.Text>
+                                )}
+                                <div className="flex justify-end">
+                                    <Button
+                                        type="primary"
+                                        onClick={() => {
+                                            setIssueScanOpen(false);
+                                            detail.workflow.ask('issue');
+                                        }}>
+                                        Finish scanning
+                                    </Button>
+                                </div>
+                            </div>
+                        </Modal>
+                    )}
+                    {cameraOpen && (
+                        <Modal title="Take photo" close={() => setCameraOpen(false)}>
+                            <ImageCamera
+                                onCapture={async (file) => {
+                                    setCameraOpen(false);
+                                    await uploadRequestImage(file);
+                                }}
+                            />
+                        </Modal>
+                    )}
+                    {itemOpen && (
+                        <Modal
+                            title={itemIndex === null ? 'Add item' : 'Edit item'}
+                            close={() => {
+                                setItemOpen(false);
+                                setItemIndex(null);
+                            }}>
+                            <form
+                                className="inventory-item-form grid gap-3"
+                                noValidate
+                                onSubmit={saveItem}>
+                                <Field label="Inventory type" required>
+                                    <Select
+                                        value={itemDraft.InventoryTypeId || undefined}
+                                        onChange={(value) =>
+                                            setItemDraft((current) => ({
+                                                ...current,
+                                                InventoryTypeId: value,
+                                                LabelIds: [],
+                                            }))
+                                        }
+                                        className="w-full"
+                                        placeholder="Select inventory type"
+                                        showSearch
+                                        options={selectableInventoryTypes}
+                                    />
+                                    {selectedInventoryType && (
+                                        <div className="inventory-type-detail-image mt-3">
+                                            <RequestImage
+                                                imageId={selectedInventoryType.ImageId}
+                                                alt={inventoryTypeDisplayName(
+                                                    selectedInventoryType,
+                                                )}
+                                                fallback={<span>No photo</span>}
+                                            />
+                                        </div>
+                                    )}
+                                </Field>
+                                <TextField
+                                    name="quantity"
+                                    label="Quantity"
+                                    type="number"
+                                    value={itemDraft.Quantity}
+                                    required
+                                    onChange={(event) =>
+                                        setItemDraft((current) => ({
+                                            ...current,
+                                            Quantity: Number(event.target.value),
+                                        }))
+                                    }
+                                />
+                                {approver && selectedInventoryType?.labels?.length ? (
+                                    <Field label="Individual labels">
+                                        <MultiSelect
+                                            value={itemDraft.LabelIds}
+                                            onChange={(value) =>
+                                                setItemDraft((current) => ({
+                                                    ...current,
+                                                    LabelIds: value,
+                                                    Quantity: Math.max(
+                                                        current.Quantity,
+                                                        value.length,
+                                                    ),
+                                                }))
+                                            }
+                                            className="w-full"
+                                            placeholder="Select labels"
+                                            options={sortInventoryLabels(
+                                                selectedInventoryType.labels,
+                                            ).map((label) => ({
+                                                value: label.Id,
+                                                label: inventoryLabelDisplayName(label),
+                                            }))}
+                                        />
+                                    </Field>
+                                ) : null}
+                                {canEditItemCondition && (
+                                    <Field label="Condition">
+                                        <Select
+                                            value={itemDraft.Condition}
+                                            onChange={(value) =>
+                                                setItemDraft((current) => ({
+                                                    ...current,
+                                                    Condition: value as ReturnCondition | '',
+                                                }))
+                                            }
+                                            className="w-full">
+                                            <Select.Option value="">Not specified</Select.Option>
+                                            <Select.Option value="returned">Returned</Select.Option>
+                                            <Select.Option value="damaged">Damaged</Select.Option>
+                                            <Select.Option value="missing">Missing</Select.Option>
+                                        </Select>
+                                    </Field>
+                                )}
+                                <div>
+                                    <SaveFooter label="Save" errorMessage={itemError} />
+                                </div>
+                            </form>
+                        </Modal>
+                    )}
+                    {pendingDeleteItemIndex !== null && (
+                        <ActionConfirmation
+                            action="delete"
+                            description="Are you sure you want to delete this item?"
+                            onCancel={() => setPendingDeleteItemIndex(null)}
+                            onConfirm={async () => {
+                                await persistItems((current) =>
+                                    removeItem(current, pendingDeleteItemIndex),
+                                );
+                                setPendingDeleteItemIndex(null);
+                            }}
                         />
                     )}
-                </Space>
+                </>
             }>
-            <DetailSection
-                title="Details"
-                action={
-                    editable && (
-                        <Button
-                            type="primary"
-                            icon={<Icon name="edit" />}
-                            onClick={openEditor}
-                            aria-label="Edit request"
-                            title="Edit request"
-                        />
-                    )
-                }>
-                <DetailFields
-                    fields={[
-                        ['Request number', `REQ-${request.DisplayId}`],
-                        [
-                            'Status',
-                            <Tag
-                                color={requestStatusTagColor(request.Status, overdue)}
-                                key="status">
-                                {request.Status}
-                            </Tag>,
-                        ],
-                        ['Request name', request.Name],
-                        ['Start date', request.StartDate],
-                        ['End date', request.EndDate],
-                        [
-                            'Department',
-                            request.DepartmentId ? (
-                                <DetailLink
-                                    to={departmentPath(request.DepartmentId)}
-                                    enabled={approver}>
-                                    {request.departmentName}
-                                </DetailLink>
-                            ) : (
-                                'None'
-                            ),
-                        ],
-                        ['Lead email', request.LeadEmail],
-                        [
-                            'Requested by',
-                            request.UserId ? (
-                                <DetailLink to={userPath(request.UserId)} enabled={approver}>
-                                    {request.userName || 'Unknown'}
-                                </DetailLink>
-                            ) : (
-                                'Unknown'
-                            ),
-                        ],
-                        [
-                            'Participants',
-                            <ParticipantsEditor
-                                participants={request.participants}
-                                editable={permissions.canCollaborate}
-                                onSave={saveParticipants}
-                            />,
-                        ],
-                    ]}
-                />
-            </DetailSection>
             <DetailSection className="table-detail-section">
                 <TableView
                     title="Requested items"
@@ -455,7 +494,7 @@ export function InventoryDetail({
                     {items.length ? (
                         <div className="inventory-item-block-list">
                             {items.map((item, index) => {
-                                const type = dashboard.inventoryTypes.find(
+                                const type = inventoryTypes.find(
                                     (entry) => entry.Id === item.InventoryTypeId,
                                 );
                                 const labels = (item.labels || [])
@@ -522,16 +561,10 @@ export function InventoryDetail({
                                                             type="text"
                                                             icon={<Icon name="checkCircle" />}
                                                             onClick={() =>
-                                                                void persistItems(
-                                                                    items.map(
-                                                                        (entry, entryIndex) =>
-                                                                            entryIndex === index
-                                                                                ? {
-                                                                                      ...entry,
-                                                                                      Condition:
-                                                                                          'returned',
-                                                                                  }
-                                                                                : entry,
+                                                                void persistItems((current) =>
+                                                                    markItemReturned(
+                                                                        current,
+                                                                        index,
                                                                     ),
                                                                 )
                                                             }
@@ -631,274 +664,6 @@ export function InventoryDetail({
                     />
                 </div>
             </DetailSection>
-            <DetailSection className="activity-detail-section">
-                <Activity requestId={request.Id} initialComments={request.comments} />
-            </DetailSection>
-            {editing && (
-                <Modal title="Edit inventory request" close={() => setEditing(false)}>
-                    <form className="grid gap-3" noValidate onSubmit={save.run}>
-                        <TextField
-                            name="name"
-                            label="Event / Purpose"
-                            value={values.Name}
-                            required
-                            onChange={(e) => update('Name', e.target.value)}
-                        />
-                        <TextField
-                            name="startDate"
-                            label="Start date"
-                            type="date"
-                            value={values.StartDate}
-                            required
-                            onChange={(e) => update('StartDate', e.target.value)}
-                        />
-                        <TextField
-                            name="endDate"
-                            label="End date"
-                            type="date"
-                            value={values.EndDate}
-                            required
-                            onChange={(e) => update('EndDate', e.target.value)}
-                        />
-                        {canApprove(dashboard.me) && (
-                            <Field label="Requested by" required>
-                                <input type="hidden" name="userId" value={values.UserId} required />
-                                <Select
-                                    value={values.UserId}
-                                    onChange={(value) => update('UserId', value)}
-                                    className="antd-full-width"
-                                    showSearch>
-                                    {users.map((user) => (
-                                        <Select.Option key={user.Email} value={user.Email}>
-                                            {requesterOptionLabel(user)}
-                                        </Select.Option>
-                                    ))}
-                                </Select>
-                            </Field>
-                        )}
-                        <Field label="Department" required>
-                            <input
-                                type="hidden"
-                                name="departmentId"
-                                value={values.DepartmentId}
-                                required
-                            />
-                            <Select
-                                value={values.DepartmentId}
-                                onChange={(value) => update('DepartmentId', value)}
-                                className="antd-full-width"
-                                showSearch>
-                                {dashboard.departments.map((department) => (
-                                    <Select.Option key={department.Id} value={department.Id}>
-                                        {department.Name}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </Field>
-                        <TextField
-                            name="leadEmail"
-                            label="Lead email"
-                            type="email"
-                            value={values.LeadEmail}
-                            required
-                            onChange={(e) => update('LeadEmail', e.target.value)}
-                        />
-                        <div>
-                            <SaveFooter
-                                label="Save"
-                                busy={save.busy}
-                                errorMessage={save.errorMessage}
-                            />
-                        </div>
-                    </form>
-                </Modal>
-            )}
-            {scanOpen && (
-                <Modal
-                    title="Scan inventory type"
-                    close={() => {
-                        setScanOpen(false);
-                        setItemError('');
-                    }}>
-                    <div className="grid gap-3">
-                        <QrScanner onScan={scanInventoryType} stopOnScan manualEntry />
-                        {itemError && <Typography.Text type="danger">{itemError}</Typography.Text>}
-                    </div>
-                </Modal>
-            )}
-            {issueScanOpen && (
-                <Modal title="Scan issued items" close={() => setIssueScanOpen(false)}>
-                    <div className="grid gap-3">
-                        <Typography.Text type="secondary">
-                            Scan each item. A labeled QR code adds its label without increasing the
-                            requested count; unlabeled codes only add a missing inventory type.
-                        </Typography.Text>
-                        <QrScanner onScan={scanIssueItem} manualEntry />
-                        {issueScanError && (
-                            <Typography.Text type="danger">{issueScanError}</Typography.Text>
-                        )}
-                        <div className="flex justify-end">
-                            <Button
-                                type="primary"
-                                onClick={() => {
-                                    setIssueScanOpen(false);
-                                    setPendingAction('issue');
-                                }}>
-                                Finish scanning
-                            </Button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-            {cameraOpen && (
-                <Modal title="Take photo" close={() => setCameraOpen(false)}>
-                    <ImageCamera
-                        onCapture={async (file) => {
-                            setCameraOpen(false);
-                            await uploadRequestImage(file);
-                        }}
-                    />
-                </Modal>
-            )}
-            {itemOpen && (
-                <Modal
-                    title={itemIndex === null ? 'Add item' : 'Edit item'}
-                    close={() => {
-                        setItemOpen(false);
-                        setItemIndex(null);
-                    }}>
-                    <form className="inventory-item-form grid gap-3" noValidate onSubmit={saveItem}>
-                        <Field label="Inventory type" required>
-                            <Select
-                                value={itemDraft.InventoryTypeId || undefined}
-                                onChange={(value) =>
-                                    setItemDraft((current) => ({
-                                        ...current,
-                                        InventoryTypeId: value,
-                                        LabelIds: [],
-                                    }))
-                                }
-                                className="antd-full-width"
-                                placeholder="Select inventory type"
-                                showSearch
-                                options={selectableInventoryTypes}
-                            />
-                            {selectedInventoryType && (
-                                <div className="inventory-type-detail-image mt-3">
-                                    <RequestImage
-                                        imageId={selectedInventoryType.ImageId}
-                                        alt={inventoryTypeDisplayName(selectedInventoryType)}
-                                        fallback={<span>No photo</span>}
-                                    />
-                                </div>
-                            )}
-                        </Field>
-                        <TextField
-                            name="quantity"
-                            label="Quantity"
-                            type="number"
-                            value={itemDraft.Quantity}
-                            required
-                            onChange={(event) =>
-                                setItemDraft((current) => ({
-                                    ...current,
-                                    Quantity: Number(event.target.value),
-                                }))
-                            }
-                        />
-                        {approver && selectedInventoryType?.labels?.length ? (
-                            <Field label="Individual labels">
-                                <MultiSelect
-                                    value={itemDraft.LabelIds}
-                                    onChange={(value) =>
-                                        setItemDraft((current) => ({
-                                            ...current,
-                                            LabelIds: value,
-                                            Quantity: Math.max(current.Quantity, value.length),
-                                        }))
-                                    }
-                                    className="antd-full-width"
-                                    placeholder="Select labels"
-                                    options={sortInventoryLabels(selectedInventoryType.labels).map(
-                                        (label) => ({
-                                            value: label.Id,
-                                            label: inventoryLabelDisplayName(label),
-                                        }),
-                                    )}
-                                />
-                            </Field>
-                        ) : null}
-                        {canEditItemCondition && (
-                            <Field label="Condition">
-                                <Select
-                                    value={itemDraft.Condition}
-                                    onChange={(value) =>
-                                        setItemDraft((current) => ({
-                                            ...current,
-                                            Condition: value as ReturnCondition | '',
-                                        }))
-                                    }
-                                    className="antd-full-width">
-                                    <Select.Option value="">Not specified</Select.Option>
-                                    <Select.Option value="returned">Returned</Select.Option>
-                                    <Select.Option value="damaged">Damaged</Select.Option>
-                                    <Select.Option value="missing">Missing</Select.Option>
-                                </Select>
-                            </Field>
-                        )}
-                        <div>
-                            <SaveFooter label="Save" errorMessage={itemError} />
-                        </div>
-                    </form>
-                </Modal>
-            )}
-            {pendingDeleteItemIndex !== null && (
-                <ActionConfirmation
-                    action="delete"
-                    description="Are you sure you want to delete this item?"
-                    onCancel={() => setPendingDeleteItemIndex(null)}
-                    onConfirm={async () => {
-                        const nextItems = items.filter(
-                            (_, index) => index !== pendingDeleteItemIndex,
-                        );
-                        await persistItems(nextItems);
-                        setPendingDeleteItemIndex(null);
-                    }}
-                />
-            )}
-            {pendingAction && (
-                <ActionConfirmation
-                    action={pendingAction}
-                    onCancel={() => setPendingAction(null)}
-                    onConfirm={async () => {
-                        setPendingAction(null);
-                        void perform(pendingAction);
-                    }}
-                />
-            )}
-            {pendingDelete && (
-                <ActionConfirmation
-                    action="delete"
-                    description="Are you sure you want to delete this inventory request?"
-                    onCancel={() => setPendingDelete(false)}
-                    onConfirm={async () => {
-                        try {
-                            showSavingBadge(true);
-                            await deleteInventoryRequest({
-                                resource: 'inventory-requests',
-                                id: request.Id,
-                            });
-                            setPendingDelete(false);
-                            await refreshDashboard();
-                            navigate(inventoryPath);
-                        } catch (e) {
-                            error(e);
-                        } finally {
-                            showSavingBadge(false);
-                        }
-                    }}
-                />
-            )}
-        </DetailLayout>
+        </RequestDetailFrame>
     );
 }

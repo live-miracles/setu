@@ -1,12 +1,31 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { loadBundle } from './test-support.mjs';
+import { fakeClient, loadBundle } from './test-support.mjs';
 
 const rootUrl = new URL('../', import.meta.url);
 
 async function importDashboard() {
     return loadBundle(`export { dashboard } from './supabase/functions/api/dashboard';`);
+}
+
+// Wraps a fake client so `.in()` and `.limit()` calls are recorded per table.
+function recording(client, calls) {
+    const wrap = (query, table) =>
+        new Proxy(query, {
+            get(target, property) {
+                const value = target[property];
+                if (typeof value !== 'function') return value;
+                return (...args) => {
+                    if (property === 'in' || property === 'limit') {
+                        calls.push([property, table, ...args]);
+                    }
+                    const returned = value(...args);
+                    return returned === target ? wrap(target, table) : returned;
+                };
+            },
+        });
+    return { from: (table) => wrap(client.from(table), table) };
 }
 
 test('dashboard bounds request data and scopes dependent rows', async () => {
@@ -17,6 +36,7 @@ test('dashboard bounds request data and scopes dependent rows', async () => {
         requester_id: `requester-${index}`,
         status: 'draft',
         display_id: index,
+        updated_at: `2026-01-01T00:00:${String(index % 60).padStart(2, '0')}Z`,
     }));
     inventoryRequests.unshift({
         id: 'closed-inventory',
@@ -29,127 +49,54 @@ test('dashboard bounds request data and scopes dependent rows', async () => {
         requester_id: `program-requester-${index}`,
         status: 'draft',
         display_id: index,
+        updated_at: `2026-01-01T00:00:${String(index % 60).padStart(2, '0')}Z`,
     }));
     const rows = {
-        profiles: [
-            {
-                id: 'actor-1',
-                email: 'actor@example.test',
-                name: 'Actor',
-                role: 'admin',
-            },
-        ],
-        departments: [],
-        places: [],
-        inventory_types: [],
+        profiles: [{ id: 'actor-1', email: 'actor@example.test', name: 'Actor', role: 'admin' }],
+        shift_types: [],
         rosters: [],
         inventory_requests: inventoryRequests,
-        inventory_type_labels: [],
         program_requests: programRequests,
-        home_content: [{ id: true, guidelines: '' }],
-        shift_types: [],
-        program_types: [],
-        program_languages: [],
-        session_types: [],
-        blocks: [],
-        inventory_request_items: [
-            { id: 'included-item', request_id: 'inventory-0', inventory_type_id: 'type-1' },
-            { id: 'excluded-item', request_id: 'inventory-299', inventory_type_id: 'type-2' },
-        ],
-        inventory_request_participants: [],
         program_sessions: [
             { request_id: 'program-0', start_at: '2026-01-01', end_at: '2026-01-02' },
             { request_id: 'program-299', start_at: '2026-01-01', end_at: '2026-01-02' },
+            { request_id: 'program-not-listed', start_at: '2026-01-01', end_at: '2026-01-02' },
         ],
-        program_request_participants: [],
         comments: [],
-        inventory_request_item_labels: [
-            { request_item_id: 'included-item', inventory_type_label_id: 'label-1' },
-            { request_item_id: 'excluded-item', inventory_type_label_id: 'label-2' },
-        ],
     };
-    function from(table) {
-        let data = [...(rows[table] || [])];
-        return {
-            select() {
-                return this;
-            },
-            eq(column, value) {
-                data = data.filter((row) => row[column] === value);
-                return this;
-            },
-            gte() {
-                return this;
-            },
-            in(column, values) {
-                calls.push(['in', table, column, values]);
-                data = data.filter((row) => values.includes(row[column]));
-                return this;
-            },
-            order() {
-                return this;
-            },
-            range() {
-                return this;
-            },
-            limit(value) {
-                calls.push(['limit', table, value]);
-                data = data.slice(0, value);
-                return this;
-            },
-            async single() {
-                return { data: data[0], error: null };
-            },
-            then(resolve, reject) {
-                return Promise.resolve({ data, error: null }).then(resolve, reject);
-            },
-        };
-    }
-    const client = {
-        from,
-        rpc: async () => ({ data: [], error: null }),
-    };
+    const client = recording(fakeClient(rows), calls);
 
-    const payload = await dashboard(client, { from }, 'actor-1');
-    assert.equal(payload.inventoryRequests.length, 250);
-    assert.equal(payload.programRequests.length, 250);
+    const payload = await dashboard(client, client, 'actor-1');
+    assert.equal(payload.pendingProgramRequests.length, 250);
+    assert.equal(payload.ongoingInventoryRequests.length, 250);
+    assert.equal(payload.pendingProgramCount, 300);
+    assert.equal(payload.ongoingInventoryCount, 300);
     assert.equal(
-        payload.inventoryRequests.some((request) => request.Id === 'closed-inventory'),
+        payload.ongoingInventoryRequests.some((request) => request.Id === 'closed-inventory'),
         false,
     );
-    assert.equal(payload.inventoryRequests[0].items.length, 1);
-    assert.equal(payload.programRequests[0].sessions.length, 1);
     assert.deepEqual(
-        calls.filter(([operation]) => operation === 'limit'),
+        calls.filter(([operation, table]) => operation === 'limit' && table.endsWith('_requests')),
         [
-            ['limit', 'inventory_requests', 250],
             ['limit', 'program_requests', 250],
+            ['limit', 'inventory_requests', 250],
         ],
     );
-    for (const table of [
-        'inventory_request_items',
-        'inventory_request_participants',
-        'program_sessions',
-        'program_request_participants',
-    ]) {
-        const scoped = calls.filter(
-            ([operation, calledTable, column]) =>
-                operation === 'in' && calledTable === table && column === 'request_id',
-        );
-        assert.ok(scoped.length, `${table} should be scoped to dashboard request ids`);
-        // Chunked so no request URL carries hundreds of ids.
-        assert.ok(scoped.every((call) => call[3].length <= 100));
-        assert.equal(new Set(scoped.flatMap((call) => call[3])).size, 250);
-    }
-    assert.ok(
-        calls.some(
-            ([operation, table, column, values]) =>
-                operation === 'in' &&
-                table === 'inventory_request_item_labels' &&
-                column === 'request_item_id' &&
-                values.length === 1 &&
-                values[0] === 'included-item',
-        ),
+    // Sessions are loaded only for the listed programs, chunked so no request URL
+    // carries hundreds of ids.
+    const scoped = calls.filter(
+        ([operation, table, column]) =>
+            operation === 'in' && table === 'program_sessions' && column === 'request_id',
+    );
+    assert.ok(scoped.length > 1);
+    assert.ok(scoped.every((call) => call[3].length <= 100));
+    const scopedIds = new Set(scoped.flatMap((call) => call[3]));
+    assert.equal(scopedIds.size, 250);
+    assert.equal(scopedIds.has('program-not-listed'), false);
+    // The dashboard never asks for inventory items or participants: it only lists summaries.
+    assert.equal(
+        calls.some(([, table]) => /items|participants/.test(table)),
+        false,
     );
 });
 

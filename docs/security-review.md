@@ -4,7 +4,7 @@ Prepared for Security Review | 2 October 2026
 
 Setu is a small internal operations application used across teams for inventory requests, program scheduling, approvals, comments, and reference data. This document summarizes the current security controls and the intentional design choices relevant to rollout approval.
 
-**Review conclusion.** No known Critical or High severity issue remains in the reviewed authentication, authorization, image upload, comment, idempotency, inventory, or scheduling paths. The application is suitable for a limited internal rollout.
+**Review conclusion.** No known Critical or High severity issue remains in the reviewed authentication, authorization, image upload, comment, inventory, or scheduling paths. The application is suitable for a limited internal rollout.
 
 > Automated scanners and reviewers without background on the app may flag items that are deliberate. Section 4 lists those items and explains why each is not a security risk in this context. If you change one of those areas, update this document in the same change.
 
@@ -41,7 +41,7 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 - Only Admins can manage the allowed email-domain list and user roles.
 - Request data is restricted by ownership, participation, and operational role.
 - Comments are limited to request owners, participants, Admins, and Approvers, and authorship must match the authenticated user.
-- Idempotency records are scoped to the authenticated user so one user cannot receive another user's cached result.
+- A repeated create of a request or comment carries the client's id as the row id. A replay returns the caller's own row; a request or comment id already used by someone else is refused, so one user cannot read or take over another user's row through a replay.
 
 ### Image upload controls
 
@@ -56,7 +56,9 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 - Request transitions execute through service-role-only PostgreSQL functions.
 - Request, inventory, and scheduling rows are locked before state and availability checks.
 - Concurrent issuance cannot commit more inventory than is available.
-- Concurrent approvals cannot commit conflicting use of the same place.
+- Concurrent approvals cannot commit conflicting use of the same place, and neither can concurrent edits: saving a program request re-checks place availability under the same place lock.
+- Creating or editing a request writes the request and its items, sessions and participants in one transaction (`save_inventory_request_tx`, `save_program_request_tx`), so a failure leaves no half-saved request. An edit is refused if the request changed status after the caller's permission was checked. An edit never carries a status: any `status` sent by a client is ignored, because the status only changes through workflow actions.
+- The request list functions (`list_*_requests_page`) are `SECURITY DEFINER` so they can match on a requester's name; each row is still limited to requests the caller may view (`can_view_*_request`).
 - Status changes and activity comments commit in one transaction and roll back together on failure.
 
 ## 4 Intentional Design Decisions

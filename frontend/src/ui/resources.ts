@@ -1,6 +1,6 @@
+import { generateRequestId } from '../ids';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { generateRequestId } from '../ids';
 
 // One typed adapter between resource-shaped hooks (useList/useOne/useCreate/
 // useUpdate/useDelete, built on react-query below) and Setu's operation-shaped
@@ -62,26 +62,35 @@ function simpleList<T extends object>(list: () => Promise<T[]>): ResourceConfig[
 }
 
 // The four settings resources share one backend call (getSettings) instead
-// of having one each — same shape as before, just centralised.
+// of having one each. A page that reads several of them asks at the same
+// moment, so a call already in flight is shared rather than repeated.
+let settingsInFlight: Promise<SettingsPayload> | null = null;
+function fetchSettings(): Promise<SettingsPayload> {
+    settingsInFlight ??= api.getSettings().finally(() => {
+        settingsInFlight = null;
+    });
+    return settingsInFlight;
+}
+
 function settingsList(pick: (settings: SettingsPayload) => Row[]): ResourceConfig['list'] {
     return async () => {
-        const data = pick(await api.getSettings());
+        const data = pick(await fetchSettings());
         return { data, total: data.length };
     };
 }
 
 function namedOptionResource<TInput extends Row>(
     pick: (settings: SettingsPayload) => Row[],
-    create: (input: TInput, requestId: string) => Promise<Row>,
-    update: (name: string, input: TInput, requestId: string) => Promise<Row>,
-    deleteOne: (name: string, requestId: string) => Promise<void>,
+    create: (input: TInput) => Promise<Row>,
+    update: (name: string, input: TInput) => Promise<Row>,
+    deleteOne: (name: string) => Promise<void>,
 ): ResourceConfig {
     return {
         idField: 'Name',
         list: settingsList(pick),
-        create: (v) => create(v as TInput, generateRequestId()),
-        update: (name, v) => update(name, v as TInput, generateRequestId()),
-        deleteOne: (name) => deleteOne(name, generateRequestId()),
+        create: (v) => create(v as TInput),
+        update: (name, v) => update(name, v as TInput),
+        deleteOne: (name) => deleteOne(name),
     };
 }
 
@@ -89,96 +98,77 @@ const RESOURCES: Record<string, ResourceConfig> = {
     departments: {
         idField: 'Id',
         list: simpleList(() => api.listDepartments()),
-        create: (v) =>
-            api.createDepartment(v as unknown as CreateDepartmentInput, generateRequestId()),
-        update: (id, v) =>
-            api.updateDepartment(id, v as unknown as CreateDepartmentInput, generateRequestId()),
-        deleteOne: (id) => api.deleteDepartment(id, generateRequestId()),
+        create: (v) => api.createDepartment(v as unknown as CreateDepartmentInput),
+        update: (id, v) => api.updateDepartment(id, v as unknown as CreateDepartmentInput),
+        deleteOne: (id) => api.deleteDepartment(id),
     },
     places: {
         idField: 'Id',
         list: simpleList(() => api.listPlaces()),
-        create: (v) => api.createPlace(v as unknown as CreatePlaceInput, generateRequestId()),
-        update: (id, v) =>
-            api.updatePlace(id, v as unknown as CreatePlaceInput, generateRequestId()),
-        deleteOne: (id) => api.deletePlace(id, generateRequestId()),
+        create: (v) => api.createPlace(v as unknown as CreatePlaceInput),
+        update: (id, v) => api.updatePlace(id, v as unknown as CreatePlaceInput),
+        deleteOne: (id) => api.deletePlace(id),
     },
     'inventory-brands': {
         idField: 'Id',
         list: simpleList(() => api.listInventoryBrands()),
-        create: (v) =>
-            api.createInventoryBrand(v as unknown as CreatePlaceInput, generateRequestId()),
-        update: (id, v) =>
-            api.updateInventoryBrand(id, v as unknown as CreatePlaceInput, generateRequestId()),
-        deleteOne: (id) => api.deleteInventoryBrand(id, generateRequestId()),
+        create: (v) => api.createInventoryBrand(v as unknown as CreatePlaceInput),
+        update: (id, v) => api.updateInventoryBrand(id, v as unknown as CreatePlaceInput),
+        deleteOne: (id) => api.deleteInventoryBrand(id),
     },
     'inventory-places': {
         idField: 'Id',
         list: simpleList(() => api.listInventoryPlaces()),
-        create: (v) =>
-            api.createInventoryPlace(v as unknown as CreatePlaceInput, generateRequestId()),
-        update: (id, v) =>
-            api.updateInventoryPlace(id, v as unknown as CreatePlaceInput, generateRequestId()),
-        deleteOne: (id) => api.deleteInventoryPlace(id, generateRequestId()),
+        create: (v) => api.createInventoryPlace(v as unknown as CreatePlaceInput),
+        update: (id, v) => api.updateInventoryPlace(id, v as unknown as CreatePlaceInput),
+        deleteOne: (id) => api.deleteInventoryPlace(id),
     },
     'inventory-types': {
         idField: 'Id',
         list: simpleList(() => api.listInventoryTypes()),
-        create: (v) =>
-            api.createInventoryType(v as unknown as CreateInventoryTypeInput, generateRequestId()),
-        update: (id, v) =>
-            api.updateInventoryType(
-                id,
-                v as unknown as CreateInventoryTypeInput,
-                generateRequestId(),
-            ),
-        deleteOne: (id) => api.deleteInventoryType(id, generateRequestId()),
+        create: (v) => api.createInventoryType(v as unknown as CreateInventoryTypeInput),
+        update: (id, v) => api.updateInventoryType(id, v as unknown as CreateInventoryTypeInput),
+        deleteOne: (id) => api.deleteInventoryType(id),
     },
     blocks: {
         idField: 'Id',
         list: simpleList(() => api.listBlocks()),
-        create: (v) => api.createBlock(v as unknown as CreateBlockInput, generateRequestId()),
-        update: (id, v) =>
-            api.updateBlock(id, v as unknown as CreateBlockInput, generateRequestId()),
-        deleteOne: (id) => api.deleteBlock(id, generateRequestId()),
+        create: (v) => api.createBlock(v as unknown as CreateBlockInput),
+        update: (id, v) => api.updateBlock(id, v as unknown as CreateBlockInput),
+        deleteOne: (id) => api.deleteBlock(id),
     },
     users: {
         idField: 'Email',
         list: simpleList(async () => (await api.listUsers()) as unknown as Row[]),
         // Most users self-register on first sign-in (handle_new_user trigger);
         // create adds a member who has no organisation email yet.
-        create: (v) => api.createUser(v as unknown as CreateUserInput, generateRequestId()),
+        create: (v) => api.createUser(v as unknown as CreateUserInput),
         update: (id, v) => api.updateUser(id, v as unknown as UpdateUserInput),
-        deleteOne: (id) => api.deleteUser(id, generateRequestId()),
+        deleteOne: (id) => api.deleteUser(id),
     },
     'shift-types': namedOptionResource<CreateShiftTypeInput>(
         (s) => s.shiftTypes as unknown as Row[],
-        (input, requestId) => api.createShiftType(input, requestId) as unknown as Promise<Row>,
-        (name, input, requestId) =>
-            api.updateShiftType(name, input, requestId) as unknown as Promise<Row>,
-        (name, requestId) => api.deleteShiftType(name, requestId),
+        (input) => api.createShiftType(input) as unknown as Promise<Row>,
+        (name, input) => api.updateShiftType(name, input) as unknown as Promise<Row>,
+        (name) => api.deleteShiftType(name),
     ),
     'program-types': namedOptionResource<CreateNamedOptionInput>(
         (s) => s.programTypes as unknown as Row[],
-        (input, requestId) => api.createProgramType(input, requestId) as unknown as Promise<Row>,
-        (name, input, requestId) =>
-            api.updateProgramType(name, input, requestId) as unknown as Promise<Row>,
-        (name, requestId) => api.deleteProgramType(name, requestId),
+        (input) => api.createProgramType(input) as unknown as Promise<Row>,
+        (name, input) => api.updateProgramType(name, input) as unknown as Promise<Row>,
+        (name) => api.deleteProgramType(name),
     ),
     'program-languages': namedOptionResource<CreateNamedOptionInput>(
         (s) => s.programLanguages as unknown as Row[],
-        (input, requestId) =>
-            api.createProgramLanguage(input, requestId) as unknown as Promise<Row>,
-        (name, input, requestId) =>
-            api.updateProgramLanguage(name, input, requestId) as unknown as Promise<Row>,
-        (name, requestId) => api.deleteProgramLanguage(name, requestId),
+        (input) => api.createProgramLanguage(input) as unknown as Promise<Row>,
+        (name, input) => api.updateProgramLanguage(name, input) as unknown as Promise<Row>,
+        (name) => api.deleteProgramLanguage(name),
     ),
     'session-types': namedOptionResource<CreateNamedOptionInput>(
         (s) => s.sessionTypes as unknown as Row[],
-        (input, requestId) => api.createSessionType(input, requestId) as unknown as Promise<Row>,
-        (name, input, requestId) =>
-            api.updateSessionType(name, input, requestId) as unknown as Promise<Row>,
-        (name, requestId) => api.deleteSessionType(name, requestId),
+        (input) => api.createSessionType(input) as unknown as Promise<Row>,
+        (name, input) => api.updateSessionType(name, input) as unknown as Promise<Row>,
+        (name) => api.deleteSessionType(name),
     ),
     rosters: {
         idField: 'Id',
@@ -186,10 +176,9 @@ const RESOURCES: Record<string, ResourceConfig> = {
             const result = await api.listRosters(pageFromParams(params));
             return { data: result.items as unknown as Row[], total: result.totalCount };
         },
-        create: (v) => api.createRoster(v as unknown as CreateRosterInput, generateRequestId()),
-        update: (id, v) =>
-            api.updateRoster(id, v as unknown as CreateRosterInput, generateRequestId()),
-        deleteOne: (id) => api.deleteRoster(id, generateRequestId()),
+        create: (v) => api.createRoster(v as unknown as CreateRosterInput),
+        update: (id, v) => api.updateRoster(id, v as unknown as CreateRosterInput),
+        deleteOne: (id) => api.deleteRoster(id),
     },
     'inventory-requests': {
         idField: 'Id',
@@ -211,12 +200,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 generateRequestId(),
             ),
         update: (id, v) =>
-            api.updateInventoryRequest(
-                id,
-                v as unknown as UpdateInventoryRequestInput,
-                generateRequestId(),
-            ),
-        deleteOne: (id) => api.deleteInventoryRequest(id, generateRequestId()),
+            api.updateInventoryRequest(id, v as unknown as UpdateInventoryRequestInput),
+        deleteOne: (id) => api.deleteInventoryRequest(id),
     },
     'program-requests': {
         idField: 'Id',
@@ -233,13 +218,8 @@ const RESOURCES: Record<string, ResourceConfig> = {
                 v as unknown as CreateProgramRequestInput,
                 generateRequestId(),
             ),
-        update: (id, v) =>
-            api.updateProgramRequest(
-                id,
-                v as unknown as UpdateProgramRequestInput,
-                generateRequestId(),
-            ),
-        deleteOne: (id) => api.deleteProgramRequest(id, generateRequestId()),
+        update: (id, v) => api.updateProgramRequest(id, v as unknown as UpdateProgramRequestInput),
+        deleteOne: (id) => api.deleteProgramRequest(id),
     },
 };
 
@@ -293,13 +273,19 @@ export function useList<T = Row>({
     pagination?: ListParams['pagination'];
     filters?: ListParams['filters'];
     sorters?: ListParams['sorters'];
-    queryOptions?: { enabled?: boolean };
+    // `staleTime: Infinity` is for reference data (see ui/reference.ts): it is
+    // refetched when something invalidates it, not on every mount.
+    queryOptions?: { enabled?: boolean; staleTime?: number };
 }) {
-    const params: ListParams = { pagination, filters, sorters };
+    // `{ mode: 'off' }` only says "no pages", which is also what no pagination
+    // means, so both spellings share one cache entry.
+    const paged = pagination?.currentPage !== undefined || pagination?.pageSize !== undefined;
+    const params: ListParams = { pagination: paged ? pagination : undefined, filters, sorters };
     const query = useQuery({
         queryKey: [resource, 'list', params],
         queryFn: () => listResource(resource, params) as Promise<ListResult<T>>,
         enabled: queryOptions?.enabled ?? Boolean(resource),
+        ...(queryOptions?.staleTime === undefined ? {} : { staleTime: queryOptions.staleTime }),
     });
     const empty: ListResult<T> = { data: [], total: 0 };
     return { query, result: query.data ?? empty };
@@ -325,8 +311,27 @@ export function useApiQuery<K extends keyof Api>(operation: K, ...args: Paramete
     });
 }
 
+// What else a save makes stale besides its own resource's queries. A request
+// save changes the home screen's lists and counts ('dashboard'), and an
+// inventory request also the stock left per type; a roster save changes the
+// home shifts. A save to anything else (a department, place, type, user, the
+// current user's profile ...) can rename things that requests and other lists
+// print, so it refetches every active query, and the inactive ones the next
+// time they are opened.
+const DEPENDENT_QUERIES: Record<string, string[]> = {
+    'inventory-requests': ['dashboard', 'inventory-types'],
+    'program-requests': ['dashboard'],
+    rosters: ['dashboard'],
+    // A comment added elsewhere changes only the home screen's latest comments.
+    dashboard: [],
+};
+
 function invalidateResource(client: QueryClient, resource: string) {
-    return client.invalidateQueries({ queryKey: [resource] });
+    const dependents = DEPENDENT_QUERIES[resource];
+    if (!dependents) return client.invalidateQueries();
+    return Promise.all(
+        [resource, ...dependents].map((key) => client.invalidateQueries({ queryKey: [key] })),
+    );
 }
 
 export function useInvalidate() {

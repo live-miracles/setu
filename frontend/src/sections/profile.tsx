@@ -1,22 +1,19 @@
-import { useOne } from '../ui/resources';
 import { Select, Field } from '../ui/form-kit';
-import { Space, Tag, Typography } from '../ui/kit';
+import { Card, Space, Tag, Typography } from '../ui/kit';
 import { Controller, useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
-import { DetailBackButton, DetailHeading } from '../ui/master-detail';
 import { api } from '../api';
-import { inventoryPath, programsPath } from '../paths';
+import { useInvalidate } from '../ui/resources';
+import { useDepartments, useMe } from '../ui/reference';
 import { roleLabel } from '../ui/styles';
 import {
     internationalPhoneRules,
     isValidInternationalPhone,
     INTERNATIONAL_PHONE_TITLE,
 } from './form-utils';
-import { InventoryDetail } from './inventory-detail';
-import { ProgramDetail } from './program-detail';
-import { Card, Page, PhoneField, SaveFooter, TextField, useRHFSave } from './refine-shared';
+import { PhoneField, SaveFooter, TextField } from './form-fields';
+import { Page } from './page';
+import { useRHFSave } from './save-hooks';
 
-type Props = { dashboard: DashboardPayload };
 type ProfileFormValues = {
     name: string;
     departmentId: string;
@@ -24,8 +21,10 @@ type ProfileFormValues = {
     whatsapp: string;
 };
 
-export function Profile({ dashboard, registration = false }: Props & { registration?: boolean }) {
-    const me = dashboard.me;
+export function Profile({ registration = false }: { registration?: boolean }) {
+    const me = useMe();
+    const departments = useDepartments();
+    const invalidate = useInvalidate();
     const form = useForm<ProfileFormValues>({
         defaultValues: {
             name: me.Name,
@@ -44,6 +43,8 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
             throw new Error(INTERNATIONAL_PHONE_TITLE);
         }
         await api.updateOwnProfile(values);
+        // The name and department show on requests and user lists too.
+        await invalidate({ resource: 'me' });
     });
     return (
         <Page title={registration ? 'Welcome' : 'Profile'} hideHeading>
@@ -78,9 +79,9 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
                             name="departmentId"
                             control={form.control}
                             render={({ field }) => (
-                                <Select {...field} className="antd-full-width" showSearch>
+                                <Select {...field} className="w-full" showSearch>
                                     <Select.Option value="">No department</Select.Option>
-                                    {dashboard.departments.map((d) => (
+                                    {departments.map((d) => (
                                         <Select.Option key={d.Id} value={d.Id}>
                                             {d.Name}
                                         </Select.Option>
@@ -128,51 +129,4 @@ export function Profile({ dashboard, registration = false }: Props & { registrat
             </Card>
         </Page>
     );
-}
-
-// Rendered inside the request board's MasterDetail, so it returns the record's
-// heading and sections only, not a page.
-export function RequestDetail({
-    kind,
-    id,
-    dashboard,
-}: Props & { kind: 'inventory' | 'programs'; id: string }) {
-    const navigate = useNavigate();
-    const resource = kind === 'inventory' ? 'inventory-requests' : 'program-requests';
-    // Fetches this one record through the resource's own getOne operation
-    // rather than finding it in dashboard.inventoryRequests/programRequests —
-    // that array is truncated to the most recently active requests, so an
-    // older one wouldn't be found there even though it still exists.
-    const { result: row, query } = useOne<InventoryRequestDTO | ProgramRequestDTO>({
-        resource,
-        id,
-        // A missing/deleted record is a normal "not found" navigation state,
-        // shown inline below rather than as an error toast.
-    });
-    const back = () =>
-        navigate(kind === 'inventory' ? inventoryPath : programsPath, { replace: true });
-    const listLabel = kind === 'inventory' ? 'Inventory requests' : 'Programs';
-    if (query.isLoading) {
-        return <Typography.Text type="secondary">Loading request…</Typography.Text>;
-    }
-    if (!row) {
-        return (
-            <>
-                <DetailHeading
-                    title="Not found"
-                    actions={<DetailBackButton label={listLabel} onClick={back} />}
-                />
-                <Typography.Text type="secondary">Record not found.</Typography.Text>
-            </>
-        );
-    }
-    if (kind === 'inventory')
-        return (
-            <InventoryDetail
-                key={row.Id}
-                request={row as InventoryRequestDTO}
-                dashboard={dashboard}
-            />
-        );
-    return <ProgramDetail key={row.Id} request={row as ProgramRequestDTO} dashboard={dashboard} />;
 }

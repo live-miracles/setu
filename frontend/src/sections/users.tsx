@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
 import { Input, Select, Field } from '../ui/form-kit';
-import { Button, Space, Typography } from '../ui/kit';
+import { Button, Empty, Space, Typography } from '../ui/kit';
 import { Controller, useForm } from 'react-hook-form';
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useDashboard } from '../dashboard-context';
+import { useDepartments, useMe } from '../ui/reference';
 import {
     departmentPath,
     inventoryRequestPath,
@@ -22,22 +22,16 @@ import { DetailBackButton, DetailHeading, MasterDetail } from '../ui/master-deta
 import { UserBlock } from '../ui/user-block';
 import { DetailFields, DetailLink } from './detail-shared';
 import { canManageConfig } from '../workflows';
-import {
-    ActionConfirmation,
-    Empty,
-    Modal,
-    PhoneField,
-    SaveFooter,
-    TextField,
-    useRHFSave,
-} from './refine-shared';
+import { Modal } from '../ui/overlay-kit';
+import { ActionConfirmation } from './action-confirmation';
+import { PhoneField, SaveFooter, TextField } from './form-fields';
+import { useRHFSave } from './save-hooks';
 import {
     internationalPhoneRules,
     isValidInternationalPhone,
     INTERNATIONAL_PHONE_TITLE,
 } from './form-utils';
 
-type Props = { dashboard: DashboardPayload };
 type UserFormValues = {
     email: string;
     name: string;
@@ -57,15 +51,8 @@ const USER_ROLE_ORDER: Record<UserRole, number> = {
 // Without `user` the form adds a member who has no organisation email yet.
 // Such a member (SignInBlocked) can be given their work email later, which
 // lets them sign in with Google and keeps everything already linked to them.
-export function UserForm({
-    dashboard,
-    user,
-    close,
-}: {
-    dashboard: DashboardPayload;
-    user?: UserDTO;
-    close: () => void;
-}) {
+export function UserForm({ user, close }: { user?: UserDTO; close: () => void }) {
+    const departments = useDepartments();
     const form = useForm<UserFormValues>({
         defaultValues: {
             email: user?.Email ?? '',
@@ -132,7 +119,7 @@ export function UserForm({
                         control={form.control}
                         rules={{ required: 'Role is required' }}
                         render={({ field }) => (
-                            <Select {...field} className="antd-full-width">
+                            <Select {...field} className="w-full">
                                 {(['admin', 'approver', 'viewer', 'user'] as UserRole[]).map(
                                     (r) => (
                                         <Select.Option key={r} value={r}>
@@ -150,11 +137,11 @@ export function UserForm({
                         control={form.control}
                         rules={{ required: 'Department is required' }}
                         render={({ field }) => (
-                            <Select {...field} className="antd-full-width" showSearch>
+                            <Select {...field} className="w-full" showSearch>
                                 <Select.Option value="" disabled>
                                     Select a department
                                 </Select.Option>
-                                {dashboard.departments.map((d) => (
+                                {departments.map((d) => (
                                     <Select.Option key={d.Id} value={d.Id}>
                                         {d.Name}
                                     </Select.Option>
@@ -198,9 +185,9 @@ export function UserForm({
         </Modal>
     );
 }
-export function Users({ dashboard }: Props) {
+export function Users() {
     const navigate = useNavigate();
-    const { refreshDashboard } = useDashboard();
+    const canManage = canManageConfig(useMe());
     const { email: selectedUserId = null } = useParams<{ email: string }>();
     const [editing, setEditing] = useState<UserDTO | undefined>();
     const [creating, setCreating] = useState(false);
@@ -235,11 +222,11 @@ export function Users({ dashboard }: Props) {
         userFilter,
     );
     const userHeader = (
-        <div className="antd-page-heading resource-page-heading">
+        <div className="app-page-heading resource-page-heading">
             <div>
                 <Typography.Title level={2}>Users</Typography.Title>
             </div>
-            <Space className="antd-board-filters" wrap>
+            <Space className="board-filters" wrap>
                 <Input
                     allowClear
                     prefix={<Icon name="search" />}
@@ -256,7 +243,7 @@ export function Users({ dashboard }: Props) {
                     aria-label="Search users"
                     title="Search users"
                 />
-                {canManageConfig(dashboard.me) && (
+                {canManage && (
                     <Button
                         type="primary"
                         icon={<Icon name="plus" />}
@@ -278,7 +265,7 @@ export function Users({ dashboard }: Props) {
                             label="Users"
                             onClick={() => navigate(usersPath, { replace: true })}
                         />
-                        {canManageConfig(dashboard.me) && (
+                        {canManage && (
                             <Button
                                 type="primary"
                                 danger
@@ -295,7 +282,7 @@ export function Users({ dashboard }: Props) {
                 <DetailSection
                     title="Details"
                     action={
-                        canManageConfig(dashboard.me) ? (
+                        canManage ? (
                             <Button
                                 type="primary"
                                 icon={<Icon name="edit" />}
@@ -336,7 +323,6 @@ export function Users({ dashboard }: Props) {
                             kind="program"
                             items={userPrograms.items}
                             total={userPrograms.total}
-                            dashboard={dashboard}
                             hrefFor={programRequestPath}
                             onOpen={(id) => navigate(programRequestPath(id))}
                         />
@@ -349,7 +335,6 @@ export function Users({ dashboard }: Props) {
                             kind="inventory"
                             items={userInventoryRequests.items}
                             total={userInventoryRequests.total}
-                            dashboard={dashboard}
                             hrefFor={inventoryRequestPath}
                             onOpen={(id) => navigate(inventoryRequestPath(id))}
                         />
@@ -364,7 +349,6 @@ export function Users({ dashboard }: Props) {
                 <UserBlock
                     key={user.Email}
                     user={user}
-                    dashboard={dashboard}
                     href={userPath(user.Email)}
                     selected={user.Email === selectedUserId}
                     onClick={() => navigate(userPath(user.Email))}
@@ -393,18 +377,11 @@ export function Users({ dashboard }: Props) {
                             id: deleting.Email,
                         });
                         setDeleting(null);
-                        await refreshDashboard();
                     }}
                 />
             )}
-            {creating && <UserForm dashboard={dashboard} close={() => setCreating(false)} />}
-            {editing && (
-                <UserForm
-                    dashboard={dashboard}
-                    user={editing}
-                    close={() => setEditing(undefined)}
-                />
-            )}
+            {creating && <UserForm close={() => setCreating(false)} />}
+            {editing && <UserForm user={editing} close={() => setEditing(undefined)} />}
         </>
     );
 }

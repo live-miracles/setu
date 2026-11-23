@@ -3,23 +3,15 @@ import {
     currentWriter,
     fetchAll,
     fetchAllIn,
+    newRequestId,
     inventoryLabelDto,
     profilesFor,
     requireNonEmpty,
     WITH_LOCATION,
     result,
-    withLockedDedupe,
     type Row,
 } from './core.ts';
-import {
-    commentDto,
-    commentsByTargetFor,
-    compareQueryValues,
-    groupByKey,
-    latestActivityAt,
-    matchesSearch,
-    paginate,
-} from './query.ts';
+import { commentDto, groupByKey, REQUEST_PAGE_SIZE, requestPage } from './query.ts';
 import { emailArg } from './validation.ts';
 import {
     assertCanEdit,
@@ -28,7 +20,7 @@ import {
     loadRequestAccess,
     parseParticipants,
     performRequestAction,
-    replaceParticipants,
+    resolveParticipants,
     requireDepartment,
     requireRequesterProfile,
     updateRequestParticipants,
@@ -55,9 +47,6 @@ export function inventoryRequestDto(
         ImageId: x.image_path,
         DepartmentId: x.department_id || '',
         LeadEmail: x.lead_email,
-        Participants: '',
-        ItemsJson: '',
-        CommentsJson: '',
         userName: profilesById.get(x.requester_id)?.name || '',
         departmentName: departmentsById.get(x.department_id)?.name || '',
         participants: participants
@@ -97,130 +86,32 @@ export function attachItemLabels(items: Row[], assignments: Row[], labels: Row[]
     });
 }
 
-export function inventoryRequestSortValue(request: Row, sortBy: unknown): string | number {
-    if (sortBy === 'name') return request.Name;
-    if (sortBy === 'status') return request.Status;
-    if (sortBy === 'startDate') return request.StartDate;
-    if (sortBy === 'endDate') return request.EndDate;
-    if (sortBy === 'requester') return request.userName;
-    return request.DisplayId;
-}
-
-export async function listInventoryRequests(
+// Loads the requests with these ids, children included, as DTOs in the order
+// given. Requests the caller may not see are left out (the reads run through the
+// caller's own RLS-scoped client).
+async function loadInventoryRequests(
     client: SupabaseClient,
     admin: SupabaseClient,
-    page: number,
-    query: Row,
-): Promise<Row> {
-    const allRows = (table: string) =>
-        fetchAll((from, to) => client.from(table).select('*').order('id').range(from, to));
-    const [departments, types, requests, items, requestItemLabels, labels, participants] =
-        await Promise.all([
-            client
-                .from('departments')
-                .select('*')
-                .then((res) => result(res) as Row[]),
-            allRows('inventory_types'),
-            allRows('inventory_requests'),
-            allRows('inventory_request_items'),
-            allRows('inventory_request_item_labels'),
-            allRows('inventory_type_labels'),
-            allRows('inventory_request_participants'),
-        ]);
-    const typesById = new Map(types.map((x) => [x.id, x]));
-    const departmentsById = new Map(departments.map((x) => [x.id, x]));
-    attachItemLabels(items, requestItemLabels, labels);
-    const commentsByTarget = await commentsByTargetFor(client, 'inventory_request_id');
-    const itemsByRequest = groupByKey(items, 'request_id');
-    const participantsByRequest = groupByKey(participants, 'request_id');
-    const profilesById = await profilesFor(admin, [
-        ...requests.map((x) => x.requester_id),
-        ...participants.map((x) => x.profile_id),
-        ...[...commentsByTarget.values()].flat().map((x) => x.author_id),
+    ids: string[],
+): Promise<Row[]> {
+    if (!ids.length) return [];
+    const byRequest = (table: string, column: string, order: string[]) =>
+        fetchAllIn(ids, (chunk, from, to) => {
+            let query = client.from(table).select('*').in(column, chunk);
+            for (const key of order) query = query.order(key);
+            return query.range(from, to);
+        });
+    const [requests, departments, items, participants, comments] = await Promise.all([
+        byRequest('inventory_requests', 'id', ['id']),
+        client
+            .from('departments')
+            .select('*')
+            .then((res) => result(res) as Row[]),
+        byRequest('inventory_request_items', 'request_id', ['id']),
+        byRequest('inventory_request_participants', 'request_id', ['id']),
+        byRequest('comments', 'inventory_request_id', ['created_at', 'id']),
     ]);
-
-    const dtos = requests.map((x) =>
-        inventoryRequestDto(
-            x,
-            typesById,
-            departmentsById,
-            profilesById,
-            itemsByRequest.get(x.id) || [],
-            participantsByRequest.get(x.id) || [],
-            commentsByTarget.get(x.id) || [],
-        ),
-    );
-
-    const statuses: string[] = query.statuses || [];
-    const matching = dtos
-        .filter(
-            (r) =>
-                !query.inventoryTypeId ||
-                r.items.some((i: Row) => i.InventoryTypeId === query.inventoryTypeId),
-        )
-        .filter((r) => !query.departmentId || r.DepartmentId === query.departmentId)
-        .filter((r) => !query.requesterEmail || r.UserId === query.requesterEmail)
-        .filter(
-            (r) =>
-                !query.labelId ||
-                r.items.some((i: Row) => i.labels.some((label: Row) => label.Id === query.labelId)),
-        )
-        .filter((r) =>
-            matchesSearch(query.q, [
-                'REQ-' + r.DisplayId,
-                r.Name,
-                r.userName,
-                r.departmentName,
-                r.LeadEmail,
-                r.participants.join(' '),
-                r.items.map((i: Row) => i.itemName).join(' '),
-            ]),
-        );
-    // Counted before the status filter so every status option keeps its badge.
-    const statusCounts: Row = {};
-    matching.forEach((r) => {
-        statusCounts[r.Status] = (statusCounts[r.Status] || 0) + 1;
-    });
-    const filtered = matching.filter(
-        (r) => statuses.length === 0 || statuses.indexOf(r.Status) !== -1,
-    );
-
-    if (query.sortBy) {
-        filtered.sort((a, b) =>
-            compareQueryValues(
-                inventoryRequestSortValue(a, query.sortBy),
-                inventoryRequestSortValue(b, query.sortBy),
-                query.sortDirection,
-            ),
-        );
-    } else {
-        filtered.sort((a, b) =>
-            latestActivityAt(b.comments, b.DisplayId).localeCompare(
-                latestActivityAt(a.comments, a.DisplayId),
-            ),
-        );
-    }
-    return { ...paginate(filtered, page, 25), statusCounts };
-}
-
-export async function getInventoryRequest(
-    client: SupabaseClient,
-    admin: SupabaseClient,
-    id: string,
-): Promise<Row> {
-    const [requestRes, departmentsRes, itemsRes, participantsRes, commentsRes] = await Promise.all([
-        client.from('inventory_requests').select('*').eq('id', id).single(),
-        client.from('departments').select('*'),
-        client.from('inventory_request_items').select('*').eq('request_id', id),
-        client.from('inventory_request_participants').select('*').eq('request_id', id),
-        client.from('comments').select('*').eq('inventory_request_id', id).order('created_at'),
-    ]);
-    const request = result(requestRes) as Row;
-    const departmentsById = new Map((result(departmentsRes) as Row[]).map((x) => [x.id, x]));
-    const items = result(itemsRes) as Row[];
-    // Only the label assignments, types and labels this request uses: reading
-    // the whole catalogs (and every assignment) both wastes work and hits the
-    // row cap, silently dropping labels from the detail page.
+    // Only the label assignments, types and labels these requests use.
     const assignments = await fetchAllIn(
         items.map((item) => item.id),
         (chunk, from, to) =>
@@ -253,24 +144,59 @@ export async function getInventoryRequest(
                     .range(from, to),
         ),
     ]);
-    const typesById = new Map(types.map((x) => [x.id, x]));
     attachItemLabels(items, assignments, labels);
-    const participants = result(participantsRes) as Row[];
-    const comments = result(commentsRes) as Row[];
+    const typesById = new Map<string, Row>(types.map((x) => [x.id, x]));
+    const departmentsById = new Map<string, Row>(departments.map((x) => [x.id, x]));
+    const requestsById = new Map<string, Row>(requests.map((x) => [x.id, x]));
+    const itemsByRequest = groupByKey(items, 'request_id');
+    const participantsByRequest = groupByKey(participants, 'request_id');
+    const commentsByRequest = groupByKey(comments, 'inventory_request_id');
     const profilesById = await profilesFor(admin, [
-        request.requester_id,
+        ...requests.map((x) => x.requester_id),
         ...participants.map((x) => x.profile_id),
         ...comments.map((x) => x.author_id),
     ]);
-    return inventoryRequestDto(
-        request,
-        typesById,
-        departmentsById,
-        profilesById,
-        items,
-        participants,
-        comments,
-    );
+    return ids
+        .filter((id) => requestsById.has(id))
+        .map((id) =>
+            inventoryRequestDto(
+                requestsById.get(id)!,
+                typesById,
+                departmentsById,
+                profilesById,
+                itemsByRequest.get(id) || [],
+                participantsByRequest.get(id) || [],
+                commentsByRequest.get(id) || [],
+            ),
+        );
+}
+
+// One page of requests. The database filters, searches, sorts and counts (see
+// requestPage); only the 25 requests on the page are loaded.
+export async function listInventoryRequests(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    page: number,
+    query: Row,
+): Promise<Row> {
+    const found = await requestPage(client, 'list_inventory_requests_page', page, query);
+    return {
+        items: await loadInventoryRequests(client, admin, found.ids),
+        page: found.page,
+        pageSize: REQUEST_PAGE_SIZE,
+        totalCount: found.totalCount,
+        statusCounts: found.statusCounts,
+    };
+}
+
+export async function getInventoryRequest(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    id: string,
+): Promise<Row> {
+    const [request] = await loadInventoryRequests(client, admin, [id]);
+    if (!request) throw new Error('Request not found.');
+    return request;
 }
 
 const MAX_REQUEST_ITEM_LINES = 100;
@@ -313,7 +239,7 @@ export async function validateInventoryItems(
             if (condition && ['returned', 'damaged', 'missing'].indexOf(condition) === -1) {
                 throw new Error('Invalid return condition.');
             }
-            const rawLabelIds = (Array.isArray(line.labelIds) ? line.labelIds : [])
+            const rawLabelIds = (Array.isArray(line.labelIds) ? (line.labelIds as unknown[]) : [])
                 .map((labelId) => String(labelId).trim())
                 .filter(Boolean);
             if (rawLabelIds.length > MAX_LABELS_PER_ITEM) {
@@ -355,54 +281,12 @@ export async function validateInventoryItems(
     return validated;
 }
 
-// Replaces an inventory/program request's child rows wholesale — the
-// frontend always sends the full desired list, same as the old JSON-column
-// writes did, so delete-then-insert reproduces that "whole column
-// overwrite" semantics. Not atomic across the two statements (Supabase-js
-// has no client-side multi-table transaction); the withLockedDedupe wrapper
-// around every caller at least rules out a concurrent duplicate submission
-// racing this same sequence.
-export async function replaceInventoryRequestItems(
-    admin: SupabaseClient,
-    requestId: string,
-    items: Row[],
-): Promise<void> {
-    const { error: deleteError } = await admin
-        .from('inventory_request_items')
-        .delete()
-        .eq('request_id', requestId);
-    if (deleteError) throw new Error(deleteError.message);
-    for (const item of items) {
-        const labelIds = Array.isArray(item.label_ids) ? item.label_ids : [];
-        const inserted = result(
-            await admin
-                .from('inventory_request_items')
-                .insert({
-                    request_id: requestId,
-                    inventory_type_id: item.inventory_type_id,
-                    quantity: item.quantity,
-                    return_condition: item.return_condition,
-                })
-                .select('id')
-                .single(),
-        ) as Row;
-        if (!labelIds.length) continue;
-        const { error } = await admin.from('inventory_request_item_labels').insert(
-            labelIds.map((labelId) => ({
-                request_item_id: inserted.id,
-                inventory_type_label_id: labelId,
-            })),
-        );
-        if (error) throw new Error(error.message);
-    }
-}
-
 export async function createInventoryRequest(
     client: SupabaseClient,
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
+    clientId?: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const name = requireNonEmpty(input.name, 'Name is required.');
@@ -425,39 +309,26 @@ export async function createInventoryRequest(
     const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
 
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'inventory_request:create',
-        requestId,
-        userId,
-        async () => {
-            const created = result(
-                await admin
-                    .from('inventory_requests')
-                    .insert({
-                        name,
-                        requester_id: requestedBy.id,
-                        start_date: input.startDate,
-                        end_date: input.endDate,
-                        status: 'draft',
-                        image_path: String(input.imageId || ''),
-                        department_id: department.id,
-                        lead_email: leadEmail,
-                    })
-                    .select('*')
-                    .single(),
-            ) as Row;
-            await replaceInventoryRequestItems(admin, created.id, items);
-            await replaceParticipants(
-                admin,
-                'inventory_request_participants',
-                created.id,
-                participantEmails,
-            );
-            return getInventoryRequest(client, admin, created.id);
-        },
+    const id = newRequestId(clientId);
+    result(
+        await admin.rpc('save_inventory_request_tx', {
+            p_mode: 'create',
+            p_request_id: id,
+            p_fields: {
+                name,
+                requester_id: requestedBy.id,
+                start_date: input.startDate,
+                end_date: input.endDate,
+                image_path: String(input.imageId || ''),
+                department_id: department.id,
+                lead_email: leadEmail,
+            },
+            p_items: items,
+            p_participants: await resolveParticipants(admin, participantEmails),
+            p_expected_status: 'draft',
+        }),
     );
-    return dto;
+    return getInventoryRequest(client, admin, id);
 }
 
 export async function updateInventoryRequest(
@@ -466,7 +337,6 @@ export async function updateInventoryRequest(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const approver = isApprover(actor);
@@ -497,53 +367,36 @@ export async function updateInventoryRequest(
     const leadEmail = emailArg(input.leadEmail, 'Lead email is required.');
     const participantEmails = parseParticipants(input.participants);
 
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'inventory_request:update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const access = await loadRequestAccess(admin, inventoryRequestKind, id, actor);
-            assertCanEdit(actor, access);
-            const existing = access.request;
-            if (existing.requester_id !== requestedBy.id && !approver) {
-                throw new Error('You cannot reassign the requester.');
-            }
-            const updated = result(
-                await admin
-                    .from('inventory_requests')
-                    .update({
-                        name,
-                        requester_id: requestedBy.id,
-                        start_date: input.startDate,
-                        end_date: input.endDate,
-                        department_id: department.id,
-                        lead_email: leadEmail,
-                        image_path:
-                            input.imageId === undefined
-                                ? existing.image_path
-                                : String(input.imageId || ''),
-                    })
-                    .eq('id', id)
-                    .select('*')
-                    .single(),
-            ) as Row;
-            await replaceInventoryRequestItems(admin, id, items);
-            await replaceParticipants(
-                admin,
-                inventoryRequestKind.participantsTable,
-                id,
-                participantEmails,
-            );
-            return updated;
-        },
+    const access = await loadRequestAccess(admin, inventoryRequestKind, id, actor);
+    assertCanEdit(actor, access);
+    const existing = access.request;
+    if (existing.requester_id !== requestedBy.id && !approver) {
+        throw new Error('You cannot reassign the requester.');
+    }
+    result(
+        await admin.rpc('save_inventory_request_tx', {
+            p_mode: 'update',
+            p_request_id: id,
+            p_fields: {
+                name,
+                requester_id: requestedBy.id,
+                start_date: input.startDate,
+                end_date: input.endDate,
+                department_id: department.id,
+                lead_email: leadEmail,
+                // Left out when the caller sent no image, which keeps the current one.
+                ...(input.imageId === undefined ? {} : { image_path: String(input.imageId || '') }),
+            },
+            p_items: items,
+            p_participants: await resolveParticipants(admin, participantEmails),
+            p_expected_status: String(existing.status),
+        }),
     );
-    return getInventoryRequest(client, admin, dto.id);
+    return getInventoryRequest(client, admin, id);
 }
 
 const inventoryRequestKind: RequestKindConfig = {
     kind: 'inventory',
-    scope: 'inventory_request',
     table: 'inventory_requests',
     participantsTable: 'inventory_request_participants',
     actionRpc: 'perform_inventory_request_action_tx',
@@ -556,17 +409,8 @@ export function updateInventoryRequestParticipants(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
-    return updateRequestParticipants(
-        inventoryRequestKind,
-        client,
-        admin,
-        userId,
-        id,
-        input,
-        requestId,
-    );
+    return updateRequestParticipants(inventoryRequestKind, client, admin, userId, id, input);
 }
 
 // The RPC owns the request row lock, inventory type locks, validation, status
@@ -579,18 +423,8 @@ export function performInventoryRequestAction(
     id: string,
     action: string,
     note: string,
-    dedupeRequestId: string,
 ): Promise<string> {
-    return performRequestAction(
-        inventoryRequestKind,
-        client,
-        admin,
-        userId,
-        id,
-        action,
-        note,
-        dedupeRequestId,
-    );
+    return performRequestAction(inventoryRequestKind, client, admin, userId, id, action, note);
 }
 
 export function deleteInventoryRequest(
@@ -598,7 +432,6 @@ export function deleteInventoryRequest(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
-    return deleteRequest(inventoryRequestKind, client, admin, userId, id, requestId);
+    return deleteRequest(inventoryRequestKind, client, admin, userId, id);
 }

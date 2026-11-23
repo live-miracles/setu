@@ -1,4 +1,5 @@
 import { useApiQuery } from '../ui/resources';
+import { useBlocks, usePlaces, useProgramTypes } from '../ui/reference';
 import { Button, Empty, Space, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useState } from 'react';
@@ -7,9 +8,7 @@ import { programRequestPath } from '../paths';
 import { formatLocalDateOnly } from '../ui/date';
 import { buildCalendarTableModel } from '../ui/calendar-table';
 import { toneProps } from '../ui/tone';
-import { Page } from './refine-shared';
-
-type Props = { dashboard: DashboardPayload };
+import { Page } from './page';
 
 function blockCoversDate(block: Block, isoDate: string): boolean {
     const startDate = block.StartDateTime.slice(0, 10);
@@ -17,7 +16,10 @@ function blockCoversDate(block: Block, isoDate: string): boolean {
     return startDate <= isoDate && endDate >= isoDate;
 }
 
-export function Calendar({ dashboard }: Props) {
+export function Calendar() {
+    const places = usePlaces();
+    const programTypes = useProgramTypes();
+    const blocks = useBlocks();
     const [month, setMonth] = useState(() => {
         const today = new Date();
         return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -34,15 +36,15 @@ export function Calendar({ dashboard }: Props) {
     const monthData = query.isSuccess ? query.data : null;
     const loading = query.isLoading;
     const calendarPrograms = monthData?.programs || [];
-    const calendarPlaces = monthData?.places || dashboard.places;
+    const calendarPlaces = monthData?.places || places;
     const calendar = buildCalendarTableModel(
         calendarPrograms,
         calendarPlaces,
-        dashboard.programTypes,
+        programTypes,
         todayIso,
         monthStartIso,
         monthEndIso,
-        dashboard.blocks,
+        blocks,
     );
     return (
         <Page
@@ -106,7 +108,7 @@ export function Calendar({ dashboard }: Props) {
                         <tbody>
                             {calendar.rows.map((row) =>
                                 (() => {
-                                    const globalBlock = dashboard.blocks.some(
+                                    const globalBlock = blocks.some(
                                         (block) =>
                                             !block.Place && blockCoversDate(block, row.isoDate),
                                     );
@@ -127,7 +129,7 @@ export function Calendar({ dashboard }: Props) {
                                             {row.places.map((place) => {
                                                 const placeBlocked =
                                                     !globalBlock &&
-                                                    dashboard.blocks.some(
+                                                    blocks.some(
                                                         (block) =>
                                                             block.Place === place.placeId &&
                                                             blockCoversDate(block, row.isoDate),

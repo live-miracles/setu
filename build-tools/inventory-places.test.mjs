@@ -20,11 +20,6 @@ const adminClient = fakeClient({ profiles: [{ id: 'admin-1', role: 'admin' }] })
 // Records what the API writes and answers only the lookups these calls make.
 function recordingAdmin({ places = [], deleteError = null } = {}) {
     const writes = [];
-    const idempotency = {
-        insert: async () => ({ error: null }),
-        update: () => ({ eq: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }) }),
-        delete: () => ({ eq: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }) }),
-    };
     const written = (table, payload) => ({
         select: () => ({
             single: async () => {
@@ -35,7 +30,6 @@ function recordingAdmin({ places = [], deleteError = null } = {}) {
     });
     const admin = {
         from(table) {
-            if (table === 'idempotency_keys') return idempotency;
             if (table === 'inventory_places') {
                 return {
                     select: () => ({
@@ -104,78 +98,59 @@ test('the catalog shows each type and label with its place name and id', async (
 test('a label or type can only be placed at an existing inventory place', async () => {
     const { admin, writes } = recordingAdmin({ places: [{ id: 'p1', name: 'Studio 2' }] });
     await assert.rejects(
-        api.createInventoryLabel(
-            adminClient,
-            admin,
-            'admin-1',
-            { inventoryTypeId: 't1', name: 'CAM-1', locationId: 'missing' },
-            'request-1',
-        ),
+        api.createInventoryLabel(adminClient, admin, 'admin-1', {
+            inventoryTypeId: 't1',
+            name: 'CAM-1',
+            locationId: 'missing',
+        }),
         /Location not found/,
     );
     await assert.rejects(
-        api.createInventoryType(
-            adminClient,
-            admin,
-            'admin-1',
-            { name: 'Camera', locationId: 'missing' },
-            'request-2',
-        ),
+        api.createInventoryType(adminClient, admin, 'admin-1', {
+            name: 'Camera',
+            locationId: 'missing',
+        }),
         /Location not found/,
     );
     assert.deepEqual(writes, []);
 
-    await api.createInventoryLabel(
-        adminClient,
-        admin,
-        'admin-1',
-        { inventoryTypeId: 't1', name: 'CAM-1', locationId: 'p1' },
-        'request-3',
-    );
+    await api.createInventoryLabel(adminClient, admin, 'admin-1', {
+        inventoryTypeId: 't1',
+        name: 'CAM-1',
+        locationId: 'p1',
+    });
     assert.equal(writes.at(-1).payload.location_id, 'p1');
 });
 
 test('a label may have no name, but not an overlong one', async () => {
     const { admin, writes } = recordingAdmin();
-    await api.createInventoryLabel(
-        adminClient,
-        admin,
-        'admin-1',
-        { inventoryTypeId: 't1', name: '  ', locationId: '' },
-        'request-8',
-    );
+    await api.createInventoryLabel(adminClient, admin, 'admin-1', {
+        inventoryTypeId: 't1',
+        name: '  ',
+        locationId: '',
+    });
     assert.equal(writes.at(-1).payload.name, '');
-    await api.updateInventoryLabel(
-        adminClient,
-        admin,
-        'admin-1',
-        'l1',
-        { name: '', locationId: '' },
-        'request-9',
-    );
+    await api.updateInventoryLabel(adminClient, admin, 'admin-1', 'l1', {
+        name: '',
+        locationId: '',
+    });
     assert.equal(writes.at(-1).payload.name, '');
     await assert.rejects(
-        api.createInventoryLabel(
-            adminClient,
-            admin,
-            'admin-1',
-            { inventoryTypeId: 't1', name: 'x'.repeat(500), locationId: '' },
-            'request-10',
-        ),
+        api.createInventoryLabel(adminClient, admin, 'admin-1', {
+            inventoryTypeId: 't1',
+            name: 'x'.repeat(500),
+            locationId: '',
+        }),
         /at most/,
     );
 });
 
 test('an empty location clears the place so a label falls back to its type', async () => {
     const { admin, writes } = recordingAdmin();
-    await api.updateInventoryLabel(
-        adminClient,
-        admin,
-        'admin-1',
-        'l1',
-        { name: 'CAM-1', locationId: '' },
-        'request-4',
-    );
+    await api.updateInventoryLabel(adminClient, admin, 'admin-1', 'l1', {
+        name: 'CAM-1',
+        locationId: '',
+    });
     assert.equal(writes.at(-1).payload.location_id, null);
 });
 
@@ -183,11 +158,11 @@ test('inventory places are admin-only and cannot be deleted while in use', async
     const viewerClient = fakeClient({ profiles: [{ id: 'user-1', role: 'user' }] });
     const { admin } = recordingAdmin();
     await assert.rejects(
-        api.createInventoryPlace(viewerClient, admin, 'user-1', { name: 'Studio 2' }, 'request-5'),
+        api.createInventoryPlace(viewerClient, admin, 'user-1', { name: 'Studio 2' }),
         /Administrator access/,
     );
     await assert.rejects(
-        api.createInventoryPlace(adminClient, admin, 'admin-1', { name: '  ' }, 'request-6'),
+        api.createInventoryPlace(adminClient, admin, 'admin-1', { name: '  ' }),
         /Name is required/,
     );
 
@@ -195,7 +170,7 @@ test('inventory places are admin-only and cannot be deleted while in use', async
         deleteError: { code: '23503', message: 'violates foreign key constraint' },
     });
     await assert.rejects(
-        api.deleteInventoryPlace(adminClient, inUse.admin, 'admin-1', 'p1', 'request-7'),
+        api.deleteInventoryPlace(adminClient, inUse.admin, 'admin-1', 'p1'),
         /used by inventory types or labels/,
     );
 });

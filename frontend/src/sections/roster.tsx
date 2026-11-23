@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
+import { useCreate, useDelete, useUpdate } from '../ui/resources';
+import { DashboardGate } from '../ui/dashboard';
+import { useMe, useShiftTypes, useUsers } from '../ui/reference';
 import { Input, Select, Field } from '../ui/form-kit';
-import { Button } from '../ui/kit';
+import { Button, Empty } from '../ui/kit';
+import { Modal } from '../ui/overlay-kit';
 import { Icon } from '../ui/icons';
-import { useDashboard } from '../dashboard-context';
 import { formatLocalDateOnly } from '../ui/date';
 import { toneProps } from '../ui/tone';
 import {
@@ -12,206 +14,192 @@ import {
     getShiftTypeTimes,
 } from '../ui/roster-table';
 import { canApprove } from '../workflows';
-import {
-    ActionConfirmation,
-    Empty,
-    Modal,
-    Page,
-    SaveFooter,
-    TextField,
-    useSave,
-} from './refine-shared';
+import { ActionConfirmation } from './action-confirmation';
+import { SaveFooter, TextField } from './form-fields';
+import { Page } from './page';
+import { useSave } from './save-hooks';
 
-type Props = { dashboard: DashboardPayload };
+// Module level on purpose: a component defined inside Roster gets a new type
+// on every render, which remounts the modal and loses what was typed.
+function RosterForm({
+    row,
+    shiftTypes,
+    users,
+    todayIso,
+    onClose,
+    onDelete,
+}: {
+    row?: RosterDTO;
+    shiftTypes: ShiftType[];
+    users: UserDTO[];
+    todayIso: string;
+    onClose: () => void;
+    onDelete: (row: RosterDTO) => void;
+}) {
+    const [userId, setUserId] = useState(row?.UserId || '');
+    const initialShiftType = shiftTypes.find((shiftType) => shiftType.Id === row?.ShiftTypeId);
+    const [shiftTypeId, setShiftTypeId] = useState(row?.ShiftTypeId || '');
+    const [shiftName, setShiftName] = useState(row?.ShiftName || '');
+    const [startTime, setStartTime] = useState(
+        row?.StartTime || initialShiftType?.DefaultStartTime || '',
+    );
+    const [endTime, setEndTime] = useState(row?.EndTime || initialShiftType?.DefaultEndTime || '');
+    const selectShiftType = (nextShiftTypeId: string) => {
+        setShiftTypeId(nextShiftTypeId);
+        const times = getShiftTypeTimes(shiftTypes, nextShiftTypeId);
+        if (!times) return;
+        setStartTime(times.startTime);
+        setEndTime(times.endTime);
+    };
+    const { mutateAsync: createRoster } = useCreate();
+    const { mutateAsync: updateRoster } = useUpdate();
+    const save = useSave(async () => {
+        if (!shiftTypeId) throw new Error('Shift is required.');
+        if (!userId) throw new Error('Assignee is required.');
+        const d = new FormData(document.getElementById('roster-form') as HTMLFormElement);
+        const v = {
+            shiftTypeId,
+            shiftName: String(d.get('shiftName') || '').trim(),
+            startDate: String(d.get('startDate')),
+            endDate: String(d.get('endDate')),
+            startTime: String(d.get('startTime') || ''),
+            endTime: String(d.get('endTime') || ''),
+            userId: String(d.get('userId') || ''),
+        };
+        // A blank time means the start / end of its day (the server
+        // stores it that way and reads it back as blank).
+        const startAt = `${v.startDate}T${v.startTime || '00:00'}`;
+        const endAt = `${v.endDate}T${v.endTime || '23:59'}`;
+        if (endAt <= startAt) throw new Error('End time is before start time.');
+        if (row) {
+            await updateRoster({
+                resource: 'rosters',
+                id: row.Id,
+                values: v,
+            });
+        } else {
+            await createRoster({ resource: 'rosters', values: v });
+        }
+    }, onClose);
+    return (
+        <Modal title={row ? 'Edit shift' : 'Schedule a shift'} close={onClose}>
+            <form id="roster-form" className="grid gap-3" noValidate onSubmit={save.run}>
+                <Field label="Shift" required>
+                    <input type="hidden" name="shiftTypeId" value={shiftTypeId} required />
+                    <Select value={shiftTypeId} onChange={selectShiftType} className="w-full">
+                        <Select.Option value="" disabled>
+                            Select a shift
+                        </Select.Option>
+                        {shiftTypes.map((shiftType) => (
+                            <Select.Option key={shiftType.Id} value={shiftType.Id}>
+                                {shiftType.Name}
+                            </Select.Option>
+                        ))}
+                    </Select>
+                </Field>
+                <Field label="Shift name (optional)">
+                    <Input
+                        name="shiftName"
+                        value={shiftName}
+                        onChange={(event) => setShiftName(event.target.value)}
+                        placeholder={initialShiftType?.Name || 'Uses shift preset name'}
+                    />
+                </Field>
+                <Field label="Assignee" required>
+                    <input type="hidden" name="userId" value={userId} required />
+                    <Select value={userId} onChange={setUserId} className="w-full">
+                        <Select.Option value="" disabled>
+                            Select an assignee
+                        </Select.Option>
+                        {users.map((user) => (
+                            <Select.Option key={user.Email} value={user.Email}>
+                                {user.Name}
+                            </Select.Option>
+                        ))}
+                    </Select>
+                </Field>
+                <TextField
+                    name="startDate"
+                    label="Start date"
+                    type="date"
+                    value={row?.StartDate || todayIso}
+                    required
+                />
+                <TextField
+                    name="endDate"
+                    label="End date"
+                    type="date"
+                    value={row?.EndDate || todayIso}
+                    required
+                />
+                <Field label="Start time">
+                    <Input
+                        name="startTime"
+                        type="time"
+                        value={startTime}
+                        onChange={(event) => setStartTime(event.target.value)}
+                    />
+                </Field>
+                <Field label="End time">
+                    <Input
+                        name="endTime"
+                        type="time"
+                        value={endTime}
+                        onChange={(event) => setEndTime(event.target.value)}
+                    />
+                </Field>
+                <div className="flex items-center justify-between gap-3">
+                    <SaveFooter
+                        label={row ? 'Save' : 'Add'}
+                        busy={save.busy}
+                        errorMessage={save.errorMessage}
+                    />
+                    {row && (
+                        <Button
+                            type="primary"
+                            danger
+                            htmlType="button"
+                            icon={<Icon name="trash" />}
+                            onClick={() => onDelete(row)}
+                            aria-label="Delete shift"
+                            title="Delete shift"
+                        />
+                    )}
+                </div>
+            </form>
+        </Modal>
+    );
+}
 
-export function Roster({ dashboard }: Props) {
-    const { refreshDashboard } = useDashboard();
-    const canEdit = canApprove(dashboard.me);
+export function Roster() {
+    return (
+        <DashboardGate>
+            {(dashboard) => <RosterGrid rosters={dashboard.upcomingRosters} />}
+        </DashboardGate>
+    );
+}
+
+function RosterGrid({ rosters }: { rosters: RosterDTO[] }) {
+    const canEdit = canApprove(useMe());
+    const shiftTypes = useShiftTypes();
     const [editing, setEditing] = useState<RosterDTO>();
     const [creating, setCreating] = useState(false);
     const [deleting, setDeleting] = useState<RosterDTO | null>(null);
     const { mutateAsync: deleteRoster } = useDelete();
-    const { result: usersResult } = useList<UserDTO>({
-        resource: 'users',
-        pagination: { mode: 'off' },
-        queryOptions: { enabled: canEdit },
-    });
-    const users = usersResult.data.filter(canApprove);
+    const users = useUsers().filter(canApprove);
     const rosterStartDate = new Date();
     rosterStartDate.setDate(rosterStartDate.getDate() - 2);
     const rosterStartIso = formatLocalDateOnly(rosterStartDate);
     const todayIso = formatLocalDateOnly(new Date());
-    // Reads dashboard.upcomingRosters rather than useList({resource: 'rosters'})
-    // on purpose: the grid needs every upcoming shift, unpaginated, while the
-    // 'rosters' resource (api.listRosters) is a paginated, full-history list
-    // built for a future admin roster listing — a different shape, not just
-    // a different fetch mechanism. Only the mutations below go through it.
-    const rosterTable = buildRosterTableModel(
-        dashboard.upcomingRosters,
-        dashboard.shiftTypes,
-        rosterStartIso,
-    );
+    // The grid reads the dashboard's upcoming shifts rather than
+    // useList({resource: 'rosters'}) on purpose: it needs every upcoming shift,
+    // unpaginated, while the 'rosters' resource (api.listRosters) is a
+    // paginated, full-history list. Saving a shift refetches the dashboard
+    // (see DEPENDENT_QUERIES in ui/resources.ts).
+    const rosterTable = buildRosterTableModel(rosters, shiftTypes, rosterStartIso);
     const rosterLaneColumns = rosterTable.volunteers.flatMap((volunteer) =>
         volunteer.lanes.map((_, laneIndex) => `${volunteer.userId}-${laneIndex}`),
     );
-    const Form = ({ row }: { row?: RosterDTO }) => {
-        const [userId, setUserId] = useState(row?.UserId || '');
-        const initialShiftType = dashboard.shiftTypes.find(
-            (shiftType) => shiftType.Id === row?.ShiftTypeId,
-        );
-        const [shiftTypeId, setShiftTypeId] = useState(row?.ShiftTypeId || '');
-        const [shiftName, setShiftName] = useState(row?.ShiftName || '');
-        const [startTime, setStartTime] = useState(
-            row?.StartTime || initialShiftType?.DefaultStartTime || '',
-        );
-        const [endTime, setEndTime] = useState(
-            row?.EndTime || initialShiftType?.DefaultEndTime || '',
-        );
-        const selectShiftType = (nextShiftTypeId: string) => {
-            setShiftTypeId(nextShiftTypeId);
-            const times = getShiftTypeTimes(dashboard.shiftTypes, nextShiftTypeId);
-            if (!times) return;
-            setStartTime(times.startTime);
-            setEndTime(times.endTime);
-        };
-        const { mutateAsync: createRoster } = useCreate();
-        const { mutateAsync: updateRoster } = useUpdate();
-        const save = useSave(
-            async () => {
-                if (!shiftTypeId) throw new Error('Shift is required.');
-                if (!userId) throw new Error('Assignee is required.');
-                const d = new FormData(
-                    document.getElementById('refine-roster-form') as HTMLFormElement,
-                );
-                const v = {
-                    shiftTypeId,
-                    shiftName: String(d.get('shiftName') || '').trim(),
-                    startDate: String(d.get('startDate')),
-                    endDate: String(d.get('endDate')),
-                    startTime: String(d.get('startTime') || ''),
-                    endTime: String(d.get('endTime') || ''),
-                    userId: String(d.get('userId') || ''),
-                };
-                // A blank time means the start / end of its day (the server
-                // stores it that way and reads it back as blank).
-                const startAt = `${v.startDate}T${v.startTime || '00:00'}`;
-                const endAt = `${v.endDate}T${v.endTime || '23:59'}`;
-                if (endAt <= startAt) throw new Error('End time is before start time.');
-                if (row) {
-                    await updateRoster({
-                        resource: 'rosters',
-                        id: row.Id,
-                        values: v,
-                    });
-                } else {
-                    await createRoster({ resource: 'rosters', values: v });
-                }
-            },
-            () => {
-                setCreating(false);
-                setEditing(undefined);
-            },
-        );
-        return (
-            <Modal
-                title={row ? 'Edit shift' : 'Schedule a shift'}
-                close={() => {
-                    setCreating(false);
-                    setEditing(undefined);
-                }}>
-                <form id="refine-roster-form" className="grid gap-3" noValidate onSubmit={save.run}>
-                    <Field label="Shift" required>
-                        <input type="hidden" name="shiftTypeId" value={shiftTypeId} required />
-                        <Select
-                            value={shiftTypeId}
-                            onChange={selectShiftType}
-                            className="antd-full-width">
-                            <Select.Option value="" disabled>
-                                Select a shift
-                            </Select.Option>
-                            {dashboard.shiftTypes.map((shiftType) => (
-                                <Select.Option key={shiftType.Id} value={shiftType.Id}>
-                                    {shiftType.Name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </Field>
-                    <Field label="Shift name (optional)">
-                        <Input
-                            name="shiftName"
-                            value={shiftName}
-                            onChange={(event) => setShiftName(event.target.value)}
-                            placeholder={initialShiftType?.Name || 'Uses shift preset name'}
-                        />
-                    </Field>
-                    <Field label="Assignee" required>
-                        <input type="hidden" name="userId" value={userId} required />
-                        <Select value={userId} onChange={setUserId} className="antd-full-width">
-                            <Select.Option value="" disabled>
-                                Select an assignee
-                            </Select.Option>
-                            {users.map((user) => (
-                                <Select.Option key={user.Email} value={user.Email}>
-                                    {user.Name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </Field>
-                    <TextField
-                        name="startDate"
-                        label="Start date"
-                        type="date"
-                        value={row?.StartDate || todayIso}
-                        required
-                    />
-                    <TextField
-                        name="endDate"
-                        label="End date"
-                        type="date"
-                        value={row?.EndDate || todayIso}
-                        required
-                    />
-                    <Field label="Start time">
-                        <Input
-                            name="startTime"
-                            type="time"
-                            value={startTime}
-                            onChange={(event) => setStartTime(event.target.value)}
-                        />
-                    </Field>
-                    <Field label="End time">
-                        <Input
-                            name="endTime"
-                            type="time"
-                            value={endTime}
-                            onChange={(event) => setEndTime(event.target.value)}
-                        />
-                    </Field>
-                    <div className="flex items-center justify-between gap-3">
-                        <SaveFooter
-                            label={row ? 'Save' : 'Add'}
-                            busy={save.busy}
-                            errorMessage={save.errorMessage}
-                        />
-                        {row && (
-                            <Button
-                                type="primary"
-                                danger
-                                htmlType="button"
-                                icon={<Icon name="trash" />}
-                                onClick={() => {
-                                    setEditing(undefined);
-                                    setDeleting(row);
-                                }}
-                                aria-label="Delete shift"
-                                title="Delete shift"
-                            />
-                        )}
-                    </div>
-                </form>
-            </Modal>
-        );
-    };
     return (
         <Page
             title="Roster"
@@ -346,11 +334,26 @@ export function Roster({ dashboard }: Props) {
                             id: deleting.Id,
                         });
                         setDeleting(null);
-                        await refreshDashboard();
                     }}
                 />
             )}
-            {(creating || editing) && <Form row={editing} />}
+            {(creating || editing) && (
+                <RosterForm
+                    key={editing?.Id ?? 'new'}
+                    row={editing}
+                    shiftTypes={shiftTypes}
+                    users={users}
+                    todayIso={todayIso}
+                    onClose={() => {
+                        setCreating(false);
+                        setEditing(undefined);
+                    }}
+                    onDelete={(row) => {
+                        setEditing(undefined);
+                        setDeleting(row);
+                    }}
+                />
+            )}
         </Page>
     );
 }

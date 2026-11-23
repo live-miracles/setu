@@ -5,11 +5,11 @@ import {
     requireApprover,
     requireNonEmpty,
     result,
-    withLockedDedupe,
     type Row,
 } from './core.ts';
-import { paginate } from './query.ts';
 import { isApproverRole } from '../_shared/request-policy.ts';
+
+const ROSTER_PAGE_SIZE = 20;
 
 export async function listRosters(
     client: SupabaseClient,
@@ -19,10 +19,16 @@ export async function listRosters(
     // Full history, not just upcoming — that's dashboard()'s upcomingRosters
     // preview; this is the paginated listing behind the Roster page. RLS
     // limits this read to authenticated users; write operations below still
-    // require approver access.
-    const rosters = (
-        await fetchAll((from, to) => client.from('rosters').select('*').order('id').range(from, to))
-    ).sort((a, b) => String(b.start_at).localeCompare(String(a.start_at)));
+    // require approver access. The database sorts and cuts the page.
+    const safePage = Math.max(1, Math.floor(page) || 1);
+    const first = (safePage - 1) * ROSTER_PAGE_SIZE;
+    const rosterRes = await client
+        .from('rosters')
+        .select('*', { count: 'exact' })
+        .order('start_at', { ascending: false })
+        .order('id')
+        .range(first, first + ROSTER_PAGE_SIZE - 1);
+    const rosters = result(rosterRes) as Row[];
     const shiftTypes = result(await client.from('shift_types').select('id, name')) as Row[];
     const shiftTypesById = new Map(shiftTypes.map((x) => [x.id, x]));
     const profilesById = await profilesFor(
@@ -38,7 +44,12 @@ export async function listRosters(
         UserId: profilesById.get(x.user_id)?.email || '',
         userName: profilesById.get(x.user_id)?.name || '',
     }));
-    return paginate(dtos, page, 20);
+    return {
+        items: dtos,
+        page: safePage,
+        pageSize: ROSTER_PAGE_SIZE,
+        totalCount: rosterRes.count ?? dtos.length,
+    };
 }
 
 // Date/time fields of a roster DTO. A time left blank is stored as the start
@@ -124,32 +135,22 @@ export async function createRoster(
     admin: SupabaseClient,
     userId: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireApprover(client, userId);
     const { user, shiftType } = await requireValidRosterInput(admin, input);
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'roster:create',
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('rosters')
-                    .insert({
-                        shift_type_id: shiftType.id,
-                        shift_name: String(input.shiftName || '').trim() || null,
-                        ...rosterTimeColumns(input),
-                        user_id: user.id,
-                    })
-                    .select('*')
-                    .single(),
-            ) as Row;
-            return rosterDto(row, user, shiftType);
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('rosters')
+            .insert({
+                shift_type_id: shiftType.id,
+                shift_name: String(input.shiftName || '').trim() || null,
+                ...rosterTimeColumns(input),
+                user_id: user.id,
+            })
+            .select('*')
+            .single(),
+    ) as Row;
+    return rosterDto(row, user, shiftType);
 }
 
 export async function updateRoster(
@@ -158,33 +159,23 @@ export async function updateRoster(
     userId: string,
     id: string,
     input: Row,
-    requestId: string,
 ): Promise<Row> {
     await requireApprover(client, userId);
     const { user, shiftType } = await requireValidRosterInput(admin, input);
-    const { result: dto } = await withLockedDedupe(
-        admin,
-        'roster:update:' + id,
-        requestId,
-        userId,
-        async () => {
-            const row = result(
-                await admin
-                    .from('rosters')
-                    .update({
-                        shift_type_id: shiftType.id,
-                        shift_name: String(input.shiftName || '').trim() || null,
-                        ...rosterTimeColumns(input),
-                        user_id: user.id,
-                    })
-                    .eq('id', id)
-                    .select('*')
-                    .single(),
-            ) as Row;
-            return rosterDto(row, user, shiftType);
-        },
-    );
-    return dto;
+    const row = result(
+        await admin
+            .from('rosters')
+            .update({
+                shift_type_id: shiftType.id,
+                shift_name: String(input.shiftName || '').trim() || null,
+                ...rosterTimeColumns(input),
+                user_id: user.id,
+            })
+            .eq('id', id)
+            .select('*')
+            .single(),
+    ) as Row;
+    return rosterDto(row, user, shiftType);
 }
 
 export async function deleteRoster(
@@ -192,12 +183,8 @@ export async function deleteRoster(
     admin: SupabaseClient,
     userId: string,
     id: string,
-    requestId: string,
 ): Promise<void> {
     await requireApprover(client, userId);
-    await withLockedDedupe(admin, 'roster:delete:' + id, requestId, userId, async () => {
-        const { error } = await admin.from('rosters').delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return null;
-    });
+    const { error } = await admin.from('rosters').delete().eq('id', id);
+    if (error) throw new Error(error.message);
 }

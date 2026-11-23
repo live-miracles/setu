@@ -5,6 +5,11 @@ import { canEditRequest, isAdminRole } from '../_shared/request-policy.ts';
 const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];
 const IMAGE_BUCKET = 'request-images';
 
+// Images live in a public bucket. The object path is still random and uploads
+// and deletes remain behind this trusted Edge Function, while reads use a
+// stable URL so browsers and Supabase's CDN can cache the asset. This is an
+// intentional design decision (non-sensitive images only); see
+// docs/security-review.md, "Public delivery of operational images".
 export async function createImageUploadUrl(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -50,15 +55,4 @@ export async function createImageUploadUrl(
     const { data, error } = await admin.storage.from(IMAGE_BUCKET).createSignedUploadUrl(path);
     if (error) throw new Error(error.message);
     return { path, token: data.token };
-}
-
-// Images live in a public bucket. The object path is still random and uploads
-// and deletes remain behind this trusted Edge Function, while reads use a
-// stable URL so browsers and Supabase's CDN can cache the asset. This is an
-// intentional design decision (non-sensitive images only); see
-// docs/security-review.md, "Public delivery of operational images".
-export async function getImageUrl(admin: SupabaseClient, imageId: string): Promise<string> {
-    const path = String(imageId || '').trim();
-    if (!path) return '';
-    return admin.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }

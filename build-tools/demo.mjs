@@ -69,23 +69,49 @@ function programList(pageNumber, query = {}) {
     return page(rows, pageNumber);
 }
 
+// The home screen's data only (DashboardPayload): reference data has its own
+// operations below. Mirrors the real dashboard: the requests that need attention
+// with their true totals, and the newest comments of each kind.
+const ONGOING_INVENTORY = ['draft', 'submitted', 'approved', 'issued'];
+const byNewest = (a, b) => String(b.Timestamp).localeCompare(String(a.Timestamp));
+
 function dashboard() {
+    const pick = (row, keys) => Object.fromEntries(keys.map((key) => [key, row[key]]));
+    const pending = data.programRequests.filter((r) => ['draft', 'submitted'].includes(r.Status));
+    const ongoing = data.inventoryRequests.filter((r) => ONGOING_INVENTORY.includes(r.Status));
+    const recent = (kind, rows) =>
+        rows
+            .flatMap((request) =>
+                request.comments.map((comment) => ({
+                    kind,
+                    request: pick(request, ['Id', 'DisplayId', 'Name']),
+                    comment,
+                })),
+            )
+            .sort((a, b) => byNewest(a.comment, b.comment))
+            .slice(0, 8);
     return {
-        me: data.me,
-        users: data.users,
-        departments: data.departments,
-        places: data.places,
-        inventoryTypes: data.inventoryTypes,
         upcomingRosters: data.rosters,
-        inventoryRequests: data.inventoryRequests,
-        programRequests: data.programRequests,
-        homeContent: data.homeContent,
-        shiftTypes: data.shiftTypes,
-        programTypes: data.programTypes,
-        programLanguages: data.programLanguages,
-        sessionTypes: data.sessionTypes,
-        blocks: data.blocks,
-        failedEmailCount: 0,
+        pendingProgramRequests: pending.map((r) =>
+            pick(r, [
+                'Id',
+                'DisplayId',
+                'Name',
+                'Status',
+                'userName',
+                'sessionStart',
+                'sessionEnd',
+            ]),
+        ),
+        pendingProgramCount: pending.length,
+        ongoingInventoryRequests: ongoing.map((r) =>
+            pick(r, ['Id', 'DisplayId', 'Name', 'Status', 'userName', 'StartDate', 'EndDate']),
+        ),
+        ongoingInventoryCount: ongoing.length,
+        recentComments: [
+            ...recent('programs', data.programRequests),
+            ...recent('inventory', data.inventoryRequests),
+        ],
     };
 }
 

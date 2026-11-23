@@ -4,6 +4,17 @@ import { boundedText, MAX_NAME_LENGTH, MAX_PHONE_LENGTH, requiredStringArg } fro
 
 export type Row = Record<string, any>;
 
+// An error with the HTTP status the caller should see. Anything thrown that is
+// not an ApiError is a 400 carrying its message, as before.
+export class ApiError extends Error {
+    constructor(
+        readonly status: number,
+        message: string,
+    ) {
+        super(message);
+    }
+}
+
 export function result<T>(
     value: { data: T | null; error: { message: string; code?: string } | null },
     duplicateMessage?: string | ((error: string) => string),
@@ -78,20 +89,20 @@ export async function currentProfile(client: SupabaseClient, userId: string): Pr
 // never create, edit, transition, delete or comment on one.
 export async function currentWriter(client: SupabaseClient, userId: string): Promise<Row> {
     const profile = await currentProfile(client, userId);
-    if (!canWriteRole(profile.role)) throw new Error('Viewer access is read-only.');
+    if (!canWriteRole(profile.role)) throw new ApiError(403, 'Viewer access is read-only.');
     return profile;
 }
 
 export async function requireAdmin(client: SupabaseClient, userId: string): Promise<Row> {
     const profile = await currentProfile(client, userId);
-    if (!isAdminRole(profile.role)) throw new Error('Administrator access is required.');
+    if (!isAdminRole(profile.role)) throw new ApiError(403, 'Administrator access is required.');
     return profile;
 }
 
 export async function requireApprover(client: SupabaseClient, userId: string): Promise<Row> {
     const profile = await currentProfile(client, userId);
     if (!isApproverRole(profile.role)) {
-        throw new Error('Approver access is required.');
+        throw new ApiError(403, 'Approver access is required.');
     }
     return profile;
 }
@@ -108,70 +119,7 @@ export async function requireAllowedEmailDomain(
     email: string,
 ): Promise<void> {
     if (!(await emailDomainAllowed(admin, email))) {
-        throw new Error('Access is restricted to approved email domains.');
-    }
-}
-
-// Replaces the Apps Script backend's CacheService-based dedupe (Dedupe.ts):
-// the insert into idempotency_keys is the atomic claim (a retried call with
-// the same scope+requestId hits the primary key and is detected below), the
-// mutation runs, and its result plus a separate completion marker are stored
-// back onto that same row. The marker matters because successful operations
-// such as deletes naturally return null. A
-// throwing mutation deletes its claim so the same request id can be retried.
-// Unlike the original (a real distributed lock), a second call that arrives
-// while the first is still mid-flight fails fast with a retryable error
-// rather than blocking for the first one's result — an acceptable trade-off
-// for calls that are seconds apart (a double-click, a retried request), not
-// truly concurrent, which is what this exists to guard against in practice.
-export async function withLockedDedupe<T>(
-    admin: SupabaseClient,
-    scope: string,
-    requestId: string,
-    actorId: string,
-    fn: () => Promise<T>,
-): Promise<{ duplicate: boolean; result: T }> {
-    if (String(requestId || '').length < 8) {
-        throw new Error('A request id of at least 8 characters is required.');
-    }
-    const { error: insertError } = await admin
-        .from('idempotency_keys')
-        .insert({ actor_id: actorId, scope, request_id: requestId });
-    if (insertError) {
-        if (insertError.code === '23505') {
-            const existing = result(
-                await admin
-                    .from('idempotency_keys')
-                    .select('*')
-                    .eq('actor_id', actorId)
-                    .eq('scope', scope)
-                    .eq('request_id', requestId)
-                    .single(),
-            ) as Row;
-            if (!existing.completed) {
-                throw new Error('This request is already being processed — please wait and retry.');
-            }
-            return { duplicate: true, result: existing.result as T };
-        }
-        throw new Error(insertError.message);
-    }
-    try {
-        const value = await fn();
-        await admin
-            .from('idempotency_keys')
-            .update({ result: value === undefined ? null : value, completed: true })
-            .eq('actor_id', actorId)
-            .eq('scope', scope)
-            .eq('request_id', requestId);
-        return { duplicate: false, result: value };
-    } catch (error) {
-        await admin
-            .from('idempotency_keys')
-            .delete()
-            .eq('actor_id', actorId)
-            .eq('scope', scope)
-            .eq('request_id', requestId);
-        throw error;
+        throw new ApiError(403, 'Access is restricted to approved email domains.');
     }
 }
 
@@ -285,4 +233,13 @@ export async function updateOwnProfile(
     ) as Row;
     const departments = result(await client.from('departments').select('*')) as Row[];
     return userDto(updated, new Map(departments.map((x) => [x.id, x])));
+}
+
+// A client-chosen id doubles as the idempotency key of a create: the SQL save
+// finds the row already there on a replay and returns it unchanged.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function newRequestId(clientId: unknown): string {
+    const candidate = String(clientId || '');
+    return UUID_PATTERN.test(candidate) ? candidate.toLowerCase() : crypto.randomUUID();
 }

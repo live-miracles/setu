@@ -2,21 +2,20 @@ import { Tag, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { roleLabel } from './styles';
 import { BlockCard } from './block-card';
+import { useDepartments } from './reference';
 
 export function UserBlock({
     user,
-    dashboard,
     href,
     onClick,
     selected,
 }: {
     user: UserDTO;
-    dashboard: DashboardPayload;
     href?: string;
     onClick?: () => void;
     selected?: boolean;
 }) {
-    const department = dashboard.departments.find((item) => item.Id === user.DepartmentId);
+    const department = useDepartments().find((item) => item.Id === user.DepartmentId);
     const departmentName = department?.ShortName || user.departmentName;
     return (
         <BlockCard className="user-card" href={href} onClick={onClick} selected={selected}>
