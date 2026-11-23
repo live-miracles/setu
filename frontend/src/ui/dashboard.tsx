@@ -30,5 +30,8 @@ export function DashboardGate({
             />
         );
     }
-    return <AppLoading inline />;
+    // The full-screen loader, not the inline one: no page title or toolbar is drawn
+    // around it here, and swapping from the shell's full-screen loader to a shorter
+    // in-flow one made the coloured background jump up and leave the lower half bare.
+    return <AppLoading />;
 }

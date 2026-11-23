@@ -400,7 +400,11 @@ function HomeCards({ dashboard }: { dashboard: DashboardPayload }) {
             {rows.map((row, index) => (
                 <div
                     key={index}
-                    className={`home-section grid grid-cols-2 gap-4 max-md:grid-cols-1${row.length === 1 ? ' grid-cols-1!' : ''}`}>
+                    className={
+                        row.length === 1
+                            ? 'home-section grid grid-cols-1 gap-4'
+                            : 'home-section grid grid-cols-2 gap-4 max-md:grid-cols-1'
+                    }>
                     {row}
                 </div>
             ))}
