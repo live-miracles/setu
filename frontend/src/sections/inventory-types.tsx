@@ -4,11 +4,16 @@ import { Input, Select, Field } from '../ui/form-kit';
 import { Modal, Popover } from '../ui/overlay-kit';
 import { Table, Button, Checkbox, Empty, Space, Tag, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { generateRequestId } from '../ids';
 import { useDashboard } from '../dashboard-context';
-import { inventoryRequestPath, inventoryTypePath, inventoryTypesPath } from '../paths';
+import {
+    inventoryLabelsPath,
+    inventoryRequestPath,
+    inventoryTypePath,
+    inventoryTypesPath,
+} from '../paths';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { stockLevelTextClass } from '../ui/styles';
 import { matchesSearch } from '../ui/search';
@@ -19,6 +24,7 @@ import {
     inventoryTypeDisplayName,
     sortInventoryLabelsByLocation,
     type InventoryGroupBy,
+    type InventoryLabelGroupBy,
 } from '../ui/inventory-qr';
 import {
     buildQrStickerPdf,
@@ -26,6 +32,9 @@ import {
     inventoryLabelStickerEntries,
 } from '../ui/inventory-qr-pdf';
 import { TableView } from '../ui/table-view';
+import { InventoryKindHeading } from '../ui/inventory-kind-heading';
+import type { InventoryKind } from '../ui/inventory-kind';
+import { InventoryLabelCards, readStoredLabelGroupBy, storeLabelGroupBy } from './inventory-labels';
 import { formatInventoryAvailability } from '../ui/inventory-stock';
 import { uploadTargetImage } from '../ui/image-upload';
 import { RequestImage } from '../ui/request-image';
@@ -129,9 +138,22 @@ function storeGroupBy(value: InventoryGroupBy): void {
     }
 }
 
-export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload }) {
+// The Types view lists equipment types; the Labels view lists every labelled
+// unit instead. Both open the selected type's details beside the list, so the
+// open type stays in the URL of whichever view is showing.
+export function InventoryTypesPage({
+    dashboard,
+    kind = 'types',
+}: {
+    dashboard: DashboardPayload;
+    kind?: InventoryKind;
+}) {
     const config = INVENTORY_TYPE_CONFIG;
+    const isLabels = kind === 'labels';
+    const listPath = isLabels ? inventoryLabelsPath : inventoryTypesPath;
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const selectedLabelId = searchParams.get('label');
     const { refreshDashboard } = useDashboard();
     const { id: detailId = null } = useParams<{ id: string }>();
     const canEdit = canManageConfig(dashboard.me);
@@ -168,6 +190,11 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     const changeInventoryGroupBy = (value: InventoryGroupBy) => {
         setInventoryGroupBy(value);
         storeGroupBy(value);
+    };
+    const [labelGroupBy, setLabelGroupBy] = useState<InventoryLabelGroupBy>(readStoredLabelGroupBy);
+    const changeLabelGroupBy = (value: InventoryLabelGroupBy) => {
+        setLabelGroupBy(value);
+        storeLabelGroupBy(value);
     };
     const [search, setSearch] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
@@ -312,7 +339,15 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
             setLabelBusy(false);
         }
     }
-    const inventoryTypeCards = resourceLoading ? (
+    const inventoryTypeCards = isLabels ? (
+        <InventoryLabelCards
+            types={rows as InventoryTypeDTO[]}
+            groupBy={labelGroupBy}
+            search={appliedSearch}
+            selectedLabelId={selectedLabelId}
+            loading={resourceLoading}
+        />
+    ) : resourceLoading ? (
         <div className="py-8 text-center">
             <Typography.Text type="secondary">Loading…</Typography.Text>
         </div>
@@ -378,28 +413,42 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
     ) : (
         <Empty description={config.emptyMessage} />
     );
+    const searchNoun = isLabels ? 'inventory labels' : config.title.toLowerCase();
     const inventoryTypeHeader = (
         <div className="antd-page-heading resource-page-heading">
             <div>
-                <Typography.Title level={2}>{config.title}</Typography.Title>
+                <InventoryKindHeading kind={kind} homeContent={dashboard.homeContent} />
             </div>
             <Space className="antd-board-filters" wrap>
-                <Select
-                    value={inventoryGroupBy}
-                    onChange={changeInventoryGroupBy}
-                    aria-label="Group inventory types by"
-                    options={[
-                        { value: '', label: 'Group by', disabled: true },
-                        { value: 'brand', label: 'Brand' },
-                        { value: 'location', label: 'Location' },
-                        { value: 'serial', label: 'Setu number' },
-                    ]}
-                />
+                {isLabels ? (
+                    <Select
+                        value={labelGroupBy}
+                        onChange={(value) => changeLabelGroupBy(value as InventoryLabelGroupBy)}
+                        aria-label="Group inventory labels by"
+                        options={[
+                            { value: '', label: 'Group by', disabled: true },
+                            { value: 'type', label: 'Type' },
+                            { value: 'location', label: 'Location' },
+                        ]}
+                    />
+                ) : (
+                    <Select
+                        value={inventoryGroupBy}
+                        onChange={changeInventoryGroupBy}
+                        aria-label="Group inventory types by"
+                        options={[
+                            { value: '', label: 'Group by', disabled: true },
+                            { value: 'brand', label: 'Brand' },
+                            { value: 'location', label: 'Location' },
+                            { value: 'serial', label: 'Setu number' },
+                        ]}
+                    />
+                )}
                 <Input
                     allowClear
                     prefix={<Icon name="search" />}
-                    placeholder={`Search ${config.title.toLowerCase()}`}
-                    aria-label={`Search ${config.title.toLowerCase()}`}
+                    placeholder={`Search ${searchNoun}`}
+                    aria-label={`Search ${searchNoun}`}
                     value={search}
                     onChange={(event) => {
                         const value = event.target.value;
@@ -412,8 +461,8 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     type="primary"
                     icon={<Icon name="search" />}
                     onClick={() => setAppliedSearch(search)}
-                    aria-label={`Search ${config.title.toLowerCase()}`}
-                    title={`Search ${config.title.toLowerCase()}`}
+                    aria-label={`Search ${searchNoun}`}
+                    title={`Search ${searchNoun}`}
                 />
             </Space>
             <Popover
@@ -473,7 +522,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     title="Download label QR codes PDF"
                 />
             </Popover>
-            {canEdit && (
+            {canEdit && !isLabels && (
                 <Button
                     type="primary"
                     icon={<Icon name="plus" />}
@@ -491,8 +540,8 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                 actions={
                     <Space wrap>
                         <DetailBackButton
-                            label={config.title}
-                            onClick={() => navigate(inventoryTypesPath, { replace: true })}
+                            label={isLabels ? 'Inventory labels' : config.title}
+                            onClick={() => navigate(listPath, { replace: true })}
                         />
                         <Space size="middle">
                             {canEdit && (
@@ -772,7 +821,7 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                         setDeleting(null);
                         const removed = await remove(row);
                         if (!removed) return;
-                        navigate(inventoryTypesPath, { replace: true });
+                        navigate(listPath, { replace: true });
                     }}
                 />
             )}
@@ -784,9 +833,14 @@ export function InventoryTypesPage({ dashboard }: { dashboard: DashboardPayload 
                     onSaved={async (values) => {
                         const created = await save(values, editing);
                         if (created) {
-                            navigate(inventoryTypePath(rowKeyOf(config, created)), {
-                                replace: true,
-                            });
+                            navigate(
+                                isLabels
+                                    ? `${inventoryLabelsPath}/${encodeURIComponent(rowKeyOf(config, created))}`
+                                    : inventoryTypePath(rowKeyOf(config, created)),
+                                {
+                                    replace: true,
+                                },
+                            );
                         }
                     }}
                 />

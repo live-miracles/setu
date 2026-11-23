@@ -13,6 +13,7 @@ export const programsPath = '/programs';
 export const programCreatePath = '/programs/new';
 export const departmentsPath = '/departments';
 export const inventoryTypesPath = '/inventory-types';
+export const inventoryLabelsPath = '/inventory-labels';
 export const blocksPath = '/blocks';
 export const homeContentPath = '/home-content';
 
@@ -26,6 +27,11 @@ export function departmentPath(id: string): string {
 
 export function inventoryTypePath(id: string): string {
     return `/inventory-types/${encodeURIComponent(id)}`;
+}
+
+// A label opens its type's details beside the Labels list; ?label marks it.
+export function inventoryLabelPath(typeId: string, labelId: string): string {
+    return `/inventory-labels/${encodeURIComponent(typeId)}?label=${encodeURIComponent(labelId)}`;
 }
 
 export function inventoryRequestPath(id: string): string {

@@ -3,6 +3,7 @@ import {
     addScannedInventoryItemForIssue,
     compareGroupKeys,
     findInventoryTypeByQrValue,
+    groupInventoryLabels,
     groupInventoryTypes,
     inventoryItemHasLabel,
     inventoryLabelDisplayName,
@@ -256,5 +257,44 @@ export function runInventoryQrAssertions(): void {
     assert(
         bySerial.length === 1 && bySerial[0].rows.map((row) => row.Id).join(',') === 'c,a,b',
         'serial grouping should list every type once in QR number order',
+    );
+
+    const label = (id: string, name: string, location = '') =>
+        ({ Id: id, DisplayId: 1, InventoryTypeId: '', Name: name, Location: location }) as never;
+    const labelled = [
+        {
+            Id: 'cam',
+            Brand: 'Canon',
+            Name: 'Camera',
+            Location: 'Studio 10',
+            labels: [label('c2', 'Cam 2'), label('c1', 'Cam 1', 'Studio 2')],
+        },
+        {
+            Id: 'cable',
+            Brand: '',
+            Name: 'Cable',
+            Location: '',
+            labels: [label('k1', 'Cable 1', 'Studio 2'), label('k2', 'Cable 2')],
+        },
+        { Id: 'empty', Brand: '', Name: 'Empty', Location: 'Studio 1', labels: [] },
+    ];
+    const labelsByType = groupInventoryLabels(labelled, 'type');
+    assert(
+        labelsByType.map((group) => group.title).join(',') === 'Cable,Canon · Camera',
+        'label groups by type should sort by type name and skip types without labels',
+    );
+    assert(
+        labelsByType[1].rows.map((row) => row.label.Id).join(',') === 'c1,c2',
+        'labels inside a type group should sort by label name',
+    );
+    const labelsByLocation = groupInventoryLabels(labelled, 'location');
+    assert(
+        labelsByLocation.map((group) => group.title).join(',') === 'Studio 2,Studio 10,No location',
+        'label groups by location should sort numerically with no location last',
+    );
+    assert(
+        labelsByLocation[0].rows.map((row) => row.label.Id).join(',') === 'k1,c1' &&
+            labelsByLocation[1].rows.map((row) => row.label.Id).join(',') === 'c2',
+        'a label without its own location should count under its type location, types first by name',
     );
 }

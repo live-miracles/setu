@@ -207,6 +207,24 @@ export function SettingsResourcePage({
             String(row.Name ?? row.Id ?? ''),
         ]),
     );
+    // Inventory places show how many labels sit there. A label with no place
+    // of its own counts under its type's place, as in the QR sticker groups.
+    const countsLabels = resourceName === 'inventory-places';
+    const { result: inventoryTypesResult } = useList({
+        resource: 'inventory-types',
+        pagination: { mode: 'off' },
+        queryOptions: { enabled: countsLabels },
+    });
+    const labelCountByPlace = new Map<string, number>();
+    if (countsLabels) {
+        (inventoryTypesResult.data as Row[]).forEach((type) =>
+            ((type.labels as Row[] | undefined) ?? []).forEach((label) => {
+                const placeId = String(label.LocationId || type.LocationId || '');
+                if (placeId)
+                    labelCountByPlace.set(placeId, (labelCountByPlace.get(placeId) ?? 0) + 1);
+            }),
+        );
+    }
     const [search, setSearch] = useState('');
     const hasSearch = true;
     const filteredRows = rows.filter((row) => matchesSearch(search, Object.values(row)));
@@ -304,6 +322,15 @@ export function SettingsResourcePage({
                                                 <strong>{String(row.Name ?? '')}</strong>
                                                 {description && <span>{description}</span>}
                                             </div>
+                                            {countsLabels && (
+                                                <span
+                                                    className="ml-auto"
+                                                    title="Inventory labels at this place">
+                                                    <Tag>
+                                                        {labelCountByPlace.get(String(row.Id)) ?? 0}
+                                                    </Tag>
+                                                </span>
+                                            )}
                                             {renderActions(row)}
                                         </BlockCard>
                                     );

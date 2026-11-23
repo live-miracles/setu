@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Button, Spinner, cx } from './kit';
 import { Icon } from './icons';
-import { useDismiss } from './form-kit';
+import { useDismiss, useFloatingStyle } from './form-kit';
 
 // Overlays: Modal (native <dialog>), Popover, DropdownMenu and toasts.
 
@@ -77,11 +77,14 @@ export function Popover({
 }) {
     const ref = useRef<HTMLDivElement>(null);
     useDismiss(ref, open, () => onOpenChange(false));
+    const style = useFloatingStyle(ref, open, { align: 'end', maxHeight: 480 });
     return (
         <div ref={ref} className="relative inline-block">
             <span onClick={() => onOpenChange(!open)}>{children}</span>
             {open && (
-                <div className="absolute right-0 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-surface p-4 shadow-overlay">
+                <div
+                    style={style}
+                    className="z-50 w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-line bg-surface p-4 shadow-overlay">
                     {title && <div className="mb-2 font-semibold">{title}</div>}
                     {content}
                 </div>
@@ -120,6 +123,7 @@ export function DropdownMenu({
     const ref = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState(false);
     useDismiss(ref, open, () => setOpen(false));
+    const style = useFloatingStyle(ref, open, { align, placement, maxHeight: 480 });
     return (
         <div ref={ref} className={cx('relative', className ?? 'inline-block')}>
             <span className="contents" onClick={() => setOpen(!open)}>
@@ -128,11 +132,8 @@ export function DropdownMenu({
             {open && (
                 <div
                     role="menu"
-                    className={cx(
-                        'absolute z-50 min-w-48 rounded-lg border border-line bg-surface py-1 shadow-overlay max-md:min-w-56',
-                        align === 'end' ? 'right-0' : 'left-0',
-                        placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-1',
-                    )}>
+                    style={style}
+                    className="z-50 min-w-48 overflow-auto rounded-lg border border-line bg-surface py-1 shadow-overlay max-md:min-w-56">
                     {items.map((item, index) => {
                         if ('type' in item) {
                             if (item.type === 'divider') {

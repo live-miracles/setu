@@ -195,3 +195,52 @@ export function groupInventoryTypes<
             ),
         }));
 }
+
+export type InventoryLabelGroupBy = 'type' | 'location';
+
+export type LabelledUnit<T> = { type: T; label: InventoryLabel };
+
+// Groups every label of every type by its type, or by the location it sits in
+// (its own, else its type's). Groups sort alphabetically (numbers compared
+// numerically, "No location" last); inside a group, labels sort by name, and in
+// a location group by their type's name first. Types without labels have no
+// group.
+export function groupInventoryLabels<
+    T extends { Id: unknown; Brand?: unknown; Name?: unknown; Location?: unknown },
+>(types: T[], groupBy: InventoryLabelGroupBy): InventoryGroup<LabelledUnit<T>>[] {
+    const typeName = (type: T) => inventoryTypeDisplayName(type);
+    const byLabelName = (a: LabelledUnit<T>, b: LabelledUnit<T>) =>
+        compareLabelNames(inventoryLabelDisplayName(a.label), inventoryLabelDisplayName(b.label));
+    const groups = new Map<string, { title: string; rows: LabelledUnit<T>[] }>();
+    types.forEach((type) =>
+        (((type as { labels?: InventoryLabel[] }).labels ?? []) as InventoryLabel[]).forEach(
+            (label) => {
+                const key =
+                    groupBy === 'type' ? String(type.Id) : inventoryLabelLocationKey(type, label);
+                const title =
+                    groupBy === 'type'
+                        ? typeName(type) || 'Unnamed equipment'
+                        : key || 'No location';
+                const group = groups.get(key) ?? { title, rows: [] };
+                group.rows.push({ type, label });
+                groups.set(key, group);
+            },
+        ),
+    );
+    return [...groups.entries()]
+        .map(([key, group]) => ({ key, ...group }))
+        .sort((a, b) =>
+            groupBy === 'type'
+                ? compareLabelNames(a.title, b.title)
+                : compareGroupKeys(a.key, b.key),
+        )
+        .map((group) => ({
+            ...group,
+            rows: [...group.rows].sort(
+                (a, b) =>
+                    (groupBy === 'location'
+                        ? compareLabelNames(typeName(a.type), typeName(b.type))
+                        : 0) || byLabelName(a, b),
+            ),
+        }));
+}

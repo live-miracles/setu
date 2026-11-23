@@ -13,6 +13,7 @@ import {
     homePath,
     inventoryCreatePath,
     inventoryPath,
+    inventoryLabelsPath,
     inventoryTypesPath,
     profilePath,
     programCreatePath,
@@ -166,6 +167,14 @@ export function App() {
                     <Route
                         path={`${inventoryTypesPath}/:id`}
                         element={<InventoryTypesPage dashboard={dashboard} />}
+                    />
+                    <Route
+                        path={inventoryLabelsPath}
+                        element={<InventoryTypesPage dashboard={dashboard} kind="labels" />}
+                    />
+                    <Route
+                        path={`${inventoryLabelsPath}/:id`}
+                        element={<InventoryTypesPage dashboard={dashboard} kind="labels" />}
                     />
                     <Route
                         path={blocksPath}

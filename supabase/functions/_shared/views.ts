@@ -13,6 +13,7 @@ export const HIDEABLE_VIEWS = [
     'calendar',
     'roster',
     'inventory-types',
+    'inventory-labels',
 ] as const;
 
 export type HideableView = (typeof HIDEABLE_VIEWS)[number];

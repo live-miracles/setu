@@ -9,6 +9,7 @@ import {
     useRef,
     useState,
     type ComponentProps,
+    type CSSProperties,
     type ReactNode,
     type Ref,
 } from 'react';
@@ -360,8 +361,77 @@ export function useDismiss(
     }, [ref, open, close]);
 }
 
+// Positions a popup with `position: fixed`, computed from its trigger, so a
+// scrolling ancestor (a modal body, a table wrapper) can never clip it. It
+// opens below the trigger, or above when there is more room there, and its
+// height is capped to the room available so the list scrolls instead of
+// running off screen. Re-measured on scroll and resize while open.
+export function useFloatingStyle(
+    anchorRef: React.RefObject<HTMLElement | null>,
+    open: boolean,
+    {
+        align = 'start',
+        placement = 'auto',
+        maxHeight = 256,
+        matchWidth = false,
+    }: {
+        align?: 'start' | 'end';
+        placement?: 'auto' | 'top' | 'bottom';
+        maxHeight?: number;
+        matchWidth?: boolean;
+    } = {},
+): CSSProperties | undefined {
+    const [style, setStyle] = useState<CSSProperties>();
+    useLayoutEffect(() => {
+        if (!open) {
+            setStyle(undefined);
+            return;
+        }
+        const update = () => {
+            const anchor = anchorRef.current;
+            if (!anchor) return;
+            const rect = anchor.getBoundingClientRect();
+            const gap = 4;
+            const margin = 8;
+            const below = window.innerHeight - rect.bottom - gap - margin;
+            const above = rect.top - gap - margin;
+            const preferTop =
+                placement === 'top' || (placement === 'auto' && below < 160 && above > below);
+            const room = Math.max(preferTop ? above : below, 96);
+            setStyle({
+                position: 'fixed',
+                ...(align === 'end'
+                    ? { right: Math.max(window.innerWidth - rect.right, margin) }
+                    : { left: Math.max(rect.left, margin) }),
+                ...(preferTop
+                    ? { bottom: window.innerHeight - rect.top + gap }
+                    : { top: rect.bottom + gap }),
+                ...(matchWidth ? { minWidth: rect.width } : {}),
+                maxHeight: Math.min(maxHeight, room),
+            });
+        };
+        update();
+        // Layout can still settle after the first measure (a centred modal
+        // re-centres once the popup leaves the flow), so measure once more.
+        const frame = requestAnimationFrame(update);
+        window.addEventListener('resize', update);
+        // Capture phase, so scrolling any ancestor re-anchors the popup.
+        window.addEventListener('scroll', update, true);
+        return () => {
+            cancelAnimationFrame(frame);
+            window.removeEventListener('resize', update);
+            window.removeEventListener('scroll', update, true);
+        };
+    }, [anchorRef, open, align, placement, maxHeight, matchWidth]);
+    // Before the first measure the popup is already out of the flow (and
+    // hidden), so it cannot stretch its container and skew that measurement.
+    return open ? (style ?? UNMEASURED) : undefined;
+}
+
+const UNMEASURED: CSSProperties = { position: 'fixed', top: 0, left: 0, visibility: 'hidden' };
+
 const POPUP =
-    'absolute left-0 z-50 mt-1 max-h-64 min-w-full overflow-auto rounded-lg border border-line bg-surface py-1 shadow-overlay';
+    'z-50 max-w-[calc(100vw-1rem)] overflow-auto rounded-lg border border-line bg-surface py-1 shadow-overlay';
 
 // Searchable single select (WAI-ARIA combobox with a listbox popup).
 function Combobox({
@@ -397,6 +467,7 @@ function Combobox({
         onBlur?.();
     };
     useDismiss(rootRef, open, close);
+    const popupStyle = useFloatingStyle(rootRef, open, { matchWidth: true });
     const choose = (option: SelectOption | undefined) => {
         if (!option || option.disabled) return;
         onChange?.(option.value);
@@ -454,7 +525,7 @@ function Combobox({
                 className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-steel"
             />
             {open && (
-                <ul id={listId} role="listbox" className={POPUP}>
+                <ul id={listId} role="listbox" className={POPUP} style={popupStyle}>
                     {visible.length === 0 && (
                         <li className="px-3 py-2 text-sm text-steel">No matches</li>
                     )}
@@ -509,6 +580,7 @@ export function MultiSelect({
     const rootRef = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState(false);
     useDismiss(rootRef, open, () => setOpen(false));
+    const popupStyle = useFloatingStyle(rootRef, open, { matchWidth: true });
     const selected = options.filter((option) => value.includes(option.value));
     return (
         <div ref={rootRef} className={cx('relative inline-block max-w-full min-w-0', className)}>
@@ -536,7 +608,11 @@ export function MultiSelect({
                 className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-steel"
             />
             {open && (
-                <div role="listbox" aria-multiselectable="true" className={POPUP}>
+                <div
+                    role="listbox"
+                    aria-multiselectable="true"
+                    className={POPUP}
+                    style={popupStyle}>
                     {options.map((option) => (
                         <label
                             key={option.value}

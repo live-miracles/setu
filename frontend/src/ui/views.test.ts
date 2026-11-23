@@ -1,5 +1,6 @@
 import { normalizeHiddenViews } from '../../../supabase/functions/_shared/views';
 import { isViewVisible, visibleRequestKinds } from './views';
+import { inventoryKindPath, visibleInventoryKinds } from './inventory-kind';
 
 function assert(condition: boolean, message: string): void {
     if (!condition) throw new Error(message);
@@ -35,5 +36,25 @@ export function runViewsAssertions(): void {
     assert(
         visibleRequestKinds({ HiddenViews: ['programs', 'inventory'] }).length === 0,
         'hiding both boards should leave no request kind',
+    );
+
+    assert(
+        visibleInventoryKinds({ HiddenViews: [] }).join() === 'types,labels',
+        'both inventory kinds are shown by default',
+    );
+    assert(
+        visibleInventoryKinds({ HiddenViews: ['inventory-types'] }).join() === 'labels' &&
+            visibleInventoryKinds({ HiddenViews: ['inventory-labels'] }).join() === 'types',
+        'hiding one inventory kind should leave the other',
+    );
+    assert(
+        visibleInventoryKinds({ HiddenViews: ['inventory-types', 'inventory-labels'] }).length ===
+            0,
+        'hiding both inventory kinds should leave none',
+    );
+    assert(
+        inventoryKindPath('types') === '/inventory-types' &&
+            inventoryKindPath('labels') === '/inventory-labels',
+        'each inventory kind should map to its page path',
     );
 }

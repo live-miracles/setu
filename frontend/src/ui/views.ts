@@ -12,6 +12,7 @@ export const VIEW_LABELS: Record<HideableView, string> = {
     calendar: 'Calendar',
     roster: 'Roster',
     'inventory-types': 'Inventory types',
+    'inventory-labels': 'Inventory labels',
 };
 
 export function isViewVisible(

@@ -13,6 +13,7 @@ import {
     homeContentPath,
     homePath,
     inventoryPath,
+    inventoryLabelsPath,
     inventoryTypesPath,
     profilePath,
     programsPath,
@@ -22,6 +23,7 @@ import {
 import { canApprove } from '../workflows';
 import { readLastRequestKind, requestKindPath } from './request-kind';
 import { isViewVisible, visibleRequestKinds, type HideableView } from './views';
+import { inventoryKindPath, readLastInventoryKind, visibleInventoryKinds } from './inventory-kind';
 import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
 import { toggleTheme, useTheme } from './theme';
@@ -76,9 +78,9 @@ const configNavItems: NavItem[] = [
     {
         key: 'inventory-types',
         to: inventoryTypesPath,
-        label: 'Inventory types',
+        label: 'Inventory',
         icon: <Icon name="tags" />,
-        view: 'inventory-types',
+        also: [inventoryLabelsPath],
     },
     { key: 'blocks', to: blocksPath, label: 'Blocks', icon: <Icon name="block" /> },
     {
@@ -180,7 +182,9 @@ function contentClassName(pathname: string): string {
         isPathSection(pathname, inventoryPath) || isPathSection(pathname, programsPath);
     const isUsers = isPathSection(pathname, usersPath);
     const isDepartments = isPathSection(pathname, departmentsPath);
-    const isInventoryTypes = isPathSection(pathname, inventoryTypesPath);
+    // The inventory labels page is as wide as the types page.
+    const isInventoryTypes =
+        isPathSection(pathname, inventoryTypesPath) || isPathSection(pathname, inventoryLabelsPath);
     const isSettings =
         isUsers ||
         isDepartments ||
@@ -237,10 +241,13 @@ export function Shell({
     const canOpenConfig = dashboard ? canApprove(dashboard.me) : false;
     const homeContent = dashboard?.homeContent;
     const visibleKinds = visibleRequestKinds(homeContent);
+    const visibleInventory = visibleInventoryKinds(homeContent);
     const isShown = (item: NavItem) =>
         item.key === 'requests'
             ? visibleKinds.length > 0
-            : !item.view || isViewVisible(homeContent, item.view);
+            : item.key === 'inventory-types'
+              ? visibleInventory.length > 0
+              : !item.view || isViewVisible(homeContent, item.view);
     const tabItems = tabNavItems.filter(isShown);
     const moreItems = [...moreNavItems, ...(canOpenConfig ? moreConfigNavItems : [])].filter(
         isShown,
@@ -279,6 +286,15 @@ export function Shell({
     // The Requests tab stays on the board that is open and otherwise opens the
     // kind of request the person looked at last.
     const navTarget = (item: NavItem): string => {
+        if (item.key === 'inventory-types') {
+            // Inventory likewise stays on the kind that is open, else the last one.
+            if (isPathSection(location.pathname, inventoryLabelsPath)) return inventoryLabelsPath;
+            if (isPathSection(location.pathname, inventoryTypesPath)) return inventoryTypesPath;
+            const lastKind = readLastInventoryKind();
+            return inventoryKindPath(
+                visibleInventory.includes(lastKind) ? lastKind : (visibleInventory[0] ?? lastKind),
+            );
+        }
         if (item.key !== 'requests') return item.to;
         if (isPathSection(location.pathname, inventoryPath)) return inventoryPath;
         if (isPathSection(location.pathname, programsPath)) return programsPath;
