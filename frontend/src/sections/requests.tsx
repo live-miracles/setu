@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCreate, useList } from '../ui/resources';
-import { Field, Input, MultiSelect, Select } from '../ui/form-kit';
-import {
-    Pagination,
-    CountBadge,
-    Button,
-    Empty,
-    SegmentedControl,
-    Space,
-    Typography,
-} from '../ui/kit';
+import { Field, MultiSelect, Select } from '../ui/form-kit';
+import { Pagination, CountBadge, Button, Empty, SegmentedControl, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -42,6 +34,7 @@ import { addDays, formatDateTimeLocal, toIsoDate } from '../ui/date';
 import { canApprove, canWrite } from '../workflows';
 import { Modal } from '../ui/overlay-kit';
 import { SaveFooter, TextField } from './form-fields';
+import { ListHeading, SearchBox } from '../ui/list-heading';
 import { Page } from './page';
 import { useSave } from './save-hooks';
 
@@ -213,7 +206,7 @@ export function RequestBoard({
     };
 
     const filter = (
-        <Space wrap>
+        <>
             {isProgram && (
                 <Select
                     value={view}
@@ -257,26 +250,18 @@ export function RequestBoard({
                         : undefined
                 }
             />
-        </Space>
+        </>
     );
     const boardFilters = (
-        <Space className="board-filters" wrap>
-            <Input
+        <>
+            <SearchBox
+                noun={title.toLowerCase()}
                 value={search}
-                placeholder={`Search ${title.toLowerCase()}`}
-                aria-label={`Search ${title.toLowerCase()}`}
-                onChange={(event) => setSearch(event.target.value)}
-                onPressEnter={submitSearch}
-            />
-            <Button
-                type="primary"
-                icon={<Icon name="search" />}
-                aria-label={`Search ${title.toLowerCase()}`}
-                title={`Search ${title.toLowerCase()}`}
-                onClick={submitSearch}
+                onChange={setSearch}
+                onSubmit={submitSearch}
             />
             {filter}
-        </Space>
+        </>
     );
     if (submitting) {
         return (
@@ -286,13 +271,13 @@ export function RequestBoard({
         );
     }
     const heading = (
-        <div className="app-page-heading resource-page-heading">
-            <div>
-                {/* Each kind keeps its own filters, so switching starts that
-                    kind's list afresh at its plain path. A kind an admin hid
-                    is not offered, unless it is the one open (opened by a
-                    link). With a single kind left there is nothing to switch. */}
-                {switchKinds.length > 1 ? (
+        <ListHeading
+            /* Each kind keeps its own filters, so switching starts that kind's
+               list afresh at its plain path. A kind an admin hid is not
+               offered, unless it is the one open (opened by a link). With a
+               single kind left there is nothing to switch. */
+            title={
+                switchKinds.length > 1 ? (
                     <>
                         <h2 className="sr-only">Requests</h2>
                         <SegmentedControl
@@ -307,19 +292,21 @@ export function RequestBoard({
                     </>
                 ) : (
                     <Typography.Title level={2}>{title}</Typography.Title>
-                )}
-            </div>
+                )
+            }
+            actions={
+                canWrite(me) && (
+                    <Button
+                        type="primary"
+                        icon={<Icon name="plus" />}
+                        onClick={() => setCreating(true)}
+                        aria-label={`Add ${requestNoun}`}
+                        title={`Add ${requestNoun}`}
+                    />
+                )
+            }>
             {boardFilters}
-            {canWrite(me) && (
-                <Button
-                    type="primary"
-                    icon={<Icon name="plus" />}
-                    onClick={() => setCreating(true)}
-                    aria-label={`Add ${requestNoun}`}
-                    title={`Add ${requestNoun}`}
-                />
-            )}
-        </div>
+        </ListHeading>
     );
     const list = (
         <div className="request-list">

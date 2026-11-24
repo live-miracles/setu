@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCreate, useDelete, useList, useUpdate } from '../ui/resources';
-import { Input, Select, Field } from '../ui/form-kit';
+import { Select, Field } from '../ui/form-kit';
+import { ListHeading, SearchBox } from '../ui/list-heading';
 import { Button, Empty, Space, Typography } from '../ui/kit';
 import { Controller, useForm } from 'react-hook-form';
 import { Icon } from '../ui/icons';
@@ -222,28 +223,10 @@ export function Users() {
         userFilter,
     );
     const userHeader = (
-        <div className="app-page-heading resource-page-heading">
-            <div>
-                <Typography.Title level={2}>Users</Typography.Title>
-            </div>
-            <Space className="board-filters" wrap>
-                <Input
-                    allowClear
-                    prefix={<Icon name="search" />}
-                    placeholder="Search users"
-                    aria-label="Search users"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    onPressEnter={() => setAppliedSearch(search)}
-                />
-                <Button
-                    type="primary"
-                    icon={<Icon name="search" />}
-                    onClick={() => setAppliedSearch(search)}
-                    aria-label="Search users"
-                    title="Search users"
-                />
-                {canManage && (
+        <ListHeading
+            title={<Typography.Title level={2}>Users</Typography.Title>}
+            actions={
+                canManage && (
                     <Button
                         type="primary"
                         icon={<Icon name="plus" />}
@@ -251,9 +234,15 @@ export function Users() {
                         aria-label="Add member"
                         title="Add member"
                     />
-                )}
-            </Space>
-        </div>
+                )
+            }>
+            <SearchBox
+                noun="users"
+                value={search}
+                onChange={setSearch}
+                onSubmit={() => setAppliedSearch(search)}
+            />
+        </ListHeading>
     );
     const userDetail = selectedUser && (
         <>

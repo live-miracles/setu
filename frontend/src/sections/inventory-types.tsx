@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useInvalidate, useList, useUpdate } from '../ui/resources';
-import { Input, Select, Field } from '../ui/form-kit';
+import { Select, Field } from '../ui/form-kit';
+import { ListHeading, SearchBox } from '../ui/list-heading';
 import { Modal, Popover } from '../ui/overlay-kit';
 import { Table, Button, Checkbox, Empty, Space, Tag, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
@@ -401,124 +402,114 @@ export function InventoryTypesPage({ kind = 'types' }: { kind?: InventoryKind })
         <Empty description={config.emptyMessage} />
     );
     const searchNoun = isLabels ? 'inventory labels' : config.title.toLowerCase();
+    const qrPdfPopover = (
+        <Popover
+            open={qrPdfOpen}
+            onOpenChange={toggleQrPdfOpen}
+            title="Label QR codes PDF"
+            content={
+                <Space direction="vertical">
+                    <Checkbox
+                        checked={qrPdfLocations.length === labelLocations.length}
+                        indeterminate={
+                            qrPdfLocations.length > 0 &&
+                            qrPdfLocations.length < labelLocations.length
+                        }
+                        onChange={(event) =>
+                            setQrPdfLocations(
+                                event.target.checked
+                                    ? labelLocations.map((location) => location.key)
+                                    : [],
+                            )
+                        }>
+                        All locations
+                    </Checkbox>
+                    <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+                        {labelLocations.map((location) => (
+                            <Checkbox
+                                key={location.key}
+                                checked={qrPdfLocations.includes(location.key)}
+                                onChange={(event) =>
+                                    setQrPdfLocations(
+                                        event.target.checked
+                                            ? [...qrPdfLocations, location.key]
+                                            : qrPdfLocations.filter((key) => key !== location.key),
+                                    )
+                                }>
+                                {location.title} ({location.labelCount})
+                            </Checkbox>
+                        ))}
+                    </div>
+                    <Button
+                        type="primary"
+                        icon={<Icon name="filePdf" />}
+                        loading={qrPdfBusy}
+                        disabled={!qrPdfLocations.length}
+                        onClick={() => void downloadLabelQrPdf()}>
+                        Download PDF
+                    </Button>
+                </Space>
+            }>
+            <Button
+                type="primary"
+                icon={<Icon name="filePdf" />}
+                disabled={!labelLocations.length}
+                aria-label="Download label QR codes PDF"
+                title="Download label QR codes PDF"
+            />
+        </Popover>
+    );
     const inventoryTypeHeader = (
-        <div className="app-page-heading resource-page-heading">
-            <div>
-                <InventoryKindHeading kind={kind} homeContent={homeContent} />
-            </div>
-            <Space className="board-filters" wrap>
-                {isLabels ? (
-                    <Select
-                        value={labelGroupBy}
-                        onChange={(value) => changeLabelGroupBy(value as InventoryLabelGroupBy)}
-                        aria-label="Group inventory labels by"
-                        options={[
-                            { value: '', label: 'Group by', disabled: true },
-                            { value: 'type', label: 'Type' },
-                            { value: 'location', label: 'Location' },
-                        ]}
-                    />
-                ) : (
-                    <Select
-                        value={inventoryGroupBy}
-                        onChange={changeInventoryGroupBy}
-                        aria-label="Group inventory types by"
-                        options={[
-                            { value: '', label: 'Group by', disabled: true },
-                            { value: 'brand', label: 'Brand' },
-                            { value: 'location', label: 'Location' },
-                            { value: 'serial', label: 'Setu number' },
-                        ]}
-                    />
-                )}
-                <Input
-                    allowClear
-                    prefix={<Icon name="search" />}
-                    placeholder={`Search ${searchNoun}`}
-                    aria-label={`Search ${searchNoun}`}
-                    value={search}
-                    onChange={(event) => {
-                        const value = event.target.value;
-                        setSearch(value);
-                        if (!value) setAppliedSearch('');
-                    }}
-                    onPressEnter={() => setAppliedSearch(search)}
-                />
-                <Button
-                    type="primary"
-                    icon={<Icon name="search" />}
-                    onClick={() => setAppliedSearch(search)}
-                    aria-label={`Search ${searchNoun}`}
-                    title={`Search ${searchNoun}`}
-                />
-            </Space>
-            <Popover
-                open={qrPdfOpen}
-                onOpenChange={toggleQrPdfOpen}
-                title="Label QR codes PDF"
-                content={
-                    <Space direction="vertical">
-                        <Checkbox
-                            checked={qrPdfLocations.length === labelLocations.length}
-                            indeterminate={
-                                qrPdfLocations.length > 0 &&
-                                qrPdfLocations.length < labelLocations.length
-                            }
-                            onChange={(event) =>
-                                setQrPdfLocations(
-                                    event.target.checked
-                                        ? labelLocations.map((location) => location.key)
-                                        : [],
-                                )
-                            }>
-                            All locations
-                        </Checkbox>
-                        <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
-                            {labelLocations.map((location) => (
-                                <Checkbox
-                                    key={location.key}
-                                    checked={qrPdfLocations.includes(location.key)}
-                                    onChange={(event) =>
-                                        setQrPdfLocations(
-                                            event.target.checked
-                                                ? [...qrPdfLocations, location.key]
-                                                : qrPdfLocations.filter(
-                                                      (key) => key !== location.key,
-                                                  ),
-                                        )
-                                    }>
-                                    {location.title} ({location.labelCount})
-                                </Checkbox>
-                            ))}
-                        </div>
+        <ListHeading
+            title={<InventoryKindHeading kind={kind} homeContent={homeContent} />}
+            actions={
+                <>
+                    {qrPdfPopover}
+                    {canEdit && !isLabels && (
                         <Button
                             type="primary"
-                            icon={<Icon name="filePdf" />}
-                            loading={qrPdfBusy}
-                            disabled={!qrPdfLocations.length}
-                            onClick={() => void downloadLabelQrPdf()}>
-                            Download PDF
-                        </Button>
-                    </Space>
-                }>
-                <Button
-                    type="primary"
-                    icon={<Icon name="filePdf" />}
-                    disabled={!labelLocations.length}
-                    aria-label="Download label QR codes PDF"
-                    title="Download label QR codes PDF"
+                            icon={<Icon name="plus" />}
+                            onClick={() => setCreating(true)}
+                            aria-label={`Add ${config.kind}`}
+                            title={`Add ${config.kind}`}
+                        />
+                    )}
+                </>
+            }>
+            <SearchBox
+                noun={searchNoun}
+                value={search}
+                onChange={(value) => {
+                    setSearch(value);
+                    if (!value) setAppliedSearch('');
+                }}
+                onSubmit={() => setAppliedSearch(search)}
+            />
+            {isLabels ? (
+                <Select
+                    value={labelGroupBy}
+                    onChange={(value) => changeLabelGroupBy(value as InventoryLabelGroupBy)}
+                    aria-label="Group inventory labels by"
+                    options={[
+                        { value: '', label: 'Group by', disabled: true },
+                        { value: 'type', label: 'Type' },
+                        { value: 'location', label: 'Location' },
+                    ]}
                 />
-            </Popover>
-            {canEdit && !isLabels && (
-                <Button
-                    type="primary"
-                    icon={<Icon name="plus" />}
-                    onClick={() => setCreating(true)}
-                    aria-label={`Add ${config.kind}`}
-                    title={`Add ${config.kind}`}
+            ) : (
+                <Select
+                    value={inventoryGroupBy}
+                    onChange={changeInventoryGroupBy}
+                    aria-label="Group inventory types by"
+                    options={[
+                        { value: '', label: 'Group by', disabled: true },
+                        { value: 'brand', label: 'Brand' },
+                        { value: 'location', label: 'Location' },
+                        { value: 'serial', label: 'Setu number' },
+                    ]}
                 />
             )}
-        </div>
+        </ListHeading>
     );
     const inventoryTypeDetail = selectedInventoryType && (
         <>

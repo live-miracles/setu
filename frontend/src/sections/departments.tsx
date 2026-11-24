@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useList } from '../ui/resources';
 import { useMe, useUsers } from '../ui/reference';
-import { Input } from '../ui/form-kit';
+import { ListHeading, SearchBox } from '../ui/list-heading';
 import { Button, Empty, Space, Tag, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -105,42 +105,29 @@ export function DepartmentsPage() {
         <Empty description={config.emptyMessage} />
     );
     const departmentHeader = (
-        <div className="app-page-heading resource-page-heading">
-            <div>
-                <Typography.Title level={2}>{config.title}</Typography.Title>
-            </div>
-            <Space className="board-filters" wrap>
-                <Input
-                    allowClear
-                    prefix={<Icon name="search" />}
-                    placeholder={`Search ${config.title.toLowerCase()}`}
-                    aria-label={`Search ${config.title.toLowerCase()}`}
-                    value={search}
-                    onChange={(event) => {
-                        const value = event.target.value;
-                        setSearch(value);
-                        if (!value) setAppliedSearch('');
-                    }}
-                    onPressEnter={() => setAppliedSearch(search)}
-                />
-                <Button
-                    type="primary"
-                    icon={<Icon name="search" />}
-                    onClick={() => setAppliedSearch(search)}
-                    aria-label={`Search ${config.title.toLowerCase()}`}
-                    title={`Search ${config.title.toLowerCase()}`}
-                />
-            </Space>
-            {canEdit && (
-                <Button
-                    type="primary"
-                    icon={<Icon name="plus" />}
-                    onClick={() => setCreating(true)}
-                    aria-label={`Add ${config.kind}`}
-                    title={`Add ${config.kind}`}
-                />
-            )}
-        </div>
+        <ListHeading
+            title={<Typography.Title level={2}>{config.title}</Typography.Title>}
+            actions={
+                canEdit && (
+                    <Button
+                        type="primary"
+                        icon={<Icon name="plus" />}
+                        onClick={() => setCreating(true)}
+                        aria-label={`Add ${config.kind}`}
+                        title={`Add ${config.kind}`}
+                    />
+                )
+            }>
+            <SearchBox
+                noun={config.title.toLowerCase()}
+                value={search}
+                onChange={(value) => {
+                    setSearch(value);
+                    if (!value) setAppliedSearch('');
+                }}
+                onSubmit={() => setAppliedSearch(search)}
+            />
+        </ListHeading>
     );
     const departmentDetail = selectedDepartment && (
         <>

@@ -905,16 +905,37 @@ form {
     gap: 1rem;
 }
 
-.board-filters {
-    flex: 1 1 auto;
-    justify-content: flex-end;
+/* The heading of a list page (see ui/list-heading.tsx): title, then the search
+   and filters, then the actions. */
+.resource-page-heading {
     align-items: center;
 }
 
-.board-filters .ui-input {
+.board-filters {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.heading-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.board-search {
+    display: flex;
     flex: 1 1 14rem;
-    width: auto;
+    min-width: 0;
     max-width: 32rem;
+}
+
+.board-search .ui-input {
+    flex: 1 1 auto;
 }
 
 .table-search {
@@ -1118,19 +1139,6 @@ form {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
 }
 
-.master-detail.has-detail .user-card-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
-    gap: 0.5rem;
-}
-
-.master-detail.has-detail .record-block.user-card {
-    display: grid;
-    width: 100%;
-    max-width: none;
-    margin: 0;
-}
-
 /* A foreign-key value in a detail view that opens the related record. */
 .detail-link {
     color: var(--setu-accent-hover);
@@ -1275,9 +1283,14 @@ form {
     opacity: 0.8;
 }
 
+/* User cards share the row like the request cards: as many columns as fit,
+   each growing to take the leftover width so no empty strip is left on the
+   right. */
 .user-card-list {
-    display: block;
+    display: grid;
     width: 100%;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    gap: 0.5rem;
 }
 
 .record-block {
@@ -1336,11 +1349,8 @@ a.record-block:focus-visible {
 }
 
 .record-block.user-card {
-    display: inline-grid;
-    width: calc(100% - 8px);
-    max-width: 20rem;
-    margin: 0 0.5rem 0.5rem 0;
-    vertical-align: top;
+    display: grid;
+    min-width: 0;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.65rem;
     padding: 0.8rem 1rem;
@@ -1699,10 +1709,22 @@ a.record-block:focus-visible {
         flex-wrap: wrap;
     }
 
+    /* Title and actions share the top line; the search and filters sit on the
+       line below, the search taking what the filters leave. */
+    .resource-page-heading {
+        gap: 0.5rem;
+    }
+
     .resource-page-heading .board-filters {
         order: 3;
         flex: 1 1 100%;
         justify-content: flex-start;
+    }
+
+    .board-search {
+        flex: 1 1 6.5rem;
+        min-width: 6.5rem;
+        max-width: none;
     }
 
     .app-page-heading > div:first-child {
@@ -1716,12 +1738,6 @@ a.record-block:focus-visible {
 
     .app-page-board .app-page-heading {
         flex-wrap: wrap;
-    }
-
-    .app-page-board .board-filters {
-        order: 3;
-        flex: 1 1 100%;
-        justify-content: flex-start;
     }
 
     .app-page-board {
