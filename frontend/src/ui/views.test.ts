@@ -24,6 +24,11 @@ export function runViewsAssertions(): void {
             isViewVisible({ HiddenViews: ['calendar'] }, 'roster'),
         'only the listed views should be hidden',
     );
+    assert(
+        normalizeHiddenViews(['blocks', 'users']).join() === 'blocks' &&
+            !isViewVisible({ HiddenViews: ['blocks'] }, 'blocks'),
+        'blocks can be hidden, while admin pages such as users cannot',
+    );
 
     assert(
         visibleRequestKinds({ HiddenViews: [] }).join() === 'programs,inventory',

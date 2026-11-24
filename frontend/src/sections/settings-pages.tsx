@@ -446,12 +446,14 @@ function ViewsCard() {
         event.preventDefault();
         setSaving(true);
         try {
-            const saved = await api.updateHomeContent({
-                hiddenViews: HIDEABLE_VIEWS.filter((view) => !shown.includes(view)),
-            });
-            // An API that has not been updated yet ignores hiddenViews and
-            // answers without it; say so instead of looking like a save.
-            if (!Array.isArray(saved?.HiddenViews)) {
+            const hiddenViews = HIDEABLE_VIEWS.filter((view) => !shown.includes(view));
+            const saved = await api.updateHomeContent({ hiddenViews });
+            // An API that has not been updated yet ignores hiddenViews, or drops
+            // a view it does not know yet; say so instead of looking like a save.
+            if (
+                !Array.isArray(saved?.HiddenViews) ||
+                saved.HiddenViews.join() !== hiddenViews.join()
+            ) {
                 throw new Error(
                     'The server did not save the views. Apply the latest database migration and deploy the API first.',
                 );

@@ -82,7 +82,13 @@ const configNavItems: NavItem[] = [
         icon: <Icon name="tags" />,
         also: [inventoryLabelsPath],
     },
-    { key: 'blocks', to: blocksPath, label: 'Blocks', icon: <Icon name="block" /> },
+    {
+        key: 'blocks',
+        to: blocksPath,
+        label: 'Blocks',
+        icon: <Icon name="block" />,
+        view: 'blocks',
+    },
     {
         key: 'home-content',
         to: homeContentPath,

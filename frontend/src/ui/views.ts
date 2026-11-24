@@ -13,6 +13,7 @@ export const VIEW_LABELS: Record<HideableView, string> = {
     roster: 'Roster',
     'inventory-types': 'Inventory types',
     'inventory-labels': 'Inventory labels',
+    blocks: 'Blocks',
 };
 
 export function isViewVisible(
