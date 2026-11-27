@@ -173,6 +173,15 @@ export const homeContent = {
         '- Return equipment on the end date and report damage in the request comments.',
     ].join('\n'),
     HiddenViews: [],
+    ViewOrder: [
+        'programs',
+        'inventory',
+        'calendar',
+        'roster',
+        'inventory-types',
+        'inventory-labels',
+        'blocks',
+    ],
 };
 
 export const rosters = [
@@ -195,13 +204,17 @@ export const rosters = [
     userName: userName(email(who)),
 }));
 
+// An entry is [who, daysAgo, message] for a comment, or with a fourth item
+// {Kind, Data} for a status or edit event (Message is then its summary).
 function comments(requestId, entries) {
-    return entries.map(([who, daysAgo, Message], i) => ({
+    return entries.map(([who, daysAgo, Message, event], i) => ({
         Id: `${requestId}-c${i + 1}`,
         Timestamp: at(-daysAgo, 10 + i).toISOString(),
         RequestId: requestId,
         UserId: email(who),
         Message,
+        Kind: event?.Kind ?? 'comment',
+        Data: event?.Data ?? null,
         userName: userName(email(who)),
     }));
 }
@@ -255,7 +268,40 @@ export const inventoryRequests = [
             [4, 3],
             [8, 4],
         ],
-        [['diego.alvarez', 4, 'Approved. Collect from the equipment room on the 3rd.']],
+        [
+            [
+                'omar.haddad',
+                5,
+                'Edited End date, Items',
+                {
+                    Kind: 'edit',
+                    Data: {
+                        changes: [
+                            { field: 'End date', from: '4 Jun 2031', to: '5 Jun 2031' },
+                            {
+                                field: 'Items',
+                                added: [{ label: 'Tripod × 1' }],
+                                removed: [{ label: 'Lav mic × 2' }],
+                            },
+                        ],
+                    },
+                },
+            ],
+            [
+                'diego.alvarez',
+                4,
+                'Approved this request. Collect from the equipment room on the 3rd.',
+                {
+                    Kind: 'status',
+                    Data: {
+                        from: 'submitted',
+                        to: 'approved',
+                        action: 'approve',
+                        note: 'Collect from the equipment room on the 3rd.',
+                    },
+                },
+            ],
+        ],
     ),
     inventoryRequest(
         3,

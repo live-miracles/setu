@@ -139,6 +139,7 @@ export async function updateRequestParticipants(
             p_kind: config.kind,
             p_request_id: id,
             p_participants: await resolveParticipants(admin, participantEmails),
+            p_actor_id: actor.id,
         }),
     );
     return config.read(client, admin, id);

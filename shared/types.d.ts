@@ -154,6 +154,43 @@ interface CommentRecord {
     RequestId: string;
     UserId: string;
     Message: string;
+    // A request's activity holds written comments, status changes made by a
+    // workflow action, and edits to the request's details. Message is always a
+    // plain-text summary; Data has the structure for status and edit events.
+    Kind: ActivityKind;
+    Data: StatusEventData | EditEventData | null;
+}
+
+type ActivityKind = 'comment' | 'status' | 'edit';
+
+interface StatusEventData {
+    from: string;
+    to: string;
+    action?: string;
+    note?: string | null;
+}
+
+// One changed value ({field, from, to}) or one changed list ({field, added,
+// removed}), such as a request's sessions or participants.
+interface EditChange {
+    field: string;
+    from?: string | null;
+    to?: string | null;
+    added?: EditChangeEntry[];
+    removed?: EditChangeEntry[];
+    moreAdded?: number;
+    moreRemoved?: number;
+}
+
+interface EditChangeEntry {
+    label: string;
+    startAt?: string;
+    endAt?: string;
+}
+
+interface EditEventData {
+    changes: EditChange[];
+    truncated?: boolean;
 }
 
 // A named shift with default clock-in/out times and an optional color, so
@@ -193,6 +230,9 @@ interface HomeContent {
     // Keys of the views an admin hid from the navigation and home screen
     // (see supabase/functions/_shared/views.ts). Presentation only.
     HiddenViews: string[];
+    // Every view key once, in the order the admin chose for the menu and the
+    // board switches. Presentation only.
+    ViewOrder: string[];
 }
 
 interface SettingsPayload {
@@ -476,6 +516,7 @@ interface UpdateProgramRequestInput {
 interface UpdateHomeContentInput {
     guidelines?: string;
     hiddenViews?: string[];
+    viewOrder?: string[];
 }
 
 interface CreateShiftTypeInput {

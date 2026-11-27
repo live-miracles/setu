@@ -200,6 +200,7 @@ for (const { kind, rpc, existingId, input, create, update, participants } of kin
         const submitted = fixture({ requestStatus: 'submitted' });
         await update(submitted.client, submitted.admin, 'boss', existingId, input());
         assert.equal(submitted.rpcCalls[0].args.p_expected_status, 'submitted');
+        assert.equal(submitted.rpcCalls[0].args.p_actor_id, 'boss', 'the editor is recorded');
 
         // The requester may not edit once it has been submitted; the SQL is never reached.
         await assert.rejects(
@@ -229,6 +230,8 @@ for (const { kind, rpc, existingId, input, create, update, participants } of kin
                         { profile_id: 'guest', external_email: null },
                         { profile_id: null, external_email: 'outsider@example.org' },
                     ],
+                    // The author of the activity event the save records.
+                    p_actor_id: 'guest',
                 },
             },
         ]);

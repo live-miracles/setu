@@ -82,11 +82,13 @@ function dashboard() {
     const recent = (kind, rows) =>
         rows
             .flatMap((request) =>
-                request.comments.map((comment) => ({
-                    kind,
-                    request: pick(request, ['Id', 'DisplayId', 'Name']),
-                    comment,
-                })),
+                request.comments
+                    .filter((comment) => comment.Kind === 'comment')
+                    .map((comment) => ({
+                        kind,
+                        request: pick(request, ['Id', 'DisplayId', 'Name']),
+                        comment,
+                    })),
             )
             .sort((a, b) => byNewest(a.comment, b.comment))
             .slice(0, 8);
@@ -163,13 +165,15 @@ const ACTION_STATUS = {
     reopen: 'approved',
 };
 
-function addComment(request, Message) {
+function addComment(request, Message, event) {
     const comment = {
         Id: `${request.Id}-c${request.comments.length + 1}`,
         Timestamp: new Date().toISOString(),
         RequestId: request.Id,
         UserId: data.me.Email,
         Message,
+        Kind: event?.Kind ?? 'comment',
+        Data: event?.Data ?? null,
         userName: data.me.Name,
     };
     request.comments.push(comment);
@@ -181,8 +185,12 @@ function performAction(rows) {
         const request = rows.find((r) => r.Id === requestId);
         const status = ACTION_STATUS[action];
         if (!request || !status) return undefined;
+        const from = request.Status;
         request.Status = status;
-        addComment(request, note || `Status changed to ${status}.`);
+        addComment(request, note || `Status changed to ${status}.`, {
+            Kind: 'status',
+            Data: { from, to: status, action, note: note || null },
+        });
         return status;
     };
 }
@@ -192,6 +200,7 @@ const writes = {
     performInventoryRequestAction: performAction(data.inventoryRequests),
     updateHomeContent: (input) => {
         if (Array.isArray(input.hiddenViews)) data.homeContent.HiddenViews = input.hiddenViews;
+        if (Array.isArray(input.viewOrder)) data.homeContent.ViewOrder = input.viewOrder;
         return data.homeContent;
     },
     addComment: (requestId, message) => {

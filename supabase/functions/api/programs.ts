@@ -432,6 +432,9 @@ export async function updateProgramRequest(
             p_sessions: sessions,
             p_participants: await resolveParticipants(admin, participantEmails),
             p_expected_status: String(existing.status),
+            // Names the author of the edit event the save records (once the
+            // request has left draft).
+            p_actor_id: actor.id,
         }),
     );
     return getProgramRequest(client, admin, id);

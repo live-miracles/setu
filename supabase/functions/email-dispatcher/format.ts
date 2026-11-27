@@ -12,6 +12,12 @@ export type EmailPayload = {
     requestTitle?: string;
     requestMonthYear?: string;
     authorName?: string;
+    // 'status' for a workflow action (statusFrom, statusTo and statusNote say
+    // what changed); anything else is a plain comment.
+    kind?: string;
+    statusFrom?: string | null;
+    statusTo?: string | null;
+    statusNote?: string | null;
     requestPath?: string;
     automatedReminder?: boolean;
     sessions?: EmailSession[];
@@ -106,13 +112,35 @@ export function formatEmailSubject(payload: EmailPayload): string {
     return `${serial} - ${title}${monthYear ? ` | ${monthYear}` : ''}`;
 }
 
+/**
+ * What a workflow action email says in place of a comment: "changed the status
+ * from Submitted to Approved", plus the approver's optional note. Undefined for
+ * plain comments.
+ */
+export function statusChange(
+    payload: EmailPayload,
+): { headline: string; note: string } | undefined {
+    if (payload.kind !== 'status' || !payload.statusTo) return undefined;
+    const label = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+    const from = payload.statusFrom ? ` from ${label(payload.statusFrom)}` : '';
+    return {
+        headline: `changed the status${from} to ${label(payload.statusTo)}`,
+        note: (payload.statusNote || '').trim(),
+    };
+}
+
 export function formatEmailBody(
     message: string,
     payload: EmailPayload,
     settings: Pick<EmailSettings, 'appUrl' | 'timeZone'>,
 ): string {
     const author = payload.authorName || 'Setu Bot';
-    const sections: string[] = [`${author} commented:\n\n${message}`];
+    const status = statusChange(payload);
+    const sections: string[] = [
+        status
+            ? `${author} ${status.headline}.` + (status.note ? `\n\nNote: ${status.note}` : '')
+            : `${author} commented:\n\n${message}`,
+    ];
     if (payload.sessions?.length) {
         const { timeZone } = settings;
         sections.push(
@@ -143,8 +171,12 @@ export function formatEmailHtmlBody(
     settings: Pick<EmailSettings, 'appUrl' | 'timeZone'>,
 ): string {
     const author = escapeHtml(payload.authorName || 'Setu Bot');
+    const status = statusChange(payload);
     const sections: string[] = [
-        `<p><strong>${author} commented:</strong></p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
+        status
+            ? `<p><strong>${author} ${escapeHtml(status.headline)}.</strong></p>` +
+              (status.note ? `<p>Note: ${escapeHtml(status.note).replace(/\n/g, '<br>')}</p>` : '')
+            : `<p><strong>${author} commented:</strong></p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
     ];
     if (payload.sessions?.length) {
         const { timeZone } = settings;

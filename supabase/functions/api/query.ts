@@ -43,6 +43,10 @@ export function commentDto(x: Row, profilesById: Map<string, Row>): Row {
         RequestId: x.inventory_request_id || x.program_request_id,
         UserId: author?.email || '',
         Message: x.message,
+        // 'comment', 'status' (a workflow action) or 'edit' (a change to the
+        // request's details); Data holds the event's structured details.
+        Kind: x.kind || 'comment',
+        Data: x.data || null,
         userName: x.author_name || author?.name || 'Setu Bot',
     };
 }

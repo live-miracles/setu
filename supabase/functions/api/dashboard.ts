@@ -58,12 +58,14 @@ export async function dashboard(
         client
             .from('comments')
             .select('*')
+            .eq('kind', 'comment')
             .not('program_request_id', 'is', null)
             .order('created_at', { ascending: false })
             .limit(DASHBOARD_COMMENT_LIMIT),
         client
             .from('comments')
             .select('*')
+            .eq('kind', 'comment')
             .not('inventory_request_id', 'is', null)
             .order('created_at', { ascending: false })
             .limit(DASHBOARD_COMMENT_LIMIT),

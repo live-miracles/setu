@@ -59,7 +59,8 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 - Concurrent approvals cannot commit conflicting use of the same place, and neither can concurrent edits: saving a program request re-checks place availability under the same place lock.
 - Creating or editing a request writes the request and its items, sessions and participants in one transaction (`save_inventory_request_tx`, `save_program_request_tx`), so a failure leaves no half-saved request. An edit is refused if the request changed status after the caller's permission was checked. An edit never carries a status: any `status` sent by a client is ignored, because the status only changes through workflow actions.
 - The request list functions (`list_*_requests_page`) are `SECURITY DEFINER` so they can match on a requester's name; each row is still limited to requests the caller may view (`can_view_*_request`).
-- Status changes and activity comments commit in one transaction and roll back together on failure.
+- Status changes and their activity rows commit in one transaction and roll back together on failure.
+- Activity rows come in three kinds (`comment`, `status`, `edit`). Row Level Security lets the Data API insert plain comments only (`kind = 'comment'`, no structured data), so a user cannot forge a status or edit entry; only the service-only SQL functions write those. Edit entries store just the changed fields, capped in size, and are recorded only after a request leaves draft.
 
 ## 4 Intentional Design Decisions
 

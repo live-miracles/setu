@@ -142,6 +142,7 @@ test('inventory list loads items, labels and comments for the page and passes st
             id: pad(i),
             inventory_request_id: request.id,
             author_id: 'u1',
+            kind: 'comment',
             message: `c${i}`,
             created_at: new Date(Date.UTC(2031, 0, 1, 0, 0, i)).toISOString(),
         })),
@@ -380,6 +381,7 @@ test('dashboard bounds each request kind, loads every session past the row cap a
             id: `${column}-${i}`,
             [column]: requestId,
             author_id: 'u1',
+            kind: 'comment',
             message: `${column} ${i}`,
             created_at: new Date(Date.UTC(2031, 1, 1, 0, 0, i)).toISOString(),
         }));
@@ -391,6 +393,18 @@ test('dashboard bounds each request kind, loads every session past the row cap a
         comments: [
             ...commentsOf('program_request_id', programs[0].id),
             ...commentsOf('inventory_request_id', inventory[0].id),
+            // The newest rows of all are status and edit events: the home
+            // screen's recent comments must not show them.
+            ...['program_request_id', 'inventory_request_id'].flatMap((column, n) =>
+                ['status', 'edit'].map((kind, k) => ({
+                    id: `${kind}-${column}`,
+                    [column]: column === 'program_request_id' ? programs[0].id : inventory[0].id,
+                    author_id: 'u1',
+                    kind,
+                    message: `${kind} event`,
+                    created_at: new Date(Date.UTC(2032, 0, 1, 0, 0, n * 2 + k)).toISOString(),
+                })),
+            ),
         ],
         shift_types: [],
         rosters: [],
@@ -413,6 +427,10 @@ test('dashboard bounds each request kind, loads every session past the row cap a
         assert.deepEqual(messages, ['19', '18', '17', '16', '15', '14', '13', '12']);
     }
     assert.ok(payload.recentComments.every((entry) => entry.request.Name));
+    assert.ok(
+        payload.recentComments.every((entry) => entry.comment.Kind === 'comment'),
+        'status and edit events stay out of the recent comments',
+    );
 });
 
 test('dashboard summaries come from the same DTO builders as the request lists', async () => {

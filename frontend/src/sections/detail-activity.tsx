@@ -10,6 +10,7 @@ import { useMe } from '../ui/reference';
 import { formatDateTime } from '../ui/format';
 import { showErrorAlert, showSavingBadge } from '../ui/feedback';
 import { canWrite } from '../workflows';
+import { EditEventRow, StatusEventRow } from './activity-events';
 import { SaveFooter, TextField } from './form-fields';
 
 const error = (value: unknown) => showErrorAlert(value);
@@ -58,19 +59,25 @@ export function Activity({
             <Card title="Activity">
                 <div className="activity-comments space-y-3" ref={commentsRef}>
                     {comments.length ? (
-                        comments.map((c) => (
-                            <div
-                                className="border-b border-line pb-2 text-sm last:border-0"
-                                key={c.Id}>
-                                <div className="font-medium">
-                                    {c.userName}{' '}
-                                    <span className="ml-2 text-xs font-normal text-steel">
-                                        {formatDateTime(c.Timestamp)}
-                                    </span>
+                        comments.map((c) =>
+                            c.Kind === 'status' ? (
+                                <StatusEventRow comment={c} key={c.Id} />
+                            ) : c.Kind === 'edit' ? (
+                                <EditEventRow comment={c} key={c.Id} />
+                            ) : (
+                                <div
+                                    className="border-b border-line pb-2 text-sm last:border-0"
+                                    key={c.Id}>
+                                    <div className="font-medium">
+                                        {c.userName}{' '}
+                                        <span className="ml-2 text-xs font-normal text-steel">
+                                            {formatDateTime(c.Timestamp)}
+                                        </span>
+                                    </div>
+                                    <p className="whitespace-pre-wrap text-ink/70">{c.Message}</p>
                                 </div>
-                                <p className="whitespace-pre-wrap text-ink/70">{c.Message}</p>
-                            </div>
-                        ))
+                            ),
+                        )
                     ) : (
                         <Empty>No activity yet.</Empty>
                     )}

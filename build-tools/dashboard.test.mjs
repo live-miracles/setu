@@ -55,6 +55,7 @@ test('dashboard carries only the home screen data, with true totals past the sam
                 id: 'c1',
                 program_request_id: 'done',
                 author_id: 'u1',
+                kind: 'comment',
                 message: 'old news',
                 created_at: '2031-01-01T00:00:00Z',
             },
@@ -63,8 +64,18 @@ test('dashboard carries only the home screen data, with true totals past the sam
                 inventory_request_id: 'i2',
                 author_id: null,
                 author_name: 'Setu Bot',
+                kind: 'comment',
                 message: 'closed',
                 created_at: '2031-01-02T00:00:00Z',
+            },
+            // A status event is newer than both but is not a comment.
+            {
+                id: 'c3',
+                program_request_id: 'done',
+                author_id: 'u1',
+                kind: 'status',
+                message: 'Approved this request.',
+                created_at: '2031-01-03T00:00:00Z',
             },
         ],
     });

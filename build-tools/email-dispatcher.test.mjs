@@ -212,3 +212,66 @@ test('emails without a request id are sent unthreaded', async () => {
     const mime = decodeBase64Url(buildRawEmail(row, settings, 'b', undefined));
     assert.doesNotMatch(mime, /Message-ID|In-Reply-To|References/);
 });
+
+test('a status change email names the old and new status instead of a comment', async () => {
+    const { buildRawEmail } = await loadFormat();
+    const row = {
+        id: 'row-1',
+        recipient: 'a@example.test',
+        attempts: 1,
+        payload: {
+            kind: 'status',
+            statusFrom: 'submitted',
+            statusTo: 'approved',
+            statusNote: 'Hall A <confirmed>',
+            message: 'Approved this request. Hall A <confirmed>',
+            authorName: 'Test Approver',
+            requestSerial: 'PRG-7',
+            requestTitle: 'Workshop',
+            targetId: 'abc',
+        },
+    };
+    const mime = decodeBase64Url(buildRawEmail(row, settings, 'b'));
+    const text = decodePart(mime, 'text/plain');
+    assert.match(
+        text,
+        /^Test Approver changed the status from Submitted to Approved\.\n\nNote: Hall A <confirmed>/,
+    );
+    assert.doesNotMatch(text, /commented/);
+    const html = decodePart(mime, 'text/html');
+    assert.match(
+        html,
+        /<strong>Test Approver changed the status from Submitted to Approved\.<\/strong>/,
+    );
+    assert.match(html, /Note: Hall A &lt;confirmed&gt;/);
+
+    const withoutNote = decodePart(
+        decodeBase64Url(
+            buildRawEmail(
+                { ...row, payload: { ...row.payload, statusNote: null, statusFrom: null } },
+                settings,
+                'b',
+            ),
+        ),
+        'text/plain',
+    );
+    assert.match(
+        withoutNote,
+        /^Test Approver changed the status to Approved\.\n\nView request|^Test Approver changed the status to Approved\.\n\nOpen Setu/,
+    );
+
+    const comment = decodePart(
+        decodeBase64Url(
+            buildRawEmail(
+                {
+                    ...row,
+                    payload: { message: 'Hello', authorName: 'Test Author', kind: 'comment' },
+                },
+                settings,
+                'b',
+            ),
+        ),
+        'text/plain',
+    );
+    assert.match(comment, /^Test Author commented:\n\nHello/);
+});
