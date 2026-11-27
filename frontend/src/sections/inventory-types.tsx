@@ -2,8 +2,9 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useInvalidate, useList, useUpdate } from '../ui/resources';
 import { Select, Field } from '../ui/form-kit';
 import { ListHeading, SearchBox } from '../ui/list-heading';
-import { Modal, Popover } from '../ui/overlay-kit';
-import { Table, Button, Checkbox, Empty, Space, Tag, Typography } from '../ui/kit';
+import { Modal } from '../ui/overlay-kit';
+import { saveFile } from '../ui/save-file';
+import { Table, Button, Empty, Space, Tag, Typography } from '../ui/kit';
 import { Icon } from '../ui/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
@@ -252,18 +253,11 @@ export function InventoryTypesPage({ kind = 'types' }: { kind?: InventoryKind })
                 (text) => QRCode.create(text, { errorCorrectionLevel: 'Q' }).modules,
                 qrPdfLocations,
             );
-            const url = URL.createObjectURL(
-                new Blob([buildQrStickerPdf(entries)], { type: 'application/pdf' }),
+            await saveFile(
+                buildQrStickerPdf(entries),
+                'inventory-label-qr-codes.pdf',
+                'application/pdf',
             );
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'inventory-label-qr-codes.pdf';
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            // Mobile Chrome starts the download asynchronously, so revoking the
-            // blob URL right away cancels it. Release it after the download began.
-            setTimeout(() => URL.revokeObjectURL(url), 60_000);
             setQrPdfOpen(false);
         } catch (error) {
             showErrorAlert(error);
@@ -404,69 +398,98 @@ export function InventoryTypesPage({ kind = 'types' }: { kind?: InventoryKind })
         <Empty description={config.emptyMessage} />
     );
     const searchNoun = isLabels ? 'inventory labels' : config.title.toLowerCase();
-    const qrPdfPopover = (
-        <Popover
-            open={qrPdfOpen}
-            onOpenChange={toggleQrPdfOpen}
-            title="Label QR codes PDF"
-            content={
-                <Space direction="vertical">
-                    <Checkbox
-                        checked={qrPdfLocations.length === labelLocations.length}
-                        indeterminate={
-                            qrPdfLocations.length > 0 &&
-                            qrPdfLocations.length < labelLocations.length
-                        }
-                        onChange={(event) =>
-                            setQrPdfLocations(
-                                event.target.checked
-                                    ? labelLocations.map((location) => location.key)
-                                    : [],
-                            )
-                        }>
-                        All locations
-                    </Checkbox>
-                    <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
-                        {labelLocations.map((location) => (
-                            <Checkbox
-                                key={location.key}
-                                checked={qrPdfLocations.includes(location.key)}
-                                onChange={(event) =>
-                                    setQrPdfLocations(
-                                        event.target.checked
-                                            ? [...qrPdfLocations, location.key]
-                                            : qrPdfLocations.filter((key) => key !== location.key),
-                                    )
-                                }>
-                                {location.title} ({location.labelCount})
-                            </Checkbox>
-                        ))}
-                    </div>
-                    <Button
-                        type="primary"
-                        icon={<Icon name="filePdf" />}
-                        loading={qrPdfBusy}
-                        disabled={!qrPdfLocations.length}
-                        onClick={() => void downloadLabelQrPdf()}>
-                        Download PDF
-                    </Button>
-                </Space>
-            }>
+    const allLocationsPicked = qrPdfLocations.length === labelLocations.length;
+    const pickedLabelCount = labelLocations
+        .filter((location) => qrPdfLocations.includes(location.key))
+        .reduce((sum, location) => sum + location.labelCount, 0);
+    const qrPdfRow = 'flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-paper';
+    const qrPdfButton = (
+        <>
             <Button
                 type="primary"
                 icon={<Icon name="filePdf" />}
                 disabled={!labelLocations.length}
                 aria-label="Download label QR codes PDF"
                 title="Download label QR codes PDF"
+                onClick={() => toggleQrPdfOpen(true)}
             />
-        </Popover>
+            {qrPdfOpen && (
+                <Modal title="Label QR codes PDF" close={() => toggleQrPdfOpen(false)}>
+                    <p className="mb-3 mt-0 text-sm text-steel">
+                        Choose the locations whose labels go on the printable sticker sheet.
+                    </p>
+                    <div className="overflow-hidden rounded-lg border border-line">
+                        <label className={`${qrPdfRow} border-b border-line font-semibold`}>
+                            <input
+                                type="checkbox"
+                                className="size-4 cursor-pointer accent-accent"
+                                checked={allLocationsPicked}
+                                ref={(element) => {
+                                    if (element)
+                                        element.indeterminate =
+                                            qrPdfLocations.length > 0 && !allLocationsPicked;
+                                }}
+                                onChange={(event) =>
+                                    setQrPdfLocations(
+                                        event.target.checked
+                                            ? labelLocations.map((location) => location.key)
+                                            : [],
+                                    )
+                                }
+                            />
+                            <span className="flex-1">All locations</span>
+                        </label>
+                        <div className="max-h-[45dvh] divide-y divide-line overflow-y-auto">
+                            {labelLocations.map((location) => (
+                                <label key={location.key} className={qrPdfRow}>
+                                    <input
+                                        type="checkbox"
+                                        className="size-4 cursor-pointer accent-accent"
+                                        checked={qrPdfLocations.includes(location.key)}
+                                        onChange={(event) =>
+                                            setQrPdfLocations(
+                                                event.target.checked
+                                                    ? [...qrPdfLocations, location.key]
+                                                    : qrPdfLocations.filter(
+                                                          (key) => key !== location.key,
+                                                      ),
+                                            )
+                                        }
+                                    />
+                                    <span className="flex-1 text-sm">{location.title}</span>
+                                    <span className="text-sm text-steel">
+                                        {location.labelCount}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                        <span className="whitespace-nowrap text-sm text-steel">
+                            {pickedLabelCount} label{pickedLabelCount === 1 ? '' : 's'}
+                        </span>
+                        <Space>
+                            <Button onClick={() => toggleQrPdfOpen(false)}>Cancel</Button>
+                            <Button
+                                type="primary"
+                                icon={<Icon name="filePdf" />}
+                                loading={qrPdfBusy}
+                                disabled={!qrPdfLocations.length}
+                                onClick={() => void downloadLabelQrPdf()}>
+                                Download PDF
+                            </Button>
+                        </Space>
+                    </div>
+                </Modal>
+            )}
+        </>
     );
     const inventoryTypeHeader = (
         <ListHeading
             title={<InventoryKindHeading kind={kind} homeContent={homeContent} />}
             actions={
                 <>
-                    {qrPdfPopover}
+                    {qrPdfButton}
                     {canEdit && !isLabels && (
                         <Button
                             type="primary"
