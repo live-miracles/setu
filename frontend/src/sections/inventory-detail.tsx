@@ -1,4 +1,5 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { isPlainLeftClick } from '../ui/link-click';
 import { useDepartments, useInventoryTypes, useUsers } from '../ui/reference';
 import { MultiSelect, Select, Field } from '../ui/form-kit';
 import { Button, Empty, Space, Tag, Typography } from '../ui/kit';
@@ -65,6 +66,37 @@ const inventoryKind: RequestDetailKind<InventoryRequestDTO, InventoryFormValues>
     formValues: inventoryFormValues,
     formUpdate: (request, values) => buildInventoryUpdate(request, { values }),
 };
+
+// A requested item's photo or name: a real link to its type (so it can open in a
+// new tab), or plain content when the person cannot see the catalog.
+function ItemTypeLink({
+    href,
+    onOpen,
+    className,
+    tabIndex,
+    children,
+}: {
+    href?: string;
+    onOpen: () => void;
+    className?: string;
+    tabIndex?: number;
+    children: ReactNode;
+}) {
+    if (!href) return <span className={className}>{children}</span>;
+    return (
+        <a
+            href={href}
+            className={className}
+            tabIndex={tabIndex}
+            onClick={(event) => {
+                if (!isPlainLeftClick(event)) return;
+                event.preventDefault();
+                onOpen();
+            }}>
+            {children}
+        </a>
+    );
+}
 
 export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
     const navigate = useNavigate();
@@ -518,6 +550,10 @@ export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
                                     requestedOfType,
                                     type?.availableQuantity,
                                 );
+                                const typeHref =
+                                    type && canSeeInventoryCatalog(me)
+                                        ? inventoryTypePath(type.Id)
+                                        : undefined;
                                 const conditionColor =
                                     item.Condition === 'returned'
                                         ? 'green'
@@ -530,83 +566,103 @@ export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
                                     <BlockCard
                                         key={`${item.InventoryTypeId}-${index}`}
                                         className="inventory-item-block">
-                                        <div className="inventory-item-block-heading">
-                                            <div className="inventory-item-block-title">
-                                                {showItemCondition && item.Condition && (
-                                                    <Tag color={conditionColor}>
-                                                        {item.Condition}
-                                                    </Tag>
-                                                )}
-                                                <Typography.Text type="secondary">
-                                                    Labels:{' '}
-                                                    {labels.length ? labels.join(', ') : '—'}
-                                                </Typography.Text>
-                                            </div>
-                                            <Space size="small">
-                                                {type && canSeeInventoryCatalog(me) && (
-                                                    <Button
-                                                        type="text"
-                                                        icon={<Icon name="eye" />}
-                                                        onClick={() =>
-                                                            navigate(inventoryTypePath(type.Id))
-                                                        }
-                                                        aria-label="View item type"
-                                                        title="View item type"
-                                                    />
-                                                )}
-                                                {canEditItemCondition &&
-                                                    request.Status === 'issued' &&
-                                                    item.Condition !== 'returned' && (
-                                                        <Button
-                                                            type="text"
-                                                            icon={<Icon name="checkCircle" />}
-                                                            onClick={() =>
-                                                                void persistItems((current) =>
-                                                                    markItemReturned(
-                                                                        current,
-                                                                        index,
-                                                                    ),
-                                                                )
-                                                            }
-                                                            aria-label="Mark item returned"
-                                                            title="Mark item returned"
-                                                        />
+                                        <div className="flex items-start gap-3">
+                                            {/* Type photo as a small avatar, as on the label cards. */}
+                                            {/* The photo and the name open the type; the card
+                                                itself holds buttons, so it cannot be one link. */}
+                                            <ItemTypeLink
+                                                href={typeHref}
+                                                onOpen={() => navigate(typeHref!)}
+                                                className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink/5 text-steel"
+                                                tabIndex={-1}>
+                                                <RequestImage
+                                                    imageId={String(type?.ImageId || '')}
+                                                    alt={item.itemName || 'Unknown item'}
+                                                    className="size-full object-cover"
+                                                    fallback={<Icon name="box" />}
+                                                />
+                                            </ItemTypeLink>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="inventory-item-block-heading">
+                                                    <div className="inventory-item-block-title">
+                                                        {showItemCondition && item.Condition && (
+                                                            <Tag color={conditionColor}>
+                                                                {item.Condition}
+                                                            </Tag>
+                                                        )}
+                                                        <Typography.Text type="secondary">
+                                                            Labels:{' '}
+                                                            {labels.length
+                                                                ? labels.join(', ')
+                                                                : '—'}
+                                                        </Typography.Text>
+                                                    </div>
+                                                    <Space size="small">
+                                                        {canEditItemCondition &&
+                                                            request.Status === 'issued' &&
+                                                            item.Condition !== 'returned' && (
+                                                                <Button
+                                                                    type="text"
+                                                                    icon={
+                                                                        <Icon name="checkCircle" />
+                                                                    }
+                                                                    onClick={() =>
+                                                                        void persistItems(
+                                                                            (current) =>
+                                                                                markItemReturned(
+                                                                                    current,
+                                                                                    index,
+                                                                                ),
+                                                                        )
+                                                                    }
+                                                                    aria-label="Mark item returned"
+                                                                    title="Mark item returned"
+                                                                />
+                                                            )}
+                                                        {editable && (
+                                                            <>
+                                                                <Button
+                                                                    type="text"
+                                                                    icon={<Icon name="edit" />}
+                                                                    onClick={() => editItem(index)}
+                                                                    aria-label="Edit item"
+                                                                />
+                                                                <Button
+                                                                    type="text"
+                                                                    danger
+                                                                    icon={<Icon name="trash" />}
+                                                                    onClick={() =>
+                                                                        setPendingDeleteItemIndex(
+                                                                            index,
+                                                                        )
+                                                                    }
+                                                                    aria-label="Delete item"
+                                                                />
+                                                            </>
+                                                        )}
+                                                    </Space>
+                                                </div>
+                                                <div className="inventory-item-block-details">
+                                                    <Typography.Text type="secondary">
+                                                        {item.Quantity}×
+                                                    </Typography.Text>
+                                                    <ItemTypeLink
+                                                        href={typeHref}
+                                                        onOpen={() => navigate(typeHref!)}
+                                                        className="hover:underline">
+                                                        <Typography.Text strong>
+                                                            {item.itemName || 'Unknown item'}
+                                                        </Typography.Text>
+                                                    </ItemTypeLink>
+                                                    {shortageMessage && (
+                                                        <Typography.Text
+                                                            type="warning"
+                                                            className="basis-full">
+                                                            {shortageMessage}
+                                                        </Typography.Text>
                                                     )}
-                                                {editable && (
-                                                    <>
-                                                        <Button
-                                                            type="text"
-                                                            icon={<Icon name="edit" />}
-                                                            onClick={() => editItem(index)}
-                                                            aria-label="Edit item"
-                                                        />
-                                                        <Button
-                                                            type="text"
-                                                            danger
-                                                            icon={<Icon name="trash" />}
-                                                            onClick={() =>
-                                                                setPendingDeleteItemIndex(index)
-                                                            }
-                                                            aria-label="Delete item"
-                                                        />
-                                                    </>
-                                                )}
-                                            </Space>
-                                        </div>
-                                        <div className="inventory-item-block-details">
-                                            <Typography.Text type="secondary">
-                                                {item.Quantity}×
-                                            </Typography.Text>
-                                            <Typography.Text strong>
-                                                {item.itemName || 'Unknown item'}
-                                            </Typography.Text>
-                                            {shortageMessage && (
-                                                <Typography.Text
-                                                    type="warning"
-                                                    className="basis-full">
-                                                    {shortageMessage}
-                                                </Typography.Text>
-                                            )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </BlockCard>
                                 );
