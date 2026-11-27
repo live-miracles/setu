@@ -5,6 +5,7 @@ import {
     type EmailSettings,
     failureUpdate,
     parseEmailList,
+    threadingFor,
 } from './format.ts';
 import { secretsMatch } from './secret.ts';
 
@@ -76,18 +77,43 @@ async function fetchAccessToken(config: GmailConfig): Promise<string> {
     return body.access_token as string;
 }
 
-async function sendGmail(accessToken: string, raw: string): Promise<string> {
+async function sendGmail(
+    accessToken: string,
+    raw: string,
+    threadId?: string,
+): Promise<{ id: string; threadId: string }> {
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw }),
+        body: JSON.stringify(threadId ? { raw, threadId } : { raw }),
     });
     if (!response.ok) {
         const detail = (await response.text()).slice(0, 500);
         throw new Error(`Gmail send failed with HTTP ${response.status}: ${detail}`);
     }
     const body = await response.json();
-    return String(body.id || '');
+    return { id: String(body.id || ''), threadId: String(body.threadId || '') };
+}
+
+/**
+ * The Gmail thread of the first email already sent for this request, so later
+ * emails join it. A lookup failure only means this email may start its own
+ * thread; it must never block delivery.
+ */
+async function findThreadId(row: EmailOutboxRow): Promise<string> {
+    const targetId = row.payload?.targetId;
+    if (!targetId) return '';
+    const { data, error } = await supabase
+        .from('email_outbox')
+        .select('provider_thread_id')
+        .eq('template', 'comment')
+        .eq('status', 'sent')
+        .eq('payload->>targetId', targetId)
+        .not('provider_thread_id', 'is', null)
+        .order('sent_at', { ascending: true })
+        .limit(1);
+    if (error) console.error(`Could not look up the email thread: ${error.message}`);
+    return data?.[0]?.provider_thread_id || '';
 }
 
 async function updateRow(id: string, values: Record<string, string>): Promise<void> {
@@ -121,9 +147,15 @@ Deno.serve(async (request) => {
     let sent = 0;
     let failed = 0;
     for (const row of rows) {
-        let messageId: string;
+        let sentMessage: { id: string; threadId: string };
         try {
-            messageId = await sendGmail(accessToken, buildRawEmail(row, config.settings));
+            const threadId = await findThreadId(row);
+            const threading = threadingFor(row, config.settings.senderEmail, !threadId);
+            sentMessage = await sendGmail(
+                accessToken,
+                buildRawEmail(row, config.settings, undefined, threading),
+                threadId || undefined,
+            );
         } catch (sendError) {
             failed++;
             await updateRow(row.id, failureUpdate(row.attempts, sendError));
@@ -133,7 +165,8 @@ Deno.serve(async (request) => {
         await updateRow(row.id, {
             status: 'sent',
             sent_at: new Date().toISOString(),
-            provider_message_id: `gmail:${messageId}`,
+            provider_message_id: `gmail:${sentMessage.id}`,
+            provider_thread_id: sentMessage.threadId,
         });
         sent++;
     }

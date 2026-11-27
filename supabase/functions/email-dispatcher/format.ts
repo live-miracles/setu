@@ -4,6 +4,7 @@
 export type EmailSession = { name?: string; type?: string; startAt?: string; endAt?: string };
 
 export type EmailPayload = {
+    targetId?: string;
     cc?: string[];
     message?: string;
     targetName?: string;
@@ -51,11 +52,35 @@ export function failureUpdate(attempts: number, error: unknown): Record<string, 
     };
 }
 
+export type EmailThreading = { messageId: string; inReplyTo?: string };
+
+/**
+ * Gmail groups messages into a conversation by matching subject plus the
+ * Message-ID / In-Reply-To / References headers. Every comment email for a
+ * request therefore shares one root id: the first email of a request uses it
+ * as its own Message-ID, and later emails reference it. Returns undefined when
+ * the row has no request to thread on.
+ */
+export function threadingFor(
+    row: EmailOutboxRow,
+    senderEmail: string,
+    isFirstInThread: boolean,
+): EmailThreading | undefined {
+    const targetId = (row.payload?.targetId || '').replace(/[^A-Za-z0-9-]/g, '');
+    const domain = senderEmail.split('@')[1]?.replace(/[^A-Za-z0-9.-]/g, '');
+    if (!targetId || !domain) return undefined;
+    const rootId = `<setu-thread-${targetId}@${domain}>`;
+    if (isFirstInThread) return { messageId: rootId };
+    const rowId = row.id.replace(/[^A-Za-z0-9-]/g, '');
+    return { messageId: `<setu-${rowId}@${domain}>`, inReplyTo: rootId };
+}
+
 /** Builds the base64url-encoded RFC 2822 message the Gmail API expects in `raw`. */
 export function buildRawEmail(
     row: EmailOutboxRow,
     settings: EmailSettings,
     boundary = `setu-${crypto.randomUUID()}`,
+    threading?: EmailThreading,
 ): string {
     const payload = row.payload || {};
     const message = payload.message || '';
@@ -69,6 +94,7 @@ export function buildRawEmail(
             text: formatEmailBody(message, payload, settings),
             html: formatEmailHtmlBody(message, payload, settings),
             boundary,
+            threading,
         }),
     );
 }
@@ -291,15 +317,24 @@ type MimeMessage = {
     text: string;
     html: string;
     boundary: string;
+    threading?: EmailThreading;
 };
 
 export function buildMimeMessage(message: MimeMessage): string {
+    const { threading } = message;
     const headers = [
         `From: ${message.from.name ? `${encodeHeaderText(message.from.name)} ` : ''}<${headerValue(message.from.email)}>`,
         `To: ${headerValue(message.to)}`,
         ...(message.cc.length ? [`Cc: ${message.cc.map(headerValue).join(', ')}`] : []),
         ...(message.replyTo ? [`Reply-To: ${headerValue(message.replyTo)}`] : []),
         `Subject: ${encodeHeaderText(message.subject)}`,
+        ...(threading ? [`Message-ID: ${headerValue(threading.messageId)}`] : []),
+        ...(threading?.inReplyTo
+            ? [
+                  `In-Reply-To: ${headerValue(threading.inReplyTo)}`,
+                  `References: ${headerValue(threading.inReplyTo)}`,
+              ]
+            : []),
         'MIME-Version: 1.0',
         `Content-Type: multipart/alternative; boundary="${message.boundary}"`,
     ];
