@@ -3,6 +3,9 @@
     "version": "2.0.3",
     "description": "Setu — an internal operations app built on Supabase and Vercel.",
     "private": true,
+    "engines": {
+        "node": "26.x"
+    },
     "type": "module",
     "scripts": {
         "dev": "node --env-file-if-exists=.env.local build-tools/dev.mjs",

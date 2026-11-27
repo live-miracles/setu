@@ -7,7 +7,7 @@ _Setu (सेतु, "bridge"): the people who request, approve and run a studio
 [![CI](https://github.com/live-miracles/setu/actions/workflows/ci.yml/badge.svg)](https://github.com/live-miracles/setu/actions/workflows/ci.yml)
 [![Installable PWA](https://img.shields.io/badge/PWA-installable-5a0fc8?logo=pwa&logoColor=white)](https://developer.mozilla.org/docs/Web/Progressive_web_apps)
 [![Runs on free tiers](https://img.shields.io/badge/Supabase%20%2B%20Vercel-free%20tiers-3fcf8e?logo=supabase&logoColor=white)](docs/deployment.md#free-tier-deployment)
-[![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933?logo=nodedotjs&logoColor=white)](docs/getting-started.md)
+[![Node.js 26+](https://img.shields.io/badge/node-26%2B-339933?logo=nodedotjs&logoColor=white)](docs/getting-started.md)
 
 **Program scheduling, equipment inventory, approvals and staff rosters for a studio team, in one installable web app that runs on free tiers.** Teams request equipment and sessions, approvers decide on them, and the crew sees who is on shift. It is a small internal app, built for up to 500 users and 100,000 records, that works in Chrome on desktop and mobile and installs to the home screen as a PWA.
 
@@ -71,7 +71,7 @@ Browser → Vercel static app → Supabase Auth
 
 ## Quick start
 
-You need Node.js 22+, a Supabase project, and a Google OAuth client.
+You need Node.js 26+, a Supabase project, and a Google OAuth client.
 
 ```bash
 git clone https://github.com/live-miracles/setu.git

@@ -25,7 +25,7 @@ needs ffmpeg.
 
 ## Requirements
 
-- Node.js 22 or newer
+- Node.js 26 or newer
 - Access to the Setu Supabase project (shared by production and development)
 - A Google OAuth client configured for that Supabase project
 - Git
