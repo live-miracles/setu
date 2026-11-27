@@ -175,12 +175,12 @@ export const homeContent = {
     HiddenViews: [],
     ViewOrder: [
         'programs',
-        'inventory',
         'calendar',
         'roster',
+        'blocks',
+        'inventory',
         'inventory-types',
         'inventory-labels',
-        'blocks',
     ],
 };
 

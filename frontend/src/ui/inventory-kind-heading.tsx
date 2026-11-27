@@ -9,6 +9,7 @@ import {
     writeLastInventoryKind,
     type InventoryKind,
 } from './inventory-kind';
+import type { ViewSettings } from './views';
 
 // The page heading of both inventory pages: the Types / Labels switch, or just
 // a title when an admin hid the other kind (the open kind is always offered,
@@ -18,7 +19,7 @@ export function InventoryKindHeading({
     homeContent,
 }: {
     kind: InventoryKind;
-    homeContent: Pick<HomeContent, 'HiddenViews'> | null | undefined;
+    homeContent: ViewSettings;
 }) {
     const navigate = useNavigate();
     useEffect(() => writeLastInventoryKind(kind), [kind]);

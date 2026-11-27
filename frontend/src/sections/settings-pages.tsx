@@ -3,9 +3,27 @@ import { useInvalidate, useList } from '../ui/resources';
 import { useHomeContent, useMe } from '../ui/reference';
 import { Input, TextArea, Field } from '../ui/form-kit';
 import { Modal } from '../ui/overlay-kit';
-import { Table, Button, Card, Checkbox, Empty, Space, Tag, Typography } from '../ui/kit';
-import { HIDEABLE_VIEWS, VIEW_LABELS, isViewVisible } from '../ui/views';
+import {
+    Table,
+    Button,
+    Card,
+    Checkbox,
+    Empty,
+    SortableList,
+    Space,
+    Tag,
+    Typography,
+} from '../ui/kit';
+import {
+    HIDEABLE_VIEWS,
+    VIEW_GROUPS,
+    VIEW_LABELS,
+    isViewVisible,
+    orderedViews,
+    type HideableView,
+} from '../ui/views';
 import { Icon } from '../ui/icons';
+import { reorderSubset } from '../ui/sortable';
 import { api } from '../api';
 import { showErrorAlert } from '../ui/feedback';
 import { formatDateTime, formatTimeOfDay } from '../ui/format';
@@ -440,6 +458,7 @@ function ViewsCard() {
     const [shown, setShown] = useState<string[]>(() =>
         HIDEABLE_VIEWS.filter((view) => isViewVisible(homeContent, view)),
     );
+    const [order, setOrder] = useState<HideableView[]>(() => orderedViews(homeContent));
     const [saving, setSaving] = useState(false);
 
     async function save(event: FormEvent<HTMLFormElement>) {
@@ -447,12 +466,15 @@ function ViewsCard() {
         setSaving(true);
         try {
             const hiddenViews = HIDEABLE_VIEWS.filter((view) => !shown.includes(view));
-            const saved = await api.updateHomeContent({ hiddenViews });
-            // An API that has not been updated yet ignores hiddenViews, or drops
-            // a view it does not know yet; say so instead of looking like a save.
+            const saved = await api.updateHomeContent({ hiddenViews, viewOrder: order });
+            // An API that has not been updated yet ignores hiddenViews and
+            // viewOrder, or drops a view it does not know yet; say so instead
+            // of looking like a save.
             if (
                 !Array.isArray(saved?.HiddenViews) ||
-                saved.HiddenViews.join() !== hiddenViews.join()
+                saved.HiddenViews.join() !== hiddenViews.join() ||
+                !Array.isArray(saved?.ViewOrder) ||
+                saved.ViewOrder.join() !== order.join()
             ) {
                 throw new Error(
                     'The server did not save the views. Apply the latest database migration and deploy the API first.',
@@ -470,24 +492,72 @@ function ViewsCard() {
         <Card title="Views" className="settings-form-card">
             <form onSubmit={save}>
                 <Typography.Paragraph type="secondary">
-                    Unchecked views are hidden from the menu and the home screen for everyone. This
-                    only changes what is shown: anyone with a link can still open a hidden view.
+                    Unchecked views are hidden from the menu and the home screen for everyone. Drag
+                    the handles to change the order of the menu and of the switches between boards.
+                    This only changes what is shown: anyone with a link can still open a hidden
+                    view.
                 </Typography.Paragraph>
-                <div className="mb-3 grid gap-2" role="group" aria-label="Views">
-                    {HIDEABLE_VIEWS.map((view) => (
-                        <Checkbox
-                            key={view}
-                            checked={shown.includes(view)}
-                            onChange={(event) =>
-                                setShown((current) =>
-                                    event.target.checked
-                                        ? [...current, view]
-                                        : current.filter((item) => item !== view),
-                                )
-                            }>
-                            {VIEW_LABELS[view]}
-                        </Checkbox>
-                    ))}
+                <div className="mb-4 grid gap-4 md:grid-cols-2">
+                    {VIEW_GROUPS.map((group) => {
+                        const shownCount = group.views.filter((view) =>
+                            shown.includes(view),
+                        ).length;
+                        return (
+                            <fieldset
+                                key={group.key}
+                                className="m-0 grid content-start gap-3 rounded-lg border border-line p-4">
+                                <legend className="sr-only">{group.title}</legend>
+                                <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-semibold">{group.title}</div>
+                                        <div className="text-xs text-steel">
+                                            {group.description}
+                                        </div>
+                                    </div>
+                                    <Checkbox
+                                        checked={shownCount === group.views.length}
+                                        indeterminate={
+                                            shownCount > 0 && shownCount < group.views.length
+                                        }
+                                        onChange={(event) =>
+                                            setShown((current) => [
+                                                ...current.filter(
+                                                    (item) =>
+                                                        !group.views.includes(item as HideableView),
+                                                ),
+                                                ...(event.target.checked ? group.views : []),
+                                            ])
+                                        }>
+                                        <span className="whitespace-nowrap text-xs text-steel">
+                                            {shownCount} of {group.views.length} shown
+                                        </span>
+                                    </Checkbox>
+                                </div>
+                                <SortableList
+                                    items={order.filter((view) => group.views.includes(view))}
+                                    itemLabel={(view) => VIEW_LABELS[view]}
+                                    onChange={(next) =>
+                                        setOrder((current) =>
+                                            reorderSubset(current, group.views, next),
+                                        )
+                                    }
+                                    renderItem={(view) => (
+                                        <Checkbox
+                                            checked={shown.includes(view)}
+                                            onChange={(event) =>
+                                                setShown((current) =>
+                                                    event.target.checked
+                                                        ? [...current, view]
+                                                        : current.filter((item) => item !== view),
+                                                )
+                                            }>
+                                            {VIEW_LABELS[view]}
+                                        </Checkbox>
+                                    )}
+                                />
+                            </fieldset>
+                        );
+                    })}
                 </div>
                 {canEdit && (
                     <Button type="primary" htmlType="submit" loading={saving}>

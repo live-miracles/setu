@@ -29,7 +29,7 @@ import {
     MAX_NAME_LENGTH,
     MAX_PHONE_LENGTH,
 } from './validation.ts';
-import { normalizeHiddenViews } from '../_shared/views.ts';
+import { normalizeHiddenViews, normalizeViewOrder } from '../_shared/views.ts';
 
 const USER_ROLES = ['admin', 'approver', 'viewer', 'user'];
 
@@ -859,6 +859,7 @@ export async function updateHomeContent(
     if (input.hiddenViews !== undefined) {
         changes.hidden_views = normalizeHiddenViews(input.hiddenViews);
     }
+    if (input.viewOrder !== undefined) changes.view_order = normalizeViewOrder(input.viewOrder);
     const row = result(
         await admin.from('home_content').update(changes).eq('id', true).select('*').single(),
     ) as Row;

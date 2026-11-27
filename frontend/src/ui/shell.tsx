@@ -22,7 +22,7 @@ import {
 } from '../paths';
 import { canApprove, canSeeInventoryCatalog, canSeeRoster } from '../workflows';
 import { readLastRequestKind, requestKindPath } from './request-kind';
-import { isViewVisible, visibleRequestKinds, type HideableView } from './views';
+import { isViewVisible, sortByViewOrder, visibleRequestKinds, type HideableView } from './views';
 import { inventoryKindPath, readLastInventoryKind, visibleInventoryKinds } from './inventory-kind';
 import { currentUserEmail, signOutAndReload } from '../supabase';
 import { showErrorAlert } from './feedback';
@@ -30,15 +30,16 @@ import { toggleTheme, useTheme } from './theme';
 import { APP_LOADING_EVENT, AppLoading } from './app-loading';
 
 // `also` lists other paths that keep the item selected (Requests covers both the
-// Programs and the Inventory board). `view` is the setting that can hide the
-// item (Other settings); Requests hides when both of its boards are hidden.
+// Programs and the Inventory board). `views` are the settings that hide and order
+// the item (Other settings): the item hides when all of them are hidden and sits
+// where the first of them does. Items without `views` always show, after the rest.
 type NavItem = {
     key: string;
     to: string;
     label: string;
     icon?: ReactNode;
     also?: string[];
-    view?: HideableView;
+    views?: HideableView[];
 };
 
 const primaryNavItems: NavItem[] = [
@@ -48,13 +49,14 @@ const primaryNavItems: NavItem[] = [
         label: 'Requests',
         icon: <Icon name="appstore" />,
         also: [inventoryPath],
+        views: ['programs', 'inventory'],
     },
     {
         key: 'calendar',
         to: calendarPath,
         label: 'Calendar',
         icon: <Icon name="calendar" />,
-        view: 'calendar',
+        views: ['calendar'],
     },
 ];
 
@@ -66,7 +68,7 @@ const configNavItems: NavItem[] = [
         to: rosterPath,
         label: 'Roster',
         icon: <Icon name="schedule" />,
-        view: 'roster',
+        views: ['roster'],
     },
     { key: 'users', to: usersPath, label: 'Users', icon: <Icon name="team" /> },
     {
@@ -81,13 +83,14 @@ const configNavItems: NavItem[] = [
         label: 'Inventory',
         icon: <Icon name="tags" />,
         also: [inventoryLabelsPath],
+        views: ['inventory-types', 'inventory-labels'],
     },
     {
         key: 'blocks',
         to: blocksPath,
         label: 'Blocks',
         icon: <Icon name="block" />,
-        view: 'blocks',
+        views: ['blocks'],
     },
     {
         key: 'home-content',
@@ -97,21 +100,18 @@ const configNavItems: NavItem[] = [
     },
 ];
 
-// Navigation. Mobile (bottom dock) shows the first three destinations that are
-// not hidden (normally Requests, Calendar and Roster, so a hidden one is replaced
-// by the next in line) and puts the rest behind "More". Desktop shows every destination as a
-// top tab while they fit, and only the ones that no longer fit move into "More"
-// as the window narrows (see useFittingCount). The account menu is only about
-// the person.
-const tabKeys = new Set(['requests', 'calendar', 'roster']);
-const DOCK_SLOTS = tabKeys.size;
-const tabNavItems = [...primaryNavItems, ...configNavItems].filter((item) => tabKeys.has(item.key));
-const moreNavItems = configNavItems.filter(
-    (item) => !tabKeys.has(item.key) && item.key === 'inventory-types',
-);
-const moreConfigNavItems = configNavItems.filter(
-    (item) => !tabKeys.has(item.key) && item.key !== 'inventory-types',
-);
+// Navigation. Every destination is one list in menu order: the views in the order
+// an admin chose (Other settings), then the pages only admins and approvers see.
+// Mobile (bottom dock) shows the first three destinations that are not hidden and
+// puts the rest behind "More". Desktop shows every destination as a top tab while
+// they fit, and only the ones that no longer fit move into "More" as the window
+// narrows (see useFittingCount). The account menu is only about the person.
+const navItems = [...primaryNavItems, ...configNavItems];
+const DOCK_SLOTS = 3;
+// For admins and approvers only. The last three sit under a "Configuration"
+// heading in the More menu; Blocks is a view, so it follows the chosen order.
+const adminNavKeys = new Set(['users', 'departments', 'blocks', 'home-content']);
+const configNavKeys = new Set(['users', 'departments', 'home-content']);
 
 const NAV_TAB =
     'inline-flex cursor-pointer items-center gap-2 border-b-2 px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent';
@@ -241,20 +241,16 @@ export function Shell({ children }: { children?: ReactNode }) {
     const visibleKinds = visibleRequestKinds(homeContent);
     const visibleInventory = visibleInventoryKinds(homeContent);
     const isShown = (item: NavItem) => {
-        if (item.key === 'requests') return visibleKinds.length > 0;
-        if (item.key === 'inventory-types') {
-            return visibleInventory.length > 0 && Boolean(me && canSeeInventoryCatalog(me));
-        }
-        if (item.key === 'roster') {
-            return isViewVisible(homeContent, 'roster') && Boolean(me && canSeeRoster(me));
-        }
-        return !item.view || isViewVisible(homeContent, item.view);
+        if (adminNavKeys.has(item.key) && !canOpenConfig) return false;
+        if (item.key === 'inventory-types' && !(me && canSeeInventoryCatalog(me))) return false;
+        if (item.key === 'roster' && !(me && canSeeRoster(me))) return false;
+        return !item.views || item.views.some((view) => isViewVisible(homeContent, view));
     };
-    const tabItems = tabNavItems.filter(isShown);
-    const moreItems = [...moreNavItems, ...(canOpenConfig ? moreConfigNavItems : [])].filter(
-        isShown,
+    const desktopItems = sortByViewOrder(
+        homeContent,
+        navItems.filter(isShown),
+        (item) => item.views,
     );
-    const desktopItems = [...tabItems, ...moreItems];
     const { navRef, measureRef, fit } = useFittingCount(desktopItems.length, showPrimaryNav);
     const visibleItems = desktopItems.slice(0, fit);
     const overflowItems = desktopItems.slice(fit);
@@ -311,12 +307,11 @@ export function Shell({ children }: { children?: ReactNode }) {
     const dockMoreSelected = dockMoreItems.some(isCurrent);
     // Menu rows for the given destinations; the admin-only ones sit under a
     // "Configuration" heading.
-    const configKeys = new Set(moreConfigNavItems.map((item) => item.key));
     const buildMoreMenu = (items: NavItem[]): MenuItem[] => {
         const menu: MenuItem[] = [];
         let headed = false;
         for (const item of items) {
-            if (configKeys.has(item.key) && !headed) {
+            if (configNavKeys.has(item.key) && !headed) {
                 headed = true;
                 if (menu.length) menu.push({ type: 'divider' });
                 menu.push({ type: 'label', label: 'Configuration' });

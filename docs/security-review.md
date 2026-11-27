@@ -100,9 +100,9 @@ When a database or constraint error occurs, the API returns its message to the s
 
 The Inventory pages (item types and labels) are shown to Admins, Approvers and Viewers only. The catalogue itself (names, brands, models, locations and stock levels of item types) stays readable by every signed-in user through the API and Row Level Security, because anyone requesting items must be able to choose from it. Hiding the pages is a presentation choice; the data is operational reference data, not personal or confidential. Creating, changing and deleting item types and labels remains Admin-only.
 
-### Hidden views are presentation only
+### Hidden and reordered views are presentation only
 
-An Admin can hide the Program requests, Inventory requests, Calendar, Roster, Inventory types, Inventory labels and Blocks views from the menu and home screen (Other settings, stored in `home_content.hidden_views`). This is a display preference, not access control: the API never reads it, a hidden view's pages still open from a link, and access stays governed by authentication, Row Level Security and the request policy. Only Admins can change it, and the other pages for Admins and Approvers (Users, Departments, Other settings) cannot be hidden, so the setting cannot lock an Admin out of Other settings.
+An Admin can hide the Program requests, Inventory requests, Calendar, Roster, Inventory types, Inventory labels and Blocks views from the menu and home screen (Other settings, stored in `home_content.hidden_views`) and choose their order in the menu and board switches (`home_content.view_order`). This is a display preference, not access control: the API never reads it, a hidden view's pages still open from a link, and access stays governed by authentication, Row Level Security and the request policy. Only Admins can change it, and the other pages for Admins and Approvers (Users, Departments, Other settings) cannot be hidden, so the setting cannot lock an Admin out of Other settings.
 
 ## 5 Secrets and Deployment Controls
 

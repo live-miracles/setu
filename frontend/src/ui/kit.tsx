@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Icon } from './icons';
+import { dropIndex, moveItem, type SlotRect } from './sortable';
 
 // The app's small UI kit: the handful of primitives every screen shares,
 // styled with Tailwind utilities against the theme tokens in input.css
@@ -489,6 +491,144 @@ export function Checkbox({
             />
             {children}
         </label>
+    );
+}
+
+// --------------------------------------------------------- SortableList
+
+interface Drag {
+    from: number;
+    to: number;
+    dy: number;
+}
+
+// A short list the person reorders by dragging a row's grip handle (mouse or
+// touch), or with the up/down arrow keys while the handle has focus. Rows stay
+// where they are in the DOM while dragging (the dragged one follows the pointer
+// and the rows it passes make room), and `onChange` fires once on drop, so the
+// pointer is never lost to a re-render. `items` are unique keys.
+export function SortableList<T extends string>({
+    items,
+    onChange,
+    renderItem,
+    itemLabel,
+    className,
+}: {
+    items: readonly T[];
+    onChange: (next: T[]) => void;
+    renderItem: (item: T) => ReactNode;
+    itemLabel: (item: T) => string;
+    className?: string;
+}) {
+    const listRef = useRef<HTMLDivElement>(null);
+    const dragStart = useRef<{ y: number; rects: SlotRect[] } | null>(null);
+    const focusItem = useRef<T | null>(null);
+    const [drag, setDrag] = useState<Drag | null>(null);
+
+    // A keyboard move re-orders the rows, which drops focus; put it back.
+    useEffect(() => {
+        if (focusItem.current === null) return;
+        const handle = Array.from(
+            listRef.current?.querySelectorAll<HTMLElement>('[data-handle]') ?? [],
+        ).find((element) => element.dataset.handle === focusItem.current);
+        focusItem.current = null;
+        handle?.focus();
+    });
+
+    function start(event: React.PointerEvent<HTMLButtonElement>, index: number) {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        const rows = Array.from(listRef.current?.children ?? []);
+        const rects = rows.map((row) => {
+            const box = row.getBoundingClientRect();
+            return { top: box.top, height: box.height };
+        });
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragStart.current = { y: event.clientY, rects };
+        setDrag({ from: index, to: index, dy: 0 });
+    }
+
+    function move(event: React.PointerEvent<HTMLButtonElement>) {
+        const begun = dragStart.current;
+        if (!begun || !drag) return;
+        const { rects } = begun;
+        const first = rects[0];
+        const last = rects[rects.length - 1];
+        const own = rects[drag.from];
+        // The dragged row stays inside the list.
+        const dy = Math.max(
+            first.top - own.top,
+            Math.min(event.clientY - begun.y, last.top + last.height - (own.top + own.height)),
+        );
+        setDrag({ from: drag.from, to: dropIndex(rects, drag.from, dy), dy });
+    }
+
+    function drop(commit: boolean) {
+        if (commit && drag && drag.to !== drag.from) onChange(moveItem(items, drag.from, drag.to));
+        dragStart.current = null;
+        setDrag(null);
+    }
+
+    function key(event: React.KeyboardEvent<HTMLButtonElement>, item: T, index: number) {
+        if (event.key === 'Escape' && drag) return drop(false);
+        const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
+        if (!step) return;
+        event.preventDefault();
+        if (index + step < 0 || index + step >= items.length) return;
+        focusItem.current = item;
+        onChange(moveItem(items, index, index + step));
+    }
+
+    // How far the rows the dragged one passes move to make room for it.
+    const rects = dragStart.current?.rects;
+    const pitch =
+        drag && rects
+            ? rects[drag.from].height +
+              (rects.length > 1 ? rects[1].top - (rects[0].top + rects[0].height) : 0)
+            : 0;
+    function offsetOf(index: number): number {
+        if (!drag) return 0;
+        if (index === drag.from) return drag.dy;
+        if (drag.from < drag.to && index > drag.from && index <= drag.to) return -pitch;
+        if (drag.from > drag.to && index >= drag.to && index < drag.from) return pitch;
+        return 0;
+    }
+
+    return (
+        <div ref={listRef} role="list" className={cx('grid gap-1', className)}>
+            {items.map((item, index) => {
+                const dragging = drag?.from === index;
+                return (
+                    <div
+                        key={item}
+                        role="listitem"
+                        style={drag ? { transform: `translateY(${offsetOf(index)}px)` } : undefined}
+                        className={cx(
+                            'flex items-center gap-1 rounded-lg',
+                            drag && !dragging && 'transition-transform duration-150',
+                            dragging && 'relative z-10 bg-surface shadow-lg ring-1 ring-line',
+                        )}>
+                        <button
+                            type="button"
+                            data-handle={item}
+                            aria-label={`Reorder ${itemLabel(item)}: drag, or press the up and down arrow keys`}
+                            title="Drag to reorder"
+                            onPointerDown={(event) => start(event, index)}
+                            onPointerMove={move}
+                            onPointerUp={() => drop(true)}
+                            onPointerCancel={() => drop(false)}
+                            onKeyDown={(event) => key(event, item, index)}
+                            className={cx(
+                                'inline-flex size-8 shrink-0 touch-none items-center justify-center rounded-md border-0 bg-transparent text-steel transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent max-md:size-11',
+                                dragging ? 'cursor-grabbing text-accent' : 'cursor-grab',
+                            )}>
+                            <Icon name="grip" />
+                        </button>
+                        {renderItem(item)}
+                    </div>
+                );
+            })}
+        </div>
     );
 }
 

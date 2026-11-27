@@ -16,6 +16,7 @@ export type IconName =
     | 'list'
     | 'columns'
     | 'chevronDown'
+    | 'grip'
     | 'chevronLeft'
     | 'chevronRight'
     | 'pin'
@@ -68,6 +69,7 @@ const ICON_PATHS: Record<IconName, string> = {
     columns:
         '<rect x="3.5" y="4" width="7" height="16" rx="1.5" /><rect x="13.5" y="4" width="7" height="16" rx="1.5" /><line x1="6" y1="8" x2="8" y2="8" /><line x1="16" y1="8" x2="18" y2="8" />',
     chevronDown: '<polyline points="6 9 12 15 18 9" />',
+    grip: '<circle cx="9" cy="6" r="1.3" fill="currentColor" stroke="none" /><circle cx="15" cy="6" r="1.3" fill="currentColor" stroke="none" /><circle cx="9" cy="12" r="1.3" fill="currentColor" stroke="none" /><circle cx="15" cy="12" r="1.3" fill="currentColor" stroke="none" /><circle cx="9" cy="18" r="1.3" fill="currentColor" stroke="none" /><circle cx="15" cy="18" r="1.3" fill="currentColor" stroke="none" />',
     chevronLeft: '<polyline points="15 6 9 12 15 18" />',
     chevronRight: '<polyline points="9 6 15 12 9 18" />',
     pin: '<path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.3" />',

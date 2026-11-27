@@ -1,5 +1,5 @@
 import { inventoryLabelsPath, inventoryTypesPath } from '../paths';
-import { isViewVisible } from './views';
+import { isViewVisible, sortByViewOrder, type ViewSettings } from './views';
 
 // Inventory types and inventory labels share one "Inventory" menu entry with a
 // switch between them, like the two request boards. The last one a person
@@ -22,10 +22,12 @@ export function inventoryKindLabel(kind: InventoryKind): string {
 const KIND_VIEW = { types: 'inventory-types', labels: 'inventory-labels' } as const;
 
 // The kinds an admin has not hidden, in switch order.
-export function visibleInventoryKinds(
-    homeContent: Pick<HomeContent, 'HiddenViews'> | null | undefined,
-): InventoryKind[] {
-    return INVENTORY_KINDS.filter((kind) => isViewVisible(homeContent, KIND_VIEW[kind]));
+export function visibleInventoryKinds(homeContent: ViewSettings): InventoryKind[] {
+    return sortByViewOrder(
+        homeContent,
+        INVENTORY_KINDS.filter((kind) => isViewVisible(homeContent, KIND_VIEW[kind])),
+        (kind) => [KIND_VIEW[kind]],
+    );
 }
 
 export function readLastInventoryKind(): InventoryKind {

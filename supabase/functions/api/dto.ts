@@ -1,5 +1,5 @@
 import { inventoryLabelDto, locationFields, type Row } from './core.ts';
-import { normalizeHiddenViews } from '../_shared/views.ts';
+import { normalizeHiddenViews, normalizeViewOrder } from '../_shared/views.ts';
 
 // Row -> DTO mappings for the reference data (the small, rarely-changing
 // tables). Each entity is mapped here once; the list reads, the create/update
@@ -14,6 +14,7 @@ export function homeContentDto(row: Row): Row {
     return {
         Guidelines: row.guidelines,
         HiddenViews: normalizeHiddenViews(row.hidden_views),
+        ViewOrder: normalizeViewOrder(row.view_order),
     };
 }
 
