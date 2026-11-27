@@ -214,7 +214,7 @@ export function InventoryTypesPage({ kind = 'types' }: { kind?: InventoryKind })
             const imageId = await uploadTargetImage(file, {
                 type: 'inventory_type',
                 id: String(row.Id),
-                fileName: `InventoryTypes-${String(row.Id)}.jpg`,
+                fileName: `InventoryTypes-${String(row.Id)}.webp`,
             });
             await updateRow({
                 resource: 'inventory-types',
