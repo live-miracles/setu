@@ -40,7 +40,7 @@ import {
     inventoryFormValues,
     type InventoryFormValues,
 } from '../ui/request-fields';
-import { isRequestOverdue } from '../workflows';
+import { canSeeInventoryCatalog, isRequestOverdue } from '../workflows';
 import { RequestDetailFrame } from './request-detail-frame';
 import { useRequestDetail, type RequestDetailKind } from './use-request-detail';
 import { ActionConfirmation } from './action-confirmation';
@@ -72,7 +72,7 @@ export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
     const departments = useDepartments();
     const users = useUsers();
     const detail = useRequestDetail(inventoryKind, request);
-    const { approver, permissions, form } = detail;
+    const { approver, permissions, form, me } = detail;
     const items = request.items;
     const imageId = request.ImageId || '';
     const showItemCondition = ['issued', 'closed'].includes(request.Status);
@@ -543,7 +543,7 @@ export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
                                                 </Typography.Text>
                                             </div>
                                             <Space size="small">
-                                                {type && (
+                                                {type && canSeeInventoryCatalog(me) && (
                                                     <Button
                                                         type="text"
                                                         icon={<Icon name="eye" />}

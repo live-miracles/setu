@@ -1,6 +1,6 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { currentWriter, result, type Row } from './core.ts';
-import { isValidEmail, MAX_PARTICIPANTS } from './validation.ts';
+import { boundedText, isValidEmail, MAX_COMMENT_LENGTH, MAX_PARTICIPANTS } from './validation.ts';
 import {
     canCollaborate,
     canDeleteRequest,
@@ -156,6 +156,8 @@ export async function performRequestAction(
     note: string,
 ): Promise<string> {
     const actor = await currentWriter(client, userId);
+    // The note is appended to the activity comment, so it has the comment's cap.
+    boundedText(note, 'Note', MAX_COMMENT_LENGTH);
     return result(
         await admin.rpc(config.actionRpc, {
             p_request_id: id,

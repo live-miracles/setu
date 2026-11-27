@@ -313,3 +313,43 @@ test('upload and transition migration enforces storage limits and service-only t
         /revoke all on function public\.perform_program_request_action_tx[\s\S]*from public, anon, authenticated/,
     );
 });
+
+test('comments stored through the Data API have a length limit', async () => {
+    const sql = await readFile(
+        new URL('supabase/migrations/20261125000000_comment_length_limit.sql', rootUrl),
+        'utf8',
+    );
+    assert.match(sql, /add constraint comments_message_length check \(length\(message\) <= 5000\)/);
+});
+
+test('the roster is readable by staff roles only through the Data API', async () => {
+    const sql = await readFile(
+        new URL('supabase/migrations/20261125010000_roster_staff_only.sql', rootUrl),
+        'utf8',
+    );
+    assert.match(sql, /drop policy if exists "authenticated users read rosters"/);
+    assert.match(sql, /create policy "staff read rosters"[\s\S]*current_role\(\) <> 'user'/);
+});
+
+test('browser sign-in uses the PKCE flow so no token travels in the redirect URL', async () => {
+    const source = await readFile(new URL('frontend/src/supabase.ts', rootUrl), 'utf8');
+    assert.match(source, /auth:\s*\{\s*flowType:\s*'pkce'\s*\}/);
+});
+
+test('the Content-Security-Policy allows exactly the inline theme script in shell.html', async () => {
+    const { createHash } = await import('node:crypto');
+    const html = await readFile(new URL('frontend/shell.html', rootUrl), 'utf8');
+    const inlineScripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+    assert.equal(inlineScripts.length, 1, 'shell.html should keep a single inline script');
+    const hash = `sha256-${createHash('sha256').update(inlineScripts[0][1]).digest('base64')}`;
+    const config = JSON.parse(await readFile(new URL('vercel.json', rootUrl), 'utf8'));
+    const policy = config.headers
+        .flatMap((entry) => entry.headers)
+        .find((header) => header.key === 'Content-Security-Policy').value;
+    assert.ok(policy.includes(`'${hash}'`), 'update the script hash in vercel.json');
+    assert.match(policy, /default-src 'self'/);
+    assert.match(policy, /object-src 'none'/);
+    assert.match(policy, /frame-ancestors 'none'/);
+    assert.doesNotMatch(policy, /script-src[^;]*'unsafe-inline'/);
+    assert.doesNotMatch(policy, /script-src[^;]*'unsafe-eval'/);
+});

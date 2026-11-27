@@ -8,6 +8,7 @@ import {
     canCollaborate,
     canDeleteRequest,
     canEditRequest,
+    canViewRosterRole,
     canWriteRole,
     isAdminRole,
     isApproverRole,
@@ -31,6 +32,18 @@ export function canManageConfig(me: UserDTO): boolean {
 // Viewer is the organization-wide read-only role (the API refuses its writes).
 export function canWrite(me: UserDTO): boolean {
     return canWriteRole(me.Role);
+}
+
+// The roster is hidden from ordinary users (the database enforces it too).
+export function canSeeRoster(me: UserDTO): boolean {
+    return canViewRosterRole(me.Role);
+}
+
+// The inventory catalogue pages (types and labels) are for staff. Ordinary
+// users still pick from the catalogue when they request items, so the API keeps
+// serving it to them: this only hides the pages.
+export function canSeeInventoryCatalog(me: UserDTO): boolean {
+    return me.Role !== 'user';
 }
 
 export function canApprove(me: UserDTO): boolean {

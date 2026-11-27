@@ -20,7 +20,7 @@ import {
     usersPath,
 } from './paths';
 import { RequireRole } from './require-role';
-import { canApprove } from './workflows';
+import { canApprove, canSeeInventoryCatalog, canSeeRoster } from './workflows';
 import { AppLoading } from './ui/app-loading';
 import { Shell } from './ui/shell';
 import { Home } from './sections/home';
@@ -90,12 +90,25 @@ export function App() {
             renderDetail={(id) => <RequestDetail kind="programs" id={id} />}
         />
     );
+    // The inventory catalogue (types and labels) is for staff only.
+    const inventoryCatalog = (kind?: 'labels') => (
+        <RequireRole me={me} allow={canSeeInventoryCatalog}>
+            <InventoryTypesPage kind={kind} />
+        </RequireRole>
+    );
     return (
         <Routes>
             <Route element={<Shell />}>
                 <Route path={homePath} element={<Home />} />
                 <Route path={profilePath} element={<Profile />} />
-                <Route path={rosterPath} element={<Roster />} />
+                <Route
+                    path={rosterPath}
+                    element={
+                        <RequireRole me={me} allow={canSeeRoster}>
+                            <Roster />
+                        </RequireRole>
+                    }
+                />
                 <Route
                     path={usersPath}
                     element={
@@ -153,13 +166,10 @@ export function App() {
                         </RequireRole>
                     }
                 />
-                <Route path={inventoryTypesPath} element={<InventoryTypesPage />} />
-                <Route path={`${inventoryTypesPath}/:id`} element={<InventoryTypesPage />} />
-                <Route path={inventoryLabelsPath} element={<InventoryTypesPage kind="labels" />} />
-                <Route
-                    path={`${inventoryLabelsPath}/:id`}
-                    element={<InventoryTypesPage kind="labels" />}
-                />
+                <Route path={inventoryTypesPath} element={inventoryCatalog()} />
+                <Route path={`${inventoryTypesPath}/:id`} element={inventoryCatalog()} />
+                <Route path={inventoryLabelsPath} element={inventoryCatalog('labels')} />
+                <Route path={`${inventoryLabelsPath}/:id`} element={inventoryCatalog('labels')} />
                 <Route
                     path={blocksPath}
                     element={

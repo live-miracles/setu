@@ -55,3 +55,19 @@ export function boundedText(value: unknown, label: string, max: number): string 
     if (text.length > max) throw new Error(`${label} must be at most ${max} characters.`);
     return text;
 }
+
+// An image id is the storage path the upload returned
+// (`<user>/<target type>/<target>/<uuid>.<ext>`). It ends up in a URL, so accept
+// only plain path segments: no scheme, query, fragment, encoding or `..`.
+// Older records keep whatever path they were saved with, so the shape is
+// checked loosely rather than against the current layout.
+const IMAGE_PATH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
+
+export function imagePathArg(value: unknown): string {
+    const path = String(value || '').trim();
+    if (!path) return '';
+    if (path.length > 300 || path.includes('..') || !IMAGE_PATH_PATTERN.test(path)) {
+        throw new Error('The image is not valid.');
+    }
+    return path;
+}

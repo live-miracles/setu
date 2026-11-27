@@ -43,7 +43,9 @@ export function supabase(): SupabaseClient {
             'Setu is not configured. Set SETU_SUPABASE_URL and SETU_SUPABASE_PUBLISHABLE_KEY for this deployment.',
         );
     }
-    client = createClient(url, publishableKey);
+    // PKCE: the sign-in redirect carries a one-time code that only this browser can
+    // exchange, instead of the access token itself in the URL.
+    client = createClient(url, publishableKey, { auth: { flowType: 'pkce' } });
     return client;
 }
 

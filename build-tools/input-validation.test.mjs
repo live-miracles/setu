@@ -367,3 +367,50 @@ test('comment length limit is enforced before any request lookup', async () => {
         /at most 4000/,
     );
 });
+
+test('an image id must be a plain storage path', async () => {
+    const validation = await loadBundle(`export * from './supabase/functions/api/validation';`);
+    const path =
+        '00000000-0000-4000-8000-000000000001/inventory_request/00000000-0000-4000-8000-000000000002/00000000-0000-4000-8000-000000000003.webp';
+    assert.equal(validation.imagePathArg(path), path);
+    assert.equal(validation.imagePathArg(`  ${path} `), path);
+    assert.equal(validation.imagePathArg(''), '');
+    assert.equal(validation.imagePathArg(undefined), '');
+    for (const bad of [
+        '../auth/v1/user',
+        'a/../b.png',
+        '/leading.png',
+        'https://elsewhere.example/x.png',
+        'a/b.png?x=1',
+        'a/b.png#frag',
+        'a/%2e%2e/b.png',
+        'a\b.png',
+        `${'a'.repeat(301)}.png`,
+    ]) {
+        assert.throws(() => validation.imagePathArg(bad), /image is not valid/, bad);
+    }
+});
+
+test('an action note has the comment length cap before the transition runs', async () => {
+    const requests = await loadBundle(
+        `export { performRequestAction } from './supabase/functions/api/requests';`,
+    );
+    const client = fakeClient({ profiles: [{ id: 'user-1', role: 'approver' }] });
+    const admin = {
+        rpc() {
+            throw new Error('the transition must not run for an oversized note');
+        },
+    };
+    await assert.rejects(
+        requests.performRequestAction(
+            { actionRpc: 'perform_inventory_request_action_tx' },
+            client,
+            admin,
+            'user-1',
+            'request-1',
+            'approve',
+            'x'.repeat(4001),
+        ),
+        /at most 4000/,
+    );
+});

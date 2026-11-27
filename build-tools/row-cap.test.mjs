@@ -538,3 +538,41 @@ test('blank roster times are stored as day bounds and read back as empty', () =>
     assert.equal(midnight.StartTime, '00:00');
     assert.equal(midnight.EndTime, '10:00');
 });
+
+test('calendar programs carry no requester or contact details', async () => {
+    const client = fakeClient({
+        places: [{ id: 'pl1', name: 'Hall' }],
+        departments: [],
+        program_requests: [
+            {
+                id: 'p1',
+                display_id: 1,
+                name: 'Talk',
+                requester_id: 'u1',
+                status: 'approved',
+                place_id: 'pl1',
+                lead_email: 'lead@x.org',
+            },
+        ],
+        program_sessions: [
+            {
+                id: 's1',
+                request_id: 'p1',
+                session_type: 'Talk',
+                start_at: '2031-02-10T10:00:00Z',
+                end_at: '2031-02-10T11:00:00Z',
+            },
+        ],
+        program_request_participants: [{ id: 'x1', request_id: 'p1', external_email: 'a@x.org' }],
+        profiles: [{ id: 'u1', email: 'u1@x.org', name: 'U1' }],
+    });
+    const [program] = (await api.getCalendarMonth(client, 2031, 2)).programs;
+    assert.equal(program.Name, 'Talk');
+    assert.equal(program.placeName, 'Hall');
+    assert.equal(program.sessions.length, 1);
+    assert.equal(program.UserId, '');
+    assert.equal(program.userName, '');
+    assert.equal(program.LeadEmail, '');
+    assert.deepEqual(program.participants, []);
+    assert.equal(JSON.stringify(program).includes('x.org'), false);
+});

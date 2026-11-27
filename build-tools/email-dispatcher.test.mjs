@@ -162,3 +162,21 @@ test('stored values cannot inject extra email headers', async () => {
     assert.ok(headers.every((line) => !line.startsWith('Bcc:')));
     assert.match(mime, /\r\nSubject: Request - Title Bcc: attacker@example\.test\r\n/);
 });
+
+test('the dispatch secret is compared in full and never matches a missing or empty value', async () => {
+    const source = await readFile(
+        new URL('../supabase/functions/email-dispatcher/secret.ts', import.meta.url),
+        'utf8',
+    );
+    const { code } = await transform(source, { loader: 'ts', format: 'esm' });
+    const { secretsMatch } = await import(
+        `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`
+    );
+    assert.equal(await secretsMatch('shared-secret', 'shared-secret'), true);
+    assert.equal(await secretsMatch('shared-secreT', 'shared-secret'), false);
+    assert.equal(await secretsMatch('shared-secret-and-more', 'shared-secret'), false);
+    assert.equal(await secretsMatch('shared', 'shared-secret'), false);
+    assert.equal(await secretsMatch('', 'shared-secret'), false);
+    assert.equal(await secretsMatch(null, 'shared-secret'), false);
+    assert.equal(await secretsMatch('', ''), false);
+});

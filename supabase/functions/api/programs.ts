@@ -10,7 +10,7 @@ import {
     type Row,
 } from './core.ts';
 import { commentDto, groupByKey, REQUEST_PAGE_SIZE, requestPage } from './query.ts';
-import { emailArg } from './validation.ts';
+import { boundedText, emailArg, MAX_NAME_LENGTH } from './validation.ts';
 import {
     assertCanEdit,
     deleteRequest,
@@ -153,6 +153,25 @@ export async function getProgramRequest(
 
 const MAX_PROGRAM_SESSIONS = 100;
 
+// `name` is only required when the type is 'Other'; every other type carries
+// its own name.
+function programTitleFields(input: Row): { type: string; name: string; language: string } {
+    const type = requireNonEmpty(input.type, 'Program type is required.');
+    const name = boundedText(
+        type === 'Other'
+            ? requireNonEmpty(input.name, 'Program title is required.')
+            : String(input.name || ''),
+        'Program title',
+        MAX_NAME_LENGTH,
+    );
+    const language = boundedText(
+        requireNonEmpty(input.language, 'Language is required.'),
+        'Language',
+        MAX_NAME_LENGTH,
+    );
+    return { type, name, language };
+}
+
 function boundedProgramSessions(value: unknown): Row[] {
     if (!Array.isArray(value)) throw new Error('Program sessions must be a list.');
     if (value.length > MAX_PROGRAM_SESSIONS) {
@@ -177,7 +196,7 @@ export function validateProgramSessions(sessions: unknown, requireAtLeastOne = t
             throw new Error('Sessions must be shorter than 24 hours.');
         }
         return {
-            name: String(session.name || ''),
+            name: boundedText(session.name, 'Session name', MAX_NAME_LENGTH),
             session_type: sessionType,
             start_at: startDateTime,
             end_at: endDateTime,
@@ -240,7 +259,7 @@ export async function getCalendarMonth(
         (result(departmentsRes) as Row[]).map((d) => [d.id, d]),
     );
     const requestIds = [...new Set(windowSessions.map((s) => s.request_id as string))];
-    const [requests, sessions, participants] = await Promise.all([
+    const [requests, sessions] = await Promise.all([
         fetchAllIn(requestIds, (chunk, from, to) =>
             admin.from('program_requests').select('*').in('id', chunk).order('id').range(from, to),
         ),
@@ -253,21 +272,8 @@ export async function getCalendarMonth(
                 .order('id')
                 .range(from, to),
         ),
-        fetchAllIn(requestIds, (chunk, from, to) =>
-            admin
-                .from('program_request_participants')
-                .select('*')
-                .in('request_id', chunk)
-                .order('id')
-                .range(from, to),
-        ),
     ]);
     const sessionsByRequest = groupByKey(sessions, 'request_id');
-    const participantsByRequest = groupByKey(participants, 'request_id');
-    const profilesById = await profilesFor(
-        admin,
-        requests.map((r) => r.requester_id),
-    );
     const windowStartMs = Date.parse(monthStart);
     const windowEndMs = Date.parse(monthEnd);
     const programs: Row[] = [];
@@ -287,16 +293,24 @@ export async function getCalendarMonth(
         // sessionStart/sessionEnd reflect the program's full schedule
         // (computed from allSessions); only the `sessions` field itself is
         // narrowed to this month, same split the source app made.
+        // The calendar shows what is on and where, not who is behind it: no
+        // profiles, participants or comments are read, so the requester and the
+        // contact addresses stay with the request itself.
         const dto = programRequestDto(
             request,
             placesById,
             departmentsById,
-            profilesById,
+            new Map(),
             allSessions,
-            participantsByRequest.get(request.id) || [],
+            [],
             [],
         );
-        programs.push({ ...dto, sessions: monthSessions.map(programSessionDto), comments: [] });
+        programs.push({
+            ...dto,
+            LeadEmail: '',
+            sessions: monthSessions.map(programSessionDto),
+            comments: [],
+        });
     });
     return { places: places.map((p) => ({ Id: p.id, Name: p.name })), programs };
 }
@@ -310,12 +324,7 @@ export async function createProgramRequest(
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const approver = isApprover(actor);
-    const type = requireNonEmpty(input.type, 'Program type is required.');
-    const name =
-        type === 'Other'
-            ? requireNonEmpty(input.name, 'Program title is required.')
-            : String(input.name || '');
-    const language = requireNonEmpty(input.language, 'Language is required.');
+    const { type, name, language } = programTitleFields(input);
     const requesterEmail = String(input.userId || actor.email).toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
     if (requestedBy.email !== actor.email && !approver) {
@@ -374,12 +383,7 @@ export async function updateProgramRequest(
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const approver = isApprover(actor);
-    const type = requireNonEmpty(input.type, 'Program type is required.');
-    const name =
-        type === 'Other'
-            ? requireNonEmpty(input.name, 'Program title is required.')
-            : String(input.name || '');
-    const language = requireNonEmpty(input.language, 'Language is required.');
+    const { type, name, language } = programTitleFields(input);
     const requesterEmail = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
     let place: Row | null = null;

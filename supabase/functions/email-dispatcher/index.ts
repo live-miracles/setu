@@ -6,6 +6,7 @@ import {
     failureUpdate,
     parseEmailList,
 } from './format.ts';
+import { secretsMatch } from './secret.ts';
 
 // pg_cron calls this every ten minutes (see run_comment_email_dispatch). The
 // batch stays small so one run finishes well inside the Edge Function wall
@@ -97,7 +98,7 @@ async function updateRow(id: string, values: Record<string, string>): Promise<vo
 Deno.serve(async (request) => {
     const config = readConfig();
     if (!config) return Response.json({ processed: 0, configured: false });
-    if (request.headers.get('x-dispatch-secret') !== config.dispatchSecret) {
+    if (!(await secretsMatch(request.headers.get('x-dispatch-secret'), config.dispatchSecret))) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

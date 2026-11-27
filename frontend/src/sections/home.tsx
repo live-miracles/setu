@@ -16,10 +16,10 @@ import { formatLocalDateOnly } from '../ui/date';
 import { toneProps } from '../ui/tone';
 import { statusLabel } from '../ui/request-block';
 import { requestStatusTagColor } from '../ui/request-status';
-import { isRequestOverdue } from '../workflows';
+import { canSeeRoster, isRequestOverdue } from '../workflows';
 import { isViewVisible } from '../ui/views';
 import { DashboardGate } from '../ui/dashboard';
-import { useHomeContent, useShiftTypes } from '../ui/reference';
+import { useHomeContent, useMeQuery, useShiftTypes } from '../ui/reference';
 
 function Page({ children }: { children: React.ReactNode }) {
     return <section className="app-page">{children}</section>;
@@ -236,6 +236,7 @@ export function Home() {
 function HomeCards({ dashboard }: { dashboard: DashboardPayload }) {
     const navigate = useNavigate();
     const homeContent = useHomeContent();
+    const me = useMeQuery().data;
     const shiftTypes = useShiftTypes();
     const todayIso = formatLocalDateOnly(new Date());
     const tomorrowDate = new Date();
@@ -260,7 +261,7 @@ function HomeCards({ dashboard }: { dashboard: DashboardPayload }) {
     // Views an admin hid (Other settings) leave their cards off the home screen.
     const showPrograms = isViewVisible(homeContent, 'programs');
     const showInventory = isViewVisible(homeContent, 'inventory');
-    const showRoster = isViewVisible(homeContent, 'roster');
+    const showRoster = isViewVisible(homeContent, 'roster') && Boolean(me && canSeeRoster(me));
     const recentComments = dashboard.recentComments
         .filter(({ kind }) => (kind === 'programs' ? showPrograms : showInventory))
         .sort(

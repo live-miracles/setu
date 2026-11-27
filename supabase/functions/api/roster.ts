@@ -18,8 +18,9 @@ export async function listRosters(
 ): Promise<Row> {
     // Full history, not just upcoming — that's dashboard()'s upcomingRosters
     // preview; this is the paginated listing behind the Roster page. RLS
-    // limits this read to authenticated users; write operations below still
-    // require approver access. The database sorts and cuts the page.
+    // limits this read to admins, approvers and viewers (an ordinary user gets
+    // no rows); write operations below still require approver access. The
+    // database sorts and cuts the page.
     const safePage = Math.max(1, Math.floor(page) || 1);
     const first = (safePage - 1) * ROSTER_PAGE_SIZE;
     const rosterRes = await client

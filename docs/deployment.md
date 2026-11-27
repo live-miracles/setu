@@ -62,7 +62,10 @@ In the Supabase dashboard, for the project this Vercel deployment uses, go to
 
 - Set **Site URL** to the deployed domain, e.g. `https://<vercel-domain>`.
 - Add that same URL to **Redirect URLs** (use `https://<vercel-domain>/**`,
-  or `https://*.vercel.app/**` to also cover preview deployments).
+  or `https://<project>-*-<team-slug>.vercel.app/**` to also cover this
+  project's preview deployments). Never use a bare `https://*.vercel.app/**`:
+  anyone can publish a site on `vercel.app`, so it would let another site
+  receive the sign-in result.
 
 Skip this and Google sign-in still completes, but the browser is sent back to
 whatever Site URL happens to be set — often `http://localhost:3000`, left
@@ -187,3 +190,7 @@ artifacts of a public repository can be downloaded by anyone. On the free plan,
 run an encrypted weekly backup from a small separate private repository
 instead. [Database backups](database-backups.md) has the setup, a ready-to-use
 workflow template, and the restore steps.
+
+## Content-Security-Policy and custom Supabase domains
+
+`vercel.json` sets a Content-Security-Policy that lets the app talk to `https://*.supabase.co`. If the project uses a custom Supabase domain, add it to the `connect-src` and `img-src` lists there. If `frontend/shell.html`'s inline theme script changes, update its `sha256-` hash in the policy; `npm test` fails until you do.

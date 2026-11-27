@@ -20,7 +20,7 @@ import {
     rosterPath,
     usersPath,
 } from '../paths';
-import { canApprove } from '../workflows';
+import { canApprove, canSeeInventoryCatalog, canSeeRoster } from '../workflows';
 import { readLastRequestKind, requestKindPath } from './request-kind';
 import { isViewVisible, visibleRequestKinds, type HideableView } from './views';
 import { inventoryKindPath, readLastInventoryKind, visibleInventoryKinds } from './inventory-kind';
@@ -58,8 +58,8 @@ const primaryNavItems: NavItem[] = [
     },
 ];
 
-// Roster and inventory types are readable by every signed-in user. The
-// remaining configuration entries are admin/approver-only.
+// The roster and the inventory catalogue are for every role except ordinary
+// users. The remaining configuration entries are admin/approver-only.
 const configNavItems: NavItem[] = [
     {
         key: 'roster',
@@ -240,12 +240,16 @@ export function Shell({ children }: { children?: ReactNode }) {
     const canOpenConfig = me ? canApprove(me) : false;
     const visibleKinds = visibleRequestKinds(homeContent);
     const visibleInventory = visibleInventoryKinds(homeContent);
-    const isShown = (item: NavItem) =>
-        item.key === 'requests'
-            ? visibleKinds.length > 0
-            : item.key === 'inventory-types'
-              ? visibleInventory.length > 0
-              : !item.view || isViewVisible(homeContent, item.view);
+    const isShown = (item: NavItem) => {
+        if (item.key === 'requests') return visibleKinds.length > 0;
+        if (item.key === 'inventory-types') {
+            return visibleInventory.length > 0 && Boolean(me && canSeeInventoryCatalog(me));
+        }
+        if (item.key === 'roster') {
+            return isViewVisible(homeContent, 'roster') && Boolean(me && canSeeRoster(me));
+        }
+        return !item.view || isViewVisible(homeContent, item.view);
+    };
     const tabItems = tabNavItems.filter(isShown);
     const moreItems = [...moreNavItems, ...(canOpenConfig ? moreConfigNavItems : [])].filter(
         isShown,

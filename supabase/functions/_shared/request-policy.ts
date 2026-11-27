@@ -80,6 +80,12 @@ export function isApproverRole(role: string): boolean {
     return role === 'admin' || role === 'approver';
 }
 
+// The roster is for staff: admins, approvers and viewers. Ordinary users do
+// not see it.
+export function canViewRosterRole(role: string): boolean {
+    return role !== 'user';
+}
+
 // Viewer is the organization-wide read-only role.
 export function canWriteRole(role: string): boolean {
     return role !== 'viewer';

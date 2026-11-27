@@ -22,7 +22,13 @@ import {
     placeDto,
     shiftTypeDto,
 } from './dto.ts';
-import { boundedText, emailArg, MAX_NAME_LENGTH, MAX_PHONE_LENGTH } from './validation.ts';
+import {
+    boundedText,
+    emailArg,
+    imagePathArg,
+    MAX_NAME_LENGTH,
+    MAX_PHONE_LENGTH,
+} from './validation.ts';
 import { normalizeHiddenViews } from '../_shared/views.ts';
 
 const USER_ROLES = ['admin', 'approver', 'viewer', 'user'];
@@ -369,7 +375,7 @@ export async function createInventoryType(
                 location_id: locationId,
                 description: String(input.description || ''),
                 requestable: input.requestable !== false,
-                image_path: String(input.imageId || ''),
+                image_path: imagePathArg(input.imageId),
                 total_quantity: totalQuantity,
             })
             .select(WITH_LOCATION)
@@ -407,7 +413,7 @@ export async function updateInventoryType(
                 description: String(input.description || ''),
                 requestable: input.requestable !== false,
                 image_path:
-                    input.imageId === undefined ? existing.image_path : String(input.imageId || ''),
+                    input.imageId === undefined ? existing.image_path : imagePathArg(input.imageId),
                 total_quantity: totalQuantity,
             })
             .eq('id', id)

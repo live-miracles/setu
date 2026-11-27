@@ -12,7 +12,7 @@ import {
     type Row,
 } from './core.ts';
 import { commentDto, groupByKey, REQUEST_PAGE_SIZE, requestPage } from './query.ts';
-import { emailArg } from './validation.ts';
+import { boundedText, emailArg, imagePathArg, MAX_NAME_LENGTH } from './validation.ts';
 import {
     assertCanEdit,
     deleteRequest,
@@ -289,7 +289,11 @@ export async function createInventoryRequest(
     clientId?: string,
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
-    const name = requireNonEmpty(input.name, 'Name is required.');
+    const name = boundedText(
+        requireNonEmpty(input.name, 'Name is required.'),
+        'Name',
+        MAX_NAME_LENGTH,
+    );
     const requesterEmail = String(input.userId || actor.email).toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
     const approver = isApprover(actor);
@@ -319,7 +323,7 @@ export async function createInventoryRequest(
                 requester_id: requestedBy.id,
                 start_date: input.startDate,
                 end_date: input.endDate,
-                image_path: String(input.imageId || ''),
+                image_path: imagePathArg(input.imageId),
                 department_id: department.id,
                 lead_email: leadEmail,
             },
@@ -340,7 +344,11 @@ export async function updateInventoryRequest(
 ): Promise<Row> {
     const actor = await currentWriter(client, userId);
     const approver = isApprover(actor);
-    const name = requireNonEmpty(input.name, 'Name is required.');
+    const name = boundedText(
+        requireNonEmpty(input.name, 'Name is required.'),
+        'Name',
+        MAX_NAME_LENGTH,
+    );
     const requesterEmail = requireNonEmpty(input.userId, 'Requester is required.').toLowerCase();
     const requestedBy = await requireRequesterProfile(admin, requesterEmail);
     if (!input.startDate || !input.endDate || input.endDate < input.startDate) {
@@ -385,7 +393,7 @@ export async function updateInventoryRequest(
                 department_id: department.id,
                 lead_email: leadEmail,
                 // Left out when the caller sent no image, which keeps the current one.
-                ...(input.imageId === undefined ? {} : { image_path: String(input.imageId || '') }),
+                ...(input.imageId === undefined ? {} : { image_path: imagePathArg(input.imageId) }),
             },
             p_items: items,
             p_participants: await resolveParticipants(admin, participantEmails),

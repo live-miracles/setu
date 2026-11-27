@@ -150,3 +150,10 @@ test('isRequestParty compares identities ignoring case and surrounding spaces', 
     );
     assert.equal(policy.isRequestParty('other@example.com', 'owner@example.com', []), false);
 });
+
+test('the roster is for staff: every role but an ordinary user may read it', () => {
+    assert.equal(policy.canViewRosterRole('user'), false);
+    for (const role of ['viewer', 'approver', 'admin']) {
+        assert.equal(policy.canViewRosterRole(role), true, role);
+    }
+});

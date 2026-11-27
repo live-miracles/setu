@@ -30,8 +30,8 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 | -------- | ---------------------------------------------------------------------------- |
 | Admin    | User roles, domain allowlist, configuration, approvals, and operational data |
 | Approver | Request review and approval without admin configuration access               |
-| Viewer   | Read-only access to permitted operational data                               |
-| User     | Requests owned by or explicitly shared with the user                         |
+| Viewer   | Read-only access to every request, its comments and the roster               |
+| User     | Requests owned by or explicitly shared with the user; no roster              |
 
 ## 3 Controls in Place
 
@@ -77,11 +77,27 @@ Organization-wide visibility of approved programs is required for cross-team sch
 
 Allowlist changes take effect at the application API boundary. Existing Supabase sessions are not globally revoked solely by a domain configuration change. Row Level Security continues to limit data access, and an Admin can delete an individual authentication identity when immediate revocation is required.
 
+### Empty domain allowlist
+
+When no domain is listed, the allowlist places no restriction of its own. That state does not open the app to the public: sign-in uses a Google OAuth client whose consent screen is set to Internal, so Google itself accepts only accounts of the organisation's Google Workspace. The allowlist is a second, application-level restriction on top of that, and an Admin can use it to narrow access to specific domains. The empty state exists so a new installation can be set up without locking the first Admin out.
+
 ### Members added before they have an organisation email
 
 Most users self-register on their first Google sign-in. An Admin can also add a member who has no organisation email yet (Users page, "Add member") so they can be rostered, because rosters and requests point at profiles, which point at authentication identities. The identity is created already banned in Supabase Auth (`ban_duration`) and its profile is flagged `sign_in_blocked`, so the member cannot sign in with any Google account, whatever the domain allowlist says (including when the allowlist is empty and access is open). It exists only to be referenced.
 
 An Admin can later set the member's work email, which is the only case where an email is changed through the app: it is refused for anyone who is not `sign_in_blocked`, and Admins cannot change the email of a member who has signed in. When the new address passes the domain allowlist, the ban is lifted and the flag cleared, so the member's first Google sign-in links to the same identity and keeps their roster shifts, requests and role. If it does not pass the allowlist, the member stays banned. Users cannot set `sign_in_blocked` themselves: the profile protection trigger rejects direct changes to it, like role and email. Deleting a member without history (shifts, requests, comments) removes the identity, as for any user.
+
+### Viewer role reads every request
+
+The Viewer role exists for oversight: it can read every program and inventory request, with its comments and participant email addresses, so that people outside the approval chain can follow the work. It cannot create, edit, transition, delete, comment on or upload for any request. The restriction is enforced in the API and in Row Level Security, including direct Data API writes, and Admins decide who holds the role.
+
+### Database error text in API responses
+
+When a database or constraint error occurs, the API returns its message to the signed-in caller in the 400 response (and logs it on the server). The messages carry no secrets, keys or personal data from other users; they name constraints or tables and tell the user what to correct, such as a duplicate name or an item that is still in use. Callers are authenticated, allowed-domain users, and unauthenticated callers receive only a generic 401.
+
+### Inventory catalogue readable by every signed-in user
+
+The Inventory pages (item types and labels) are shown to Admins, Approvers and Viewers only. The catalogue itself (names, brands, models, locations and stock levels of item types) stays readable by every signed-in user through the API and Row Level Security, because anyone requesting items must be able to choose from it. Hiding the pages is a presentation choice; the data is operational reference data, not personal or confidential. Creating, changing and deleting item types and labels remains Admin-only.
 
 ### Hidden views are presentation only
 
@@ -95,6 +111,8 @@ An Admin can hide the Program requests, Inventory requests, Calendar, Roster, In
 - Each production change has a recorded Git commit, CI run, migration run, and deployment result.
 - The Progressive Web App caches only same-origin static assets; API responses and operational images remain network-first.
 - Production is served through HTTPS with HSTS enabled.
+- Every response carries a Content-Security-Policy that allows scripts only from the app's own origin (plus one hashed inline theme script), blocks plugins and framing, and limits network and image connections to the app and Supabase. `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` are also set.
+- Google sign-in uses the PKCE flow, so the redirect back to the app carries a one-time code that only the originating browser can exchange, not an access token.
 
 ## 6 Verification Completed
 
