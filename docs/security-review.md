@@ -38,7 +38,8 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 ### Identity and data access
 
 - Users cannot change their own role or email through the application or direct Data API access.
-- Only Admins can manage the allowed email-domain list and user roles.
+- Only Admins can manage the allowed email-domain list, the list of addresses copied on comment emails, and user roles.
+- The CC list (`email_cc_addresses`) is readable and writable only by Admins through Row Level Security and the API, holds at most 20 valid addresses, and is read by the email dispatcher with the service role. Anyone on it receives every comment and status email, including the request text, so only Admins decide who is added.
 - Request data is restricted by ownership, participation, and operational role.
 - Comments are limited to request owners, participants, Admins, and Approvers, and authorship must match the authenticated user.
 - A repeated create of a request or comment carries the client's id as the row id. A replay returns the caller's own row; a request or comment id already used by someone else is refused, so one user cannot read or take over another user's row through a replay.

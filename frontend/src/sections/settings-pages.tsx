@@ -432,6 +432,7 @@ export function HomeContentPage() {
             </Card>
             <ViewsCard />
             <AllowedEmailDomainsPage />
+            <EmailCcAddressesCard />
             {(
                 [
                     'places',
@@ -569,22 +570,150 @@ function ViewsCard() {
     );
 }
 
-function AllowedEmailDomainsPage() {
-    const canEdit = canManageConfig(useMe());
-    const [domains, setDomains] = useState<AllowedEmailDomain[]>([]);
-    const [domain, setDomain] = useState('');
-    const [loading, setLoading] = useState(canEdit);
+// A short, admin-managed list shown as removable tags, with a modal to add one.
+// onAdd gets the normalized text and either resolves or throws a message the
+// modal shows; onRemove deletes one value.
+function TagListCard({
+    title,
+    description,
+    addLabel,
+    fieldLabel,
+    placeholder,
+    values,
+    loading,
+    normalize,
+    duplicateMessage,
+    onAdd,
+    onRemove,
+}: {
+    title: string;
+    description: string;
+    addLabel: string;
+    fieldLabel: string;
+    placeholder: string;
+    values: string[];
+    loading: boolean;
+    normalize: (text: string) => string;
+    duplicateMessage: string;
+    onAdd: (value: string) => Promise<void>;
+    onRemove: (value: string) => Promise<void>;
+}) {
+    const [text, setText] = useState('');
     const [saving, setSaving] = useState(false);
-    const [domainEditorOpen, setDomainEditorOpen] = useState(false);
-    const [domainError, setDomainError] = useState('');
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [error, setError] = useState('');
 
+    async function add(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const normalized = normalize(text);
+        if (!normalized) {
+            setError(`Enter ${fieldLabel.toLowerCase()}.`);
+            return;
+        }
+        if (values.includes(normalized)) {
+            setError(duplicateMessage);
+            return;
+        }
+        setSaving(true);
+        setError('');
+        try {
+            await onAdd(normalized);
+            setText('');
+            setEditorOpen(false);
+        } catch (caught) {
+            setError(caught instanceof Error ? caught.message : String(caught));
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function remove(value: string) {
+        setSaving(true);
+        try {
+            await onRemove(value);
+        } catch (caught) {
+            setError(caught instanceof Error ? caught.message : String(caught));
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <Card title={title} className="settings-form-card" loading={loading}>
+            <Typography.Paragraph type="secondary">{description}</Typography.Paragraph>
+            <div className="flex flex-wrap items-center gap-2">
+                {values.map((value) => (
+                    <Tag
+                        key={value}
+                        closable={!saving}
+                        onClose={(event) => {
+                            event.preventDefault();
+                            void remove(value);
+                        }}>
+                        {value}
+                    </Tag>
+                ))}
+                <Button
+                    type="primary"
+                    size="small"
+                    icon={<Icon name="plus" />}
+                    disabled={saving}
+                    aria-label={addLabel}
+                    title={addLabel}
+                    onClick={() => {
+                        setError('');
+                        setEditorOpen(true);
+                    }}
+                />
+                {error && (
+                    <Typography.Text type="danger" className="basis-full text-sm">
+                        {error}
+                    </Typography.Text>
+                )}
+            </div>
+            {editorOpen && (
+                <Modal
+                    title={addLabel}
+                    close={() => {
+                        if (!saving) setEditorOpen(false);
+                    }}>
+                    <form className="grid gap-3" onSubmit={add}>
+                        <Field label={fieldLabel} required>
+                            <Input
+                                type="text"
+                                value={text}
+                                autoFocus
+                                placeholder={placeholder}
+                                onChange={(event) => setText(event.target.value)}
+                            />
+                        </Field>
+                        <div className="flex items-center gap-2">
+                            <Button type="primary" htmlType="submit" loading={saving}>
+                                Add
+                            </Button>
+                            {error && (
+                                <Typography.Text type="danger" className="text-sm">
+                                    {error}
+                                </Typography.Text>
+                            )}
+                        </div>
+                    </form>
+                </Modal>
+            )}
+        </Card>
+    );
+}
+
+// Admin-only lists load once and keep their own copy; nothing else reads them.
+function useAdminList<T>(load: () => Promise<T[]>, canEdit: boolean) {
+    const [rows, setRows] = useState<T[]>([]);
+    const [loading, setLoading] = useState(canEdit);
     useEffect(() => {
         if (!canEdit) return;
         let active = true;
-        void api
-            .listAllowedEmailDomains()
-            .then((rows) => {
-                if (active) setDomains(rows);
+        void load()
+            .then((loaded) => {
+                if (active) setRows(loaded);
             })
             .catch(showErrorAlert)
             .finally(() => {
@@ -593,115 +722,77 @@ function AllowedEmailDomainsPage() {
         return () => {
             active = false;
         };
+        // `load` is a stable api method; only the permission decides when to fetch.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [canEdit]);
+    return { rows, setRows, loading };
+}
 
+function AllowedEmailDomainsPage() {
+    const canEdit = canManageConfig(useMe());
+    const { rows, setRows, loading } = useAdminList(() => api.listAllowedEmailDomains(), canEdit);
     if (!canEdit) return null;
-
-    async function addDomain(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        const normalized = domain.trim().toLowerCase().replace(/^@/, '');
-        if (!normalized) {
-            setDomainError('Enter a domain.');
-            return;
-        }
-        if (domains.some((entry) => entry.domain === normalized)) {
-            setDomainError('That domain is already allowed.');
-            return;
-        }
-        setSaving(true);
-        setDomainError('');
-        try {
-            const added = await api.createAllowedEmailDomain({ domain: normalized });
-            setDomains((current) =>
-                [...current, added].sort((a, b) => a.domain.localeCompare(b.domain)),
-            );
-            setDomain('');
-            setDomainEditorOpen(false);
-        } catch (error) {
-            setDomainError(error instanceof Error ? error.message : String(error));
-        } finally {
-            setSaving(false);
-        }
-    }
-
-    async function removeDomain(value: string) {
-        setSaving(true);
-        try {
-            await api.deleteAllowedEmailDomain(value);
-            setDomains((current) => current.filter((entry) => entry.domain !== value));
-        } catch (error) {
-            setDomainError(error instanceof Error ? error.message : String(error));
-        } finally {
-            setSaving(false);
-        }
-    }
-
+    const domains = rows.map((entry) => entry.domain);
     return (
-        <Card title="Allowed email domains" className="settings-form-card" loading={loading}>
-            <Typography.Paragraph type="secondary">
-                {domains.length
+        <TagListCard
+            title="Allowed email domains"
+            description={
+                domains.length
                     ? 'Only users with an email address from one of these domains can sign in.'
-                    : 'No domains are configured. Users from any email domain can sign in.'}
-            </Typography.Paragraph>
-            <div className="flex flex-wrap items-center gap-2">
-                {domains.map((entry) => (
-                    <Tag
-                        key={entry.domain}
-                        closable={!saving}
-                        onClose={(event) => {
-                            event.preventDefault();
-                            void removeDomain(entry.domain);
-                        }}>
-                        {entry.domain}
-                    </Tag>
-                ))}
-                <Button
-                    type="primary"
-                    size="small"
-                    icon={<Icon name="plus" />}
-                    disabled={saving}
-                    aria-label="Add allowed email domain"
-                    title="Add allowed email domain"
-                    onClick={() => {
-                        setDomainError('');
-                        setDomainEditorOpen(true);
-                    }}
-                />
-                {domainError && (
-                    <Typography.Text type="danger" className="basis-full text-sm">
-                        {domainError}
-                    </Typography.Text>
-                )}
-            </div>
-            {domainEditorOpen && (
-                <Modal
-                    title="Add allowed email domain"
-                    close={() => {
-                        if (!saving) setDomainEditorOpen(false);
-                    }}>
-                    <form className="grid gap-3" onSubmit={addDomain}>
-                        <Field label="Domain" required>
-                            <Input
-                                type="text"
-                                value={domain}
-                                autoFocus
-                                placeholder="myorg.com"
-                                onChange={(event) => setDomain(event.target.value)}
-                            />
-                        </Field>
-                        <div className="flex items-center gap-2">
-                            <Button type="primary" htmlType="submit" loading={saving}>
-                                Add
-                            </Button>
-                            {domainError && (
-                                <Typography.Text type="danger" className="text-sm">
-                                    {domainError}
-                                </Typography.Text>
-                            )}
-                        </div>
-                    </form>
-                </Modal>
-            )}
-        </Card>
+                    : 'No domains are configured. Users from any email domain can sign in.'
+            }
+            addLabel="Add allowed email domain"
+            fieldLabel="Domain"
+            placeholder="myorg.com"
+            values={domains}
+            loading={loading}
+            normalize={(text) => text.trim().toLowerCase().replace(/^@/, '')}
+            duplicateMessage="That domain is already allowed."
+            onAdd={async (domain) => {
+                const added = await api.createAllowedEmailDomain({ domain });
+                setRows((current) =>
+                    [...current, added].sort((a, b) => a.domain.localeCompare(b.domain)),
+                );
+            }}
+            onRemove={async (domain) => {
+                await api.deleteAllowedEmailDomain(domain);
+                setRows((current) => current.filter((entry) => entry.domain !== domain));
+            }}
+        />
+    );
+}
+
+// Everyone listed here gets a copy of every comment and status email.
+function EmailCcAddressesCard() {
+    const canEdit = canManageConfig(useMe());
+    const { rows, setRows, loading } = useAdminList(() => api.listEmailCcAddresses(), canEdit);
+    if (!canEdit) return null;
+    const emails = rows.map((entry) => entry.email);
+    return (
+        <TagListCard
+            title="Email copies (CC)"
+            description={
+                emails.length
+                    ? 'These addresses get a copy of every comment and status email, in addition to the request owner and participants.'
+                    : 'No addresses are configured. Only the request owner and participants get emails.'
+            }
+            addLabel="Add CC address"
+            fieldLabel="Email address"
+            placeholder="name@myorg.com"
+            values={emails}
+            loading={loading}
+            normalize={(text) => text.trim().toLowerCase()}
+            duplicateMessage="That address already gets a copy."
+            onAdd={async (email) => {
+                const added = await api.createEmailCcAddress({ email });
+                setRows((current) =>
+                    [...current, added].sort((a, b) => a.email.localeCompare(b.email)),
+                );
+            }}
+            onRemove={async (email) => {
+                await api.deleteEmailCcAddress(email);
+                setRows((current) => current.filter((entry) => entry.email !== email));
+            }}
+        />
     );
 }

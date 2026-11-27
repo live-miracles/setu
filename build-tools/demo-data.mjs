@@ -498,3 +498,5 @@ export const programRequests = [
 ];
 
 export const allowedEmailDomains = [{ domain: 'example.org', enabled: true }];
+
+export const emailCcAddresses = [{ email: 'ops@example.org' }];

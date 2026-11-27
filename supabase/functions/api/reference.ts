@@ -12,6 +12,7 @@ import {
 } from './core.ts';
 import { profilesFor } from './core.ts';
 import { isApproverRole } from '../_shared/request-policy.ts';
+import { emailArg } from './validation.ts';
 import {
     departmentDto,
     homeContentDto,
@@ -136,6 +137,53 @@ export async function deleteAllowedEmailDomain(
         .from('allowed_email_domains')
         .delete()
         .eq('domain', domain.toLowerCase().replace(/^@/, ''));
+    if (error) throw new Error(error.message);
+}
+
+// A comment email lists every address in its Cc header, so the list stays short.
+const MAX_EMAIL_CC_ADDRESSES = 20;
+
+export async function listEmailCcAddresses(client: SupabaseClient, userId: string): Promise<Row[]> {
+    await requireAdmin(client, userId);
+    const rows = result(
+        await client.from('email_cc_addresses').select('email').order('email'),
+    ) as Row[];
+    return rows.map((row) => ({ email: row.email }));
+}
+
+export async function createEmailCcAddress(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    input: Row,
+): Promise<Row> {
+    await requireAdmin(client, userId);
+    const email = emailArg(input.email, 'Email address is required.');
+    const count = await admin
+        .from('email_cc_addresses')
+        .select('email', { count: 'exact', head: true });
+    if (count.error) throw new Error(count.error.message);
+    if ((count.count ?? 0) >= MAX_EMAIL_CC_ADDRESSES) {
+        throw new Error(`At most ${MAX_EMAIL_CC_ADDRESSES} addresses can be copied on emails.`);
+    }
+    const row = result(
+        await admin.from('email_cc_addresses').insert({ email }).select('email').single(),
+        'That address already gets a copy of every email.',
+    ) as Row;
+    return { email: row.email };
+}
+
+export async function deleteEmailCcAddress(
+    client: SupabaseClient,
+    admin: SupabaseClient,
+    userId: string,
+    email: string,
+): Promise<void> {
+    await requireAdmin(client, userId);
+    const { error } = await admin
+        .from('email_cc_addresses')
+        .delete()
+        .eq('email', email.trim().toLowerCase());
     if (error) throw new Error(error.message);
 }
 

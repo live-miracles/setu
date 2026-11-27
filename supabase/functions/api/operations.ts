@@ -26,10 +26,13 @@ import {
 } from './programs.ts';
 import {
     createAllowedEmailDomain,
+    createEmailCcAddress,
     deleteAllowedEmailDomain,
+    deleteEmailCcAddress,
     getHomeContent,
     getSettings,
     listAllowedEmailDomains,
+    listEmailCcAddresses,
     listBlocks,
     listDepartments,
     listInventoryBrands,
@@ -271,6 +274,16 @@ export const operations: Record<string, Operation> = {
     ),
     deleteAllowedEmailDomain: operation([id], ({ client, admin, userId }, domain) =>
         done(deleteAllowedEmailDomain(client, admin, userId, domain)),
+    ),
+
+    listEmailCcAddresses: operation([], ({ client, userId }) =>
+        listEmailCcAddresses(client, userId),
+    ),
+    createEmailCcAddress: operation([input], ({ client, admin, userId }, value) =>
+        createEmailCcAddress(client, admin, userId, value),
+    ),
+    deleteEmailCcAddress: operation([id], ({ client, admin, userId }, email) =>
+        done(deleteEmailCcAddress(client, admin, userId, email)),
     ),
 
     // --- rosters ------------------------------------------------------------

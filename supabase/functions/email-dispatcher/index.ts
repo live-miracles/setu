@@ -5,7 +5,6 @@ import {
     type EmailSettings,
     failureUpdate,
     inventoryItemLabel,
-    parseEmailList,
     type RequestDetails,
     threadingFor,
     withRequestDetails,
@@ -49,7 +48,8 @@ function readConfig(): GmailConfig | null {
             senderEmail: env('GMAIL_SENDER'),
             senderName: env('EMAIL_SENDER_NAME') || 'Live Stream Setu',
             replyTo: env('EMAIL_REPLY_TO'),
-            ccEmails: parseEmailList(env('CC_EMAIL')),
+            // Filled from the email_cc_addresses table on every run.
+            ccEmails: [] as string[],
         },
     };
     const complete =
@@ -151,6 +151,23 @@ async function findRequestDetails(row: EmailOutboxRow): Promise<RequestDetails |
     return { startDate: data.start_date, endDate: data.end_date, photos };
 }
 
+/**
+ * The addresses copied on every email, managed by admins in Other settings.
+ * A failed read is logged and the emails go out without the copies: reaching
+ * the requester matters more than the extra recipients.
+ */
+async function loadCcEmails(): Promise<string[]> {
+    const { data, error } = await supabase
+        .from('email_cc_addresses')
+        .select('email')
+        .order('email');
+    if (error) {
+        console.error(`Could not read the CC list: ${error.message}`);
+        return [];
+    }
+    return (data || []).map((row) => String(row.email));
+}
+
 async function updateRow(id: string, values: Record<string, string>): Promise<void> {
     const { error } = await supabase.from('email_outbox').update(values).eq('id', id);
     if (error) console.error(`Could not update email row ${id}: ${error.message}`);
@@ -173,6 +190,8 @@ Deno.serve(async (request) => {
         return Response.json({ error: 'Gmail authorization failed' }, { status: 502 });
     }
 
+    const settings = { ...config.settings, ccEmails: await loadCcEmails() };
+
     const { data, error } = await supabase.rpc('claim_comment_email_batch', {
         batch_size: DISPATCH_BATCH_SIZE,
     });
@@ -193,10 +212,10 @@ Deno.serve(async (request) => {
                 details && row.payload
                     ? { ...row, payload: withRequestDetails(row.payload, details) }
                     : row;
-            const threading = threadingFor(row, config.settings.senderEmail);
+            const threading = threadingFor(row, settings.senderEmail);
             sentMessage = await sendGmail(
                 accessToken,
-                buildRawEmail(outgoing, config.settings, undefined, threading),
+                buildRawEmail(outgoing, settings, undefined, threading),
                 threadId || undefined,
             );
         } catch (sendError) {

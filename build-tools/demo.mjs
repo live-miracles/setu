@@ -136,6 +136,7 @@ const operations = {
         sessionTypes: data.sessionTypes,
     }),
     listAllowedEmailDomains: () => data.allowedEmailDomains,
+    listEmailCcAddresses: () => data.emailCcAddresses,
     listRosters: (p = 1) => page(data.rosters, p),
     listInventoryRequests: inventoryList,
     getInventoryRequest: (id) => data.inventoryRequests.find((r) => r.Id === id),

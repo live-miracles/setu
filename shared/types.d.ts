@@ -248,6 +248,10 @@ interface AllowedEmailDomain {
     enabled: boolean;
 }
 
+interface EmailCcAddress {
+    email: string;
+}
+
 // ---------------------------------------------------------------------------
 // Joined/display DTOs returned to the frontend
 // ---------------------------------------------------------------------------
@@ -578,6 +582,9 @@ interface Api {
     listAllowedEmailDomains(): AllowedEmailDomain[];
     createAllowedEmailDomain(input: { domain: string }): AllowedEmailDomain;
     deleteAllowedEmailDomain(domain: string): void;
+    listEmailCcAddresses(): EmailCcAddress[];
+    createEmailCcAddress(input: { email: string }): EmailCcAddress;
+    deleteEmailCcAddress(email: string): void;
     createShiftType(input: CreateShiftTypeInput): ShiftType;
     updateShiftType(name: string, input: CreateShiftTypeInput): ShiftType;
     deleteShiftType(name: string): void;

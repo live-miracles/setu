@@ -157,10 +157,12 @@ select vault.create_secret('<same-random-string>', 'setu_email_dispatch_secret')
 “Send mail as” aliases). Optional secrets: `EMAIL_SENDER_NAME` (defaults to
 `Live Stream Setu`), `EMAIL_REPLY_TO` (where replies should go instead of the
 sending mailbox), `EMAIL_TIME_ZONE` for session times (defaults to
-`Asia/Kolkata`), and `CC_EMAIL`, an additional address that should receive a
-copy of every email; multiple comma-separated addresses are supported. The
-configured address is added alongside the request participants and the
-comment author (the department lead is not copied), with duplicates and the primary recipient removed automatically. “View request”
+`Asia/Kolkata`). Addresses that should receive a copy of every email are
+managed by an Admin in the app (**Other settings → Email copies (CC)**, stored
+in the `email_cc_addresses` table), not as a secret; the dispatcher reads the
+list on every run. They are added alongside the request participants and the
+comment author (the department lead is not copied), with duplicates and the
+primary recipient removed automatically. “View request”
 links use the existing `SETU_APP_ORIGIN` secret. Until the required secrets
 are set, the function does nothing and queued rows stay pending.
 

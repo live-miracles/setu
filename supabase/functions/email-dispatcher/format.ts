@@ -531,13 +531,6 @@ export function mergeCcEmails(
         });
 }
 
-export function parseEmailList(value: string): string[] {
-    return value
-        .split(',')
-        .map((email) => email.trim())
-        .filter(Boolean);
-}
-
 function parseSessionDate(value: string | undefined): Date | null {
     if (!value) return null;
     const date = new Date(value);

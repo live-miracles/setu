@@ -54,11 +54,7 @@ test('a failed email send is retried with a growing delay, then marked failed', 
 });
 
 test('cc list drops blanks, duplicates and the primary recipient', async () => {
-    const { mergeCcEmails, parseEmailList } = await loadFormat();
-    assert.deepEqual(parseEmailList(' a@example.test, ,b@example.test '), [
-        'a@example.test',
-        'b@example.test',
-    ]);
+    const { mergeCcEmails } = await loadFormat();
     assert.deepEqual(
         mergeCcEmails(
             'lead@example.test',
