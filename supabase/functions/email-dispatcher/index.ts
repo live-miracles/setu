@@ -193,7 +193,7 @@ Deno.serve(async (request) => {
                 details && row.payload
                     ? { ...row, payload: withRequestDetails(row.payload, details) }
                     : row;
-            const threading = threadingFor(row, config.settings.senderEmail, !threadId);
+            const threading = threadingFor(row, config.settings.senderEmail);
             sentMessage = await sendGmail(
                 accessToken,
                 buildRawEmail(outgoing, config.settings, undefined, threading),

@@ -191,34 +191,34 @@ test('the dispatch secret is compared in full and never matches a missing or emp
     assert.equal(await secretsMatch('', ''), false);
 });
 
-test('comment emails for one request share a thread root so Gmail stacks them', async () => {
+test('every comment email of a request references one shared thread root', async () => {
     const { buildRawEmail, threadingFor } = await loadFormat();
     const payload = { targetId: 'AB12-cd34', message: 'Hi', targetName: 'Request' };
     const first = { id: 'row-1', recipient: 'a@example.test', attempts: 1, payload };
     const second = { id: 'row-2', recipient: 'a@example.test', attempts: 1, payload };
+    const root = '<setu-thread-AB12-cd34@example.test>';
 
-    const rootThreading = threadingFor(first, 'sender@example.test', true);
-    assert.deepEqual(rootThreading, { messageId: '<setu-thread-AB12-cd34@example.test>' });
-    const replyThreading = threadingFor(second, 'sender@example.test', false);
-    assert.deepEqual(replyThreading, {
-        messageId: '<setu-row-2@example.test>',
-        inReplyTo: '<setu-thread-AB12-cd34@example.test>',
-    });
+    // Gmail replaces Message-ID on API sends, so the first email must reference
+    // the root like the rest instead of trying to be it.
+    const firstThreading = threadingFor(first, 'sender@example.test');
+    assert.deepEqual(firstThreading, { messageId: '<setu-row-1@example.test>', inReplyTo: root });
+    const secondThreading = threadingFor(second, 'sender@example.test');
+    assert.deepEqual(secondThreading, { messageId: '<setu-row-2@example.test>', inReplyTo: root });
 
-    const rootMime = decodeBase64Url(buildRawEmail(first, settings, 'b', rootThreading));
-    assert.match(rootMime, /\r\nMessage-ID: <setu-thread-AB12-cd34@example\.test>\r\n/);
-    assert.doesNotMatch(rootMime, /In-Reply-To|References/);
-
-    const replyMime = decodeBase64Url(buildRawEmail(second, settings, 'b', replyThreading));
-    assert.match(replyMime, /\r\nMessage-ID: <setu-row-2@example\.test>\r\n/);
-    assert.match(replyMime, /\r\nIn-Reply-To: <setu-thread-AB12-cd34@example\.test>\r\n/);
-    assert.match(replyMime, /\r\nReferences: <setu-thread-AB12-cd34@example\.test>\r\n/);
+    for (const [row, threading] of [
+        [first, firstThreading],
+        [second, secondThreading],
+    ]) {
+        const mime = decodeBase64Url(buildRawEmail(row, settings, 'b', threading));
+        assert.ok(mime.includes(`\r\nIn-Reply-To: ${root}\r\n`));
+        assert.ok(mime.includes(`\r\nReferences: ${root}\r\n`));
+    }
 });
 
 test('emails without a request id are sent unthreaded', async () => {
     const { buildRawEmail, threadingFor } = await loadFormat();
     const row = { id: 'row-1', recipient: 'a@example.test', attempts: 1, payload: {} };
-    assert.equal(threadingFor(row, 'sender@example.test', true), undefined);
+    assert.equal(threadingFor(row, 'sender@example.test'), undefined);
     const mime = decodeBase64Url(buildRawEmail(row, settings, 'b', undefined));
     assert.doesNotMatch(mime, /Message-ID|In-Reply-To|References/);
 });

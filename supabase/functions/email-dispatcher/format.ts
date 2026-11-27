@@ -71,20 +71,18 @@ export type EmailThreading = { messageId: string; inReplyTo?: string };
 /**
  * Gmail groups messages into a conversation by matching subject plus the
  * Message-ID / In-Reply-To / References headers. Every comment email for a
- * request therefore shares one root id: the first email of a request uses it
- * as its own Message-ID, and later emails reference it. Returns undefined when
- * the row has no request to thread on.
+ * request therefore references one shared root id, the first one included.
+ * The root is never a real message: the Gmail API replaces the Message-ID of
+ * every message it sends, so the first email cannot carry the root as its own
+ * id (later ones would reference an id that exists nowhere, and the first would
+ * stay out of the conversation). Gmail groups messages that reference the same
+ * id. Returns undefined when the row has no request to thread on.
  */
-export function threadingFor(
-    row: EmailOutboxRow,
-    senderEmail: string,
-    isFirstInThread: boolean,
-): EmailThreading | undefined {
+export function threadingFor(row: EmailOutboxRow, senderEmail: string): EmailThreading | undefined {
     const targetId = (row.payload?.targetId || '').replace(/[^A-Za-z0-9-]/g, '');
     const domain = senderEmail.split('@')[1]?.replace(/[^A-Za-z0-9.-]/g, '');
     if (!targetId || !domain) return undefined;
     const rootId = `<setu-thread-${targetId}@${domain}>`;
-    if (isFirstInThread) return { messageId: rootId };
     const rowId = row.id.replace(/[^A-Za-z0-9-]/g, '');
     return { messageId: `<setu-${rowId}@${domain}>`, inReplyTo: rootId };
 }
