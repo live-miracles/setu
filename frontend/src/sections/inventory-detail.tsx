@@ -26,6 +26,8 @@ import {
     missingReturnStatusMessage,
     removeItem,
     scanIntoItems,
+    submitBlockedByNoItems,
+    submitNeedsItemsMessage,
     upsertItem,
     type ItemDraft,
 } from '../ui/inventory-items';
@@ -228,6 +230,10 @@ export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
                 if (action === 'issue') {
                     setIssueScanError('');
                     setIssueScanOpen(true);
+                    return true;
+                }
+                if (submitBlockedByNoItems(action, items)) {
+                    showErrorAlert(new Error(submitNeedsItemsMessage), 'Add an item first');
                     return true;
                 }
                 if (action === 'close' && closeBlockedByMissingCondition(request.Status, items)) {

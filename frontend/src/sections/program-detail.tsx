@@ -23,6 +23,8 @@ import {
     getLocalDateFromSession,
     removeSession,
     shiftProgramSessions,
+    submitBlockedByNoSessions,
+    submitNeedsSessionsMessage,
     upsertSession,
 } from '../ui/program-actions';
 import { DetailSection } from '../ui/detail-layout';
@@ -267,6 +269,11 @@ export function ProgramDetail({ request }: { request: ProgramRequestDTO }) {
             detail={detail}
             title={programTitle}
             editDisabled={approver && availablePlacesLoading}
+            interceptAction={(action) => {
+                if (!submitBlockedByNoSessions(action, sessions)) return false;
+                showErrorAlert(new Error(submitNeedsSessionsMessage), 'Add a session first');
+                return true;
+            }}
             fields={[
                 ['Program title', request.Name],
                 ['Language', request.Language],

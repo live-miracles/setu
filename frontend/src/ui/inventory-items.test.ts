@@ -7,6 +7,7 @@ import {
     markItemReturned,
     removeItem,
     scanIntoItems,
+    submitBlockedByNoItems,
     upsertItem,
 } from './inventory-items';
 
@@ -45,6 +46,11 @@ export function runInventoryItemsAssertions(): void {
         !closeBlockedByMissingCondition('approved', [item()]),
         'only issued requests are checked',
     );
+
+    // Submitting needs at least one line; other actions are not held back.
+    assert(submitBlockedByNoItems('submit', []), 'an empty request cannot be submitted');
+    assert(!submitBlockedByNoItems('submit', [item()]), 'a request with a line can be submitted');
+    assert(!submitBlockedByNoItems('cancel', []), 'only submitting needs lines');
 
     // Drafts: editing a line starts from its labels, never below their count.
     const draft = itemDraftOf(item({ Quantity: 1, labels: [label('a', 1) as never, 'b'] }));

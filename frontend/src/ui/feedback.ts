@@ -9,12 +9,14 @@ export function showSavingBadge(saving: boolean): void {
     else dismissToast(SAVING_TOAST_ID);
 }
 
-export function showErrorAlert(error: unknown): void {
+// `title` replaces the generic heading when the problem is the person's to fix
+// (a request that is not ready to submit) rather than a fault.
+export function showErrorAlert(error: unknown, title = 'Something went wrong'): void {
     const message =
         error instanceof Error
             ? error.message
             : String((error as any)?.message || error || 'Something went wrong.');
-    pushToast({ kind: 'error', title: 'Something went wrong', description: message }, 10000);
+    pushToast({ kind: 'error', title, description: message }, 10000);
 }
 
 // Shows the saving badge for the length of a write, whether it succeeds or throws.

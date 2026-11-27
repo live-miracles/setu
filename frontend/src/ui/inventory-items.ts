@@ -20,6 +20,15 @@ export function closeBlockedByMissingCondition(
     return status === 'issued' && items.some((item) => !item.Condition);
 }
 
+export const submitNeedsItemsMessage =
+    'Add at least one inventory item to this request (use "Add item" or scan a QR code), then submit it.';
+
+// A draft with no item lines cannot be submitted; the screen says so before it
+// asks the person to confirm, instead of showing the server's refusal afterwards.
+export function submitBlockedByNoItems(action: string, items: InventoryItemDTO[]): boolean {
+    return action === 'submit' && items.length === 0;
+}
+
 export interface ItemDraft {
     InventoryTypeId: string;
     Quantity: number;

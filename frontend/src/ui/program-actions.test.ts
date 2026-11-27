@@ -4,6 +4,7 @@ import {
     getLocalDateFromSession,
     removeSession,
     shiftProgramSessions,
+    submitBlockedByNoSessions,
     upsertSession,
 } from './program-actions';
 import { instantToLocalInput, localInputToInstant } from './date';
@@ -52,6 +53,16 @@ const user = (role: UserRole, email = 'owner@example.com'): UserDTO =>
 
 export function runProgramActionAssertions(): void {
     const source = request();
+    // Submitting needs at least one session; other actions are not held back.
+    assert(
+        submitBlockedByNoSessions('submit', []),
+        'a program with no sessions cannot be submitted',
+    );
+    assert(
+        !submitBlockedByNoSessions('submit', source.sessions),
+        'a program with sessions can be submitted',
+    );
+    assert(!submitBlockedByNoSessions('cancel', []), 'only submitting needs sessions');
     const duplicate = buildDuplicateProgramInput(source, 'current@example.com');
     assert(duplicate.name === source.Name, 'duplicate should copy the program title');
     assert(duplicate.language === source.Language, 'duplicate should copy the language');

@@ -58,6 +58,15 @@ export function shiftProgramSessions(
     }));
 }
 
+export const submitNeedsSessionsMessage =
+    'Add at least one session (date and time) to this program using "Add session", then submit it.';
+
+// A draft with no sessions cannot be submitted; the screen says so before it
+// asks the person to confirm, instead of showing the server's refusal afterwards.
+export function submitBlockedByNoSessions(action: string, sessions: ProgramSession[]): boolean {
+    return action === 'submit' && sessions.length === 0;
+}
+
 // Adds a session (index null) or replaces one.
 export function upsertSession(
     sessions: ProgramSession[],
