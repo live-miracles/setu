@@ -261,7 +261,9 @@ export function InventoryTypesPage({ kind = 'types' }: { kind?: InventoryKind })
             document.body.appendChild(link);
             link.click();
             link.remove();
-            URL.revokeObjectURL(url);
+            // Mobile Chrome starts the download asynchronously, so revoking the
+            // blob URL right away cancels it. Release it after the download began.
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
             setQrPdfOpen(false);
         } catch (error) {
             showErrorAlert(error);
