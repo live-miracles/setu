@@ -66,7 +66,12 @@ export function getRequestPermissions<Action extends string>(
     const input = {
         status: request.Status,
         role: me.Role,
-        isParty: isRequestParty(me.Email, request.UserId, request.participants || []),
+        // The requester, the participants and the request's lead are its parties
+        // (the server applies the same rule; see isPartyOfRequest).
+        isParty: isRequestParty(me.Email, request.UserId, [
+            ...(request.participants || []),
+            request.LeadEmail || '',
+        ]),
     };
     return {
         actions: availableActions(kind, input) as Action[],

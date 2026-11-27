@@ -31,7 +31,7 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 | Admin    | User roles, domain allowlist, configuration, approvals, and operational data |
 | Approver | Request review and approval without admin configuration access               |
 | Viewer   | Read-only access to every request, its comments and the roster               |
-| User     | Requests owned by or explicitly shared with the user; no roster              |
+| User     | Requests owned by, shared with or led by the user; no roster                 |
 
 ## 3 Controls in Place
 
@@ -40,8 +40,8 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 - Users cannot change their own role or email through the application or direct Data API access.
 - Only Admins can manage the allowed email-domain list, the list of addresses copied on comment emails, and user roles.
 - The CC list (`email_cc_addresses`) is readable and writable only by Admins through Row Level Security and the API, holds at most 20 valid addresses, and is read by the email dispatcher with the service role. Anyone on it receives every comment and status email, including the request text, so only Admins decide who is added.
-- Request data is restricted by ownership, participation, and operational role.
-- Comments are limited to request owners, participants, Admins, and Approvers, and authorship must match the authenticated user.
+- Request data is restricted by ownership, participation (including being the request's lead), and operational role.
+- Comments are limited to people who can read the request (owners, participants, the request's lead, Admins and Approvers) other than Viewers, and authorship must match the authenticated user.
 - A repeated create of a request or comment carries the client's id as the row id. A replay returns the caller's own row; a request or comment id already used by someone else is refused, so one user cannot read or take over another user's row through a replay.
 
 ### Image upload controls
@@ -88,6 +88,18 @@ When no domain is listed, the allowlist places no restriction of its own. That s
 Most users self-register on their first Google sign-in. An Admin can also add a member who has no organisation email yet (Users page, "Add member") so they can be rostered, because rosters and requests point at profiles, which point at authentication identities. The identity is created already banned in Supabase Auth (`ban_duration`) and its profile is flagged `sign_in_blocked`, so the member cannot sign in with any Google account, whatever the domain allowlist says (including when the allowlist is empty and access is open). It exists only to be referenced.
 
 An Admin can later set the member's work email, which is the only case where an email is changed through the app: it is refused for anyone who is not `sign_in_blocked`, and Admins cannot change the email of a member who has signed in. When the new address passes the domain allowlist, the ban is lifted and the flag cleared, so the member's first Google sign-in links to the same identity and keeps their roster shifts, requests and role. If it does not pass the allowlist, the member stays banned. Users cannot set `sign_in_blocked` themselves: the profile protection trigger rejects direct changes to it, like role and email. Deleting a member without history (shifts, requests, comments) removes the identity, as for any user.
+
+### A request's lead and email-listed participants are parties
+
+A request carries a lead email (filled from the department) and optional participants, some of whom are added by email before they have an account. A signed-in user whose profile email matches the request's lead email, or a participant's email, is a party of that request, with the requester's rights: read it (drafts included), comment, edit it while it is a draft, submit, revise a rejected request, delete it where the requester could, and manage participants and its images. Approving, rejecting, issuing and the other approver actions stay with Admins and Approvers.
+
+The match is on the profile email, which comes from Google sign-in and which users cannot change (an Admin can set the email only of a member who cannot sign in yet). One rule is applied in four places: `isPartyOfRequest` in the API (`requests.ts`, also used for comments and image uploads), the read rules `can_view_inventory_request` and `can_view_program_request`, the comment insert policy (which asks the read rule), and the workflow action functions `perform_*_request_action_tx` (20261201020000). The browser follows the same rule only to decide which buttons to show. `build-tools/request-policy-db-check.mjs` checks the policy against the SQL, and `build-tools/lead-and-cc-view-db-check.mjs` covers reading and commenting.
+
+Accepted consequences:
+
+- The lead email is filled in from the department, so a department's lead can see, edit and delete every draft of that department, and revise its rejected requests.
+- The lead email is a free-text field a requester can edit while the request is a draft, so a requester can make anyone a party of their own request by typing their address, as they already could by adding them as a participant.
+- Matching is by email, not by account: a participant listed by email gains access when someone signs in with that address, which is the intent, since only the organisation's Google accounts can sign in.
 
 ### Viewer role reads every request
 

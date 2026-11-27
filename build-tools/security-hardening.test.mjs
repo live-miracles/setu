@@ -141,12 +141,13 @@ const CLIENT_COMMENT_ID = '3f1c2a9e-7b64-4d0a-9c1e-5a2b8d4e6f70';
 
 // The user-scoped client inserts the comment (RLS applies); `insertError`
 // makes that insert fail the way a primary-key replay does.
-function commentFixture({ insertError = null, existing = [] } = {}) {
+function commentFixture({ insertError = null, existing = [], leadEmail = '', external = [] } = {}) {
     const inserted = [];
     const tables = fakeClient({
         profiles: [
             { id: 'user-1', role: 'user', email: 'one@example.org', name: 'One' },
             { id: 'user-2', role: 'user', email: 'two@example.org', name: 'Two' },
+            { id: 'user-3', role: 'user', email: 'three@example.org', name: 'Three' },
         ],
         comments: existing,
     });
@@ -170,8 +171,12 @@ function commentFixture({ insertError = null, existing = [] } = {}) {
         },
     };
     const admin = fakeClient({
-        inventory_requests: [{ id: 'request-1', requester_id: 'user-1' }],
-        inventory_request_participants: [],
+        inventory_requests: [{ id: 'request-1', requester_id: 'user-1', lead_email: leadEmail }],
+        inventory_request_participants: external.map((external_email) => ({
+            request_id: 'request-1',
+            profile_id: null,
+            external_email,
+        })),
         program_requests: [],
         program_request_participants: [],
     });
@@ -268,6 +273,33 @@ test('replaying a comment submit returns the existing comment for its author onl
         comments.addComment(failing.client, failing.admin, 'user-1', 'request-1', 'hi'),
         /denied by policy/,
     );
+});
+
+test('the request lead and participants listed by email count as parties, a stranger does not', async () => {
+    const comments = await loadComments();
+    // user-3 is neither the requester nor a participant with an account: only
+    // the email on their profile can make them a party.
+    for (const fixture of [
+        commentFixture({ leadEmail: 'Three@Example.org' }),
+        commentFixture({ external: ['three@example.org'] }),
+    ]) {
+        const comment = await comments.addComment(
+            fixture.client,
+            fixture.admin,
+            'user-3',
+            'request-1',
+            'Looks good to me',
+        );
+        assert.equal(fixture.inserted[0].author_id, 'user-3');
+        assert.equal(comment.Message, 'Looks good to me');
+    }
+
+    const stranger = commentFixture({ leadEmail: 'someone.else@example.org' });
+    await assert.rejects(
+        comments.addComment(stranger.client, stranger.admin, 'user-3', 'request-1', 'hi'),
+        /do not have access/,
+    );
+    assert.equal(stranger.inserted.length, 0);
 });
 
 test('security migration closes the direct database authorization gaps', async () => {

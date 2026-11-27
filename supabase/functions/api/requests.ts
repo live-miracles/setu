@@ -6,6 +6,7 @@ import {
     canDeleteRequest,
     canEditRequest,
     isApproverRole,
+    normalizeIdentity,
     type RequestKind,
 } from '../_shared/request-policy.ts';
 
@@ -26,6 +27,25 @@ export interface RequestKindConfig {
 export interface RequestAccess {
     request: Row;
     isParty: boolean;
+}
+
+// A party is the requester, a participant with an account, the request's lead,
+// or a participant listed by email: the last two are matched on the signed-in
+// profile's email, which comes from Google sign-in and which users cannot change.
+// The database functions and policies apply the same rule (migration
+// 20261201000000), and the browser's check in frontend/src/workflows.ts follows
+// it too.
+export function isPartyOfRequest(actor: Row, request: Row, participants: Row[]): boolean {
+    const me = normalizeIdentity(String(actor.email || ''));
+    const isMe = (email: unknown) => me !== '' && normalizeIdentity(String(email || '')) === me;
+    return (
+        request.requester_id === actor.id ||
+        isMe(request.lead_email) ||
+        participants.some(
+            (participant) =>
+                participant.profile_id === actor.id || isMe(participant.external_email),
+        )
+    );
 }
 
 export function isApprover(profile: Row): boolean {
@@ -103,9 +123,7 @@ export async function loadRequestAccess(
     const participants = result(participantsRes) as Row[];
     return {
         request,
-        isParty:
-            request.requester_id === actor.id ||
-            participants.some((participant) => participant.profile_id === actor.id),
+        isParty: isPartyOfRequest(actor, request, participants),
     };
 }
 

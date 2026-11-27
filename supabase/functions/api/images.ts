@@ -1,6 +1,7 @@
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { currentWriter, requireNonEmpty, result, type Row } from './core.ts';
 import { canEditRequest, isAdminRole } from '../_shared/request-policy.ts';
+import { isPartyOfRequest } from './requests.ts';
 
 const ALLOWED_IMAGE_MIME_TYPES = ['image/avif', 'image/jpeg', 'image/png', 'image/webp'];
 const IMAGE_BUCKET = 'request-images';
@@ -31,19 +32,17 @@ export async function createImageUploadUrl(
         const [requestRes, participantsRes] = await Promise.all([
             admin
                 .from('inventory_requests')
-                .select('requester_id, status')
+                .select('requester_id, status, lead_email')
                 .eq('id', target)
                 .single(),
             admin
                 .from('inventory_request_participants')
-                .select('profile_id')
+                .select('profile_id, external_email')
                 .eq('request_id', target),
         ]);
         const request = result(requestRes) as Row;
         const participants = result(participantsRes) as Row[];
-        const isParty =
-            request.requester_id === actor.id ||
-            participants.some((participant) => participant.profile_id === actor.id);
+        const isParty = isPartyOfRequest(actor, request, participants);
         if (!canEditRequest({ status: request.status, isParty, role: actor.role })) {
             throw new Error('You are not allowed to update this request image.');
         }

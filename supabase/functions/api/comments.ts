@@ -3,54 +3,36 @@ import { currentProfile, newRequestId, requireNonEmpty, result, type Row } from 
 import { commentDto } from './query.ts';
 import { MAX_COMMENT_LENGTH } from './validation.ts';
 import { canCollaborate, canWriteRole } from '../_shared/request-policy.ts';
+import { isPartyOfRequest } from './requests.ts';
 
 interface RequestOwner {
     kind: 'inventory_request' | 'program_request';
-    requesterId: string | null;
-    participantIds: string[];
+    request: Row;
+    participants: Row[];
 }
 
 export async function findRequestOwner(
     admin: SupabaseClient,
     requestId: string,
 ): Promise<RequestOwner | null> {
-    const inventoryRes = await admin
-        .from('inventory_requests')
-        .select('requester_id')
-        .eq('id', requestId)
-        .maybeSingle();
-    if (inventoryRes.error) throw new Error(inventoryRes.error.message);
-    if (inventoryRes.data) {
+    for (const [kind, table, participantsTable] of [
+        ['inventory_request', 'inventory_requests', 'inventory_request_participants'],
+        ['program_request', 'program_requests', 'program_request_participants'],
+    ] as const) {
+        const requestRes = await admin
+            .from(table)
+            .select('requester_id, lead_email')
+            .eq('id', requestId)
+            .maybeSingle();
+        if (requestRes.error) throw new Error(requestRes.error.message);
+        if (!requestRes.data) continue;
         const participants = result(
             await admin
-                .from('inventory_request_participants')
-                .select('profile_id')
+                .from(participantsTable)
+                .select('profile_id, external_email')
                 .eq('request_id', requestId),
         ) as Row[];
-        return {
-            kind: 'inventory_request',
-            requesterId: inventoryRes.data.requester_id,
-            participantIds: participants.map((p) => p.profile_id).filter(Boolean),
-        };
-    }
-    const programRes = await admin
-        .from('program_requests')
-        .select('requester_id')
-        .eq('id', requestId)
-        .maybeSingle();
-    if (programRes.error) throw new Error(programRes.error.message);
-    if (programRes.data) {
-        const participants = result(
-            await admin
-                .from('program_request_participants')
-                .select('profile_id')
-                .eq('request_id', requestId),
-        ) as Row[];
-        return {
-            kind: 'program_request',
-            requesterId: programRes.data.requester_id,
-            participantIds: participants.map((p) => p.profile_id).filter(Boolean),
-        };
+        return { kind, request: requestRes.data, participants };
     }
     return null;
 }
@@ -73,9 +55,10 @@ export async function addComment(
     }
     const owner = await findRequestOwner(admin, requestId);
     if (!owner) throw new Error('Request not found.');
-    const isParty = owner.requesterId === actor.id || owner.participantIds.indexOf(actor.id) !== -1;
-    if (!canCollaborate({ isParty, role: actor.role }))
+    const isParty = isPartyOfRequest(actor, owner.request, owner.participants);
+    if (!canCollaborate({ isParty, role: actor.role })) {
         throw new Error('You do not have access to this request.');
+    }
 
     // The client's id for this submission is the comment's id, so a replayed
     // submit finds its own comment instead of posting a second one.

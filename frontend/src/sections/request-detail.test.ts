@@ -33,6 +33,18 @@ export function runRequestDetailAssertions(): void {
         );
         assert(guest.canEdit && guest.canCollaborate, `${kind}: a participant is a party`);
 
+        // The request's lead is a party too, matched on the lead email.
+        const lead = getRequestPermissions<string>(
+            kind,
+            { ...request('draft'), LeadEmail: 'Lead@example.com' },
+            user('user', 'lead@example.com'),
+        );
+        assert(
+            lead.canEdit && lead.canDelete && lead.canCollaborate,
+            `${kind}: the lead is a party`,
+        );
+        assert(lead.actions.join(',') === 'submit', `${kind}: the lead submits a draft`);
+
         const submitted = getRequestPermissions<string>(kind, request('submitted'), user('user'));
         assert(
             !submitted.canEdit && !submitted.canDelete,

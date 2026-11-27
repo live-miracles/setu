@@ -6,9 +6,9 @@
 // perform_*_request_action_tx SQL functions, which remain the authority; the
 // parity test in build-tools/request-policy.test.mjs keeps the two aligned.
 //
-// "Party" means the requester or one of the request's participants. Callers
-// decide how to tell (profile ids on the server, emails in the browser) and use
-// isRequestParty to compare them.
+// "Party" means the requester, one of the request's participants, or its lead
+// (the lead email). Callers decide how to tell (profile ids and emails on the
+// server, emails in the browser) and use isRequestParty to compare them.
 
 export type RequestKind = 'inventory' | 'program';
 export type RequestRole = 'admin' | 'approver' | 'user' | 'viewer';
