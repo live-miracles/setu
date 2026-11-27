@@ -9,15 +9,30 @@ import {
 // The pure rules behind the item lines of an inventory request. The detail
 // screen persists the list these return; it keeps no copy of the lines.
 
-export const missingReturnStatusMessage =
-    'Please configure return status for all the issued inventory items before closing the request.';
-
 // An issued request cannot be closed until every line says how it came back.
 export function closeBlockedByMissingCondition(
     status: InventoryRequestStatus,
     items: InventoryItemDTO[],
 ): boolean {
     return status === 'issued' && items.some((item) => !item.Condition);
+}
+
+const MAX_NAMED_ITEMS = 3;
+
+// Tells the person which lines still lack a return status and what to do about
+// it, instead of only that "some" do.
+export function missingReturnStatusMessage(items: InventoryItemDTO[]): string {
+    const names = items
+        .filter((item) => !item.Condition)
+        .map((item) => item.itemName || 'Unnamed item');
+    const shown = names.slice(0, MAX_NAMED_ITEMS).join(', ');
+    const more =
+        names.length > MAX_NAMED_ITEMS ? ` and ${names.length - MAX_NAMED_ITEMS} more` : '';
+    const lead =
+        names.length === 1
+            ? `${shown} has no return status yet.`
+            : `${names.length} items have no return status yet: ${shown}${more}.`;
+    return `${lead} Mark each as returned, damaged or missing, then close the request.`;
 }
 
 export const submitNeedsItemsMessage =

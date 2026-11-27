@@ -237,7 +237,10 @@ export function InventoryDetail({ request }: { request: InventoryRequestDTO }) {
                     return true;
                 }
                 if (action === 'close' && closeBlockedByMissingCondition(request.Status, items)) {
-                    error(new Error(missingReturnStatusMessage));
+                    showErrorAlert(
+                        new Error(missingReturnStatusMessage(items)),
+                        'Set return status first',
+                    );
                     return true;
                 }
                 return false;

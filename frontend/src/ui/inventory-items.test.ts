@@ -5,6 +5,7 @@ import {
     itemDraftOf,
     itemFromDraft,
     markItemReturned,
+    missingReturnStatusMessage,
     removeItem,
     scanIntoItems,
     submitBlockedByNoItems,
@@ -45,6 +46,21 @@ export function runInventoryItemsAssertions(): void {
     assert(
         !closeBlockedByMissingCondition('approved', [item()]),
         'only issued requests are checked',
+    );
+
+    // The message names the lines that still need a status (three at most).
+    const one = missingReturnStatusMessage([item(), item({ Condition: 'returned' })]);
+    assert(one.startsWith('Acme · Camera has no return status yet.'), 'a single line is named');
+    const many = missingReturnStatusMessage([
+        item({ itemName: 'A' }),
+        item({ itemName: 'B' }),
+        item({ itemName: 'C' }),
+        item({ itemName: 'D' }),
+        item({ itemName: 'E', Condition: 'damaged' }),
+    ]);
+    assert(
+        many.startsWith('4 items have no return status yet: A, B, C and 1 more.'),
+        'several lines are counted and the list is shortened',
     );
 
     // Submitting needs at least one line; other actions are not held back.
