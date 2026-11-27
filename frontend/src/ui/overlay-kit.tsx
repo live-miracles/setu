@@ -201,9 +201,13 @@ export function DropdownMenu({
 // code (including non-React helpers in feedback.ts) can raise a toast.
 interface Toast {
     id: string;
-    kind: 'loading' | 'error';
+    kind: 'loading' | 'error' | 'info';
     title: string;
     description?: string;
+    // A single call-to-action button, e.g. "Reload" on the new-version prompt.
+    action?: { label: string; onClick: () => void };
+    // Errors can always be dismissed; other kinds only when asked.
+    dismissible?: boolean;
 }
 
 let toasts: Toast[] = [];
@@ -242,6 +246,8 @@ export function ToastViewport() {
                     className="flex items-start gap-3 rounded-lg border border-line bg-surface p-3 shadow-overlay">
                     {toast.kind === 'loading' ? (
                         <Spinner className="mt-0.5 text-accent" />
+                    ) : toast.kind === 'info' ? (
+                        <Icon name="reload" className="mt-0.5 text-accent" />
                     ) : (
                         <Icon name="alert" className="mt-0.5 text-error" />
                     )}
@@ -252,8 +258,17 @@ export function ToastViewport() {
                                 {toast.description}
                             </div>
                         )}
+                        {toast.action && (
+                            <Button
+                                type="primary"
+                                size="small"
+                                className="mt-2"
+                                onClick={toast.action.onClick}>
+                                {toast.action.label}
+                            </Button>
+                        )}
                     </div>
-                    {toast.kind === 'error' && (
+                    {(toast.kind === 'error' || toast.dismissible) && (
                         <button
                             type="button"
                             aria-label="Dismiss"

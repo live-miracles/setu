@@ -1,5 +1,6 @@
 import { mountApp } from './app';
 import { renderAppError } from './ui/app-error';
+import { registerServiceWorker } from './ui/app-update';
 import { ensureAuthenticated, isSupabaseConfigured } from './supabase';
 
 // Application entry point for both local development and Vercel.
@@ -18,9 +19,7 @@ async function boot(): Promise<void> {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    if ('serviceWorker' in navigator && window.isSecureContext) {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
+    registerServiceWorker();
     void boot().catch((err) => {
         const container = document.getElementById('app-shell');
         if (container) renderAppError(container, err instanceof Error ? err.message : String(err));

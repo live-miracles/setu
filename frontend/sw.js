@@ -1,7 +1,13 @@
 /* The PWA shell deliberately caches only same-origin static assets. API and
  * image requests stay network-first so request data and access changes cannot
  * become stale or leak through a shared cache. */
-const CACHE = 'setu-shell-v2';
+/* The build stamps a content hash over the placeholder below (see
+ * build-tools/shell.mjs). Chrome only installs a new worker when this file
+ * changes, so the stamp is what makes each release reach open apps and prompt
+ * for a reload; it also retires the previous release's offline cache. In dev
+ * the placeholder stays as is. */
+const BUILD_ID = '__SETU_BUILD_ID__';
+const CACHE = `setu-shell-${BUILD_ID}`;
 const SHELL = [
     '/',
     '/manifest.webmanifest',

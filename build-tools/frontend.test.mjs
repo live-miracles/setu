@@ -16,6 +16,7 @@ test('frontend utility and table assertions', async () => {
             sourcefile: 'frontend-assertions.ts',
             contents: `
                 import { runActivityEventAssertions } from './frontend/src/ui/activity-events.test.ts';
+                import { runAppUpdateAssertions } from './frontend/src/ui/app-update.test.ts';
                 import { runCalendarTableAssertions } from './frontend/src/ui/calendar-table.test.ts';
                 import { runCreateRecordAssertions } from './frontend/src/ui/create-record.test.ts';
                 import { runInventoryImageAssertions } from './frontend/src/ui/inventory-image.test.ts';
@@ -35,6 +36,7 @@ test('frontend utility and table assertions', async () => {
                 import { runRequestDetailAssertions } from './frontend/src/sections/request-detail.test.ts';
 
                 runActivityEventAssertions();
+                runAppUpdateAssertions();
                 runCalendarTableAssertions();
                 runCreateRecordAssertions();
                 runInventoryImageAssertions();

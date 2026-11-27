@@ -3,6 +3,7 @@
 // page chrome, rather than a template per target that has to be kept
 // identical by hand.
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -25,6 +26,34 @@ const TITLE = 'Setu';
 export function devFaviconTag() {
     const png = readFileSync(path.join(root, 'frontend/icons/icon-64.png')).toString('base64');
     return `<link rel="icon" type="image/png" href="data:image/png;base64,${png}" />`;
+}
+
+export const SW_BUILD_ID_PLACEHOLDER = '__SETU_BUILD_ID__';
+
+/**
+ * A short id that changes whenever any of the given built files change. Chrome
+ * only installs a new service worker when sw.js itself differs byte for byte,
+ * so stamping this into it is what makes every real release trigger the
+ * "new version available" prompt (frontend/src/ui/app-update.ts) — and none
+ * of the deploys that leave the shipped files untouched.
+ * @param {string[]} files
+ */
+export function contentBuildId(files) {
+    const hash = createHash('sha256');
+    for (const file of files) hash.update(readFileSync(file));
+    return hash.digest('hex').slice(0, 12);
+}
+
+/**
+ * Returns frontend/sw.js with its build id placeholder replaced.
+ * @param {string} source
+ * @param {string} buildId
+ */
+export function stampServiceWorker(source, buildId) {
+    if (!source.includes(SW_BUILD_ID_PLACEHOLDER)) {
+        throw new Error(`sw.js is missing the ${SW_BUILD_ID_PLACEHOLDER} placeholder.`);
+    }
+    return source.replaceAll(SW_BUILD_ID_PLACEHOLDER, buildId);
 }
 
 /**
