@@ -165,50 +165,187 @@ export function formatEmailBody(
     return sections.join('\n\n');
 }
 
+// Email clients ignore stylesheets and most modern CSS, so the HTML part is
+// table-based with inline styles only. Colours mirror the light theme tokens in
+// frontend/input.css (clients cannot read CSS variables).
+const MAIL = {
+    paper: '#f6f5f4',
+    surface: '#ffffff',
+    ink: '#1a1a1a',
+    charcoal: '#37352f',
+    steel: '#787671',
+    line: '#e5e3df',
+    accent: '#d9480f',
+    accentTint: '#ffe8d4',
+    accentText: '#793400',
+    font: "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
+};
+
+const STATUS_CHIPS: Record<string, { bg: string; fg: string }> = {
+    draft: { bg: '#fef7d6', fg: '#7a5b00' },
+    submitted: { bg: '#dcecfa', fg: '#005bab' },
+    approved: { bg: '#d9f3e1', fg: '#14782b' },
+    rejected: { bg: '#fbeef0', fg: '#9b1c31' },
+    cancelled: { bg: '#f0eeec', fg: '#37352f' },
+};
+
 export function formatEmailHtmlBody(
     message: string,
     payload: EmailPayload,
     settings: Pick<EmailSettings, 'appUrl' | 'timeZone'>,
 ): string {
-    const author = escapeHtml(payload.authorName || 'Setu Bot');
+    const authorName = payload.authorName || 'Setu Bot';
+    const author = escapeHtml(authorName);
     const status = statusChange(payload);
-    const sections: string[] = [
-        status
-            ? `<p><strong>${author} ${escapeHtml(status.headline)}.</strong></p>` +
-              (status.note ? `<p>Note: ${escapeHtml(status.note).replace(/\n/g, '<br>')}</p>` : '')
-            : `<p><strong>${author} commented:</strong></p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
-    ];
+    const title = payload.requestTitle || payload.targetName || 'Setu request';
+    const requestUrl = requestUrlFor(payload, settings.appUrl);
+
+    const rows: string[] = [];
+
+    // Who did what.
+    rows.push(
+        row(
+            `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
+                `<td width="40" height="40" align="center" valign="middle" bgcolor="${MAIL.accentTint}" style="width:40px;height:40px;border-radius:20px;background:${MAIL.accentTint};color:${MAIL.accentText};font-size:16px;font-weight:700;line-height:40px;">${escapeHtml(initialOf(authorName))}</td>` +
+                `<td style="padding-left:12px;font-size:15px;line-height:21px;color:${MAIL.charcoal};">` +
+                `<strong style="color:${MAIL.ink};">${author}</strong><br>` +
+                `<span style="color:${MAIL.steel};font-size:13px;">${status ? 'changed the status' : 'commented'}</span>` +
+                `</td></tr></table>`,
+            '24px 28px 0',
+        ),
+    );
+
+    if (status) {
+        rows.push(row(statusChips(payload), '16px 28px 0'));
+        if (status.note) rows.push(row(quoteBlock(status.note, 'Note'), '12px 28px 0'));
+    } else {
+        rows.push(row(quoteBlock(message), '16px 28px 0'));
+    }
+
     if (payload.sessions?.length) {
         const { timeZone } = settings;
-        sections.push(
-            `<p><strong>${escapeHtml(formatSessionsHeading(payload.sessions, timeZone))}</strong></p><ul>` +
-                payload.sessions
-                    .map(
-                        (session) => `<li>${escapeHtml(formatSessionLine(session, timeZone))}</li>`,
-                    )
-                    .join('') +
-                `</ul><p>${escapeHtml(formatTimeZoneLabel(timeZone, payload.sessions))}</p>`,
+        const sessionRows = payload.sessions
+            .map((session) => {
+                const part = sessionParts(session, timeZone);
+                return (
+                    `<tr><td style="padding:10px 0;border-top:1px solid ${MAIL.line};font-size:14px;line-height:20px;color:${MAIL.charcoal};">` +
+                    (part.date
+                        ? `<span style="color:${MAIL.steel};font-size:12px;">${escapeHtml(part.date)}</span><br>`
+                        : '') +
+                    `<strong style="color:${MAIL.ink};">${escapeHtml(part.time)}</strong>` +
+                    `<span style="color:${MAIL.steel};"> &nbsp;·&nbsp; </span>${escapeHtml(part.label)}` +
+                    `</td></tr>`
+                );
+            })
+            .join('');
+        rows.push(
+            row(
+                sectionHeading(formatSessionsHeading(payload.sessions, timeZone)) +
+                    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${sessionRows}</table>` +
+                    `<p style="margin:8px 0 0;font-size:12px;line-height:18px;color:${MAIL.steel};">${escapeHtml(formatTimeZoneLabel(timeZone, payload.sessions))}</p>`,
+                '24px 28px 0',
+            ),
         );
     }
+
     if (payload.items?.length) {
-        sections.push(
-            '<p><strong>Inventory items:</strong></p><ul>' +
-                payload.items
-                    .map(
-                        (item) =>
-                            `<li>${item.quantity || 0} × ${escapeHtml(item.name || 'Unnamed item')}</li>`,
-                    )
-                    .join('') +
-                '</ul>',
+        const itemRows = payload.items
+            .map(
+                (item) =>
+                    `<tr><td width="48" style="padding:8px 0;border-top:1px solid ${MAIL.line};font-size:14px;font-weight:700;color:${MAIL.ink};white-space:nowrap;">${item.quantity || 0} ×</td>` +
+                    `<td style="padding:8px 0;border-top:1px solid ${MAIL.line};font-size:14px;color:${MAIL.charcoal};">${escapeHtml(item.name || 'Unnamed item')}</td></tr>`,
+            )
+            .join('');
+        rows.push(
+            row(
+                sectionHeading('Inventory items') +
+                    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${itemRows}</table>`,
+                '24px 28px 0',
+            ),
         );
     }
-    const requestUrl = requestUrlFor(payload, settings.appUrl);
-    sections.push(
-        requestUrl
-            ? `<p><a href="${escapeHtml(requestUrl)}">View request</a></p>`
-            : '<p>Open Setu to view the conversation.</p>',
+
+    rows.push(
+        row(
+            requestUrl
+                ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
+                      `<td bgcolor="${MAIL.accent}" style="border-radius:8px;background:${MAIL.accent};">` +
+                      `<a href="${escapeHtml(requestUrl)}" style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">View request</a>` +
+                      `</td></tr></table>`
+                : `<p style="margin:0;font-size:14px;color:${MAIL.steel};">Open Setu to view the conversation.</p>`,
+            '28px 28px 28px',
+        ),
     );
-    return sections.join('\n');
+
+    const subject = formatEmailSubject(payload);
+    const serial = payload.requestSerial || 'Request';
+    const preheader = status
+        ? `${authorName} ${status.headline}.`
+        : `${authorName}: ${message.replace(/\s+/g, ' ').trim()}`.slice(0, 140);
+
+    return (
+        `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+        `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">` +
+        `<title>${escapeHtml(subject)}</title></head>` +
+        `<body style="margin:0;padding:0;background:${MAIL.paper};font-family:${MAIL.font};">` +
+        `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">${escapeHtml(preheader)}</div>` +
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MAIL.paper}" style="background:${MAIL.paper};"><tr><td align="center" style="padding:24px 12px;">` +
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">` +
+        `<tr><td style="padding:0 4px 12px;font-size:13px;font-weight:700;letter-spacing:0.14em;color:${MAIL.accent};">SETU</td></tr>` +
+        `<tr><td style="background:${MAIL.surface};border:1px solid ${MAIL.line};border-top:4px solid ${MAIL.accent};border-radius:12px;">` +
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">` +
+        row(
+            `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${MAIL.paper};border:1px solid ${MAIL.line};font-size:12px;font-weight:600;color:${MAIL.charcoal};">${escapeHtml(serial)}</span>` +
+                (payload.requestMonthYear
+                    ? `<span style="font-size:12px;color:${MAIL.steel};"> &nbsp;${escapeHtml(payload.requestMonthYear)}</span>`
+                    : '') +
+                `<h1 style="margin:12px 0 0;font-size:21px;line-height:28px;font-weight:700;color:${MAIL.ink};">${escapeHtml(title)}</h1>`,
+            '28px 28px 20px',
+        ) +
+        `<tr><td style="padding:0 28px;"><div style="border-top:1px solid ${MAIL.line};font-size:0;line-height:0;">&nbsp;</div></td></tr>` +
+        rows.join('') +
+        `</table></td></tr>` +
+        `<tr><td align="center" style="padding:16px 8px 0;font-size:12px;line-height:18px;color:${MAIL.steel};">Sent by Setu. Replies to this email go to the Setu team.</td></tr>` +
+        `</table></td></tr></table></body></html>`
+    );
+}
+
+function row(content: string, padding: string): string {
+    return `<tr><td style="padding:${padding};">${content}</td></tr>`;
+}
+
+function sectionHeading(text: string): string {
+    return `<p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${MAIL.steel};">${escapeHtml(text)}</p>`;
+}
+
+function quoteBlock(text: string, label?: string): string {
+    return (
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>` +
+        `<td style="padding:14px 16px;background:${MAIL.paper};border-left:3px solid ${MAIL.accent};border-radius:6px;font-size:15px;line-height:23px;color:${MAIL.ink};">` +
+        (label
+            ? `<span style="display:block;margin-bottom:4px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${MAIL.steel};">${escapeHtml(label)}</span>`
+            : '') +
+        `${escapeHtml(text).replace(/\n/g, '<br>')}</td></tr></table>`
+    );
+}
+
+function statusChip(value: string): string {
+    const colours = STATUS_CHIPS[value.toLowerCase()] || { bg: '#f0eeec', fg: MAIL.charcoal };
+    const label = value.charAt(0).toUpperCase() + value.slice(1);
+    return `<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:${colours.bg};color:${colours.fg};font-size:13px;font-weight:700;">${escapeHtml(label)}</span>`;
+}
+
+function statusChips(payload: EmailPayload): string {
+    const arrow = `<span style="color:${MAIL.steel};font-size:16px;"> &nbsp;&rarr;&nbsp; </span>`;
+    return (
+        (payload.statusFrom ? statusChip(payload.statusFrom) + arrow : '') +
+        statusChip(payload.statusTo || '')
+    );
+}
+
+function initialOf(name: string): string {
+    return (Array.from(name.trim())[0] || '?').toUpperCase();
 }
 
 export function formatSessionsHeading(sessions: EmailSession[], timeZone: string): string {
@@ -233,18 +370,30 @@ export function formatSessionsHeading(sessions: EmailSession[], timeZone: string
 }
 
 export function formatSessionLine(session: EmailSession, timeZone: string): string {
+    const { date, time, label } = sessionParts(session, timeZone);
+    return `${date ? `(${date}) ` : ``}${time} | ${label}`;
+}
+
+/** A session split into its date ("Sat, 5 Sep"), time range and label. */
+export function sessionParts(
+    session: EmailSession,
+    timeZone: string,
+): { date: string; time: string; label: string } {
     const start = parseSessionDate(session.startAt);
     const end = parseSessionDate(session.endAt);
-    const date = start || end;
-    let dateText = '';
-    if (date) {
-        const parts = dateParts(date, timeZone);
-        dateText = `(${parts.weekday}, ${parts.day} ${parts.month}) `;
+    const day = start || end;
+    let date = '';
+    if (day) {
+        const parts = dateParts(day, timeZone);
+        date = `${parts.weekday}, ${parts.day} ${parts.month}`;
     }
     const startText = start ? formatTime(start, timeZone) : session.startAt || '';
     const endText = end ? formatTime(end, timeZone) : session.endAt || '';
-    const label = session.name || session.type || 'Session';
-    return `${dateText}${startText} - ${endText} | ${label}`;
+    return {
+        date,
+        time: `${startText} - ${endText}`,
+        label: session.name || session.type || 'Session',
+    };
 }
 
 export function formatTimeZoneLabel(timeZone: string, sessions: EmailSession[]): string {

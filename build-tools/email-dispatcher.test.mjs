@@ -141,7 +141,17 @@ test('raw Gmail message carries headers, both bodies and the request link', asyn
 
     const html = decodePart(mime, 'text/html');
     assert.match(html, /Please confirm &lt;the&gt; cameras<br>Thanks/);
-    assert.match(html, /<a href="https:\/\/setu\.example\.test\/programs\/abc">View request<\/a>/);
+    assert.match(
+        html,
+        /<a href="https:\/\/setu\.example\.test\/programs\/abc"[^>]*>View request<\/a>/,
+    );
+    assert.match(html, /^<!doctype html>/);
+    assert.match(html, /<h1[^>]*>Workshop – Hall A<\/h1>/);
+    assert.match(html, />PRG-7<\/span>/);
+    assert.match(html, /2 ×<\/td>/);
+    assert.match(html, />commented<\/span>/);
+    // Stored text is escaped everywhere, including the hidden preheader.
+    assert.doesNotMatch(html, /<the>/);
 });
 
 test('stored values cannot inject extra email headers', async () => {
@@ -239,11 +249,11 @@ test('a status change email names the old and new status instead of a comment', 
     );
     assert.doesNotMatch(text, /commented/);
     const html = decodePart(mime, 'text/html');
-    assert.match(
-        html,
-        /<strong>Test Approver changed the status from Submitted to Approved\.<\/strong>/,
-    );
-    assert.match(html, /Note: Hall A &lt;confirmed&gt;/);
+    assert.match(html, /<strong[^>]*>Test Approver<\/strong>/);
+    assert.match(html, />changed the status<\/span>/);
+    assert.match(html, />Submitted<\/span>[\s\S]*>Approved<\/span>/);
+    assert.match(html, /Hall A &lt;confirmed&gt;/);
+    assert.doesNotMatch(html, /commented/);
 
     const withoutNote = decodePart(
         decodeBase64Url(
@@ -274,4 +284,29 @@ test('a status change email names the old and new status instead of a comment', 
         'text/plain',
     );
     assert.match(comment, /^Test Author commented:\n\nHello/);
+});
+
+test('HTML email lays out sessions and falls back without a request link', async () => {
+    const { formatEmailHtmlBody, sessionParts } = await loadFormat();
+    const session = {
+        name: 'Rehearsal',
+        startAt: '2026-09-04T03:30:00Z',
+        endAt: '2026-09-04T05:00:00Z',
+    };
+    assert.deepEqual(sessionParts(session, 'Asia/Kolkata'), {
+        date: 'Fri, 4 Sep',
+        time: '9:00 - 10:30',
+        label: 'Rehearsal',
+    });
+    const html = formatEmailHtmlBody(
+        'Hi',
+        { authorName: 'Pat', sessions: [session] },
+        { appUrl: '', timeZone: 'Asia/Kolkata' },
+    );
+    assert.match(html, /Sessions \(4 Sep, 2026\)/);
+    assert.match(html, /Fri, 4 Sep/);
+    assert.match(html, /9:00 - 10:30/);
+    assert.match(html, /Time zone \(GMT\+05:30\)/);
+    assert.match(html, /Open Setu to view the conversation\./);
+    assert.doesNotMatch(html, /View request/);
 });
