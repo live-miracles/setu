@@ -4,8 +4,11 @@ import {
     type EmailOutboxRow,
     type EmailSettings,
     failureUpdate,
+    inventoryItemLabel,
     parseEmailList,
+    type RequestDetails,
     threadingFor,
+    withRequestDetails,
 } from './format.ts';
 import { secretsMatch } from './secret.ts';
 
@@ -40,6 +43,8 @@ function readConfig(): GmailConfig | null {
         refreshToken: env('GOOGLE_REFRESH_TOKEN'),
         settings: {
             appUrl: env('SETU_APP_ORIGIN'),
+            // Photos are linked from the public image bucket, never attached.
+            imageBaseUrl: `${env('SUPABASE_URL').replace(/\/$/, '')}/storage/v1/object/public/request-images/`,
             timeZone: env('EMAIL_TIME_ZONE') || 'Asia/Kolkata',
             senderEmail: env('GMAIL_SENDER'),
             senderName: env('EMAIL_SENDER_NAME') || 'Live Stream Setu',
@@ -116,6 +121,36 @@ async function findThreadId(row: EmailOutboxRow): Promise<string> {
     return data?.[0]?.provider_thread_id || '';
 }
 
+/**
+ * What the email header and item list need beyond the stored payload: an
+ * inventory request's borrowing dates and its items' photos. Looked up when the
+ * email is sent, so it shows the current photo. A failed lookup only means a
+ * plainer email; it must never block delivery.
+ */
+async function findRequestDetails(row: EmailOutboxRow): Promise<RequestDetails | undefined> {
+    const targetId = row.payload?.targetId;
+    if (!targetId || row.payload?.targetType !== 'inventory_request') return undefined;
+    const { data, error } = await supabase
+        .from('inventory_requests')
+        .select(
+            'start_date, end_date, inventory_request_items(inventory_types(brand, name, model, image_path))',
+        )
+        .eq('id', targetId)
+        .maybeSingle();
+    if (error || !data) {
+        if (error) console.error(`Could not look up request details: ${error.message}`);
+        return undefined;
+    }
+    const photos: RequestDetails['photos'] = [];
+    for (const item of data.inventory_request_items || []) {
+        const type = item.inventory_types;
+        if (type?.image_path) {
+            photos.push({ label: inventoryItemLabel(type), imageId: type.image_path });
+        }
+    }
+    return { startDate: data.start_date, endDate: data.end_date, photos };
+}
+
 async function updateRow(id: string, values: Record<string, string>): Promise<void> {
     const { error } = await supabase.from('email_outbox').update(values).eq('id', id);
     if (error) console.error(`Could not update email row ${id}: ${error.message}`);
@@ -150,10 +185,18 @@ Deno.serve(async (request) => {
         let sentMessage: { id: string; threadId: string };
         try {
             const threadId = await findThreadId(row);
+            const details = await findRequestDetails(row).catch((lookupError) => {
+                console.error(`Could not look up request details: ${String(lookupError)}`);
+                return undefined;
+            });
+            const outgoing =
+                details && row.payload
+                    ? { ...row, payload: withRequestDetails(row.payload, details) }
+                    : row;
             const threading = threadingFor(row, config.settings.senderEmail, !threadId);
             sentMessage = await sendGmail(
                 accessToken,
-                buildRawEmail(row, config.settings, undefined, threading),
+                buildRawEmail(outgoing, config.settings, undefined, threading),
                 threadId || undefined,
             );
         } catch (sendError) {

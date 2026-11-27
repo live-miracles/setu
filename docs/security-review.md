@@ -68,7 +68,7 @@ The following choices are part of the approved operating model for the initial i
 
 ### Public delivery of operational images
 
-The bucket contains only non-sensitive inventory and operational images. Upload, replacement, association, and deletion remain authenticated and authorized. Storage enforces file type and size. Personal, confidential, or regulated images are outside the intended use. If that use changes, the bucket will move to private delivery.
+The bucket contains only non-sensitive inventory and operational images. Upload, replacement, association, and deletion remain authenticated and authorized. Storage enforces file type and size. Personal, confidential, or regulated images are outside the intended use. If that use changes, the bucket will move to private delivery. Comment emails for inventory requests show small item photos by linking to those same public URLs (`<img>` tags; nothing is attached or embedded), so the recipient's mail client fetches the photo from Supabase Storage. The URLs expose nothing the public bucket does not already expose, and a missing or blocked photo leaves the item name and quantity in place.
 
 ### Shared approved-program calendar
 

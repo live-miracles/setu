@@ -5,12 +5,17 @@ export type EmailSession = { name?: string; type?: string; startAt?: string; end
 
 export type EmailPayload = {
     targetId?: string;
+    targetType?: string;
     cc?: string[];
     message?: string;
     targetName?: string;
     requestSerial?: string;
     requestTitle?: string;
     requestMonthYear?: string;
+    // Inventory requests only: the borrowing period as YYYY-MM-DD dates. The
+    // dispatcher looks them up when it sends; program requests use their sessions.
+    startDate?: string;
+    endDate?: string;
     authorName?: string;
     // 'status' for a workflow action (statusFrom, statusTo and statusNote say
     // what changed); anything else is a plain comment.
@@ -21,7 +26,7 @@ export type EmailPayload = {
     requestPath?: string;
     automatedReminder?: boolean;
     sessions?: EmailSession[];
-    items?: Array<{ name?: string; quantity?: number }>;
+    items?: Array<{ name?: string; quantity?: number; imageId?: string }>;
 };
 
 export type EmailOutboxRow = {
@@ -33,6 +38,9 @@ export type EmailOutboxRow = {
 
 export type EmailSettings = {
     appUrl: string;
+    // Public URL prefix of the image bucket. Photos are linked, never attached;
+    // without a prefix an email simply has none.
+    imageBaseUrl?: string;
     timeZone: string;
     senderEmail: string;
     senderName: string;
@@ -192,7 +200,7 @@ const STATUS_CHIPS: Record<string, { bg: string; fg: string }> = {
 export function formatEmailHtmlBody(
     message: string,
     payload: EmailPayload,
-    settings: Pick<EmailSettings, 'appUrl' | 'timeZone'>,
+    settings: Pick<EmailSettings, 'appUrl' | 'timeZone' | 'imageBaseUrl'>,
 ): string {
     const authorName = payload.authorName || 'Setu Bot';
     const author = escapeHtml(authorName);
@@ -249,12 +257,28 @@ export function formatEmailHtmlBody(
     }
 
     if (payload.items?.length) {
+        const photos = payload.items.map((item) =>
+            imageUrlFor(item.imageId, settings.imageBaseUrl),
+        );
+        // A photo column appears only when at least one item has a photo; the
+        // others then get an empty tile so the rows stay aligned.
+        const hasPhotos = photos.some(Boolean);
         const itemRows = payload.items
-            .map(
-                (item) =>
-                    `<tr><td width="48" style="padding:8px 0;border-top:1px solid ${MAIL.line};font-size:14px;font-weight:700;color:${MAIL.ink};white-space:nowrap;">${item.quantity || 0} ×</td>` +
-                    `<td style="padding:8px 0;border-top:1px solid ${MAIL.line};font-size:14px;color:${MAIL.charcoal};">${escapeHtml(item.name || 'Unnamed item')}</td></tr>`,
-            )
+            .map((item, index) => {
+                const cell = `padding:8px 0;border-top:1px solid ${MAIL.line};vertical-align:middle;`;
+                const photo = photos[index];
+                const tile = photo
+                    ? `<img src="${escapeHtml(photo)}" alt="" width="40" height="40" style="display:block;width:40px;height:40px;border-radius:6px;border:1px solid ${MAIL.line};object-fit:cover;">`
+                    : `<div style="width:40px;height:40px;border-radius:6px;background:${MAIL.paper};border:1px solid ${MAIL.line};font-size:0;line-height:0;">&nbsp;</div>`;
+                return (
+                    `<tr>` +
+                    (hasPhotos
+                        ? `<td width="52" style="${cell}padding-right:12px;">${tile}</td>`
+                        : '') +
+                    `<td width="48" style="${cell}font-size:14px;font-weight:700;color:${MAIL.ink};white-space:nowrap;">${item.quantity || 0} ×</td>` +
+                    `<td style="${cell}font-size:14px;color:${MAIL.charcoal};">${escapeHtml(item.name || 'Unnamed item')}</td></tr>`
+                );
+            })
             .join('');
         rows.push(
             row(
@@ -279,6 +303,8 @@ export function formatEmailHtmlBody(
 
     const subject = formatEmailSubject(payload);
     const serial = payload.requestSerial || 'Request';
+    const dateRange =
+        requestDateRange(payload, settings.timeZone) || payload.requestMonthYear || '';
     const preheader = status
         ? `${authorName} ${status.headline}.`
         : `${authorName}: ${message.replace(/\s+/g, ' ').trim()}`.slice(0, 140);
@@ -297,8 +323,8 @@ export function formatEmailHtmlBody(
         `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">` +
         row(
             `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${MAIL.paper};border:1px solid ${MAIL.line};font-size:12px;font-weight:600;color:${MAIL.charcoal};">${escapeHtml(serial)}</span>` +
-                (payload.requestMonthYear
-                    ? `<span style="font-size:12px;color:${MAIL.steel};"> &nbsp;${escapeHtml(payload.requestMonthYear)}</span>`
+                (dateRange
+                    ? `<span style="font-size:13px;color:${MAIL.steel};"> &nbsp;${escapeHtml(dateRange)}</span>`
                     : '') +
                 `<h1 style="margin:12px 0 0;font-size:21px;line-height:28px;font-weight:700;color:${MAIL.ink};">${escapeHtml(title)}</h1>`,
             '28px 28px 20px',
@@ -309,6 +335,87 @@ export function formatEmailHtmlBody(
         `<tr><td align="center" style="padding:16px 8px 0;font-size:12px;line-height:18px;color:${MAIL.steel};">Sent by Setu. Replies to this email go to the Setu team.</td></tr>` +
         `</table></td></tr></table></body></html>`
     );
+}
+
+/**
+ * The request's own dates for the email header: an inventory request's
+ * borrowing period, or the span of a program's sessions. Empty when neither is
+ * known. Same day: "4 Sep 2026"; same month: "4 – 6 Sep 2026".
+ */
+export function requestDateRange(payload: EmailPayload, timeZone: string): string {
+    let start: Date | null;
+    let end: Date | null;
+    let zone = timeZone;
+    if (payload.startDate) {
+        // Plain calendar dates carry no time zone; read them as UTC midnights.
+        start = parseSessionDate(`${payload.startDate}T00:00:00Z`);
+        end = parseSessionDate(`${payload.endDate || payload.startDate}T00:00:00Z`);
+        zone = 'UTC';
+    } else {
+        const dates = (payload.sessions || [])
+            .flatMap((session) => [
+                parseSessionDate(session.startAt),
+                parseSessionDate(session.endAt),
+            ])
+            .filter((date): date is Date => Boolean(date))
+            .sort((left, right) => left.getTime() - right.getTime());
+        start = dates[0] || null;
+        end = dates[dates.length - 1] || null;
+    }
+    if (!start || !end) return '';
+    const first = dateParts(start, zone);
+    const last = dateParts(end, zone);
+    const firstDay = `${first.day} ${first.month}`;
+    const lastDay = `${last.day} ${last.month}`;
+    if (first.year !== last.year) return `${firstDay} ${first.year} – ${lastDay} ${last.year}`;
+    if (firstDay === lastDay) return `${firstDay} ${first.year}`;
+    if (first.month === last.month)
+        return `${first.day} – ${last.day} ${first.month} ${first.year}`;
+    return `${firstDay} – ${lastDay} ${first.year}`;
+}
+
+/** The public URL of a stored photo, or '' when there is none to link. */
+export function imageUrlFor(imageId: string | undefined, baseUrl: string | undefined): string {
+    const path = (imageId || '').trim();
+    const base = (baseUrl || '').trim();
+    if (!path || !/^https:\/\//.test(base)) return '';
+    return base.replace(/\/?$/, '/') + path.split('/').map(encodeURIComponent).join('/');
+}
+
+/** An inventory type's display name, matching the one the email queue stores. */
+export function inventoryItemLabel(type: {
+    brand?: string;
+    name?: string;
+    model?: string;
+}): string {
+    return [type.brand, type.name, type.model]
+        .map((part) => (part || '').trim())
+        .filter(Boolean)
+        .join(' · ');
+}
+
+export type RequestDetails = {
+    startDate?: string;
+    endDate?: string;
+    photos: Array<{ label: string; imageId: string }>;
+};
+
+/** Merges what the dispatcher looked up at send time into the stored payload. */
+export function withRequestDetails(payload: EmailPayload, details: RequestDetails): EmailPayload {
+    const imageByLabel = new Map(details.photos.map((photo) => [photo.label, photo.imageId]));
+    return {
+        ...payload,
+        ...(details.startDate ? { startDate: details.startDate } : {}),
+        ...(details.endDate ? { endDate: details.endDate } : {}),
+        ...(payload.items
+            ? {
+                  items: payload.items.map((item) => ({
+                      ...item,
+                      imageId: imageByLabel.get(item.name || '') || undefined,
+                  })),
+              }
+            : {}),
+    };
 }
 
 function row(content: string, padding: string): string {

@@ -310,3 +310,88 @@ test('HTML email lays out sessions and falls back without a request link', async
     assert.match(html, /Open Setu to view the conversation\./);
     assert.doesNotMatch(html, /View request/);
 });
+
+test('header shows the request dates: borrowing period or session span', async () => {
+    const { requestDateRange } = await loadFormat();
+    const range = (payload) => requestDateRange(payload, 'Asia/Kolkata');
+    assert.equal(range({ startDate: '2026-09-04', endDate: '2026-09-04' }), '4 Sep 2026');
+    assert.equal(range({ startDate: '2026-09-04', endDate: '2026-09-06' }), '4 – 6 Sep 2026');
+    assert.equal(range({ startDate: '2026-09-28', endDate: '2026-10-02' }), '28 Sep – 2 Oct 2026');
+    assert.equal(
+        range({ startDate: '2026-12-30', endDate: '2027-01-02' }),
+        '30 Dec 2026 – 2 Jan 2027',
+    );
+    // Program requests use their sessions, read in the configured time zone.
+    assert.equal(
+        range({
+            sessions: [
+                { startAt: '2026-09-04T03:30:00Z', endAt: '2026-09-04T05:00:00Z' },
+                { startAt: '2026-09-06T12:30:00Z', endAt: '2026-09-06T14:15:00Z' },
+            ],
+        }),
+        '4 – 6 Sep 2026',
+    );
+    assert.equal(range({}), '');
+});
+
+test('item photos are linked from the public bucket, never attached', async () => {
+    const {
+        imageUrlFor,
+        inventoryItemLabel,
+        withRequestDetails,
+        formatEmailHtmlBody,
+        buildRawEmail,
+    } = await loadFormat();
+    const base = 'https://project.example.test/storage/v1/object/public/request-images/';
+    assert.equal(
+        imageUrlFor('user/inventory_type/abc/pic one.webp', base),
+        `${base}user/inventory_type/abc/pic%20one.webp`,
+    );
+    assert.equal(imageUrlFor('', base), '');
+    assert.equal(imageUrlFor('a/b.png', undefined), '');
+    assert.equal(imageUrlFor('a/b.png', 'http://insecure.example.test/'), '');
+
+    assert.equal(inventoryItemLabel({ brand: 'Sony', name: 'FX3', model: '' }), 'Sony · FX3');
+    const payload = withRequestDetails(
+        {
+            items: [
+                { name: 'Sony · FX3', quantity: 1 },
+                { name: 'Tripod', quantity: 2 },
+            ],
+        },
+        {
+            startDate: '2026-09-04',
+            endDate: '2026-09-06',
+            photos: [{ label: 'Sony · FX3', imageId: 'u/fx3.webp' }],
+        },
+    );
+    assert.equal(payload.startDate, '2026-09-04');
+    assert.equal(payload.items[0].imageId, 'u/fx3.webp');
+    assert.equal(payload.items[1].imageId, undefined);
+
+    const html = formatEmailHtmlBody(
+        'Hi',
+        { ...payload, authorName: 'Pat' },
+        { appUrl: '', timeZone: 'Asia/Kolkata', imageBaseUrl: base },
+    );
+    assert.match(html, /<img src="https:\/\/project\.example\.test\/[^"]*\/u\/fx3\.webp"/);
+    assert.equal(html.match(/<img /g).length, 1);
+    assert.match(html, /4 – 6 Sep 2026/);
+
+    const noPhotos = formatEmailHtmlBody(
+        'Hi',
+        { items: [{ name: 'Tripod', quantity: 2 }] },
+        { appUrl: '', timeZone: 'Asia/Kolkata', imageBaseUrl: base },
+    );
+    assert.doesNotMatch(noPhotos, /<img /);
+
+    // Linked, not attached: the message stays two plain alternative parts.
+    const mime = decodeBase64Url(
+        buildRawEmail(
+            { id: 'r', recipient: 'a@example.test', attempts: 1, payload },
+            { ...settings, imageBaseUrl: base },
+            'b',
+        ),
+    );
+    assert.doesNotMatch(mime, /Content-Type: image\//);
+});
