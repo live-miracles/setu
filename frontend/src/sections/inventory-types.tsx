@@ -468,17 +468,14 @@ export function InventoryTypesPage({ kind = 'types' }: { kind?: InventoryKind })
                         <span className="whitespace-nowrap text-sm text-steel">
                             {pickedLabelCount} label{pickedLabelCount === 1 ? '' : 's'}
                         </span>
-                        <Space>
-                            <Button onClick={() => toggleQrPdfOpen(false)}>Cancel</Button>
-                            <Button
-                                type="primary"
-                                icon={<Icon name="filePdf" />}
-                                loading={qrPdfBusy}
-                                disabled={!qrPdfLocations.length}
-                                onClick={() => void downloadLabelQrPdf()}>
-                                Download PDF
-                            </Button>
-                        </Space>
+                        <Button
+                            type="primary"
+                            icon={<Icon name="filePdf" />}
+                            loading={qrPdfBusy}
+                            disabled={!qrPdfLocations.length}
+                            onClick={() => void downloadLabelQrPdf()}>
+                            Download PDF
+                        </Button>
                     </div>
                 </Modal>
             )}
