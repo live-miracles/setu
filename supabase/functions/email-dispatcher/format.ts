@@ -318,7 +318,6 @@ export function formatEmailHtmlBody(
         `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">${escapeHtml(preheader)}</div>` +
         `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MAIL.paper}" style="background:${MAIL.paper};"><tr><td align="center" style="padding:24px 12px;">` +
         `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">` +
-        `<tr><td style="padding:0 4px 12px;font-size:13px;font-weight:700;letter-spacing:0.14em;color:${MAIL.accent};">SETU</td></tr>` +
         `<tr><td style="background:${MAIL.surface};border:1px solid ${MAIL.line};border-top:4px solid ${MAIL.accent};border-radius:12px;">` +
         `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">` +
         row(
