@@ -432,6 +432,7 @@ export function HomeContentPage() {
             </Card>
             <ViewsCard />
             <AllowedEmailDomainsPage />
+            <EmailSenderNameCard />
             <EmailCcAddressesCard />
             {(
                 [
@@ -759,6 +760,60 @@ function AllowedEmailDomainsPage() {
                 setRows((current) => current.filter((entry) => entry.domain !== domain));
             }}
         />
+    );
+}
+
+// The display name people see as the sender of every email. Left empty, the
+// server's default name is used.
+function EmailSenderNameCard() {
+    const invalidate = useInvalidate();
+    const homeContent = useHomeContent();
+    const canEdit = canManageConfig(useMe());
+    const [saving, setSaving] = useState(false);
+    if (!canEdit) return null;
+
+    async function save(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        setSaving(true);
+        const emailSenderName = String(new FormData(event.currentTarget).get('senderName') || '');
+        try {
+            const saved = await api.updateHomeContent({ emailSenderName });
+            // An API that has not been updated yet ignores the field; say so
+            // instead of looking like a save.
+            if (typeof saved?.EmailSenderName !== 'string') {
+                throw new Error(
+                    'The server did not save the sender name. Apply the latest database migration and deploy the API first.',
+                );
+            }
+            await invalidate({ resource: 'home-content' });
+        } catch (error) {
+            showErrorAlert(error);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <Card title="Email sender name" className="settings-form-card">
+            <form onSubmit={save}>
+                <Typography.Paragraph type="secondary">
+                    The name shown as the sender of comment, status and reminder emails. Leave it
+                    empty to use the default.
+                </Typography.Paragraph>
+                <Field>
+                    <Input
+                        name="senderName"
+                        aria-label="Email sender name"
+                        maxLength={60}
+                        placeholder="Setu Team"
+                        defaultValue={homeContent.EmailSenderName}
+                    />
+                </Field>
+                <Button type="primary" htmlType="submit" loading={saving}>
+                    Save
+                </Button>
+            </form>
+        </Card>
     );
 }
 

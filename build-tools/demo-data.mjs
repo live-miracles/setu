@@ -172,6 +172,7 @@ export const homeContent = {
         '- Programs need an approved place before they appear on the calendar.',
         '- Return equipment on the end date and report damage in the request comments.',
     ].join('\n'),
+    EmailSenderName: '',
     HiddenViews: [],
     ViewOrder: [
         'programs',

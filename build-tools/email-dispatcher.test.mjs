@@ -305,6 +305,7 @@ test('HTML email lays out sessions and falls back without a request link', async
     assert.match(html, /Time zone \(GMT\+05:30\)/);
     assert.match(html, /Open Setu to view the conversation\./);
     assert.doesNotMatch(html, /View request/);
+    assert.doesNotMatch(html, /Sent by Setu|Replies to this email/);
 });
 
 test('header shows the request dates: borrowing period or session span', async () => {

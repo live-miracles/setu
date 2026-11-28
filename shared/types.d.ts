@@ -227,6 +227,8 @@ interface Block {
 
 interface HomeContent {
     Guidelines: string;
+    // Display name on outgoing emails; empty uses the server default.
+    EmailSenderName: string;
     // Keys of the views an admin hid from the navigation and home screen
     // (see supabase/functions/_shared/views.ts). Presentation only.
     HiddenViews: string[];
@@ -519,6 +521,7 @@ interface UpdateProgramRequestInput {
 // Fields that are left out stay as they are.
 interface UpdateHomeContentInput {
     guidelines?: string;
+    emailSenderName?: string;
     hiddenViews?: string[];
     viewOrder?: string[];
 }

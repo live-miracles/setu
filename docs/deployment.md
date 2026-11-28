@@ -154,10 +154,12 @@ select vault.create_secret('<same-random-string>', 'setu_email_dispatch_secret')
 ```
 
 `GMAIL_SENDER` must be the authorized mailbox's address (or one of its Gmail
-“Send mail as” aliases). Optional secrets: `EMAIL_SENDER_NAME` (defaults to
-`Live Stream Setu`), `EMAIL_REPLY_TO` (where replies should go instead of the
-sending mailbox), `EMAIL_TIME_ZONE` for session times (defaults to
-`Asia/Kolkata`). Addresses that should receive a copy of every email are
+“Send mail as” aliases). Optional secrets: `EMAIL_REPLY_TO` (where replies
+should go instead of the sending mailbox) and `EMAIL_TIME_ZONE` for session
+times (defaults to `Asia/Kolkata`). The sender name is managed by an Admin in
+the app (**Other settings → Email sender name**, stored in
+`home_content.email_sender_name`) and defaults to `Setu Team` until one
+is set. Addresses that should receive a copy of every email are
 managed by an Admin in the app (**Other settings → Email copies (CC)**, stored
 in the `email_cc_addresses` table), not as a secret; the dispatcher reads the
 list on every run. They are added alongside the request participants and the

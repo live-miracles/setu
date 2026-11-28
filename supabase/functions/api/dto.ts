@@ -13,6 +13,7 @@ export function timeDto(value: unknown): string {
 export function homeContentDto(row: Row): Row {
     return {
         Guidelines: row.guidelines,
+        EmailSenderName: String(row.email_sender_name || ''),
         HiddenViews: normalizeHiddenViews(row.hidden_views),
         ViewOrder: normalizeViewOrder(row.view_order),
     };

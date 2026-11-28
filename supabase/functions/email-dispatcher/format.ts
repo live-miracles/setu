@@ -329,7 +329,6 @@ export function formatEmailHtmlBody(
         `<tr><td style="padding:0 28px;"><div style="border-top:1px solid ${MAIL.line};font-size:0;line-height:0;">&nbsp;</div></td></tr>` +
         rows.join('') +
         `</table></td></tr>` +
-        `<tr><td align="center" style="padding:16px 8px 0;font-size:12px;line-height:18px;color:${MAIL.steel};">Sent by Setu. Replies to this email go to the Setu team.</td></tr>` +
         `</table></td></tr></table></body></html>`
     );
 }

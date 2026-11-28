@@ -16,6 +16,9 @@ import { secretsMatch } from './secret.ts';
 // clock limit and the scheduler's HTTP timeout.
 const DISPATCH_BATCH_SIZE = 50;
 
+// The sender name until an admin sets one in Other settings.
+const DEFAULT_SENDER_NAME = 'Setu Team';
+
 const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -46,7 +49,8 @@ function readConfig(): GmailConfig | null {
             imageBaseUrl: `${env('SUPABASE_URL').replace(/\/$/, '')}/storage/v1/object/public/request-images/`,
             timeZone: env('EMAIL_TIME_ZONE') || 'Asia/Kolkata',
             senderEmail: env('GMAIL_SENDER'),
-            senderName: env('EMAIL_SENDER_NAME') || 'Live Stream Setu',
+            // Overridden by the name an admin sets in Other settings.
+            senderName: DEFAULT_SENDER_NAME,
             replyTo: env('EMAIL_REPLY_TO'),
             // Filled from the email_cc_addresses table on every run.
             ccEmails: [] as string[],
@@ -168,6 +172,23 @@ async function loadCcEmails(): Promise<string[]> {
     return (data || []).map((row) => String(row.email));
 }
 
+/**
+ * The sender name an admin set in Other settings. Empty or a failed read falls
+ * back to the default name, so a settings problem never blocks delivery.
+ */
+async function loadSenderName(): Promise<string> {
+    const { data, error } = await supabase
+        .from('home_content')
+        .select('email_sender_name')
+        .eq('id', true)
+        .maybeSingle();
+    if (error) {
+        console.error(`Could not read the sender name: ${error.message}`);
+        return '';
+    }
+    return String(data?.email_sender_name || '').trim();
+}
+
 async function updateRow(id: string, values: Record<string, string>): Promise<void> {
     const { error } = await supabase.from('email_outbox').update(values).eq('id', id);
     if (error) console.error(`Could not update email row ${id}: ${error.message}`);
@@ -190,7 +211,11 @@ Deno.serve(async (request) => {
         return Response.json({ error: 'Gmail authorization failed' }, { status: 502 });
     }
 
-    const settings = { ...config.settings, ccEmails: await loadCcEmails() };
+    const settings = {
+        ...config.settings,
+        ccEmails: await loadCcEmails(),
+        senderName: (await loadSenderName()) || config.settings.senderName,
+    };
 
     const { data, error } = await supabase.rpc('claim_comment_email_batch', {
         batch_size: DISPATCH_BATCH_SIZE,

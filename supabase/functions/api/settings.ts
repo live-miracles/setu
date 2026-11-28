@@ -845,6 +845,18 @@ export async function deleteBlock(
     if (error) throw new Error(error.message);
 }
 
+const MAX_SENDER_NAME_LENGTH = 60;
+
+// A display name for the From header: one line, no control characters or the
+// characters that delimit an address, at most MAX_SENDER_NAME_LENGTH long.
+function normalizeSenderName(value: unknown): string {
+    return String(value ?? '')
+        .replace(/[\u0000-\u001f\u007f<>"]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_SENDER_NAME_LENGTH);
+}
+
 export async function updateHomeContent(
     client: SupabaseClient,
     admin: SupabaseClient,
@@ -858,6 +870,9 @@ export async function updateHomeContent(
     if (input.guidelines !== undefined) changes.guidelines = String(input.guidelines || '');
     if (input.hiddenViews !== undefined) {
         changes.hidden_views = normalizeHiddenViews(input.hiddenViews);
+    }
+    if (input.emailSenderName !== undefined) {
+        changes.email_sender_name = normalizeSenderName(input.emailSenderName);
     }
     if (input.viewOrder !== undefined) changes.view_order = normalizeViewOrder(input.viewOrder);
     const row = result(

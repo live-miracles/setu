@@ -200,6 +200,9 @@ const writes = {
     performProgramRequestAction: performAction(data.programRequests),
     performInventoryRequestAction: performAction(data.inventoryRequests),
     updateHomeContent: (input) => {
+        if (typeof input.emailSenderName === 'string') {
+            data.homeContent.EmailSenderName = input.emailSenderName;
+        }
         if (Array.isArray(input.hiddenViews)) data.homeContent.HiddenViews = input.hiddenViews;
         if (Array.isArray(input.viewOrder)) data.homeContent.ViewOrder = input.viewOrder;
         return data.homeContent;
