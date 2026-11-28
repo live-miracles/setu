@@ -67,6 +67,22 @@ export function renderShell({ title, favicon, head, body }) {
         .replace('<!--#BODY#-->', () => body);
 }
 
+/**
+ * A second Content-Security-Policy, as a <meta> tag, that narrows network and
+ * image requests to this deployment's own Supabase project. vercel.json can
+ * only hold fixed text, so its header allows any `https://*.supabase.co`; the
+ * browser enforces both policies, so the exact host from SETU_SUPABASE_URL is
+ * what applies. Returns '' when the URL is missing, leaving the header alone.
+ * @param {string} supabaseUrl
+ */
+export function supabaseCspMeta(supabaseUrl) {
+    if (!supabaseUrl) return '';
+    const url = new URL(supabaseUrl);
+    if (url.protocol !== 'https:') throw new Error('SETU_SUPABASE_URL must be an https URL.');
+    const host = url.origin;
+    return `<meta http-equiv="Content-Security-Policy" content="connect-src 'self' ${host}; img-src 'self' data: blob: ${host}" />`;
+}
+
 function inlineScript(script) {
     // The browser parses the HTML before this inline JavaScript. Escape
     // script/template delimiters and raw control characters that can be

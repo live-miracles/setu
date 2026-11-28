@@ -385,3 +385,16 @@ test('the Content-Security-Policy allows exactly the inline theme script in shel
     assert.doesNotMatch(policy, /script-src[^;]*'unsafe-inline'/);
     assert.doesNotMatch(policy, /script-src[^;]*'unsafe-eval'/);
 });
+
+test('the deployed page narrows network and image requests to its own Supabase host', async () => {
+    const { supabaseCspMeta } = await import(new URL('build-tools/shell.mjs', rootUrl).href);
+    const meta = supabaseCspMeta('https://abcdefghijklmnopqrst.supabase.co/');
+    assert.match(meta, /^<meta http-equiv="Content-Security-Policy" content="[^"]+" \/>$/);
+    assert.match(meta, /connect-src 'self' https:\/\/abcdefghijklmnopqrst\.supabase\.co;/);
+    assert.match(meta, /img-src 'self' data: blob: https:\/\/abcdefghijklmnopqrst\.supabase\.co"/);
+    assert.doesNotMatch(meta, /\*/);
+    assert.equal(supabaseCspMeta(''), '', 'no URL leaves only the header policy');
+    assert.throws(() => supabaseCspMeta('http://abc.supabase.co'), /https/);
+    const build = await readFile(new URL('build-tools/vercel.mjs', rootUrl), 'utf8');
+    assert.match(build, /supabaseCspMeta\(supabaseUrl\)/, 'the Vercel build adds the policy');
+});

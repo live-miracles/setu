@@ -55,6 +55,31 @@ test('participant lists are validated, de-duplicated and capped', async () => {
     assert.throws(() => inventory.parseParticipants(many), /at most 50/);
 });
 
+test('participants must be on an allowed email domain', async () => {
+    const requests = await loadBundle(
+        `export { outsideAllowedDomains, requireAllowedParticipantDomains } from './supabase/functions/api/requests';`,
+    );
+    const emails = ['a@example.org', 'b@other.org', 'c@EXAMPLE.org'];
+    assert.deepEqual(requests.outsideAllowedDomains(emails, []), [], 'empty allowlist allows all');
+    assert.deepEqual(requests.outsideAllowedDomains(emails, ['Example.org']), ['b@other.org']);
+
+    const adminWith = (domains) => ({
+        from: (table) => {
+            assert.equal(table, 'allowed_email_domains');
+            return {
+                select: () => ({
+                    eq: async () => ({ data: domains.map((domain) => ({ domain })), error: null }),
+                }),
+            };
+        },
+    });
+    await requests.requireAllowedParticipantDomains(adminWith(['example.org']), ['a@example.org']);
+    await assert.rejects(
+        requests.requireAllowedParticipantDomains(adminWith(['example.org']), emails),
+        /approved organisation email address: b@other\.org\./,
+    );
+});
+
 function deleteUserFixture({ counts = [0, 0, 0, 0], actorId = 'admin-1' } = {}) {
     const deleted = [];
     const countTables = ['inventory_requests', 'program_requests', 'rosters', 'comments'];

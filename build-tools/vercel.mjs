@@ -11,6 +11,7 @@ import {
     esbuildOptions,
     renderShell,
     stampServiceWorker,
+    supabaseCspMeta,
 } from './shell.mjs';
 
 const webDir = path.join(root, 'web');
@@ -37,7 +38,7 @@ writeFileSync(
     renderShell({
         title: 'Setu',
         favicon: '<link rel="icon" type="image/png" href="/icons/icon-192.png" />',
-        head: '<link rel="stylesheet" href="/app.css" />',
+        head: `${supabaseCspMeta(supabaseUrl)}<link rel="stylesheet" href="/app.css" />`,
         body: '<script src="/app.js"></script>',
     }),
 );

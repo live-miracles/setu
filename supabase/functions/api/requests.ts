@@ -73,12 +73,43 @@ export function parseParticipants(raw: unknown): string[] {
     return Array.from(seen);
 }
 
+// The participants whose domain is not on the allowlist. An empty allowlist
+// allows every domain, the same rule as is_email_domain_allowed in SQL.
+export function outsideAllowedDomains(emails: string[], allowedDomains: string[]): string[] {
+    if (!allowedDomains.length) return [];
+    const allowed = new Set(allowedDomains.map((domain) => domain.toLowerCase()));
+    return emails.filter((email) => !allowed.has(email.split('@')[1]?.toLowerCase() || ''));
+}
+
+// Every comment on a request is emailed to its participants, so only addresses
+// on the allowed email domains may be added: the app's sender must not be usable
+// to mail people outside the organisation.
+export async function requireAllowedParticipantDomains(
+    admin: SupabaseClient,
+    emails: string[],
+): Promise<void> {
+    if (!emails.length) return;
+    const domains = result(
+        await admin.from('allowed_email_domains').select('domain').eq('enabled', true),
+    ) as Row[];
+    const outside = outsideAllowedDomains(
+        emails,
+        domains.map((row) => String(row.domain)),
+    );
+    if (outside.length) {
+        throw new Error(
+            `Participants must have an approved organisation email address: ${outside.slice(0, 5).join(', ')}${outside.length > 5 ? ', …' : ''}.`,
+        );
+    }
+}
+
 // Resolves each participant email to a profile row when one exists (citext,
 // case-insensitive), or keeps it as an external_email otherwise — mirrors
 // the child participant tables' `num_nonnulls(profile_id, external_email)
-// = 1` constraint.
+// = 1` constraint. Refuses addresses outside the allowed email domains.
 export async function resolveParticipants(admin: SupabaseClient, emails: string[]): Promise<Row[]> {
     if (!emails.length) return [];
+    await requireAllowedParticipantDomains(admin, emails);
     const profiles = result(
         await admin.from('profiles').select('id, email').in('email', emails),
     ) as Row[];

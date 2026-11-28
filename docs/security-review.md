@@ -39,6 +39,7 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 
 - Users cannot change their own role or email through the application or direct Data API access.
 - Only Admins can manage the allowed email-domain list, the list of addresses copied on comment emails, and user roles.
+- Participants added to a request must have an address on an allowed email domain. Every comment and status change is emailed to a request's participants from the organisation's sender, so the app cannot be used to mail people outside the organisation. With an empty allowlist (see section 4) any domain is accepted.
 - The CC list (`email_cc_addresses`) is readable and writable only by Admins through Row Level Security and the API, holds at most 20 valid addresses, and is read by the email dispatcher with the service role. Anyone on it receives every comment and status email, including the request text, so only Admins decide who is added.
 - Request data is restricted by ownership, participation (including being the request's lead), and operational role.
 - Comments are limited to people who can read the request (owners, participants, the request's lead, Admins and Approvers) other than Viewers, and authorship must match the authenticated user.
@@ -59,9 +60,9 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 - Concurrent issuance cannot commit more inventory than is available.
 - Concurrent approvals cannot commit conflicting use of the same place, and neither can concurrent edits: saving a program request re-checks place availability under the same place lock.
 - Creating or editing a request writes the request and its items, sessions and participants in one transaction (`save_inventory_request_tx`, `save_program_request_tx`), so a failure leaves no half-saved request. An edit is refused if the request changed status after the caller's permission was checked. An edit never carries a status: any `status` sent by a client is ignored, because the status only changes through workflow actions.
-- The request list functions (`list_*_requests_page`) are `SECURITY DEFINER` so they can match on a requester's name; each row is still limited to requests the caller may view (`can_view_*_request`).
+- The request list functions (`list_*_requests_page`) are `SECURITY DEFINER` so they can match on a requester's name; each row is still limited to requests the caller may view (`can_view_*_request`), and a page holds at most 100 requests whatever size the caller asks for.
 - Status changes and their activity rows commit in one transaction and roll back together on failure.
-- Activity rows come in three kinds (`comment`, `status`, `edit`). Row Level Security lets the Data API insert plain comments only (`kind = 'comment'`, no structured data), so a user cannot forge a status or edit entry; only the service-only SQL functions write those. Edit entries store just the changed fields, capped in size, and are recorded only after a request leaves draft.
+- Activity rows come in three kinds (`comment`, `status`, `edit`). Row Level Security lets the Data API insert plain comments only (`kind = 'comment'`, no structured data), so a user cannot forge a status or edit entry; only the service-only SQL functions write those. A comment's time is set by the database when a signed-in user posts it, not by the client. Edit entries store just the changed fields, capped in size, and are recorded only after a request leaves draft.
 
 ## 4 Intentional Design Decisions
 
@@ -125,7 +126,8 @@ An Admin can hide the Program requests, Inventory requests, Calendar, Roster, In
 - Each production change has a recorded Git commit, CI run, migration run, and deployment result.
 - The Progressive Web App caches only same-origin static assets; API responses and operational images remain network-first.
 - Production is served through HTTPS with HSTS enabled.
-- Every response carries a Content-Security-Policy that allows scripts only from the app's own origin (plus one hashed inline theme script), blocks plugins and framing, and limits network and image connections to the app and Supabase. `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` are also set.
+- Every response carries a Content-Security-Policy that allows scripts only from the app's own origin (plus one hashed inline theme script), blocks plugins and framing, and limits network and image connections to the app and Supabase. `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` are also set. The header is fixed text in `vercel.json`, so it names Supabase as `https://*.supabase.co`; the build adds a second policy to the page (a `<meta>` tag from `SETU_SUPABASE_URL`) that limits network and image connections to this deployment's own Supabase project, and the browser enforces both.
+- The Data API exposes only the `public` schema. Images go through the Storage API (signed uploads and public URLs), not the Data API.
 - Google sign-in uses the PKCE flow, so the redirect back to the app carries a one-time code that only the originating browser can exchange, not an access token.
 
 ## 6 Verification Completed

@@ -70,15 +70,16 @@ try {
             select public.viewer_can_see((select requester_id from public.program_requests where id = target))
         $$;
     `);
-    await db.exec(
-        await readFile(
-            new URL(
-                '../supabase/migrations/20261124020000_request_list_pages.sql',
-                import.meta.url,
-            ),
-            'utf8',
-        ),
-    );
+    // The original functions, then the page-size cap that replaces them: every
+    // check below runs against the capped version.
+    for (const migration of [
+        '20261124020000_request_list_pages.sql',
+        '20261202010000_cap_request_list_page_size.sql',
+    ]) {
+        await db.exec(
+            await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'),
+        );
+    }
     const asRole = (role, uid = '') =>
         db.exec(
             `select set_config('test.role', '${role}', false), set_config('test.uid', '${uid}', false)`,
@@ -152,6 +153,11 @@ try {
     result = await page('list_inventory_requests_page', {}, 3);
     assert.deepEqual(await names(result), ['Shoot 11', 'Shoot 12']);
     assert.deepEqual(await page('list_inventory_requests_page', {}, 4).then((v) => v.ids), []);
+    // The page size is clamped to 1..100, whatever the caller asks for.
+    assert.equal((await page('list_inventory_requests_page', {}, 1, 100000)).ids.length, 12);
+    assert.equal((await page('list_inventory_requests_page', {}, 1, 0)).ids.length, 1);
+    assert.equal((await page('list_inventory_requests_page', {}, 1, -5)).ids.length, 1);
+    assert.equal((await page('list_inventory_requests_page', {}, 1, null)).ids.length, 12);
 
     // Status counts ignore the status filter; the filter narrows total and ids.
     result = await page('list_inventory_requests_page', { statuses: ['approved'] });
@@ -295,6 +301,14 @@ try {
         `select has_function_privilege('anon', 'public.list_inventory_requests_page(jsonb, integer, integer)', 'execute') as ok`,
     );
     assert.equal(rows[0].ok, false);
+
+    // Last, since it adds rows: no page holds more than 100 requests.
+    await db.exec(`
+        insert into inventory_requests (name, requester_id, start_date, end_date)
+        select 'Bulk ' || n, '${uuid(1)}', current_date, current_date from generate_series(1, 100) n;
+    `);
+    await asRole('approver');
+    assert.equal((await page('list_inventory_requests_page', {}, 1, 100000)).ids.length, 100);
     console.log('request list pages db check passed');
 } finally {
     await db.close();

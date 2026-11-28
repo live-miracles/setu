@@ -10,9 +10,13 @@ uri = "pg-functions://postgres/public/restrict_user_by_email_domain"
 [functions.email-dispatcher]
 verify_jwt = false
 
+# Only the app's own tables are exposed through the Data API. Storage is used
+# through the Storage API (signed upload URLs, public image URLs), which does not
+# need the storage schema exposed here. Keep the hosted project's Data API
+# "Exposed schemas" setting in step with this list.
 [api]
 enabled = true
-schemas = ["public", "storage"]
+schemas = ["public"]
 extra_search_path = ["public", "extensions"]
 
 [storage]
