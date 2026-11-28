@@ -146,6 +146,8 @@ try {
         await db.exec(await migration(name));
     }
     await db.exec(await migration('20261128000000_activity_events.sql'));
+    // The latest comment email trigger: the same, without the reminder flag.
+    await db.exec(await migration('20261202050000_drop_automated_reminder_flag.sql'));
 
     const rows = async (sql, params = []) => (await db.query(sql, params)).rows;
     const one = async (sql, params = []) => (await rows(sql, params))[0];
@@ -478,6 +480,10 @@ try {
     const commentMail = sent.find((payload) => payload.kind === 'comment');
     assert.equal(commentMail.message, 'Thanks');
     assert.ok(!commentMail.statusFrom, 'comments carry no status change');
+    assert.ok(
+        sent.every((payload) => !('automatedReminder' in payload)),
+        'comment emails carry no reminder flag',
+    );
 
     // --- grants --------------------------------------------------------------
     for (const signature of [
