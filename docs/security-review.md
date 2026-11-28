@@ -37,7 +37,7 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 
 ### Identity and data access
 
-- Users cannot change their own role or email through the application or direct Data API access.
+- Users cannot change their own role or email through the application or direct Data API access. Their own name, phone and WhatsApp edits keep the application's length limits on both paths.
 - Only Admins can manage the allowed email-domain list, the list of addresses copied on comment emails, and user roles.
 - Participants added to a request must have an address on an allowed email domain. Every comment and status change is emailed to a request's participants from the organisation's sender, so the app cannot be used to mail people outside the organisation. With an empty allowlist (see section 4) any domain is accepted.
 - The CC list (`email_cc_addresses`) is readable and writable only by Admins through Row Level Security and the API, holds at most 20 valid addresses, and is read by the email dispatcher with the service role. Anyone on it receives every comment and status email, including the request text, so only Admins decide who is added.
@@ -55,11 +55,11 @@ Authorization is enforced on the backend and in PostgreSQL. Frontend visibility 
 
 ### Workflow integrity
 
-- Request transitions execute through service-role-only PostgreSQL functions.
+- Request transitions execute through service-role-only PostgreSQL functions, which apply the role rules themselves, Viewers included, rather than relying on the API alone.
 - Request, inventory, and scheduling rows are locked before state and availability checks.
 - Concurrent issuance cannot commit more inventory than is available.
 - Concurrent approvals cannot commit conflicting use of the same place, and neither can concurrent edits: saving a program request re-checks place availability under the same place lock.
-- Creating or editing a request writes the request and its items, sessions and participants in one transaction (`save_inventory_request_tx`, `save_program_request_tx`), so a failure leaves no half-saved request. An edit is refused if the request changed status after the caller's permission was checked. An edit never carries a status: any `status` sent by a client is ignored, because the status only changes through workflow actions.
+- Creating or editing a request writes the request and its items, sessions and participants in one transaction (`save_inventory_request_tx`, `save_program_request_tx`), so a failure leaves no half-saved request. Requests can be created only this way: the Data API gives signed-in users no insert access to the request tables. An edit is refused if the request changed status after the caller's permission was checked. An edit never carries a status: any `status` sent by a client is ignored, because the status only changes through workflow actions.
 - The request list functions (`list_*_requests_page`) are `SECURITY DEFINER` so they can match on a requester's name; each row is still limited to requests the caller may view (`can_view_*_request`), and a page holds at most 100 requests whatever size the caller asks for.
 - Status changes and their activity rows commit in one transaction and roll back together on failure.
 - Activity rows come in three kinds (`comment`, `status`, `edit`). Row Level Security lets the Data API insert plain comments only (`kind = 'comment'`, no structured data), so a user cannot forge a status or edit entry; only the service-only SQL functions write those. A comment's time is set by the database when a signed-in user posts it, not by the client. Edit entries store just the changed fields, capped in size, and are recorded only after a request leaves draft.
@@ -104,7 +104,11 @@ Accepted consequences:
 
 ### Viewer role reads every request
 
-The Viewer role exists for oversight: it can read every program and inventory request, with its comments and participant email addresses, so that people outside the approval chain can follow the work. It cannot create, edit, transition, delete, comment on or upload for any request. The restriction is enforced in the API and in Row Level Security, including direct Data API writes, and Admins decide who holds the role.
+The Viewer role exists for oversight: it can read every program and inventory request, with its comments and participant email addresses, so that people outside the approval chain can follow the work. It cannot create, edit, transition, delete, comment on or upload for any request. The restriction is enforced in the API, in Row Level Security (including direct Data API writes) and in the workflow functions, and Admins decide who holds the role.
+
+### Email dispatcher reachable without a user token
+
+The `email-dispatcher` Edge Function is deployed with JWT verification off (`verify_jwt = false`), because `pg_cron` calls it on a schedule, not a signed-in user. Every call must carry a shared secret (`x-dispatch-secret`), compared in constant time; the database reads its copy from Vault, and the function from its own secrets. A call without the secret gets a 401 and sends nothing, and a call made before the function is configured only learns that it is not configured. The function sends only what is already queued in the outbox, so a caller cannot choose recipients or content. Overdue-return reminders are queued there by a service-only scheduled function as emails; they are not posted as comments.
 
 ### Database error text in API responses
 

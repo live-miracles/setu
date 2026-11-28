@@ -38,6 +38,8 @@ const APPROVER = uuid(4);
 // who is only listed by email on it: both are parties through their profile email.
 const LEAD = uuid(5);
 const EMAIL_LISTED = uuid(6);
+// A Viewer listed on the request: on it, but read-only, so it may do nothing.
+const VIEWER_PARTY = uuid(7);
 // [actor profile, role, is the actor on the request]
 const ACTORS = [
     [REQUESTER, 'user', true],
@@ -46,6 +48,7 @@ const ACTORS = [
     [APPROVER, 'approver', false],
     [LEAD, 'user', true],
     [EMAIL_LISTED, 'user', true],
+    [VIEWER_PARTY, 'viewer', true],
 ];
 
 try {
@@ -117,9 +120,11 @@ try {
     await db.exec(await migration('20261115000000_no_cancel_for_drafts.sql'));
     // The latest definition of the workflow functions: lead and email-listed parties.
     await db.exec(await migration('20261201020000_lead_and_cc_are_parties.sql'));
+    // ...which also refuse Viewers.
+    await db.exec(await migration('20261202040000_viewers_refused_in_request_actions.sql'));
 
     await db.query(
-        'insert into profiles values ($1, $2, $3), ($4, $5, $6), ($7, $8, $9), ($10, $11, $12), ($13, $14, $15), ($16, $17, $18)',
+        'insert into profiles values ($1, $2, $3), ($4, $5, $6), ($7, $8, $9), ($10, $11, $12), ($13, $14, $15), ($16, $17, $18), ($19, $20, $21)',
         [
             REQUESTER,
             'user',
@@ -139,6 +144,9 @@ try {
             EMAIL_LISTED,
             'user',
             'listed@example.org',
+            VIEWER_PARTY,
+            'viewer',
+            'viewer@example.org',
         ],
     );
     // Everything the SQL checks beyond the transition itself is satisfied, so
@@ -186,6 +194,10 @@ try {
             `insert into ${kind}_request_participants (request_id, external_email) values ($1, $2)`,
             [requestId, 'Listed@example.org'],
         );
+        await db.query(`insert into ${kind}_request_participants values ($1, $2)`, [
+            requestId,
+            VIEWER_PARTY,
+        ]);
     }
     await db.exec('set role service_role');
 
@@ -208,7 +220,7 @@ try {
                         allowedBySql = false;
                         assert.match(
                             String(error.message),
-                            /Invalid transition|Approver access|Only an accessible|Unsupported action/,
+                            /Invalid transition|Approver access|Only an accessible|Unsupported action|Viewer access/,
                             `${kind} ${action} on ${status}: unexpected SQL failure`,
                         );
                     }

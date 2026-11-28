@@ -1,7 +1,8 @@
 // Isolated PostgreSQL check of migration 20261202000000: the domain allowlist
-// refuses addresses that are blank or not of the form one@domain, a signed-in
-// user cannot choose a comment's time, and a typed comment does not suppress the
-// daily overdue reminder. Does not connect to hosted data. Runs as part of
+// refuses addresses that are blank or not of the form one@domain, and a
+// signed-in user cannot choose a comment's time. (Its reminder change was
+// replaced by 20261202020000; see overdue-reminders-db-check.mjs.) Does not
+// connect to hosted data. Runs as part of
 // `npm test` (db-checks.test.mjs); to run it alone:
 // node build-tools/email-and-comment-time-db-check.mjs /absolute/path/to/pglite/dist/index.js
 import assert from 'node:assert/strict';
@@ -82,28 +83,6 @@ try {
         )
     ).rows[0].kept;
     assert.equal(kept, true, 'service role keeps its created_at');
-
-    // A person typing the reminder's opening words does not stop the reminder.
-    await db.exec(
-        `insert into public.inventory_requests values ('${request}', 'issued', current_date - 5)`,
-    );
-    await db.exec(
-        `insert into public.comments (inventory_request_id, author_id, message)
-         values ('${request}', '${uuid(9)}', 'This is a reminder that the equipment you borrowed was due to be returned on whenever')`,
-    );
-    const reminders = async () =>
-        Number(
-            (
-                await db.query(
-                    `select count(*) as n from public.comments
-                      where inventory_request_id = '${request}' and author_id is null and author_name = 'Setu Bot'`,
-                )
-            ).rows[0].n,
-        );
-    await db.query('select public.create_overdue_inventory_reminders()');
-    assert.equal(await reminders(), 1, 'a typed look-alike does not suppress the reminder');
-    await db.query('select public.create_overdue_inventory_reminders()');
-    assert.equal(await reminders(), 1, 'still one system reminder a day');
 
     console.log('email and comment time check passed');
 } finally {

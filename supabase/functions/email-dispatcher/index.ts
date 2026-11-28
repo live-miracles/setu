@@ -111,7 +111,7 @@ async function findThreadId(row: EmailOutboxRow): Promise<string> {
     const { data, error } = await supabase
         .from('email_outbox')
         .select('provider_thread_id')
-        .eq('template', 'comment')
+        .in('template', ['comment', 'overdue_reminder'])
         .eq('status', 'sent')
         .eq('payload->>targetId', targetId)
         .not('provider_thread_id', 'is', null)

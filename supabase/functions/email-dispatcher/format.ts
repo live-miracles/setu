@@ -18,13 +18,13 @@ export type EmailPayload = {
     endDate?: string;
     authorName?: string;
     // 'status' for a workflow action (statusFrom, statusTo and statusNote say
-    // what changed); anything else is a plain comment.
+    // what changed), 'reminder' for an overdue-return reminder from the daily
+    // job; anything else is a plain comment.
     kind?: string;
     statusFrom?: string | null;
     statusTo?: string | null;
     statusNote?: string | null;
     requestPath?: string;
-    automatedReminder?: boolean;
     sessions?: EmailSession[];
     items?: Array<{ name?: string; quantity?: number; imageId?: string }>;
 };
